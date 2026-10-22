@@ -37,7 +37,8 @@ final class Pwa extends PluginBase
 			. "\n\t" . '<meta name="theme-color" content="'
 				. htmlspecialchars($this->themeColor(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">'
 			. "\n\t" . '<link rel="apple-touch-icon" href="' . $this->iconHref($b) . '">'
-			. "\n\t" . '<script src="' . $b . '/assets/plugin/pwa/register.js" defer></script>';
+			. "\n\t" . '<script src="' . $b . '/assets/plugin/pwa/register.js?v='
+				. rawurlencode($this->version()) . '" defer></script>';
 	}
 
 	private function routes(Router $router): void
@@ -68,7 +69,8 @@ final class Pwa extends PluginBase
 				['icon-maskable-512.png', '512x512', 'maskable'],
 			] as [$file, $sizes, $purpose]) {
 				$icons[] = [
-					'src' => $base . 'assets/plugin/pwa/' . $file,
+					'src' => $base . 'assets/plugin/pwa/' . $file
+						. '?v=' . rawurlencode($this->version()),
 					'sizes' => $sizes, 'type' => 'image/png', 'purpose' => $purpose,
 				];
 			}
@@ -137,7 +139,8 @@ JS;
 		if (self::isIconUrl($iconUrl)) {
 			return htmlspecialchars($iconUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 		}
-		return $escapedBase . '/assets/plugin/pwa/icon-192.png';
+		return $escapedBase . '/assets/plugin/pwa/icon-192.png?v='
+			. rawurlencode($this->version());
 	}
 
 	private static function isIconUrl(string $url): bool

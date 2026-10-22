@@ -4,10 +4,10 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title><?= htmlspecialchars($app->config()->get('app_name')) ?> — <?= $t('maintenance.title') ?></title>
-	<link rel="icon" href="<?= $base ?>/favicon.ico">
-	<link rel="stylesheet" href="<?= $base ?>/assets/vendor/bootstrap/css/bootstrap.min.css">
-	<link rel="stylesheet" href="<?= $base ?>/assets/vendor/fontawesome/css/all.min.css">
-	<link id="theme-css" rel="stylesheet" href="<?= $base ?>/assets/theme/<?= $theme ?>/app.css">
+	<link rel="icon" href="<?= $faviconUrl ?>">
+	<link rel="stylesheet" href="<?= $assets ?>/vendor/bootstrap/css/bootstrap.min.css">
+	<link rel="stylesheet" href="<?= $assets ?>/vendor/fontawesome/css/all.min.css">
+	<link id="theme-css" rel="stylesheet" href="<?= $base ?>/assets/theme/<?= $theme ?>/app.css?v=<?= $themeVer ?>">
 	<?= $themeHead ?>
 	<?= $themeScript ?>
 </head>

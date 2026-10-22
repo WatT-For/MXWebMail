@@ -56,6 +56,39 @@ final class PageController
 			$this->app->locale()->t($key, $params), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 	}
 
+	/**
+	 * Sert un asset fichier avec cache navigateur configurable :
+	 * Cache-Control public max-age=<ttl> (+ immutable si ?v=), et quand
+	 * http.etag : ETag (sha1 chemin|mtime|taille) + Last-Modified + 304 sur
+	 * If-None-Match. $ttl ≤ 0 → max-age=0 (revalidation à chaque requête).
+	 */
+	private function serveAsset(Request $request, string $path, string $mime, int $ttl,
+		array $extraHeaders = []): Response
+	{
+		$http = (array) $this->app->config()->get('http', []);
+		$mtime = (int) filemtime($path);
+		$headers = $extraHeaders + [
+			'Content-Type'  => $mime,
+			'Cache-Control' => 'public, max-age=' . max(0, $ttl)
+				. (($request->query['v'] ?? '') !== '' ? ', immutable' : ''),
+		];
+		if ($http['etag'] ?? true) {
+			$etag = '"' . substr(sha1($path . '|' . $mtime . '|' . filesize($path)), 0, 16) . '"';
+			$headers['ETag'] = $etag;
+			$headers['Last-Modified'] = gmdate('D, d M Y H:i:s', $mtime) . ' GMT';
+			if (str_contains((string) $request->header('If-None-Match'), $etag)) {
+				return new Response('', 304, $headers);
+			}
+		}
+		return new Response((string) file_get_contents($path), 200, $headers);
+	}
+
+	private function httpTtl(string $key, int $default): int
+	{
+		$http = (array) $this->app->config()->get('http', []);
+		return (int) ($http[$key] ?? $default);
+	}
+
 	/** Assets statiques des plugins : /assets/plugin/{name}/{file} — extensions whitelistées. */
 	public function pluginAsset(Request $request): Response
 	{
@@ -88,11 +121,8 @@ final class PageController
 		if (!is_file($path)) {
 			return Response::notFound();
 		}
-		return new Response(
-			(string) file_get_contents($path),
-			200,
-			['Content-Type' => $allowed[$ext], 'Cache-Control' => 'public, max-age=3600']
-		);
+		return $this->serveAsset($request, $path, $allowed[$ext],
+			$this->httpTtl('assets_ttl', 86400));
 	}
 
 	/**
@@ -120,13 +150,14 @@ final class PageController
 		if (!is_file($path)) {
 			return Response::notFound();
 		}
-		$headers = ['Content-Type' => $types[$ext], 'Cache-Control' => 'public, max-age=300'];
+		$headers = [];
 		// Un SVG servi en direct est same-origin : couper tout script embarqué
 		// (les en-têtes CSP cumulatifs se combinent avec ceux de la réponse).
 		if ($ext === 'svg') {
 			$headers['Content-Security-Policy'] = "script-src 'none'";
 		}
-		return new Response((string) file_get_contents($path), 200, $headers);
+		return $this->serveAsset($request, $path, $types[$ext],
+			$this->httpTtl('favicon_ttl', 3600), $headers);
 	}
 
 	/** Assets d'un template : /assets/theme/{name}/{file} — extensions whitelistées. */
@@ -149,11 +180,8 @@ final class PageController
 		if (!is_file($path)) {
 			return Response::notFound();
 		}
-		return new Response(
-			(string) file_get_contents($path),
-			200,
-			['Content-Type' => $allowed[$ext], 'Cache-Control' => 'public, max-age=3600']
-		);
+		return $this->serveAsset($request, $path, $allowed[$ext],
+			$this->httpTtl('assets_ttl', 86400));
 	}
 
 	private function render(string $template, array $vars = [], int $status = 200,
@@ -169,8 +197,15 @@ final class PageController
 		$vars['nonce'] = \MXWebMail\Security\Headers::nonce();
 		// Base URL pour les liens/assets (gère l'installation en sous-dossier)
 		$vars['base'] = Request::basePath();
+		// Assets statiques versionnés : /assets/v<APP_VERSION>/… (réécrit
+		// .htaccess/dev-server vers le fichier réel — bust à chaque release,
+		// couvre imports ES et références relatives des CSS/JS vendorés)
+		$vars['assets'] = $vars['base'] . '/assets/v' . APP_VERSION;
+		// Favicon versionné par le mtime du fichier servi (bust l'upload admin)
+		$vars['faviconUrl'] = $vars['base'] . '/favicon.ico?v=' . $this->faviconVersion();
 		// Thème actif — pour construire les URLs d'assets du template
 		$vars['theme'] = $theme;
+		$vars['themeVer'] = $this->app->themes()->version($theme);
 		// Config du template : attributs <html> + variables CSS (mode sombre, couleurs, icônes)
 		$vars['themeHtmlAttrs'] = $this->app->themes()->htmlAttrs($theme);
 		$vars['themeHead']      = $this->app->themes()->styleBlock($theme);
@@ -190,12 +225,33 @@ final class PageController
 		$vars['mxwmJson'] = json_encode([
 			'base' => $vars['base'], 'csrf' => $vars['csrf'],
 			'i18n' => ['lang' => $vars['lang'], 'dict' => $vars['dict']],
+			// ver/pluginVersions : busting ?v= des URLs d'assets côté client
+			// (swap de thème, mounts de plugins)
+			'ver' => APP_VERSION,
+			'pluginVersions' => $this->app->plugins()->versions(),
 		], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
 			| JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT);
 		extract($vars, EXTR_SKIP);
 		ob_start();
 		require $file;
+		// no-cache : le shell HTML se revalide à chaque requête — il doit
+		// toujours référencer les assets de la version courante. Les
+		// $extraHeaders explicites (maintenance no-store) priment.
 		return new Response((string) ob_get_clean(), $status,
-			['Content-Type' => 'text/html; charset=utf-8'] + $extraHeaders);
+			$extraHeaders + [
+				'Content-Type' => 'text/html; charset=utf-8',
+				'Cache-Control' => 'no-cache',
+			]);
+	}
+
+	/** mtime du favicon réellement servi (upload branding ou défaut). */
+	private function faviconVersion(): string
+	{
+		$name = basename((string) $this->app->config()->get('favicon', ''));
+		$file = $name !== ''
+			? $this->app->storageDir() . '/branding/' . $name
+			: $this->app->installDir() . '/public/assets/img/favicon.png';
+		$mtime = is_file($file) ? (int) filemtime($file) : 0;
+		return (string) ($mtime ?: APP_VERSION);
 	}
 }

@@ -73,6 +73,16 @@ final class PluginManager
 		return $this->loaded;
 	}
 
+	/** Map nom → version des plugins chargés — pour le ?v= des assets plugin. */
+	public function versions(): array
+	{
+		$out = [];
+		foreach ($this->loaded as $name => $plugin) {
+			$out[$name] = $plugin->version();
+		}
+		return $out;
+	}
+
 	/**
 	 * Dispatch API borné : /api/plugin/{name}/{action} → Plugin::api<Action>.
 	 * Uniquement si le plugin est chargé (donc activé) et la méthode existe.

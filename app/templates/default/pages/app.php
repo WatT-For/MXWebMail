@@ -4,13 +4,13 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title><?= htmlspecialchars($app->config()->get('app_name')) ?></title>
-	<link rel="icon" href="<?= $base ?>/favicon.ico">
-	<link rel="stylesheet" href="<?= $base ?>/assets/vendor/bootstrap/css/bootstrap.min.css">
-	<link rel="stylesheet" href="<?= $base ?>/assets/vendor/fontawesome/css/all.min.css">
-	<link id="theme-css" rel="stylesheet" href="<?= $base ?>/assets/theme/<?= $theme ?>/app.css">
+	<link rel="icon" href="<?= $faviconUrl ?>">
+	<link rel="stylesheet" href="<?= $assets ?>/vendor/bootstrap/css/bootstrap.min.css">
+	<link rel="stylesheet" href="<?= $assets ?>/vendor/fontawesome/css/all.min.css">
+	<link id="theme-css" rel="stylesheet" href="<?= $base ?>/assets/theme/<?= $theme ?>/app.css?v=<?= $themeVer ?>">
 	<?= $themeHead ?>
 	<?= $themeScript ?>
-	<script src="<?= $base ?>/assets/vendor/openpgp/openpgp.min.js" defer></script>
+	<script src="<?= $assets ?>/vendor/openpgp/openpgp.min.js" defer></script>
 	<?= $pluginHead ?>
 </head>
 <body>
@@ -1067,9 +1067,9 @@
 <script nonce="<?= $nonce ?>">
 	window.MXWM = <?= $mxwmJson ?>;
 </script>
-<script src="<?= $base ?>/assets/vendor/knockout/knockout.js"></script>
-<script src="<?= $base ?>/assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
-<script src="<?= $base ?>/assets/vendor/tinymce/tinymce.min.js"></script>
-<script type="module" src="<?= $base ?>/assets/js/app.js"></script>
+<script src="<?= $assets ?>/vendor/knockout/knockout.js"></script>
+<script src="<?= $assets ?>/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="<?= $assets ?>/vendor/tinymce/tinymce.min.js"></script>
+<script type="module" src="<?= $assets ?>/js/app.js"></script>
 </body>
 </html>

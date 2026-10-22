@@ -8,6 +8,10 @@ Options -Indexes
 <IfModule mod_rewrite.c>
 	RewriteEngine On
 
+	# Assets versionnés /assets/vX.Y.Z/… → fichier réel (le segment de
+	# version bust le cache navigateur à chaque release)
+	RewriteRule ^assets/v[0-9]+\.[0-9]+\.[0-9]+/(.*)$ assets/$1 [L]
+
 	# Fichiers et dossiers existants : servir directement
 	RewriteCond %{REQUEST_FILENAME} -f [OR]
 	RewriteCond %{REQUEST_FILENAME} -d
@@ -15,4 +19,22 @@ Options -Indexes
 
 	# Tout le reste → front controller
 	RewriteRule ^ index.php [L]
+</IfModule>
+
+# TTL : uniquement les fichiers réellement statiques de /assets (img|js|vendor)
+# et les URLs versionnées. /assets/theme|plugin/ sont servis par PHP → leurs
+# en-têtes (config « http ») restent intacts. Motifs non ancrés (^ absent) :
+# compatibles avec une installation en sous-dossier.
+SetEnvIf Request_URI "/assets/v[0-9]+\.[0-9]+\.[0-9]+/" MXWM_ASSET_1Y
+SetEnvIf Request_URI "/assets/(img|js|vendor)/" MXWM_ASSET_1H
+<IfModule mod_headers.c>
+	Header set Cache-Control "public, max-age=31536000, immutable" env=MXWM_ASSET_1Y
+	Header set Cache-Control "public, max-age=3600" env=MXWM_ASSET_1H
+</IfModule>
+
+<IfModule mod_deflate.c>
+	AddOutputFilterByType DEFLATE text/html text/plain text/css text/xml
+	AddOutputFilterByType DEFLATE application/xml application/json text/javascript application/javascript
+	AddOutputFilterByType DEFLATE image/svg+xml application/manifest+json
+	AddOutputFilterByType DEFLATE font/opentype font/otf font/ttf font/woff
 </IfModule>

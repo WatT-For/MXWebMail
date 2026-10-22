@@ -16,7 +16,6 @@ use MXWebMail\Application\App;
  */
 final class DomainDetector
 {
-	private const NEG_TTL = 86400;
 	private const OK_PORTS = [143, 993, 465, 587, 25, 4190];
 
 	/** Suffixe MX → [imap_host, smtp_host, smtp_port, smtp_encryption]. */
@@ -406,6 +405,13 @@ final class DomainDetector
 		return in_array($e, ['ssl', 'tls', 'none'], true) ? $e : 'ssl';
 	}
 
+	/** Section « cache » — enabled=false court-circuite le cache négatif. */
+	private function cacheCfg(): array
+	{
+		$c = $this->app->config()->get('cache', []);
+		return is_array($c) ? $c : [];
+	}
+
 	private function negFile(): string
 	{
 		$dir = $this->app->storageDir() . '/cache';
@@ -415,6 +421,9 @@ final class DomainDetector
 
 	private function negCached(string $d): bool
 	{
+		if (!($this->cacheCfg()['enabled'] ?? true)) {
+			return false;
+		}
 		$all = is_file($this->negFile())
 			? (json_decode((string) file_get_contents($this->negFile()), true) ?: []) : [];
 		return (int) ($all[$d] ?? 0) > time();
@@ -422,10 +431,14 @@ final class DomainDetector
 
 	private function negCache(string $d): void
 	{
+		if (!($this->cacheCfg()['enabled'] ?? true)) {
+			return;
+		}
+		$ttl = (int) ($this->cacheCfg()['domain_detect_ttl'] ?? 86400);
 		$all = is_file($this->negFile())
 			? (json_decode((string) file_get_contents($this->negFile()), true) ?: []) : [];
 		$all = array_filter($all, fn($ts) => (int) $ts > time());
-		$all[$d] = time() + self::NEG_TTL;
+		$all[$d] = time() + $ttl;
 		file_put_contents($this->negFile(), json_encode($all), LOCK_EX);
 	}
 }

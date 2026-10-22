@@ -50,7 +50,14 @@ final class ThemeManager
 		return $out;
 	}
 
-	/** Liste [{name, label}] des templates utilisables — pour le frontend (appdata → <select> KO). */
+	/** Version du template (manifeste, repli APP_VERSION) — pour le ?v= des assets. */
+	public function version(string $name): string
+	{
+		$v = (string) ($this->manifest($name)['version'] ?? '');
+		return $v !== '' ? $v : \MXWebMail\Application\App::APP_VERSION;
+	}
+
+	/** Liste [{name, label, version}] des templates utilisables — pour le frontend (appdata → <select> KO). */
 	public function list(): array
 	{
 		$out = [];
@@ -58,7 +65,8 @@ final class ThemeManager
 			if (!$this->isSelectable($name)) {
 				continue;
 			}
-			$out[] = ['name' => $name, 'label' => $this->manifest($name)['label'] ?? $name];
+			$out[] = ['name' => $name, 'label' => $this->manifest($name)['label'] ?? $name,
+				'version' => $this->version($name)];
 		}
 		return $out;
 	}

@@ -111,6 +111,18 @@ server {
     # Filet : dossier privé refusé même si le root pointe par erreur sur la racine
     location ~ ^/(app|dist)(/|$) { return 404; }
 
+    # Assets versionnés /assets/vX.Y.Z/… → fichier réel (équivalent du
+    # RewriteRule du .htaccess d'Apache). TTL long : la version change à
+    # chaque release. Les URLs /assets/theme|plugin/ passent par try_files
+    # → PHP (leurs en-têtes restent gérés par la config « http »).
+    location ~ ^/assets/v[0-9.]+/ {
+        rewrite ^/assets/v[0-9.]+/(.*)$ /assets/$1 last;
+    }
+    location ~ ^/assets/(img|js|vendor)/ {
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+    }
+
     location / {
         try_files $uri $uri/ /index.php?$query_string;
     }
@@ -128,6 +140,8 @@ Remarques :
   dotfiles, et `^/(app|dist)` qui protège le dossier privé.
 - `autoindex` est désactivé par défaut (équivalent de `Options -Indexes`).
 - Compression optionnelle : `gzip on; gzip_types text/css application/javascript application/json image/svg+xml;`.
+  Sous Apache, `public/.htaccess` couvre déjà `mod_deflate` + les TTL des assets ;
+  la compression PHP (`http.gzip`) fonctionne dans les deux cas.
 
 ## 6. Étapes post-installation
 

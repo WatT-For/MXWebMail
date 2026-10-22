@@ -125,6 +125,33 @@ celles-ci + celles déclarées par les plugins (hook `settings.allowed`).
 | `image_proxy` | `true` | Servir les images distantes via `/api/proxy`. |
 | `image_proxy_allowlist` | `''` | Domaines autorisés (CSV, `*.domaine` ok) ; vide = tous (IP privées toujours bloquées). |
 
+## HTTP — compression & cache navigateur
+
+Éditables dans l'admin, section *Performance → HTTP*.
+
+| Clé | Défaut | Rôle |
+|---|---|---|
+| `http.gzip` | `true` | Compresse les réponses texte/JSON en PHP (gzip) — fonctionne aussi sans `mod_deflate`. Ignoré si `zlib.output_compression` est actif. |
+| `http.gzip_level` | `6` | Niveau de compression 1-9. |
+| `http.gzip_min_size` | `1024` | Taille minimale du corps (octets) pour compresser. |
+| `http.etag` | `true` | ETag/Last-Modified + réponses 304 sur les assets servis par PHP (thème, plugins, favicon). |
+| `http.assets_ttl` | `86400` | `max-age` des assets thème/plugin (`/assets/theme|plugin/*`). `0` = revalidation systématique. |
+| `http.favicon_ttl` | `3600` | `max-age` de `/favicon.ico`. |
+| `http.proxy_ttl` | `86400` | `max-age` (privé) des images via `/api/proxy`. |
+
+Les réponses privées/API ne reçoivent jamais de cache public ; le HTML est `no-cache`.
+
+## Cache applicatif (fichier)
+
+Éditables dans l'admin, section *Performance → Cache serveur*.
+
+| Clé | Défaut | Rôle |
+|---|---|---|
+| `cache.enabled` | `true` | Active le cache fichier `app/storage/cache` (DNS, détection de domaine, vérification de mise à jour). N'affecte ni l'autoloader (`classmap.php`) ni `login_attempts.json`. |
+| `cache.domain_detect_ttl` | `86400` | TTL du cache négatif de détection IMAP/SMTP (s). |
+| `cache.update_ttl` | `3600` | TTL du résultat de vérification de mise à jour (s). |
+| `cache.gc_hours` | `168` | Intervalle de purge des fichiers de cache expirés (h) ; `0` = jamais. |
+
 ## Logs MailSo (protocoles IMAP/SMTP/Sieve)
 
 | Clé | Défaut | Rôle |

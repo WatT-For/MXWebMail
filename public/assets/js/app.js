@@ -391,7 +391,10 @@ class AppVM {
 	/** Applique un template : CSS + variables de config + attributs <html>. */
 	applyTheme(name) {
 		const link = document.getElementById('theme-css');
-		if (link) { link.href = `${window.MXWM.base}/assets/theme/${name}/app.css`; }
+		if (link) {
+			const v = this.themeOptions().find(t => t.name === name)?.version || window.MXWM.ver;
+			link.href = `${window.MXWM.base}/assets/theme/${name}/app.css?v=${v}`;
+		}
 		const d = this.themeData?.[name];
 		if (d) {
 			const el = document.getElementById('theme-config');

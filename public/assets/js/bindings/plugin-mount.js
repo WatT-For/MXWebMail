@@ -10,7 +10,8 @@ import { t } from '../i18n.js';
 ko.bindingHandlers.pluginMount = {
 	init(element, valueAccessor) {
 		const opts = ko.unwrap(valueAccessor()) || {};
-		const src = `${base()}/assets/plugin/${opts.plugin}/${opts.js}`;
+		const v = (window.MXWM.pluginVersions || {})[opts.plugin] || window.MXWM.ver;
+		const src = `${base()}/assets/plugin/${opts.plugin}/${opts.js}${v ? '?v=' + v : ''}`;
 		import(src)
 			.then(mod => (mod.default || mod.mount)?.(element, {
 				api, base: base(), user: opts.user || null, dialog, t,

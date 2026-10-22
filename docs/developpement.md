@@ -58,7 +58,34 @@ lever `TotpRequiredException` y verrouille l'accès (ex. TOTP admin).
 
 Voir [plugins.md](plugins.md) pour créer un plugin.
 
-## 4. Conventions du projet
+## 4. Cache & compression
+
+Tout est paramétrable (admin → *Performance*, sections `http.*` / `cache.*` de
+`config.php`) :
+
+- **Compression** : `App::sendResponse()` appelle `Response::gzip()` au point
+  d'envoi unique — couvre `php -S`, Apache et Nginx. Les réponses déjà encodées
+  ou de type non compressible sont ignorées ; `Vary: Accept-Encoding` est posé
+  dès que le type est compressible. `zlib.output_compression` actif → no-op.
+- **Assets statiques** (`public/assets/img|js|vendor`) : servis par le serveur
+  web sous l'URL versionnée `/assets/v<APP_VERSION>/…` (rewrite `public/.htaccess`,
+  bloc `location` nginx documenté dans installation.md). TTL 1 an immutable sous
+  Apache ; le serveur de dev sert en `no-cache`.
+- **Assets PHP** (`/assets/theme/{n}/{f}`, `/assets/plugin/{n}/{f}`, favicon) :
+  `PageController::serveAsset()` pose `Cache-Control` depuis `http.assets_ttl` /
+  `http.favicon_ttl` (+ `immutable` si `?v=` présent) et, quand `http.etag`,
+  `ETag`/`Last-Modified` → `304` sur `If-None-Match`. Les `?v=` proviennent de
+  `theme.json`/`plugin.json` (`ThemeManager::version`, `PluginBase::version`) —
+  le bump ciblé d'un composant bust donc son propre cache.
+- **Cache serveur** : `ActionsBridge::Cacher()` retourne un client sans driver
+  quand `cache.enabled=false` (Get/Set no-op). GC périodique (`cache.gc_hours`,
+  marqueur `storage/cache/_gc.ts`) — purge tous les fichiers du dossier, y
+  compris `classmap.php` (reconstruit à la requête suivante). TTL propres :
+  `cache.domain_detect_ttl` (détection), `cache.update_ttl` (releases).
+- **HTML** : `no-cache` — le shell référence toujours les assets de la version
+  courante. Les réponses API/privées ne reçoivent jamais de TTL public.
+
+## 5. Conventions du projet
 
 - **Bootstrap** : un seul composant JS par élément (`Data`) — jamais `tooltip:` (ou autre
   binding) sur un élément `data-bs-toggle` ; le placer sur l'icône enfant.

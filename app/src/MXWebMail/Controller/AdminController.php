@@ -1159,6 +1159,33 @@ final class AdminController
 						'help' => 'admin.f.labs.smtp_show_server_errors_help'],
 				],
 			],
+			'performance' => [
+				'title' => 'admin.performance',
+				'fields' => [
+					'http.gzip' => ['label' => 'admin.f.http.gzip', 'type' => 'bool',
+						'help' => 'admin.f.http.gzip_help', 'group' => 'http'],
+					'http.gzip_level' => ['label' => 'admin.f.http.gzip_level', 'type' => 'integer',
+						'help' => 'admin.f.http.gzip_level_help', 'group' => 'http'],
+					'http.gzip_min_size' => ['label' => 'admin.f.http.gzip_min_size', 'type' => 'integer',
+						'help' => 'admin.f.http.gzip_min_size_help', 'group' => 'http'],
+					'http.etag' => ['label' => 'admin.f.http.etag', 'type' => 'bool',
+						'help' => 'admin.f.http.etag_help', 'group' => 'http'],
+					'http.assets_ttl' => ['label' => 'admin.f.http.assets_ttl', 'type' => 'integer',
+						'help' => 'admin.f.http.assets_ttl_help', 'group' => 'http'],
+					'http.favicon_ttl' => ['label' => 'admin.f.http.favicon_ttl', 'type' => 'integer',
+						'help' => 'admin.f.http.favicon_ttl_help', 'group' => 'http'],
+					'http.proxy_ttl' => ['label' => 'admin.f.http.proxy_ttl', 'type' => 'integer',
+						'help' => 'admin.f.http.proxy_ttl_help', 'group' => 'http'],
+					'cache.enabled' => ['label' => 'admin.f.cache.enabled', 'type' => 'bool',
+						'help' => 'admin.f.cache.enabled_help', 'group' => 'cache'],
+					'cache.domain_detect_ttl' => ['label' => 'admin.f.cache.domain_detect_ttl', 'type' => 'integer',
+						'help' => 'admin.f.cache.domain_detect_ttl_help', 'group' => 'cache'],
+					'cache.update_ttl' => ['label' => 'admin.f.cache.update_ttl', 'type' => 'integer',
+						'help' => 'admin.f.cache.update_ttl_help', 'group' => 'cache'],
+					'cache.gc_hours' => ['label' => 'admin.f.cache.gc_hours', 'type' => 'integer',
+						'help' => 'admin.f.cache.gc_hours_help', 'group' => 'cache'],
+				],
+			],
 		];
 	}
 
@@ -1246,6 +1273,16 @@ final class AdminController
 		// config.php uniquement, jamais modifiables via l'API admin
 		'update' => ['channel' => 'enum:stable,beta'],
 		'autodetect' => ['enabled' => 'bool', 'use_ispdb' => 'bool', 'probe' => 'bool'],
+		'http' => [
+			'gzip' => 'bool', 'gzip_level' => 'int:1:9',
+			'gzip_min_size' => 'int:0:1048576', 'etag' => 'bool',
+			'assets_ttl' => 'int:0:31536000', 'favicon_ttl' => 'int:0:31536000',
+			'proxy_ttl' => 'int:0:604800',
+		],
+		'cache' => [
+			'enabled' => 'bool', 'domain_detect_ttl' => 'int:60:604800',
+			'update_ttl' => 'int:60:86400', 'gc_hours' => 'int:0:720',
+		],
 		// 'user_defaults' n'est pas ici : ses règles vivent dans
 		// App::userSettingRules() (partagées avec les écritures par
 		// utilisateur) et sont injectées dans settingsSet().

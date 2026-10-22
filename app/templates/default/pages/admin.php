@@ -4,10 +4,10 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title><?= htmlspecialchars($app->config()->get('app_name')) ?> — <?= $t('admin.administration') ?></title>
-	<link rel="icon" href="<?= $base ?>/favicon.ico">
-	<link rel="stylesheet" href="<?= $base ?>/assets/vendor/bootstrap/css/bootstrap.min.css">
-	<link rel="stylesheet" href="<?= $base ?>/assets/vendor/fontawesome/css/all.min.css">
-	<link id="theme-css" rel="stylesheet" href="<?= $base ?>/assets/theme/<?= $theme ?>/app.css">
+	<link rel="icon" href="<?= $faviconUrl ?>">
+	<link rel="stylesheet" href="<?= $assets ?>/vendor/bootstrap/css/bootstrap.min.css">
+	<link rel="stylesheet" href="<?= $assets ?>/vendor/fontawesome/css/all.min.css">
+	<link id="theme-css" rel="stylesheet" href="<?= $base ?>/assets/theme/<?= $theme ?>/app.css?v=<?= $themeVer ?>">
 	<?= $themeHead ?>
 	<?= $themeScript ?>
 </head>
@@ -40,6 +40,9 @@
 			<a class="list-group-item list-group-item-action" href="#/logs"
 				data-bind="css:{active: tab()==='logs'}">
 				<i class="fa-solid fa-list fa-fw me-2"></i><?= $t('admin.logs') ?></a>
+			<a class="list-group-item list-group-item-action" href="#/performance"
+				data-bind="css:{active: tab()==='performance'}">
+				<i class="fa-solid fa-gauge-high fa-fw me-2"></i><?= $t('admin.performance') ?></a>
 			<div class="side-menu-group"><?= $t('admin.group_data') ?></div>
 			<a class="list-group-item list-group-item-action" href="#/domains"
 				data-bind="css:{active: tab()==='domains'}">
@@ -397,6 +400,29 @@
 			<div class="card"><div class="card-body">
 				<div class="row" data-bind="template: {name:'fields-tpl', foreach: formSections.logs}"></div>
 				<button class="btn btn-primary btn-sm" data-bind="click: () => saveSection('logs')"><?= $t('common.save') ?></button>
+			</div></div>
+		</div>
+	</div>
+
+	<!-- Performance : compression HTTP + caches -->
+	<div data-bind="visible: tab()==='performance'" style="display:none">
+		<h5><?= $t('admin.performance') ?></h5>
+		<ul class="nav nav-tabs mb-3">
+			<li class="nav-item"><a class="nav-link" href="#/performance/http"
+				data-bind="css:{active: subtabs.performance()==='http'}"><?= $t('admin.subtab.http') ?></a></li>
+			<li class="nav-item"><a class="nav-link" href="#/performance/cache"
+				data-bind="css:{active: subtabs.performance()==='cache'}"><?= $t('admin.subtab.cache') ?></a></li>
+		</ul>
+		<div data-bind="visible: subtabs.performance()==='http'" style="display:none">
+			<div class="card"><div class="card-body">
+				<div class="row" data-bind="template: {name:'fields-tpl', foreach: fieldsIn('performance','http')}"></div>
+				<button class="btn btn-primary btn-sm" data-bind="click: () => saveSection('performance')"><?= $t('common.save') ?></button>
+			</div></div>
+		</div>
+		<div data-bind="visible: subtabs.performance()==='cache'" style="display:none">
+			<div class="card"><div class="card-body">
+				<div class="row" data-bind="template: {name:'fields-tpl', foreach: fieldsIn('performance','cache')}"></div>
+				<button class="btn btn-primary btn-sm" data-bind="click: () => saveSection('performance')"><?= $t('common.save') ?></button>
 			</div></div>
 		</div>
 	</div>
@@ -1027,8 +1053,8 @@
 <script nonce="<?= $nonce ?>">
 	window.MXWM = <?= $mxwmJson ?>;
 </script>
-<script src="<?= $base ?>/assets/vendor/knockout/knockout.js"></script>
-<script src="<?= $base ?>/assets/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
-<script type="module" src="<?= $base ?>/assets/js/admin.js"></script>
+<script src="<?= $assets ?>/vendor/knockout/knockout.js"></script>
+<script src="<?= $assets ?>/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script type="module" src="<?= $assets ?>/js/admin.js"></script>
 </body>
 </html>

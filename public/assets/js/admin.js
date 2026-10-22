@@ -61,7 +61,7 @@ class AdminVM {
 		this.faviconV = ko.observable(Date.now()); // cache-buster du preview
 		this.faviconUrl = ko.pureComputed(() => base() + '/favicon.ico?v=' + this.faviconV());
 		this.formSections = {};
-		for (const sec of ['general', 'domains', 'database', 'features', 'security', 'logs']) {
+		for (const sec of ['general', 'domains', 'database', 'features', 'security', 'logs', 'performance']) {
 			this.formSections[sec] = ko.observableArray([]);
 		}
 		this.subtabs = {
@@ -69,6 +69,7 @@ class AdminVM {
 			logs: ko.observable('viewer'),
 			features: ko.observable('features'),
 			domains: ko.observable('list'),
+			performance: ko.observable('http'),
 		};
 		// Knockout invoque les handlers avec this = $data du contexte courant
 		// (item dans un foreach) : on force le binding sur le VM.
@@ -208,13 +209,14 @@ class AdminVM {
 	}
 	syncFromHash() {
 		const pages = ['general','database','features','security','logs',
-			'domains','users','plugins','themes','about'];
+			'performance','domains','users','plugins','themes','about'];
 		const subs = {
 			security: ['account', 'access', 'headers', 'tls',
 				...this.adminTabsIn('security').map(m => m.tab)],
 			logs: ['viewer', 'params'],
 			features: ['features', 'defaults'],
 			domains: ['list', 'params'],
+			performance: ['http', 'cache'],
 		};
 		const [page, sub] = location.hash.replace(/^#\/?/, '').split('/');
 		this.tab(pages.includes(page) ? page : 'general');

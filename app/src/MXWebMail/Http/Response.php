@@ -20,6 +20,39 @@ class Response
 		echo $this->body;
 	}
 
+	/**
+	 * Compresse le corps en gzip si le type le permet. Pose toujours
+	 * « Vary: Accept-Encoding » dès que le type est compressible (même si le
+	 * corps est trop petit ou le client ne l'accepte pas) — un cache partagé
+	 * doit distinguer les variantes. Retourne true si le corps a été compressé.
+	 */
+	public function gzip(int $level, int $minSize, bool $accepted): bool
+	{
+		if ($this->status >= 300 || isset($this->headers['Content-Encoding'])) {
+			return false;
+		}
+		$type = (string) ($this->headers['Content-Type'] ?? '');
+		$compressible = str_starts_with($type, 'text/')
+			|| (bool) preg_match('/json|javascript|xml|svg/i', $type);
+		if (!$compressible) {
+			return false;
+		}
+		$vary = (string) ($this->headers['Vary'] ?? '');
+		if (stripos($vary, 'Accept-Encoding') === false) {
+			$this->headers['Vary'] = trim($vary . ($vary !== '' ? ', ' : '') . 'Accept-Encoding');
+		}
+		if (!$accepted || strlen($this->body) < $minSize) {
+			return false;
+		}
+		$compressed = gzencode($this->body, $level);
+		if ($compressed === false) {
+			return false;
+		}
+		$this->body = $compressed;
+		$this->headers['Content-Encoding'] = 'gzip';
+		return true;
+	}
+
 	public static function html(string $body, int $status = 200): self
 	{
 		return new self($body, $status, ['Content-Type' => 'text/html; charset=utf-8']);

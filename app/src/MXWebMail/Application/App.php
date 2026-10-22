@@ -44,7 +44,7 @@ final class App
 
 	public function __construct(?string $rootDir = null, ?string $installDir = null)
 	{
-		defined('APP_VERSION') || define('APP_VERSION', '0.31.0'); // X-Mailer MailSo
+		defined('APP_VERSION') || define('APP_VERSION', '0.32.0'); // X-Mailer MailSo
 		$this->rootDir = $rootDir ?? dirname(__DIR__, 3);
 		// Racine d'installation (parent de public/) — passée explicitement par
 		// index.php car indéductible de rootDir quand app/ est hors racine web.
@@ -514,6 +514,28 @@ final class App
 
 	// ─── Dispatch ───
 
+	/**
+	 * Envoi unique d'une Response : applique la compression gzip configurable
+	 * (section « http ») puis émet. Vary est posé dès que le type est
+	 * compressible — même sans compression effective. zlib.output_compression
+	 * actif côté ini ou en-tête Content-Encoding déjà posé → rien à faire.
+	 */
+	private function sendResponse(Response $response, Request $request): void
+	{
+		$http = (array) $this->config->get('http', []);
+		if (($http['gzip'] ?? true) && function_exists('gzencode')
+			&& !filter_var(ini_get('zlib.output_compression'), FILTER_VALIDATE_BOOLEAN)) {
+			$accepted = (bool) preg_match('/\bgzip\b/i',
+				(string) $request->header('Accept-Encoding'));
+			$response->gzip(
+				(int) ($http['gzip_level'] ?? 6),
+				(int) ($http['gzip_min_size'] ?? 1024),
+				$accepted
+			);
+		}
+		$response->send();
+	}
+
 	public function run(): void
 	{
 		$request = Request::fromGlobals();
@@ -535,7 +557,7 @@ final class App
 					. htmlspecialchars($this->locale()->t('errors.not_installed'), ENT_QUOTES, 'UTF-8')
 					. '</h1>', 503),
 			};
-			$response->send();
+			$this->sendResponse($response, $request);
 			return;
 		}
 
@@ -578,12 +600,12 @@ final class App
 			&& !\MXWebMailLib\HTTP\SecFetch::isEntering()
 			&& !\MXWebMailLib\HTTP\SecFetch::matchAnyRule(
 				(string) $this->config->get('secfetch_allow', ''))) {
-			($isApi
+			$this->sendResponse($isApi
 				? \MXWebMail\Http\JsonResponse::error(
 					$this->locale()->t('errors.cross_site'), 'secfetch', 403)
 				: Response::html('<h1>403 — '
 					. htmlspecialchars($this->locale()->t('errors.forbidden'), ENT_QUOTES, 'UTF-8')
-					. '</h1>', 403))->send();
+					. '</h1>', 403), $request);
 			return;
 		}
 
@@ -591,8 +613,8 @@ final class App
 		if ($isApi && $this->config->get('maintenance', false)
 			&& !str_starts_with($request->path, '/api/admin/')
 			&& $request->path !== '/api/ping') {
-			\MXWebMail\Http\JsonResponse::error(
-				$this->locale()->t('errors.maintenance'), 'maintenance', 503)->send();
+			$this->sendResponse(\MXWebMail\Http\JsonResponse::error(
+				$this->locale()->t('errors.maintenance'), 'maintenance', 503), $request);
 			return;
 		}
 
@@ -624,7 +646,7 @@ final class App
 					. htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</h1>', $status);
 		}
 
-		$response->send();
+		$this->sendResponse($response, $request);
 	}
 
 	private function registerRoutes(Router $router): void

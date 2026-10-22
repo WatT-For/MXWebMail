@@ -212,9 +212,11 @@ final class ApiController
 				"Proxy image non-image url=" . self::proxyLogUrl($url) . " mime={$mime}");
 			return JsonResponse::error($this->t('errors.not_image'), 'not_image', 403);
 		}
+		$http = (array) $this->app->config()->get('http', []);
 		return new Response($body, 200, [
 			'Content-Type'              => $mime,
-			'Cache-Control'             => 'private, max-age=86400',
+			'Cache-Control'             => 'private, max-age='
+				. max(0, (int) ($http['proxy_ttl'] ?? 86400)),
 			'X-Content-Type-Options'    => 'nosniff',
 			// Défense en profondeur : jamais de script si le corps est ouvert en direct.
 			'Content-Security-Policy'   => 'sandbox',

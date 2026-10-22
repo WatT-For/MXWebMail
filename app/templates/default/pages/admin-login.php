@@ -4,10 +4,10 @@
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<title><?= htmlspecialchars($app->config()->get('app_name')) ?> — <?= $t('login.administration') ?></title>
-	<link rel="icon" href="<?= $base ?>/favicon.ico">
-	<link rel="stylesheet" href="<?= $base ?>/assets/vendor/bootstrap/css/bootstrap.min.css">
-	<link rel="stylesheet" href="<?= $base ?>/assets/vendor/fontawesome/css/all.min.css">
-	<link id="theme-css" rel="stylesheet" href="<?= $base ?>/assets/theme/<?= $theme ?>/app.css">
+	<link rel="icon" href="<?= $faviconUrl ?>">
+	<link rel="stylesheet" href="<?= $assets ?>/vendor/bootstrap/css/bootstrap.min.css">
+	<link rel="stylesheet" href="<?= $assets ?>/vendor/fontawesome/css/all.min.css">
+	<link id="theme-css" rel="stylesheet" href="<?= $base ?>/assets/theme/<?= $theme ?>/app.css?v=<?= $themeVer ?>">
 	<?= $themeHead ?>
 	<?= $themeScript ?>
 </head>
@@ -52,9 +52,9 @@
 <script nonce="<?= $nonce ?>">
 	window.MXWM = <?= $mxwmJson ?>;
 </script>
-<script src="<?= $base ?>/assets/vendor/knockout/knockout.js"></script>
+<script src="<?= $assets ?>/vendor/knockout/knockout.js"></script>
 <script type="module" nonce="<?= $nonce ?>">
-	import { api } from '<?= $base ?>/assets/js/api.js';
+	import { api } from '<?= $assets ?>/js/api.js';
 	class VM {
 		constructor() {
 			this.user = ko.observable('');

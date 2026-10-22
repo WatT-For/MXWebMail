@@ -1,10 +1,10 @@
 # MXWebMail
 
-Webmail auto-hébergé en **PHP 8.4**, réécrit à partir du fork SnappyMail autour d'une
-architecture MVC claire. Frontend **Knockout + Bootstrap 5.3** (sans jQuery), bibliothèque
+Webmail auto-hébergé en **PHP 8.4**, inspiré de **SnappyMail**, **RainLoop** et
+**Roundcube**, autour d'une architecture MVC claire. Frontend **Knockout + Bootstrap 5.3** (sans jQuery), bibliothèque
 **MailSo** vendorée pour IMAP/SMTP/Sieve, stockage **SQLite** ou **MariaDB**.
 
-> Version courante : `0.31.0` (développement — pas encore stable).
+> Version courante : `0.32.0` (développement — pas encore stable).
 
 ## Fonctionnalités
 
@@ -74,5 +74,8 @@ sabre/vobject (vCard) · MariaDB 10.11 / SQLite · Apache ou Nginx.
 
 ## Licence
 
-Aucune licence n'est encore déclarée dans ce dépôt. Ajoutez un fichier `LICENSE` avant
-toute diffusion publique.
+**GNU AGPL-3.0** (`AGPL-3.0-only`) — voir [LICENSE](LICENSE).
+Copyright (C) 2025-2026 MXWebMail.
+
+Les bibliothèques vendorées conservent leurs licences d'origine
+(MailSo : MIT, Sabre : BSD-3-Clause, TinyMCE : GPL-2.0+).

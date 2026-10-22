@@ -23,7 +23,6 @@ use MXWebMail\Application\App;
  */
 final class UpdateService
 {
-	private const CACHE_TTL = 3600;
 	private const MAX_ZIP   = 200 * 1024 * 1024;
 	// Dépôt officiel des releases — à renseigner ici à la publication (sécurité :
 	// un repo éditable via l'admin permettrait de détourner l'updater → RCE).
@@ -237,16 +236,35 @@ final class UpdateService
 		return $trim;
 	}
 
+	/** Section « cache » de la config — enabled=false → cache ignoré. */
+	private function cacheCfg(): array
+	{
+		$c = $this->app->config()->get('cache', []);
+		return is_array($c) ? $c : [];
+	}
+
+	private function cacheEnabled(): bool
+	{
+		return (bool) ($this->cacheCfg()['enabled'] ?? true);
+	}
+
 	private function readCache(): ?array
 	{
+		if (!$this->cacheEnabled()) {
+			return null;
+		}
+		$ttl = (int) ($this->cacheCfg()['update_ttl'] ?? 3600);
 		$raw = is_file($this->cacheFile) ? file_get_contents($this->cacheFile) : false;
 		$c = is_string($raw) ? json_decode($raw, true) : null;
-		return (is_array($c) && ($c['at'] ?? 0) > time() - self::CACHE_TTL
+		return (is_array($c) && ($c['at'] ?? 0) > time() - $ttl
 			&& is_array($c['release'] ?? null)) ? $c : null;
 	}
 
 	private function writeCache(?string $repo, string $channel, string $manifest, array $release): void
 	{
+		if (!$this->cacheEnabled()) {
+			return;
+		}
 		is_dir(dirname($this->cacheFile)) || mkdir(dirname($this->cacheFile), 0700, true);
 		$this->writeJson($this->cacheFile, [
 			'at' => time(), 'repo' => $repo, 'channel' => $channel,
