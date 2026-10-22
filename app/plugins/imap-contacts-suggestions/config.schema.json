@@ -1,0 +1,13 @@
+{
+	"folder": {
+		"label": "plugin.imap-contacts-suggestions.f.folder",
+		"type": "string",
+		"default": "INBOX",
+		"help": "plugin.imap-contacts-suggestions.f.folder.help"
+	},
+	"max_results": {
+		"label": "plugin.imap-contacts-suggestions.f.max_results",
+		"type": "integer",
+		"default": 10
+	}
+}

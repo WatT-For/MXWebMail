@@ -1,0 +1,8 @@
+{
+	"name": "pwa",
+	"class": "Pwa",
+	"main": "Pwa.php",
+	"version": "0.12.0",
+	"description": "plugin.pwa.description",
+	"hooks": ["app.head", "app.routes"]
+}

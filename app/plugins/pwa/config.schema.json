@@ -1,0 +1,44 @@
+{
+	"name": {
+		"label": "plugin.pwa.f.name",
+		"type": "string",
+		"default": "",
+		"help": "plugin.pwa.f.name.help"
+	},
+	"short_name": {
+		"label": "plugin.pwa.f.short_name",
+		"type": "string",
+		"default": "",
+		"help": "plugin.pwa.f.short_name.help"
+	},
+	"theme_color": {
+		"label": "plugin.pwa.f.theme_color",
+		"type": "string",
+		"default": "#0d6efd",
+		"help": "plugin.pwa.f.theme_color.help"
+	},
+	"background_color": {
+		"label": "plugin.pwa.f.background_color",
+		"type": "string",
+		"default": "#ffffff",
+		"help": "plugin.pwa.f.background_color.help"
+	},
+	"display": {
+		"label": "plugin.pwa.f.display",
+		"type": "enum",
+		"options": {
+			"standalone": "Standalone",
+			"fullscreen": "Fullscreen",
+			"minimal-ui": "Minimal UI",
+			"browser": "Browser"
+		},
+		"default": "standalone",
+		"help": "plugin.pwa.f.display.help"
+	},
+	"icon_url": {
+		"label": "plugin.pwa.f.icon_url",
+		"type": "string",
+		"default": "",
+		"help": "plugin.pwa.f.icon_url.help"
+	}
+}

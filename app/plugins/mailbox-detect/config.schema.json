@@ -1,0 +1,8 @@
+{
+	"autocreate_system_folders": {
+		"label": "plugin.mailbox-detect.f.autocreate_system_folders",
+		"type": "bool",
+		"default": false,
+		"help": "plugin.mailbox-detect.f.autocreate_system_folders.help"
+	}
+}

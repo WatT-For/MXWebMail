@@ -1,0 +1,8 @@
+{
+	"name": "ldap-login",
+	"class": "LdapLogin",
+	"main": "LdapLogin.php",
+	"version": "0.12.0",
+	"description": "plugin.ldap-login.description",
+	"hooks": ["auth.login.mapping"]
+}

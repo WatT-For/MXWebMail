@@ -1,0 +1,8 @@
+{
+	"name": "change-password",
+	"class": "ChangePassword",
+	"main": "ChangePassword.php",
+	"version": "0.12.0",
+	"description": "plugin.change-password.description",
+	"hooks": ["password.change", "app.data"]
+}

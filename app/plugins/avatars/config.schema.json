@@ -1,0 +1,27 @@
+{
+	"gravatar": {
+		"label": "plugin.avatars.f.gravatar",
+		"type": "bool",
+		"default": false,
+		"help": "plugin.avatars.f.gravatar.help"
+	},
+	"favicon": {
+		"label": "plugin.avatars.f.favicon",
+		"type": "bool",
+		"default": false,
+		"help": "plugin.avatars.f.favicon.help"
+	},
+	"service": {
+		"label": "plugin.avatars.f.service",
+		"type": "bool",
+		"default": true,
+		"help": "plugin.avatars.f.service.help"
+	},
+	"identicon": {
+		"label": "plugin.avatars.f.identicon",
+		"type": "enum",
+		"options": { "none": "common.none", "initials": "plugin.avatars.f.identicon.initials" },
+		"default": "initials",
+		"help": "plugin.avatars.f.identicon.help"
+	}
+}

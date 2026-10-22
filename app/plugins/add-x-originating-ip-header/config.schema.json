@@ -1,0 +1,8 @@
+{
+	"check_proxy": {
+		"label": "plugin.add-x-originating-ip-header.f.check_proxy",
+		"type": "bool",
+		"default": false,
+		"help": "plugin.add-x-originating-ip-header.f.check_proxy.help"
+	}
+}

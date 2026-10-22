@@ -1,0 +1,8 @@
+{
+	"name": "ldap-contacts",
+	"class": "LdapContacts",
+	"main": "LdapContacts.php",
+	"version": "0.12.0",
+	"description": "plugin.ldap-contacts.description",
+	"hooks": ["contacts.provider"]
+}

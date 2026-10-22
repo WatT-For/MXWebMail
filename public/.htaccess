@@ -1,0 +1,18 @@
+Options -Indexes
+
+# Fichier de constantes : chargé par index.php, jamais servi directement
+<FilesMatch "^define\.php$">
+	Require all denied
+</FilesMatch>
+
+<IfModule mod_rewrite.c>
+	RewriteEngine On
+
+	# Fichiers et dossiers existants : servir directement
+	RewriteCond %{REQUEST_FILENAME} -f [OR]
+	RewriteCond %{REQUEST_FILENAME} -d
+	RewriteRule ^ - [L]
+
+	# Tout le reste → front controller
+	RewriteRule ^ index.php [L]
+</IfModule>

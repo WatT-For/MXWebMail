@@ -1,0 +1,433 @@
+import { api } from './api.js';
+import { t, lang } from './i18n.js';
+import './bindings/editor.js';
+import './bindings/plugin-mount.js';
+import './bindings/pane-resize.js';
+import './bindings/modal-resize.js';
+import './bindings/indeterminate.js';
+import './bindings/tooltip.js';
+import { FolderListVM } from './viewmodels/folders.js';
+import { MessageListVM } from './viewmodels/messagelist.js';
+import { MessageViewVM } from './viewmodels/messageview.js';
+import { ComposeVM } from './viewmodels/compose.js';
+import { SettingsVM } from './viewmodels/settings.js';
+import { dialog } from './ui/dialog.js';
+import { notify } from './ui/notify.js';
+
+/** decodeURIComponent qui ne casse pas le routage sur un hash malformé (%zz). */
+const safeDecode = (s) => { try { return decodeURIComponent(s); } catch { return s; } };
+
+/**
+ * ViewModel racine de l'application mail.
+ * Hash routing : #/{dossier} | #/@settings[/<onglet>] — le serveur ne rend que la page shell.
+ */
+class AppVM {
+	constructor() {
+		this.t = t;       // utilisable dans les bindings : $root.t('cle')
+		this.lang = lang; // locale courante (toLocaleString…)
+		this.view = ko.observable('mail'); // 'mail' | 'settings'
+		this.folderList = new FolderListVM(this);
+		this.messageList = new MessageListVM(this);
+		this.messageView = new MessageViewVM(this);
+		this.compose = new ComposeVM(this);
+		this.settings = new SettingsVM(this);
+		this.user = ko.observable(null);
+		this.accounts = ko.observableArray([]);
+		this.features = ko.observable({});   // flags admin : contacts, accounts, dangerous_actions…
+		this.messageToolbar = ko.observableArray([]); // slots barre d'actions (plugins)
+		this.pluginTabs = []; // onglets Paramètres injectés par plugins (app.data, fixé au boot)
+		// Surface d'accès liste pour les modules montés via pluginMount
+		window.mxList = {
+			checked: () => this.messageList.checkedMessages(),
+			reload:  () => this.messageList.load(),
+			folder:  () => this.messageList.folder(),
+		};
+		this.debug = ko.observable(false);   // réglage admin Debug (logs console)
+		this.userSettings = {};              // réglages utilisateur (fusion user_defaults)
+		this.folderPaneWidth = ko.observable(240);
+		this.messagePaneWidth = ko.observable(340);
+		this.layout = ko.observable('horizontal');
+		this.messagePaneHeight = ko.observable(320);
+		// En vertical : 3 colonnes × 3 lignes ; dossiers + poignée 1 occupent toute
+		// la hauteur, liste/poignée 2/lecteur s'auto-placent en colonne 3 (ordre DOM).
+		// Toujours renvoyer les 2 propriétés : KO 3.5.1 ne retire pas une propriété
+		// de style précédemment posée si elle disparaît du nouvel objet.
+		this.gridTemplate = ko.pureComputed(() => this.layout() === 'vertical'
+			? { gridTemplateColumns: `${this.folderPaneWidth()}px 6px 1fr`,
+				gridTemplateRows: `${this.messagePaneHeight()}px 6px 1fr` }
+			: { gridTemplateColumns: `${this.folderPaneWidth()}px 6px ${this.messagePaneWidth()}px 6px 1fr`,
+				gridTemplateRows: '1fr' });
+		// Proxy : observable piloté par le drag du séparateur liste↔lecteur selon l'axe actif
+		this.messagePaneSize = ko.pureComputed({
+			read: () => this.layout() === 'vertical' ? this.messagePaneHeight() : this.messagePaneWidth(),
+			write: v => this.layout() === 'vertical' ? this.messagePaneHeight(v) : this.messagePaneWidth(v),
+		});
+		this.listPaneAxis = ko.pureComputed(() => this.layout() === 'vertical' ? 'y' : 'x');
+		this.listPaneMin = ko.pureComputed(() => this.layout() === 'vertical' ? 120 : 200);
+		this.listPaneMax = ko.pureComputed(() => this.layout() === 'vertical' ? 1200 : 800);
+		this.theme = ko.observable('default');
+		this.themeOptions = ko.observableArray([]);
+		this.themeData = {};
+		this.popupIdentityPending = false;
+		this._logoutTimer = null;
+		this._refreshTimer = null;
+		// Détection nouveaux mails : fullName => { unread, lastUid } (seedé au boot)
+		this._watch = {};
+		this.notifyFolders = ko.observableArray([]); // surveillés, INBOX incluse
+		this.notifyEnabled = ko.observable(false);   // réglage notify_new_mail
+
+		this.quota = {
+			used: ko.observable(0),   // Ko
+			limit: ko.observable(0),  // Ko — 0 = pas de quota / non supporté
+		};
+		this.quota.pct = ko.pureComputed(() =>
+			this.quota.limit() ? Math.min(100, Math.round(this.quota.used() / this.quota.limit() * 100)) : 0);
+		this.quota.label = ko.pureComputed(() => {
+			const fmt = kb => kb >= 1048576 ? (kb / 1048576).toFixed(1) + ' ' + t('unit.gb')
+				: kb >= 1024 ? Math.round(kb / 1024) + ' ' + t('unit.mb') : kb + ' ' + t('unit.kb');
+			return t('app.quota_used', {
+				used: fmt(this.quota.used()),
+				limit: fmt(this.quota.limit()),
+				pct: this.quota.pct(),
+			});
+		});
+		// Largeur du label interne = largeur piste / largeur barre
+		this.quota.labelWidth = ko.pureComputed(() =>
+			(10000 / Math.max(this.quota.pct(), 1)).toFixed(2) + '%');
+
+		// Knockout invoque les handlers avec this = $data du contexte courant
+		// (item dans un foreach / objet dans un with) : on force le binding sur le VM.
+		for (const m of Object.getOwnPropertyNames(AppVM.prototype)) {
+			if (m !== 'constructor' && typeof this[m] === 'function') {
+				this[m] = this[m].bind(this);
+			}
+		}
+	}
+
+	async init() {
+		const data = await api.get('/appdata');
+		this.user(data.user);
+		this.accounts(data.accounts || []);
+		// Retour du flow OAuth2 en redirection pleine page (popup bloquée)
+		const oauth = new URLSearchParams(location.search).get('oauth');
+		if (oauth) {
+			history.replaceState(null, '', location.pathname + location.hash);
+			dialog.alert(oauth === 'ok' ? t('app.account_added') : this.oauthError(oauth),
+				{ title: t('app.add_account'), variant: oauth === 'ok' ? 'success' : 'danger' });
+		}
+		this.features(data.features || {});
+		this.messageToolbar(data.messageToolbar || []);
+		this.pluginTabs = data.pluginTabs || [];
+		this.debug(!!data.debug);
+		this.userSettings = data.settings || {};
+		this.themeOptions(data.themes || []);
+		this.themeData = data.themeData || {};
+		// Thème valide uniquement : repli sur 'default' comme côté serveur (current())
+		this.theme((data.themes || []).some(x => x.name === data.settings?.theme)
+			? data.settings.theme : 'default');
+		// Changement de thème → swap CSS + config à chaud
+		this.theme.subscribe(name => this.applyTheme(name));
+		this.applyTheme(this.theme()); // état initial (idempotent avec le rendu serveur)
+		// Largeurs des panneaux (bornes identiques à la validation admin)
+		const clamp = (v, min, max, def) => {
+			v = parseInt(v, 10);
+			return (v >= min && v <= max) ? v : def;
+		};
+		this.folderPaneWidth(clamp(data.settings?.folder_pane_width, 140, 600, 240));
+		this.messagePaneWidth(clamp(data.settings?.message_pane_width, 200, 800, 340));
+		this.layout(data.settings?.layout === 'vertical' ? 'vertical' : 'horizontal');
+		this.messagePaneHeight(clamp(data.settings?.message_pane_height, 120, 1200, 320));
+		// Réglages utilisateur : messages par page + tri de la liste
+		const mpp = parseInt(data.settings?.messages_per_page, 10);
+		if (mpp > 0) { this.messageList.limit = mpp; }
+		this.messageList.sort(this.messageList.normalizeSort(data.settings?.list_sort));
+		// Déconnexion après inactivité (minutes, 0 = jamais)
+		const autologout = parseInt(data.settings?.autologout, 10) || 0;
+		if (autologout > 0) { this.armAutologout(autologout); }
+		// Identité incomplète au premier login → popup réglages.
+		// Passe par le loader du SettingsVM : promesse mémoïsée, pas de doublon.
+		if (data.features?.popup_identity) {
+			const ids = await this.settings.loadIdentities();
+			const def = ids.find(i => Number(i.is_default)) || ids[0];
+			if (def && !(def.name || '').trim()) { this.popupIdentityPending = true; }
+		}
+		await this.folderList.load();
+		// Dossiers surveillés + seed de l'état de détection : seules les hausses
+		// de non-lus postérieures au boot déclenchent une notification.
+		// Le catch est obligatoire : un échec IMAP ici ne doit pas tuer init().
+		this.notifyFolders(await api.get('/folders/notify').catch(() => ['INBOX']));
+		this.notifyEnabled(!!data.settings?.notify_new_mail);
+		for (const f of this.folderList.folders()) {
+			if (f.isInbox || this.notifyFolders().includes(f.fullName)) {
+				this._watch[f.fullName] = { unread: f.unread(), lastUid: 0 };
+			}
+		}
+		// Réactualisation auto de la liste (réglage list_refresh, minutes, 0 = jamais)
+		const refresh = parseInt(data.settings?.list_refresh, 10) || 0;
+		if (refresh > 0) { this.armAutoRefresh(refresh); }
+		await this.compose.init();
+		this.loadQuota();
+		window.addEventListener('hashchange', () => this.routeFromHash());
+		if (this.popupIdentityPending) {
+			// popup_identity : ouvre l'onglet identités tant que le nom est vide
+			location.hash = '#/@settings/identities';
+		}
+		this.routeFromHash();
+		if (this.view() === 'mail' && !this.messageList.messages().length) {
+			this.messageList.load();
+		}
+	}
+
+	routeFromHash() {
+		// Le test de vue se fait sur le hash BRUT : '@settings' ne peut pas
+		// être produit par encodeURIComponent d'un nom de dossier ('@' → %40),
+		// donc un dossier nommé 'settings' (ou '@settings') ne masque pas la vue.
+		const raw = location.hash.replace(/^#\//, '') || 'INBOX';
+		const [page, sub, detail] = raw.split('/');
+		if (page === '@settings') {
+			const entering = this.view() !== 'settings';
+			this.view('settings');
+			// init() seede depuis les données du boot (aucun réseau, sauf
+			// popup_identity) ; activate() attend sa résolution — la whitelist
+			// dépend de pluginTabs (deep-link onglet plugin).
+			(entering ? this.settings.init().catch(() => {}) : Promise.resolve())
+				.then(() => this.settings.activate(
+					safeDecode(sub || '') || 'general',
+					detail ? safeDecode(detail) : detail));
+			return;
+		}
+		this.view('mail');
+		this.settings.filterModal?.hide();
+		const hash = safeDecode(raw);
+		if (hash !== this.messageList.folder()) {
+			this.messageList.selectFolder(hash); // hash complet : un dossier peut contenir '/'
+		}
+	}
+
+	async switchAccount(a) {
+		if (a.active) { return; }
+		await api.post(`/accounts/${a.id}/switch`);
+		location.reload();
+	}
+
+	async addAccount() {
+		const email = await dialog.prompt(t('app.add_account_email'),
+			{ title: t('app.add_account'), inputType: 'email' });
+		if (!email) { return; }
+		// Domaine OAuth2 (gmail, outlook…) → consentement provider en popup ;
+		// sinon ajout classique par mot de passe IMAP. needs_app : l'utilisateur
+		// n'a pas encore enregistré d'application OAuth2 pour ce provider.
+		try {
+			let r = await api.post('/accounts/oauth', { email });
+			if (r.needs_app) {
+				if (!(await this.promptOauthApp(r.provider, r.redirect_uri))) { return; }
+				r = await api.post('/accounts/oauth', { email });
+			}
+			if (r.url) { this.openOauthPopup(r.url); return; }
+		} catch (e) {
+			await dialog.alert(t('errors.failed', { msg: e.message }),
+				{ title: t('app.add_account'), variant: 'danger' });
+			return;
+		}
+		const password = await dialog.prompt(t('app.add_account_pass'),
+			{ title: t('app.add_account'), inputType: 'password' });
+		if (password === null) { return; }
+		try {
+			await api.post('/accounts', { email, password });
+			this.accounts(await api.get('/accounts'));
+			await dialog.alert(t('app.account_added'),
+				{ title: t('app.add_account'), variant: 'success' });
+		} catch (e) {
+			await dialog.alert(t('errors.failed', { msg: e.message }),
+				{ title: t('app.add_account'), variant: 'danger' });
+		}
+	}
+
+	oauthError(code) {
+		const keys = { denied: 'errors.oauth_denied', state: 'errors.oauth_state',
+			email_mismatch: 'errors.oauth_email_mismatch' };
+		return t(keys[code] || 'errors.oauth_failed');
+	}
+
+	/**
+	 * Formulaire d'enregistrement de l'app OAuth2 de l'utilisateur pour un
+	 * provider (premier ajout d'un compte de ce domaine). false si annulé.
+	 */
+	async promptOauthApp(provider, redirectUri) {
+		const fields = [
+			{ name: 'client_id', label: t('settings.oauth_client_id') },
+			{ name: 'secret', label: t('settings.oauth_secret'), inputType: 'password' },
+		];
+		if (provider === 'microsoft') {
+			fields.push({ name: 'tenant', label: t('settings.oauth_tenant'),
+				defaultValue: 'common' });
+		}
+		const v = await dialog.form({
+			title: t('app.add_account'),
+			message: t('app.oauth_app_required', { provider })
+				+ '\n\n' + t('settings.oauth_redirect_uri') + ' : ' + redirectUri,
+			fields, okLabel: t('common.save'),
+		});
+		if (v === null) { return false; }
+		await api.post('/oauth/apps', { provider, ...v });
+		return true;
+	}
+
+	/** Popup de consentement provider ; repli pleine page si bloquée. */
+	openOauthPopup(url) {
+		const w = window.open('about:blank', 'mxwm-oauth', 'width=620,height=720');
+		if (!w) { location.href = url; return; }
+		w.location = url;
+		const done = () => {
+			window.removeEventListener('message', onMsg);
+			clearInterval(timer);
+			api.get('/accounts').then(a => this.accounts(a)).catch(() => {});
+		};
+		const onMsg = (e) => {
+			if (e.origin !== location.origin || e.data?.type !== 'mxwm-oauth') { return; }
+			const ok = !!e.data.ok;
+			done();
+			dialog.alert(ok ? t('app.account_added') : this.oauthError(e.data.err),
+				{ title: t('app.add_account'), variant: ok ? 'success' : 'danger' });
+		};
+		window.addEventListener('message', onMsg);
+		// Popup fermée sans message (fermeture manuelle) → refresh quand même
+		const timer = setInterval(() => { if (w.closed) { done(); } }, 500);
+	}
+
+	async loadQuota() {
+		try {
+			const q = await api.get('/quota');
+			this.quota.used(q[0] ?? 0);
+			this.quota.limit(q[1] ?? 0);
+		} catch (e) { /* capability QUOTA absente */ }
+	}
+
+	/** Timer de réactualisation auto (minutes, réglage list_refresh ; 0 = arrêt). */
+	armAutoRefresh(minutes) {
+		clearInterval(this._refreshTimer);
+		this._refreshTimer = null;
+		if (minutes > 0) {
+			this._refreshTimer = setInterval(() => this.poll(), minutes * 60000);
+		}
+	}
+
+	/**
+	 * Tick de réactualisation : badges de tous les dossiers, détection de
+	 * nouveaux mails (dossiers surveillés) puis reload de la liste courante.
+	 * load() catch en interne (erreur affichée) — on ne peut donc pas
+	 * distinguer une session expirée ; le timer continue jusqu'au re-login.
+	 */
+	async poll() {
+		await this.folderList.load();
+		for (const f of this.folderList.folders()) {
+			if (!f.isInbox && !this.notifyFolders().includes(f.fullName)) { continue; }
+			// ??= : un dossier abonné après le boot se seede sans notifier
+			const prev = this._watch[f.fullName] ??= { unread: f.unread(), lastUid: 0 };
+			if (f.unread() <= prev.unread) {
+				prev.unread = f.unread();
+				continue;
+			}
+			try {
+				const d = await api.get('/messages?folder=' + encodeURIComponent(f.fullName)
+					+ '&page=1&limit=1&sort=' + encodeURIComponent('REVERSE DATE'));
+				const msg = d.messages?.[0];
+				if (msg && msg.uid !== prev.lastUid) {
+					prev.lastUid = msg.uid;
+					if (this.notifyEnabled()) {
+						notify.newMail({
+							folderLabel: f.isInbox ? '' : f.label,
+							from: msg.from || '', subject: msg.subject || '',
+							uid: msg.uid, folder: f.fullName,
+							onOpen: (uid, folder) => this.openMail(uid, folder),
+						});
+					}
+				}
+				prev.unread = f.unread();
+			} catch (e) {
+				// Fetch impossible (IMAP) : prev.unread n'est pas mis à jour,
+				// la détection sera retentée au prochain tick.
+			}
+		}
+		// Liste du dossier courant — sautée si une sélection est en cours
+		// (les MessageModel sont recréés, les cases cochées seraient perdues).
+		if (this.view() === 'mail' && this.messageList.checkedMessages().length === 0) {
+			await this.messageList.load();
+			// Les modèles sont recréés : re-poser la pastille sur le mail affiché.
+			const uid = this.messageView.requestedUid;
+			if (uid) {
+				this.messageList.messages().forEach(m => m.isSelected(m.uid === uid));
+			}
+		}
+	}
+
+	/** Notification cliquée : focus + ouvre le dossier puis sélectionne le mail. */
+	async openMail(uid, folder) {
+		if (folder !== this.messageList.folder()) {
+			await this.messageList.selectFolder(folder);
+		} else {
+			location.hash = '#/' + encodeURIComponent(folder);
+		}
+		const msg = this.messageList.messages().find(m => m.uid === uid);
+		if (msg) { await this.messageList.select(msg); }
+	}
+
+	/** Timer d'inactivité → logout automatique (réglage autologout, minutes). */
+	armAutologout(minutes) {
+		const reset = () => {
+			clearTimeout(this._logoutTimer);
+			this._logoutTimer = setTimeout(() => this.logout(), minutes * 60000);
+		};
+		for (const ev of ['click', 'keydown', 'mousemove', 'scroll']) {
+			window.addEventListener(ev, reset, { passive: true });
+		}
+		reset();
+	}
+
+	openSettings() {
+		location.hash = '#/@settings';
+	}
+
+	/** Applique un template : CSS + variables de config + attributs <html>. */
+	applyTheme(name) {
+		const link = document.getElementById('theme-css');
+		if (link) { link.href = `${window.MXWM.base}/assets/theme/${name}/app.css`; }
+		const d = this.themeData?.[name];
+		if (d) {
+			const el = document.getElementById('theme-config');
+			if (el) { el.textContent = d.varsCss || ''; }
+			const dark = d.darkMode === 'dark'
+				|| (d.darkMode === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+			document.documentElement.setAttribute('data-bs-theme', dark ? 'dark' : 'light');
+			document.documentElement.setAttribute('data-dark-mode', d.darkMode || 'auto');
+			document.documentElement.setAttribute('data-icon-style', d.iconStyle || 'solid');
+		}
+	}
+
+	/** Persiste les dimensions des panneaux dans les réglages utilisateur. */
+	async savePaneSizes() {
+		this.userSettings.folder_pane_width = this.folderPaneWidth();
+		this.userSettings.message_pane_width = this.messagePaneWidth();
+		this.userSettings.message_pane_height = this.messagePaneHeight();
+		await api.post('/settings', {
+			folder_pane_width: this.folderPaneWidth(),
+			message_pane_width: this.messagePaneWidth(),
+			message_pane_height: this.messagePaneHeight(),
+		}).catch(() => {}); // silencieux : préférence cosmétique, non bloquante
+	}
+
+	async logout() {
+		await api.post('/logout');
+		location.href = window.MXWM.base + '/';
+	}
+}
+
+const vm = new AppVM();
+ko.applyBindings(vm);
+vm.init().catch(e => {
+	// textContent : pas de HTML depuis un message d'erreur
+	const div = document.createElement('div');
+	div.className = 'alert alert-danger m-3';
+	div.textContent = t('errors.load', { msg: e.message });
+	document.body.append(div);
+});

@@ -1,0 +1,25 @@
+# MXWebMail — le document root officiel est public/.
+# Ce fichier n'est qu'un filet de transition : si le vhost pointe encore
+# sur la racine du projet, toutes les requêtes sont réécrites vers public/.
+Options -Indexes
+
+<IfModule mod_rewrite.c>
+	RewriteEngine On
+	RewriteRule ^$ public/ [L]
+	RewriteRule (.*) public/$1 [L]
+</IfModule>
+
+# Si mod_rewrite est absent : le dossier privé app/ porte déjà son propre
+# .htaccess "Require all denied" (ainsi que chacun de ses sous-dossiers).
+# On refuse en plus les fichiers de maintenance à la racine.
+<FilesMatch "^(define\.php|_define\.php|README\.md)$">
+	Require all denied
+</FilesMatch>
+
+# Fichiers/dossiers cachés jamais servis (dotfiles) — sauf .well-known (ACME)
+RedirectMatch 404 "/\.(?!well-known)"
+
+<IfModule mod_deflate.c>
+	AddOutputFilterByType DEFLATE text/css text/html text/plain text/xml application/xml text/javascript application/javascript application/json
+	AddOutputFilterByType DEFLATE font/opentype font/otf font/ttf font/woff
+</IfModule>

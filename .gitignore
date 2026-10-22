@@ -1,0 +1,9 @@
+# Runtime
+/app/storage/*
+!/app/storage/.htaccess
+
+# Config locale
+/app/config/config.php
+
+# Paquets de release générés
+/dist/

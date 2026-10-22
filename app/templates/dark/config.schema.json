@@ -1,0 +1,36 @@
+{
+	"dark_mode": {
+		"label": "theme.default.f.dark_mode",
+		"type": "enum",
+		"options": { "auto": "theme.default.dark_mode.auto", "light": "theme.default.dark_mode.light", "dark": "theme.default.dark_mode.dark" },
+		"default": "dark"
+	},
+	"icon_style": {
+		"label": "theme.default.f.icon_style",
+		"type": "enum",
+		"options": { "solid": "theme.default.icon_style.solid", "regular": "theme.default.icon_style.regular" },
+		"default": "solid"
+	},
+	"primary_color": {
+		"label": "theme.default.f.primary_color",
+		"type": "color",
+		"default": "#0d6efd"
+	},
+	"link_color": {
+		"label": "theme.default.f.link_color",
+		"type": "color",
+		"default": "#0d6efd"
+	},
+	"primary_color_dark": {
+		"label": "theme.default.f.primary_color_dark",
+		"type": "color",
+		"default": "#6ea8fe",
+		"help": "theme.default.help.dark_colors"
+	},
+	"link_color_dark": {
+		"label": "theme.default.f.link_color_dark",
+		"type": "color",
+		"default": "#6ea8fe",
+		"help": "theme.default.help.dark_colors"
+	}
+}

@@ -1,0 +1,6 @@
+{
+	"name": "dark",
+	"label": "Sombre",
+	"version": "0.11.0",
+	"extends": "default"
+}

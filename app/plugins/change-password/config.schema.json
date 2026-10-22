@@ -1,0 +1,132 @@
+{
+	"driver": {
+		"label": "plugin.change-password.f.driver",
+		"type": "enum",
+		"options": { "poppassd": "poppassd (port 106)", "pdo": "PDO (SQL)", "ldap": "LDAP", "mailcow": "Mailcow API" },
+		"default": "poppassd",
+		"help": "plugin.change-password.f.driver.help"
+	},
+	"allowed_emails": {
+		"label": "plugin.change-password.f.allowed_emails",
+		"type": "string",
+		"default": "*",
+		"help": "plugin.change-password.f.allowed_emails.help"
+	},
+	"pass_min_length": {
+		"label": "plugin.change-password.f.pass_min_length",
+		"type": "integer",
+		"default": 10
+	},
+	"pass_min_strength": {
+		"label": "plugin.change-password.f.pass_min_strength",
+		"type": "integer",
+		"default": 70,
+		"help": "plugin.change-password.f.pass_min_strength.help"
+	},
+	"check_hibp": {
+		"label": "plugin.change-password.f.check_hibp",
+		"type": "bool",
+		"default": false,
+		"help": "plugin.change-password.f.check_hibp.help"
+	},
+	"poppassd_host": {
+		"label": "plugin.change-password.f.poppassd_host",
+		"type": "string",
+		"default": "localhost"
+	},
+	"poppassd_port": {
+		"label": "plugin.change-password.f.poppassd_port",
+		"type": "integer",
+		"default": 106
+	},
+	"pdo_dsn": {
+		"label": "plugin.change-password.f.pdo_dsn",
+		"type": "string",
+		"default": "mysql:host=localhost;dbname=mailserver;charset=utf8mb4",
+		"help": "plugin.change-password.f.pdo_dsn.help"
+	},
+	"pdo_user": {
+		"label": "plugin.change-password.f.pdo_user",
+		"type": "string",
+		"default": ""
+	},
+	"pdo_password": {
+		"label": "plugin.change-password.f.pdo_password",
+		"type": "password",
+		"default": ""
+	},
+	"pdo_sql": {
+		"label": "plugin.change-password.f.pdo_sql",
+		"type": "text",
+		"default": "UPDATE mailbox SET password = :newpass WHERE username = :email",
+		"help": "plugin.change-password.f.pdo_sql.help"
+	},
+	"pdo_encrypt": {
+		"label": "plugin.change-password.f.pdo_encrypt",
+		"type": "enum",
+		"options": { "none": "common.none", "bcrypt": "bcrypt", "argon2i": "Argon2i", "argon2id": "Argon2id", "sha256-crypt": "SHA256-CRYPT", "sha512-crypt": "SHA512-CRYPT" },
+		"default": "none"
+	},
+	"pdo_encryptprefix": {
+		"label": "plugin.change-password.f.pdo_encryptprefix",
+		"type": "string",
+		"default": "",
+		"help": "plugin.change-password.f.pdo_encryptprefix.help"
+	},
+	"pdo_mysql_ssl": {
+		"label": "plugin.change-password.f.pdo_mysql_ssl",
+		"type": "bool",
+		"default": false
+	},
+	"pdo_mysql_ssl_verify": {
+		"label": "plugin.change-password.f.pdo_mysql_ssl_verify",
+		"type": "bool",
+		"default": false
+	},
+	"pdo_mysql_ssl_ca": {
+		"label": "plugin.change-password.f.pdo_mysql_ssl_ca",
+		"type": "string",
+		"default": "",
+		"help": "plugin.change-password.f.pdo_mysql_ssl_ca.help"
+	},
+	"ldap_uri": {
+		"label": "plugin.change-password.f.ldap_uri",
+		"type": "string",
+		"default": "ldap://localhost:389",
+		"help": "plugin.change-password.f.ldap_uri.help"
+	},
+	"ldap_use_start_tls": {
+		"label": "plugin.change-password.f.ldap_use_start_tls",
+		"type": "bool",
+		"default": true
+	},
+	"ldap_user_dn_format": {
+		"label": "plugin.change-password.f.ldap_user_dn_format",
+		"type": "string",
+		"default": "uid={imap:login},ou=Users,{domain:dc}",
+		"help": "plugin.change-password.f.ldap_user_dn_format.help"
+	},
+	"ldap_password_field": {
+		"label": "plugin.change-password.f.ldap_password_field",
+		"type": "string",
+		"default": "userPassword"
+	},
+	"ldap_password_enc_type": {
+		"label": "plugin.change-password.f.ldap_password_enc_type",
+		"type": "enum",
+		"options": { "SHA": "SHA", "SSHA": "SSHA", "MD5": "MD5", "Crypt": "Crypt", "Clear": "Clear" },
+		"default": "SSHA"
+	},
+	"mailcow_api_hostname": {
+		"label": "plugin.change-password.f.mailcow_api_hostname",
+		"type": "string",
+		"default": "",
+		"help": "plugin.change-password.f.mailcow_api_hostname.help"
+	},
+	"mailcow_api_token": {
+		"label": "plugin.change-password.f.mailcow_api_token",
+		"type": "password",
+		"default": "",
+		"help": "plugin.change-password.f.mailcow_api_token.help"
+	}
+}

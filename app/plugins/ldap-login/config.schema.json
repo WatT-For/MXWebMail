@@ -1,0 +1,10 @@
+{
+	"host":          { "label": "plugin.ldap-login.f.host", "type": "string", "default": "" },
+	"port":          { "label": "plugin.ldap-login.f.port", "type": "integer", "default": 389 },
+	"use_tls":       { "label": "plugin.ldap-login.f.use_tls", "type": "bool", "default": false },
+	"bind_dn":       { "label": "plugin.ldap-login.f.bind_dn", "type": "string", "default": "" },
+	"bind_pass":     { "label": "plugin.ldap-login.f.bind_pass", "type": "password", "default": "" },
+	"base_dn":       { "label": "plugin.ldap-login.f.base_dn", "type": "string", "default": "" },
+	"search_filter": { "label": "plugin.ldap-login.f.search_filter", "type": "string", "default": "(|(uid=%u)(mail=%u))" },
+	"mail_attr":     { "label": "plugin.ldap-login.f.mail_attr", "type": "string", "default": "mail" }
+}

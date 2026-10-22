@@ -1,0 +1,8 @@
+{
+	"name": "mailbox-detect",
+	"class": "MailboxDetect",
+	"main": "MailboxDetect.php",
+	"version": "0.12.0",
+	"description": "plugin.mailbox-detect.description",
+	"hooks": ["app.data"]
+}

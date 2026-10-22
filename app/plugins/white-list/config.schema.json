@@ -1,0 +1,20 @@
+{
+	"white_list": {
+		"label": "plugin.white-list.f.white_list",
+		"type": "string",
+		"default": "",
+		"help": "plugin.white-list.f.white_list.help"
+	},
+	"exceptions": {
+		"label": "plugin.white-list.f.exceptions",
+		"type": "string",
+		"default": "",
+		"help": "plugin.white-list.f.exceptions.help"
+	},
+	"auth_error": {
+		"label": "plugin.white-list.f.auth_error",
+		"type": "bool",
+		"default": false,
+		"help": "plugin.white-list.f.auth_error.help"
+	}
+}

@@ -1,0 +1,20 @@
+{
+	"black_list": {
+		"label": "plugin.black-list.f.black_list",
+		"type": "string",
+		"default": "",
+		"help": "plugin.black-list.f.black_list.help"
+	},
+	"exceptions": {
+		"label": "plugin.black-list.f.exceptions",
+		"type": "string",
+		"default": "",
+		"help": "plugin.black-list.f.exceptions.help"
+	},
+	"auth_error": {
+		"label": "plugin.black-list.f.auth_error",
+		"type": "bool",
+		"default": false,
+		"help": "plugin.black-list.f.auth_error.help"
+	}
+}

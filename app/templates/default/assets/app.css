@@ -1,0 +1,296 @@
+/* MXWebMail — layout application.
+   Couleurs configurées injectées via variables --mxwm-* (voir ThemeManager). */
+
+:root {
+	--bs-primary: var(--mxwm-primary, #0d6efd);
+	--bs-primary-rgb: var(--mxwm-primary-rgb, 13,110,253);
+	--bs-link-color: var(--mxwm-link, #0d6efd);
+	--bs-link-color-rgb: var(--mxwm-link-rgb, 13,110,253);
+}
+
+/* Mode sombre : surcharges des classes utilitaires que Bootstrap ne bascule
+   pas via data-bs-theme (posé sur <html> par le script inline de thème). */
+[data-bs-theme=dark] .bg-light,
+[data-bs-theme=dark] .bg-white {
+	background-color: var(--bs-tertiary-bg) !important;
+}
+[data-bs-theme=dark] .table-light {
+	--bs-table-color: var(--bs-emphasis-color);
+	--bs-table-bg: var(--bs-secondary-bg);
+	--bs-table-border-color: var(--bs-border-color);
+	--bs-table-striped-bg: rgba(var(--bs-emphasis-color-rgb), .05);
+	--bs-table-striped-color: var(--bs-emphasis-color);
+	--bs-table-active-bg: rgba(var(--bs-emphasis-color-rgb), .1);
+	--bs-table-active-color: var(--bs-emphasis-color);
+	--bs-table-hover-bg: rgba(var(--bs-emphasis-color-rgb), .075);
+	--bs-table-hover-color: var(--bs-emphasis-color);
+}
+
+/* Icônes : style « regular » (graisse 400) au lieu du solid (900) */
+html[data-icon-style="regular"] [class*="fa-"] { font-weight: 400; }
+
+html, body { height: 100%; }
+
+.login-page {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	min-height: 100vh;
+	background: var(--bs-tertiary-bg);
+}
+.login-card { width: 100%; max-width: 400px; }
+
+.app-shell {
+	display: grid;
+	grid-template-rows: auto 1fr;
+	height: 100vh;
+}
+
+.app-main {
+	display: grid;
+	/* défaut avant application KO (panneau, poignée, panneau, poignée, panneau) */
+	grid-template-columns: 240px 6px 340px 6px 1fr;
+	grid-template-rows: 1fr;
+	min-height: 0;
+}
+
+/* min-width:auto (défaut grid) laisserait un contenu large forcer la piste
+   1fr au-delà du partage → déborde .app-main. 0 = les panneaux débordent en
+   interne (overflow déjà géré) sans casser les largeurs/hauteurs. */
+.app-main > * { min-width: 0; min-height: 0; }
+
+/* Disposition verticale : dossiers + sa poignée occupent toute la hauteur ;
+   liste, poignée horizontale, lecteur s'auto-placent en colonne 3 (ordre DOM). */
+.app-main.layout-vertical .folder-pane { grid-row: 1 / -1; grid-column: 1; }
+.app-main.layout-vertical .folder-pane + .pane-resizer { grid-row: 1 / -1; grid-column: 2; }
+
+/* Poignée horizontale (aria-orientation="horizontal", posé par le binding attr) */
+.pane-resizer[aria-orientation="horizontal"] { cursor: row-resize; }
+.pane-resizer[aria-orientation="horizontal"]::after {
+	top: 0;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	width: auto;
+	height: 1px;
+	margin-block: auto;
+	margin-inline: 0;
+}
+.pane-resizer[aria-orientation="horizontal"]:hover::after,
+.pane-resizer[aria-orientation="horizontal"].dragging::after {
+	height: 3px;
+	width: auto;
+}
+
+.pane-resizer {
+	cursor: col-resize;
+	touch-action: none;   /* tactile : empêche le scroll de voler le drag */
+	position: relative;
+	background: var(--bs-tertiary-bg);
+}
+/* ligne de séparation centrée dans la gouttière */
+.pane-resizer::after {
+	content: "";
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	margin-inline: auto;   /* centrage exact, pas de calc au survol */
+	width: 1px;
+	background: var(--bs-border-color);
+}
+.pane-resizer:hover::after,
+.pane-resizer.dragging::after {
+	width: 3px;
+	background: var(--bs-primary);
+}
+
+/* pendant un drag : l'iframe du lecteur ne doit pas capter le pointeur */
+body.pane-resizing { cursor: col-resize; user-select: none; }
+body.pane-resizing-v { cursor: row-resize; user-select: none; }
+body.pane-resizing iframe,
+body.pane-resizing-v iframe { pointer-events: none; }
+
+.folder-pane {
+	display: flex;
+	flex-direction: column;
+	overflow: hidden;
+}
+.folder-pane .list-group {
+	flex: 1 1 auto;
+	min-height: 0;
+	overflow-y: auto;
+}
+.folder-pane .list-group-item {
+	border: 0;
+	border-radius: 0;
+	cursor: pointer;
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+.folder-pane .list-group-item.active { font-weight: 600; }
+/* Séparation entre dossiers de base et dossiers utilisateur */
+.folder-pane .list-group-item.folder-sep {
+	border-top: 1px solid var(--bs-border-color);
+	margin-top: 6px;
+}
+
+.message-pane {
+	overflow-y: auto;
+	display: flex;
+	flex-direction: column;
+}
+.message-pane table { font-size: .875rem; table-layout: fixed; }
+.message-pane tbody tr { cursor: pointer; }
+.message-unread td { font-weight: 700; }
+/* Étoile de suivi : discrète au repos, pleine au survol / flaggée */
+.message-pane .msg-flag { cursor: pointer; opacity: .45; margin-left: .25rem; }
+.message-pane .msg-flag:hover,
+.message-pane .msg-flag.fa-solid { opacity: 1; }
+
+.reader-pane {
+	overflow-y: auto;
+	padding: 1rem;
+}
+/* Corps de mail inline : base équivalente à l'ancien srcdoc (fond blanc) */
+.mail-body {
+	font: 14px/1.5 system-ui, sans-serif;
+	color: #212529;
+	background: #fff;
+}
+/* Containment : rien du mail ne peint/capte de clic hors de #mail-body
+   (position:relative+offset, transform, marges négatives ; un position:fixed
+   survivant serait recalé dans la boîte). */
+#mail-body { contain: paint; overflow-wrap: break-word; }
+
+/* display:flex SANS !important — à utiliser sur les éléments liés à un
+   binding KO visible: (d-flex en !important empêche KO de les masquer). */
+.ko-flex { display: flex; }
+
+/* Bouton icône seule : carré (largeur = hauteur), quelle que soit la
+   largeur du glyphe Font Awesome. */
+.btn-icon { aspect-ratio: 1; flex-shrink: 0; }
+
+/* Icône d'aide (tooltip Bootstrap) accolée aux labels de champ */
+.help-icon { cursor: help; color: var(--bs-secondary-color); }
+.help-icon:hover, .help-icon:focus-visible { color: var(--bs-primary); }
+
+.reader-pane .mail-body img { max-width: 100%; }
+
+/* Menus latéraux (admin + paramètres) — groupes */
+.side-menu-group {
+	font-size: .75rem;
+	text-transform: uppercase;
+	color: var(--bs-secondary-color);
+	padding: .75rem 1rem .25rem;
+}
+
+/* Login */
+.brand-logo { font-size: 1.5rem; font-weight: 700; letter-spacing: .5px; }
+
+/* Quota : label centré sur toute la largeur, une copie par zone
+   (piste = couleur body, remplissage = blanc clippé par la barre). */
+.quota-progress {
+	--bs-progress-height: 1.15rem;
+	position: relative;   /* requis : .progress BS n'est pas positionné */
+}
+.quota-progress .quota-label {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 0;
+	right: 0;
+	font-size: var(--bs-progress-font-size);
+	line-height: var(--bs-progress-height);   /* centrage vertical */
+	text-align: center;
+	color: var(--bs-body-color);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.quota-progress .progress-bar {
+	position: relative;   /* sinon le label piste (absolu) peindrait sur la barre */
+	overflow: hidden;
+}
+.quota-progress .progress-bar .quota-label {
+	right: auto;          /* largeur fournie par quota.labelWidth */
+	color: #fff;
+}
+.quota-progress .progress-bar.bg-warning .quota-label { color: #000; }
+
+/* Pieds des colonnes dossiers/messages : hauteur commune, bas alignés.
+   display:flex SANS !important : le display:none inline du binding KO
+   visible: reste prioritaire (même mécanisme que .ko-flex). */
+.pane-footer {
+	display: flex;
+	align-items: center;
+	min-height: 3rem;
+}
+/* Enfant flex, .progress prendrait la largeur de son contenu (labels en
+   position absolute → 0) : on l'étire sur toute la largeur. */
+.pane-footer > .quota-progress { flex: 1 1 auto; }
+
+/* Modale de composition redimensionnable */
+#compose-modal .modal-content {
+	overflow: hidden;
+	max-height: calc(100vh - 56px);   /* borne une hauteur persistée trop grande */
+}
+#compose-modal .modal-body {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;                    /* requis : flex-item peut rétrécir */
+	overflow-y: auto;
+}
+#compose-modal .modal-body > * { flex: 0 0 auto; }
+/* TinyMCE suit la hauteur de la modale : le height:320px inline sert de
+   flex-basis — ne pas l'écraser (height:auto effondrerait l'iframe). */
+#compose-modal .tox-tinymce { flex: 1 1 auto; min-height: 220px; }
+/* Panneaux d'onglets de la modale de composition : chacun remplit le corps
+   flex → pas de saut de hauteur au switch quand la modale est redimensionnée.
+   visible: KO pose display:none inline → prioritaire sur le display:flex. */
+#compose-modal .modal-body > .compose-tab { flex: 1 1 auto; min-height: 0; }
+/* L'éditeur n'est plus enfant direct de .modal-body : la chaîne flex est
+   reportée sur le panneau pour que .tox-tinymce{flex:1} suive la hauteur. */
+#compose-modal .compose-tab-msg { display: flex; flex-direction: column; }
+/* Même spécificité (1 id + 2 classes) que la règle .compose-tab ci-dessus
+   et déclarée après → son min-height:340px bat le min-height:0 générique.
+   ⚠️ NE PAS écrire « #compose-modal .compose-tab-pj » (1 id + 1 classe) :
+   il perdrait contre .modal-body > .compose-tab. */
+#compose-modal .modal-body > .compose-tab-pj { min-height: 340px; overflow-y: auto; }
+/* Les suggestions seules restent bornées (la liste PJ utilise .list-group
+   aussi — ne pas la brider à 160px). */
+#compose-modal .modal-body .list-group.compose-suggestions {
+	max-height: 160px;
+	overflow-y: auto;
+}
+
+.modal-resize-grip {
+	position: absolute;
+	right: 0;
+	bottom: 0;
+	width: 18px;
+	height: 18px;
+	cursor: nwse-resize;
+	touch-action: none;
+	z-index: 2;
+}
+.modal-resize-grip::before {
+	content: "";
+	position: absolute;
+	right: 4px;
+	bottom: 4px;
+	width: 9px;
+	height: 9px;
+	border-right: 2px solid var(--bs-secondary-color);
+	border-bottom: 2px solid var(--bs-secondary-color);
+}
+.modal-resize-grip:hover::before,
+.modal-resize-grip.dragging::before { border-color: var(--bs-primary); }
+
+/* pendant le drag : curseur global + neutralisation des iframes (TinyMCE) */
+body.modal-resizing { cursor: nwse-resize; user-select: none; }
+body.modal-resizing iframe { pointer-events: none; }
+
+@media (max-width: 575.98px) { .modal-resize-grip { display: none; } }

@@ -1,0 +1,8 @@
+{
+	"name": "ics-viewer",
+	"class": "IcsViewer",
+	"main": "IcsViewer.php",
+	"version": "0.12.0",
+	"description": "plugin.ics-viewer.description",
+	"hooks": ["app.data"]
+}

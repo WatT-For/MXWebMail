@@ -1,0 +1,39 @@
+{
+	"protected_domains": {
+		"label": "plugin.anti-spoofing.f.protected_domains",
+		"type": "list",
+		"default": "paypal.com,amazon.com,google.com,microsoft.com,apple.com",
+		"help": "plugin.anti-spoofing.f.protected_domains.help"
+	},
+	"brands": {
+		"label": "plugin.anti-spoofing.f.brands",
+		"type": "list",
+		"default": "paypal,amazon,google,microsoft,apple,banque,impots,securite-sociale",
+		"help": "plugin.anti-spoofing.f.brands.help"
+	},
+	"check_envelope": {
+		"label": "plugin.anti-spoofing.f.check_envelope",
+		"type": "bool",
+		"default": true
+	},
+	"check_reply_to": {
+		"label": "plugin.anti-spoofing.f.check_reply_to",
+		"type": "bool",
+		"default": true
+	},
+	"check_sender": {
+		"label": "plugin.anti-spoofing.f.check_sender",
+		"type": "bool",
+		"default": true
+	},
+	"check_display": {
+		"label": "plugin.anti-spoofing.f.check_display",
+		"type": "bool",
+		"default": true
+	},
+	"check_lookalike": {
+		"label": "plugin.anti-spoofing.f.check_lookalike",
+		"type": "bool",
+		"default": true
+	}
+}

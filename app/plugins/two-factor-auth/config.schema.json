@@ -1,0 +1,23 @@
+{
+	"issuer": {
+		"type": "string",
+		"label": "plugin.two-factor-auth.issuer",
+		"default": ""
+	},
+	"label": {
+		"type": "enum",
+		"label": "plugin.two-factor-auth.label",
+		"help": "plugin.two-factor-auth.label.help",
+		"options": {
+			"email": "plugin.two-factor-auth.label.email",
+			"local": "plugin.two-factor-auth.label.local"
+		},
+		"default": "email"
+	},
+	"icon_url": {
+		"type": "string",
+		"label": "plugin.two-factor-auth.icon_url",
+		"help": "plugin.two-factor-auth.icon_url.help",
+		"default": ""
+	}
+}

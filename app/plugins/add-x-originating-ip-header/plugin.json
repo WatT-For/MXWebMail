@@ -1,0 +1,8 @@
+{
+	"name": "add-x-originating-ip-header",
+	"class": "AddXOriginatingIpHeader",
+	"main": "AddXOriginatingIpHeader.php",
+	"version": "0.12.0",
+	"description": "plugin.add-x-originating-ip-header.description",
+	"hooks": ["message.before-send"]
+}

@@ -1,0 +1,12 @@
+{
+	"host":        { "label": "plugin.ldap-contacts.f.host", "type": "string", "default": "" },
+	"port":        { "label": "plugin.ldap-contacts.f.port", "type": "integer", "default": 389 },
+	"use_tls":     { "label": "plugin.ldap-contacts.f.use_tls", "type": "bool", "default": false },
+	"bind_dn":     { "label": "plugin.ldap-contacts.f.bind_dn", "type": "string", "default": "" },
+	"bind_pass":   { "label": "plugin.ldap-contacts.f.bind_pass", "type": "password", "default": "" },
+	"base_dn":     { "label": "plugin.ldap-contacts.f.base_dn", "type": "string", "default": "" },
+	"filter":      { "label": "plugin.ldap-contacts.f.filter", "type": "string", "default": "(|(mail=*%q*)(cn=*%q*)(sn=*%q*))" },
+	"name_attr":   { "label": "plugin.ldap-contacts.f.name_attr", "type": "string", "default": "cn" },
+	"mail_attr":   { "label": "plugin.ldap-contacts.f.mail_attr", "type": "string", "default": "mail" },
+	"max_results": { "label": "plugin.ldap-contacts.f.max_results", "type": "integer", "default": 10 }
+}
