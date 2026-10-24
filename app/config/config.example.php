@@ -83,7 +83,7 @@ return [
 	'update' => [
 		'repo'    => '',        // fallback dev si GitHubClient::REPO vide ('owner/mxwebmail')
 		'channel' => 'stable',  // stable | beta (le seul réglage exposé dans l'admin)
-		'token'   => '',        // PAT GitHub optionnel (rate-limit / dépôt privé)
+		'token'   => '',        // PAT GitHub — requis tant que le dépôt est privé
 		'manifest_url' => '',   // dev : manifeste JSON format release, bypass l'API
 	],
 

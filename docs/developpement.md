@@ -66,6 +66,10 @@ Voir [plugins.md](plugins.md) pour créer un plugin.
   cœur `mxwebmail-*.zip` via `coreAsset`) et `PluginPackageService` (assets
   `plugin-<name>-<ver>.zip` via `pluginAssets` + `plugins_index`). Dépôt verrouillé
   par la constante `REPO`, cache release partagé `storage/cache/update-check.json`.
+  Chaque asset tronqué porte `download_url`, résolu par `pickUrl()` : endpoint API
+  `releases/assets/<id>` (`Accept: application/octet-stream`) si `PAT GitHub` est
+  configuré — obligatoire sur dépôt privé où `browser_download_url` renvoie 404 —
+  sinon `browser_download_url`.
 - `PluginPackageService` : `catalog()`, `install()` (download → sha256 → extraction
   anti-traversal → validation `plugin.json` + `min_app`/`max_app` → swap avec backup
   unique par plugin → invalidation classmap/opcache), `remove()` (rmrf + purge de la

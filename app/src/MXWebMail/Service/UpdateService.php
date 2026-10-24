@@ -135,7 +135,7 @@ final class UpdateService
 
 		$asset = $this->gh->coreAsset($rel)
 			?? throw new \RuntimeException('Aucun paquet .zip dans la release', 502);
-		$url = (string) $asset['browser_download_url'];
+		$url = (string) ($asset['download_url'] ?? '');
 		if (!$this->gh->validUrl($url)) {
 			throw new \RuntimeException('URL de téléchargement refusée', 502);
 		}

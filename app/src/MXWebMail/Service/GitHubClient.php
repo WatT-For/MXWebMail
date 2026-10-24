@@ -127,9 +127,13 @@ final class GitHubClient
 			'body'         => (string) ($rel['body'] ?? ''),
 			'html_url'     => (string) ($rel['html_url'] ?? ''),
 			'published_at' => (string) ($rel['published_at'] ?? ''),
-			'assets'       => array_map(static fn($a) => [
+			'assets'       => array_map(fn($a) => [
 				'name'                  => (string) ($a['name'] ?? ''),
 				'browser_download_url'  => (string) ($a['browser_download_url'] ?? ''),
+				// Endpoint API releases/assets/<id> — requis sur dépôt privé
+				// (browser_download_url y renvoie 404 même authentifié).
+				'api_url'               => (string) ($a['url'] ?? ''),
+				'download_url'          => $this->pickUrl($a),
 				'size'                  => (int) ($a['size'] ?? 0),
 			], (array) ($rel['assets'] ?? [])),
 			// Index du catalogue plugins — embarqué pour profiter du même cache
@@ -144,6 +148,20 @@ final class GitHubClient
 		@unlink($this->cacheFile);
 	}
 
+	/**
+	 * URL de téléchargement d'un asset : endpoint API releases/assets/<id> si
+	 * un token est configuré (dépôt privé — browser_download_url y renvoie 404
+	 * même authentifié), sinon l'URL publique. Accepte un asset brut de
+	 * l'API ('url') ou tronqué ('api_url').
+	 */
+	private function pickUrl(array $a): string
+	{
+		$api = (string) ($a['api_url'] ?? $a['url'] ?? '');
+		$web = (string) ($a['browser_download_url'] ?? '');
+		return ($api !== '' && trim((string) ($this->cfg()['token'] ?? '')) !== '')
+			? $api : $web;
+	}
+
 	/** plugins.index.json : inline (manifeste dev) ou asset de la release. */
 	private function fetchPluginIndex(array $rel): ?array
 	{
@@ -154,7 +172,7 @@ final class GitHubClient
 			if (($a['name'] ?? '') !== 'plugins.index.json') {
 				continue;
 			}
-			$url = (string) ($a['browser_download_url'] ?? '');
+			$url = $this->pickUrl($a);
 			if (!$this->validUrl($url)) {
 				return null;
 			}
@@ -204,7 +222,7 @@ final class GitHubClient
 				$out[$m[1]] = [
 					'name'    => $name,
 					'version' => $m[2],
-					'url'     => (string) ($a['browser_download_url'] ?? ''),
+					'url'     => (string) ($a['download_url'] ?? ''),
 					'size'    => (int) ($a['size'] ?? 0),
 				];
 			}
@@ -220,7 +238,7 @@ final class GitHubClient
 			if ($name === strtolower($zipName) . '.sha256'
 				|| $name === 'sha256sums' || $name === 'sha256sums.txt'
 				|| $name === 'checksums.txt') {
-				return (string) ($a['browser_download_url'] ?? '') ?: null;
+				return (string) ($a['download_url'] ?? '') ?: null;
 			}
 		}
 		return null;
@@ -269,7 +287,10 @@ final class GitHubClient
 	private function request(string $url, ?string $toFile, int $maxBytes): string
 	{
 		$ch = curl_init($url);
-		$headers = ['Accept: application/vnd.github+json'];
+		// L'endpoint releases/assets/<id> exige octet-stream pour servir le
+		// binaire (sinon il renvoie le JSON de métadonnées de l'asset).
+		$headers = ['Accept: ' . (str_contains($url, '/releases/assets/')
+			? 'application/octet-stream' : 'application/vnd.github+json')];
 		$token = trim((string) ($this->cfg()['token'] ?? ''));
 		if ($token !== '' && preg_match(
 			'#^https://(api\.github\.com|github\.com|objects\.githubusercontent\.com)/#i', $url)) {
@@ -345,6 +366,7 @@ final class GitHubClient
 		$raw = is_file($this->cacheFile) ? file_get_contents($this->cacheFile) : false;
 		$c = is_string($raw) ? json_decode($raw, true) : null;
 		return (is_array($c) && ($c['at'] ?? 0) > time() - $ttl
+			&& ($c['v'] ?? 0) >= 2
 			&& is_array($c['release'] ?? null)) ? $c : null;
 	}
 
@@ -355,7 +377,7 @@ final class GitHubClient
 		}
 		is_dir(dirname($this->cacheFile)) || mkdir(dirname($this->cacheFile), 0700, true);
 		$this->writeJson($this->cacheFile, [
-			'at' => time(), 'repo' => $repo, 'channel' => $channel,
+			'v' => 2, 'at' => time(), 'repo' => $repo, 'channel' => $channel,
 			'manifest' => $manifest, 'release' => $release,
 		]);
 	}

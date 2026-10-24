@@ -108,7 +108,8 @@ utilisateurs — voir [plugins.md](plugins.md).
 
 **Installation / mise à jour depuis GitHub** : les plugins ne sont plus livrés dans le
 zip de release — chaque release transporte un asset `plugin-<name>-<ver>.zip` (+ `.sha256`)
-et un index `plugins.index.json` (même dépôt verrouillé que l'updater cœur). Le catalogue
+et un index `plugins.index.json` (même dépôt verrouillé que l'updater cœur ; tant que
+le dépôt est privé, `PAT GitHub` dans `config.php` est requis). Le catalogue
 est chargé à l'ouverture de l'onglet (cache partagé avec le check cœur) et actualisable
 via **Vérifier** :
 

@@ -130,10 +130,13 @@ dans `trusted_proxies` (CIDR). La détection HTTPS (`isHttps`) suit la même rè
 
 ## 3. Limites connues
 
-- Le dépôt `GitHubClient::REPO` est vide : la mise à jour auto (cœur et catalogue
-  plugins) est désactivée tant que le dépôt officiel n'est pas renseigné. Quand il est
-  renseigné, les paquets installés (zip cœur et `plugin-*.zip`) ne proviennent que de
-  ce dépôt — aucune URL arbitraire configurable.
+- Le dépôt `GitHubClient::REPO` est verrouillé sur `WatT-For/MXWebMail` : les
+  paquets installés (zip cœur et `plugin-*.zip`) ne proviennent que de ce dépôt —
+  aucune URL arbitraire configurable. Tant que le dépôt reste **privé**,
+  `PAT GitHub` (PAT avec accès `Contents: Read` au dépôt) est requis : l'API
+  et les assets (servis via l'endpoint `releases/assets/<id>` — le
+  `browser_download_url` renvoie 404 sur dépôt privé même authentifié) en
+  dépendent.
 - Le changement SQLite → MariaDB ne migre pas les données (schéma vierge).
 - Les clés privées OpenPGP sont stockées armored côté serveur (la passphrase protège la
   clé elle-même, pas d'encapsulation supplémentaire).

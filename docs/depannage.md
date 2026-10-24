@@ -89,10 +89,16 @@ contacts par utilisateur sont conservés). Il n'y a pas d'outil de migration de 
 
 ## Mises à jour
 
-**Le bouton de vérification des mises à jour ne fait rien**
-Le dépôt officiel (`UpdateService::REPO`) est vide : la fonction est désactivée tant qu'il
-n'est pas renseigné. `update.repo`/`PAT GitHub` se règlent manuellement dans
-`config.php`.
+**Le bouton de vérification des mises à jour ne fait rien / HTTP 404 sur `releases/latest`**
+Le dépôt officiel est verrouillé (`GitHubClient::REPO` = `WatT-For/MXWebMail`) et
+**privé** : `PAT GitHub` (PAT avec accès `Contents: Read` au dépôt) est requis
+dans `config.php`. GitHub renvoie 404 — pas 403 — quand le token n'a pas accès
+au dépôt. `update.repo`/`PAT GitHub` se règlent manuellement dans `config.php`.
+
+**HTTP 404 sur `…/releases/download/…` (catalogue plugins ou téléchargement de mise à jour)**
+Sur dépôt privé, le `browser_download_url` des assets renvoie 404 même avec un
+token valide. Corrigé à partir de la 0.36.1 : les assets sont téléchargés via
+l'endpoint API `releases/assets/<id>` quand `PAT GitHub` est configuré.
 
 ## Divers
 
