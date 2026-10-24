@@ -662,6 +662,15 @@ final class ApiController
 		return JsonResponse::ok();
 	}
 
+	public function accountDefault(Request $request): JsonResponse
+	{
+		$this->requireAuth();
+		$this->requireCsrf();
+		$this->app->auth()->setDefaultAccount(
+			(int) $_SESSION['user_id'], (int) $request->params['id']);
+		return JsonResponse::ok();
+	}
+
 	// ─── Filtres Sieve ───
 
 	public function filters(Request $request): JsonResponse

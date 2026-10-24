@@ -908,46 +908,83 @@ final class AdminController
 	{
 		$this->requireAdmin();
 		$force = (bool) $request->input('force', false);
-		return $this->updateApi(fn($u) => $u->check($force));
+		return $this->serviceApi(fn() => $this->app->updater()->check($force));
 	}
 
 	public function updateStatus(Request $request): JsonResponse
 	{
 		$this->requireAdmin();
-		return $this->updateApi(fn($u) => $u->status());
+		return $this->serviceApi(fn() => $this->app->updater()->status());
 	}
 
 	public function updateDownload(Request $request): JsonResponse
 	{
 		$this->requireAdmin();
 		$this->requireCsrf();
-		return $this->updateApi(fn($u) => $u->download());
+		return $this->serviceApi(fn() => $this->app->updater()->download());
 	}
 
 	public function updateApply(Request $request): JsonResponse
 	{
 		$this->requireAdmin();
 		$this->requireCsrf();
-		return $this->updateApi(fn($u) => $u->apply());
+		return $this->serviceApi(fn() => $this->app->updater()->apply());
 	}
 
 	public function updateReset(Request $request): JsonResponse
 	{
 		$this->requireAdmin();
 		$this->requireCsrf();
-		return $this->updateApi(fn($u) => $u->reset());
+		return $this->serviceApi(fn() => $this->app->updater()->reset());
+	}
+
+	// ─── Catalogue plugins (PluginPackageService — assets GitHub Releases) ───
+
+	public function pluginsCatalog(Request $request): JsonResponse
+	{
+		$this->requireAdmin();
+		$force = (bool) $request->input('force', false);
+		return $this->serviceApi(
+			fn() => $this->app->pluginPackages()->catalog($force));
+	}
+
+	public function pluginInstall(Request $request): JsonResponse
+	{
+		$this->requireAdmin();
+		$this->requireCsrf();
+		$name = self::pluginName($request->params['name'] ?? '');
+		if ($name === null) {
+			return JsonResponse::error(
+				$this->t('errors.invalid_value', ['key' => 'name']), 'validation', 400);
+		}
+		return $this->serviceApi(
+			fn() => $this->app->pluginPackages()->install($name));
+	}
+
+	/** Désinstallation définitive : dossier supprimé + ligne DB purgée. */
+	public function pluginRemove(Request $request): JsonResponse
+	{
+		$this->requireAdmin();
+		$this->requireCsrf();
+		$name = self::pluginName($request->params['name'] ?? '');
+		if ($name === null) {
+			return JsonResponse::error(
+				$this->t('errors.invalid_value', ['key' => 'name']), 'validation', 400);
+		}
+		return $this->serviceApi(
+			fn() => $this->app->pluginPackages()->remove($name));
 	}
 
 	/** Enveloppe commune : RuntimeException du service → errors.failed + code HTTP. */
-	private function updateApi(callable $fn): JsonResponse
+	private function serviceApi(callable $fn): JsonResponse
 	{
 		try {
-			return JsonResponse::ok($fn($this->app->updater()));
+			return JsonResponse::ok($fn());
 		} catch (\RuntimeException $e) {
 			$s = $e->getCode();
 			return JsonResponse::error(
 				$this->t('errors.failed', ['msg' => $e->getMessage()]),
-				'update_failed', ($s >= 400 && $s < 600) ? $s : 400);
+				'failed', ($s >= 400 && $s < 600) ? $s : 400);
 		}
 	}
 

@@ -17,7 +17,7 @@ public/            racine web — index.php, define.php, assets/, setup/, .htacc
 app/               tout le non-public (peut être déplacé hors racine web)
 app/src/           code applicatif + bibliothèques vendorées
 app/config/        config.php (non versionné) + config.example.php
-app/plugins/       extensions
+app/plugins/       extensions (vide à l'installation — plugins du catalogue GitHub)
 app/templates/     thèmes/pages
 app/storage/       runtime : db, cache, logs, tmp, app.key, INSTALLED — jamais en webroot
 ```
@@ -152,9 +152,15 @@ Remarques :
 3. **Créez au moins un domaine** dans l'admin (page *Domaines*) : avec
    `restrict_domains = true` (défaut), aucun login n'est possible sans domaine configuré.
    L'installeur tente de le détecter automatiquement.
-4. Vérifiez `force_https` / `hsts` si vous êtes derrière un reverse proxy (voir
+4. **Installez les plugins** depuis l'admin → *Extensions* → **Catalogue GitHub** :
+   le zip de release n'embarque plus les plugins — ils se téléchargent, se mettent à
+   jour et se désinstallent depuis ce catalogue (voir
+   [administration.md](administration.md#extensions-plugins) et
+   [plugins.md](plugins.md)). À la mise à jour du cœur, les plugins déjà installés
+   sont préservés (`app/plugins/` est exclu de la copie).
+5. Vérifiez `force_https` / `hsts` si vous êtes derrière un reverse proxy (voir
    [securite.md](securite.md) pour `trusted_proxies`).
-5. Positionnez `admin_ip_allowlist` si le panneau admin doit être restreint à certaines IP.
+6. Positionnez `admin_ip_allowlist` si le panneau admin doit être restreint à certaines IP.
 
 ## 7. URLs principales
 

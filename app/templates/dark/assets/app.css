@@ -177,10 +177,33 @@ body.pane-resizing-v iframe { pointer-events: none; }
 
 /* ─── Spécificités du thème sombre (interface distincte de default) ─── */
 
-/* Navbar : dégradé sombre + bordure basse (au lieu du bg-primary plat) */
+/* Navbar : dégradé sombre + bordure basse (au lieu du bg-primary plat) ;
+   --mxwm-header configuré = fond plat. Texte/boutons pilotés par
+   --mxwm-header-text (contraste calculé côté serveur). */
 .app-shell > .navbar {
-	background: linear-gradient(180deg, #232a32, #15191e) !important;
+	background: var(--mxwm-header, linear-gradient(180deg, #232a32, #15191e)) !important;
 	border-bottom: 1px solid var(--bs-border-color);
+	--bs-navbar-color: rgba(var(--mxwm-header-text-rgb, 255,255,255), .55);
+	--bs-navbar-hover-color: rgba(var(--mxwm-header-text-rgb, 255,255,255), .75);
+	--bs-navbar-active-color: rgb(var(--mxwm-header-text-rgb, 255,255,255));
+	--bs-navbar-brand-color: rgb(var(--mxwm-header-text-rgb, 255,255,255));
+	--bs-navbar-brand-hover-color: rgb(var(--mxwm-header-text-rgb, 255,255,255));
+	--bs-navbar-disabled-color: rgba(var(--mxwm-header-text-rgb, 255,255,255), .25);
+}
+.app-shell > .navbar .text-white-50 {
+	color: rgba(var(--mxwm-header-text-rgb, 255,255,255), .5) !important;
+}
+.app-shell > .navbar .btn-outline-light {
+	--bs-btn-color: rgb(var(--mxwm-header-text-rgb, 255,255,255));
+	--bs-btn-border-color: rgb(var(--mxwm-header-text-rgb, 255,255,255));
+	--bs-btn-hover-color: var(--mxwm-header, #15191e);
+	--bs-btn-hover-bg: rgb(var(--mxwm-header-text-rgb, 255,255,255));
+	--bs-btn-hover-border-color: rgb(var(--mxwm-header-text-rgb, 255,255,255));
+	--bs-btn-active-color: var(--mxwm-header, #15191e);
+	--bs-btn-active-bg: rgb(var(--mxwm-header-text-rgb, 255,255,255));
+	--bs-btn-active-border-color: rgb(var(--mxwm-header-text-rgb, 255,255,255));
+	--bs-btn-disabled-color: rgb(var(--mxwm-header-text-rgb, 255,255,255));
+	--bs-btn-disabled-border-color: rgb(var(--mxwm-header-text-rgb, 255,255,255));
 }
 
 /* Mode sombre : surcharges des classes utilitaires que Bootstrap ne bascule
@@ -201,11 +224,11 @@ body.pane-resizing-v iframe { pointer-events: none; }
 	--bs-table-hover-color: var(--bs-emphasis-color);
 }
 
-/* Dossier actif : accent latéral + fond teinté */
+/* Dossier actif : accent latéral + fond teinté (couleur configurable) */
 .folder-pane .list-group-item.active {
-	background-color: rgba(var(--bs-primary-rgb), .18);
+	background-color: rgba(var(--mxwm-folder-active-rgb, var(--bs-primary-rgb)), .18);
 	color: var(--bs-body-color);
-	border-right: 3px solid var(--bs-primary);
+	border-right: 3px solid var(--mxwm-folder-active, var(--bs-primary));
 }
 
 /* Liste de messages : densité réduite, non-lu contrasté */
@@ -292,6 +315,19 @@ body.pane-resizing-v iframe { pointer-events: none; }
 	max-height: 160px;
 	overflow-y: auto;
 }
+
+/* Modale identité redimensionnable (même mécanique que #compose-modal) */
+#identity-modal .modal-content { overflow: hidden; max-height: calc(100vh - 56px); }
+#identity-modal .modal-body {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	overflow-y: auto;
+}
+#identity-modal .modal-body > * { flex: 0 0 auto; }
+/* TinyMCE suit la hauteur de la modale : le height:200px inline de
+   signatureEditor sert de flex-basis (même astuce que compose). */
+#identity-modal .tox-tinymce { flex: 1 1 auto; min-height: 160px; }
 
 .modal-resize-grip {
 	position: absolute;

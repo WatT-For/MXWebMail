@@ -39,12 +39,13 @@ final class App
 	private ?Translator $locale = null;
 	private ?ThemeManager $themes = null;
 	private ?\MXWebMail\Service\UpdateService $updater = null;
+	private ?\MXWebMail\Service\PluginPackageService $pluginPackages = null;
 	private ?\MXWebMail\Service\DomainDetector $domainDetector = null;
 	private \DateTimeZone|false|null $logTimeZone = null;
 
 	public function __construct(?string $rootDir = null, ?string $installDir = null)
 	{
-		defined('APP_VERSION') || define('APP_VERSION', '0.32.0'); // X-Mailer MailSo
+		defined('APP_VERSION') || define('APP_VERSION', '0.36.0'); // X-Mailer MailSo
 		$this->rootDir = $rootDir ?? dirname(__DIR__, 3);
 		// Racine d'installation (parent de public/) — passée explicitement par
 		// index.php car indéductible de rootDir quand app/ est hors racine web.
@@ -308,6 +309,11 @@ final class App
 	public function updater(): \MXWebMail\Service\UpdateService
 	{
 		return $this->updater ??= new \MXWebMail\Service\UpdateService($this);
+	}
+
+	public function pluginPackages(): \MXWebMail\Service\PluginPackageService
+	{
+		return $this->pluginPackages ??= new \MXWebMail\Service\PluginPackageService($this);
 	}
 
 	// ─── Session ───
@@ -721,6 +727,7 @@ final class App
 		$router->post('/api/oauth/apps/delete', [$api, 'oauthAppDelete']);
 		$router->post('/api/accounts/{id}/switch', [$api, 'accountSwitch']);
 		$router->post('/api/accounts/{id}/delete', [$api, 'accountDelete']);
+		$router->post('/api/accounts/{id}/default', [$api, 'accountDefault']);
 
 		// Filtres Sieve
 		$router->get('/api/filters', [$api, 'filters']);
@@ -761,6 +768,9 @@ final class App
 		$router->post('/api/admin/domains/delete', [$admin, 'domainDelete']);
 		$router->post('/api/admin/domains/detect', [$admin, 'domainDetect']);
 		$router->get('/api/admin/plugins', [$admin, 'plugins']);
+		$router->get('/api/admin/plugins/catalog', [$admin, 'pluginsCatalog']);
+		$router->post('/api/admin/plugins/{name}/install', [$admin, 'pluginInstall']);
+		$router->post('/api/admin/plugins/{name}/remove', [$admin, 'pluginRemove']);
 		$router->post('/api/admin/plugins/{name}/toggle', [$admin, 'pluginToggle']);
 		$router->post('/api/admin/plugins/{name}/allowed', [$admin, 'pluginAllowedSet']);
 		$router->get('/api/admin/plugins/{name}/config', [$admin, 'pluginConfigGet']);

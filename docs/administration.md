@@ -106,6 +106,23 @@ Activation/désactivation de chaque plugin + modale de **configuration** génér
 (page `/{admin_path}`, `/api/admin/*`, sessions admin) : il devient inerte pour les
 utilisateurs — voir [plugins.md](plugins.md).
 
+**Installation / mise à jour depuis GitHub** : les plugins ne sont plus livrés dans le
+zip de release — chaque release transporte un asset `plugin-<name>-<ver>.zip` (+ `.sha256`)
+et un index `plugins.index.json` (même dépôt verrouillé que l'updater cœur). Le catalogue
+est chargé à l'ouverture de l'onglet (cache partagé avec le check cœur) et actualisable
+via **Vérifier** :
+
+- badge `vX dispo` + bouton **Mettre à jour** sur les plugins installés quand une
+  version plus récente est publiée (l'ancien dossier est sauvegardé dans
+  `storage/update/plugins/backup-<name>-<ts>` — un seul conservé, rollback automatique
+  en cas d'échec) ;
+- bouton **Installer** sur les entrées du catalogue non présentes — un plugin nouvellement
+  installé est **désactivé** par défaut ;
+- bouton **Désinstaller** : suppression **définitive** du dossier et de la configuration
+  (ligne `plugins` purgée), sans backup ;
+- `min_app`/`max_app` du `plugin.json` distant : une entrée incompatible avec
+  `APP_VERSION` est marquée *incompatible* et son installation refusée.
+
 ### Thèmes
 
 - thème **par défaut** (écrit `user_defaults.theme`) ;
@@ -124,9 +141,9 @@ extensions chargées. Gère aussi les **mises à jour** via GitHub Releases :
 - *Vérifier* → *Télécharger* → *Appliquer* ; états conservés dans `storage/update/state.json` ;
 - sauvegarde `storage/update/backup-<ts>` pour revenir en arrière, action *Réinitialiser*.
 
-> Le dépôt officiel est verrouillé dans `UpdateService::REPO` (vide actuellement) : la
-> vérification est désactivée tant qu'il n'est pas renseigné. `update.channel` reste
-> modifiable ici ; `update.repo`/`PAT GitHub` se règlent manuellement dans `config.php`.
+> Le dépôt officiel est verrouillé dans `GitHubClient::REPO` : la vérification est
+> désactivée tant qu'il n'est pas renseigné. `update.channel` reste modifiable ici ;
+> `update.repo`/`PAT GitHub` se règlent manuellement dans `config.php`.
 
 ## 3. Écriture de `config.php`
 

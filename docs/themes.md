@@ -39,8 +39,12 @@ Format plat `{clé: {label, type, default, options?, help?}}` avec types `string
 	"icon_style": { "type": "enum", "options": {"solid": "…", "regular": "…"}, "default": "solid" },
 	"primary_color": { "type": "color", "default": "#0d6efd" },
 	"link_color": { "type": "color", "default": "#0d6efd" },
-	"primary_color_dark": { "type": "color", "default": "" },
-	"link_color_dark": { "type": "color", "default": "" }
+	"header_color": { "type": "color", "default": "#0d6efd" },
+	"folder_active_color": { "type": "color", "default": "#0d6efd" },
+	"primary_color_dark": { "type": "color", "default": "#6ea8fe" },
+	"link_color_dark": { "type": "color", "default": "#6ea8fe" },
+	"header_color_dark": { "type": "color", "default": "" },
+	"folder_active_color_dark": { "type": "color", "default": "" }
 }
 ```
 
@@ -48,12 +52,16 @@ Les valeurs sont stockées en table `themes` (colonne `config`, JSON), éditées
 et exposées via des variables CSS `--mxwm-*`, des attributs `<html data-dark-mode
 data-icon-style>` et un script inline (résolution de `auto` via `prefers-color-scheme`).
 
-Les variables `--mxwm-*` des clés `*_color` sont émises sous `:root` ; chaque clé
-`*_color_dark` produit sa variante sous `[data-bs-theme=dark]` (le sélecteur suit
-`data-bs-theme`, donc la variante s'applique que `dark_mode` soit `auto` ou `dark`).
-Un champ `color` laissé vide retombe sur le défaut clair ; pour les `*_dark`, vide
-= teinte éclaircie automatique (40 % de blanc, comme `tint-color()` de Bootstrap —
-ex. `#0d6efd` → `#6ea8fe`).
+Les variables `--mxwm-*` des clés `X_color` sont émises sous `:root` — nom en
+kebab-case (`folder_active_color` → `--mxwm-folder-active`), déclinées en `-rgb`
+et `-text`/`-text-rgb` (couleur de texte lisible sur ce fond, contraste calculé
+côté serveur). La couleur claire s'applique dans les deux modes : chaque clé
+`X_color_dark` ré-émet sa variante sous `[data-bs-theme=dark]` **uniquement si
+une valeur est définie** (enregistrée ou défaut du champ) — sinon la couleur
+claire persiste en sombre. Le sélecteur suit `data-bs-theme`, donc la variante
+s'applique que `dark_mode` soit `auto` ou `dark`.
+Un champ `color` laissé vide retombe sur le défaut du champ ; pour une clé
+`*_dark` sans défaut, vide = même couleur qu'en mode clair.
 
 ## 2. Héritage
 

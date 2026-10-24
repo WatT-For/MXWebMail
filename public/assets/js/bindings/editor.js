@@ -13,7 +13,8 @@ const TINY_LANGS = {
  * Bindings Knockout pour TinyMCE (chargé depuis /assets/vendor/tinymce/).
  * - <textarea data-bind="editor: htmlObservable"></textarea> : éditeur standard
  * - <textarea data-bind="signatureEditor: sigObservable"></textarea> : signature
- *   (bouton « position du curseur » insérant un marqueur .mxwm-sig-caret)
+ *   (bouton « position du curseur » insérant un marqueur .mxwm-sig-caret,
+ *   bouton « code source » du plugin core code)
  */
 function initTiny(element, accessor, extra = {}) {
 	const promise = tinymce.init({
@@ -29,14 +30,22 @@ function initTiny(element, accessor, extra = {}) {
 		// CSP du document iframe : bloque tout chargement distant (images de
 		// tracking, fonts, médias) dans les contenus collés/transférés — les
 		// src originaux restent intacts dans le HTML envoyé.
+		// style-src 'self' : le contenu charge les content.min.css vendorés
+		// en <link> — 'unsafe-inline' seul les bloquait (zone non stylée).
 		content_security_policy:
-			"default-src 'none'; img-src 'self' data: cid: blob:; style-src 'unsafe-inline'; font-src data:",
+			"default-src 'none'; img-src 'self' data: cid: blob:; style-src 'self' 'unsafe-inline'; font-src data:",
 		plugins: 'autolink link lists image',
 		toolbar: 'undo redo | bold italic underline | forecolor | bullist numlist | link | removeformat',
 		...extra,
 		setup(editor) {
-			editor.on('change keyup undo redo', () => {
-				if (ko.isObservable(accessor)) {
+			// SetContent : la modale « code source » applique ses changements
+			// via editor.setContent() — sans cet event l'observable resterait
+			// désynchronisé. Pas de boucle : syncFromObservable réécrit la
+			// même valeur, KO ne re-notifie pas.
+			// editor.initialized : load() émet SetContent AVANT Init, avec la
+			// textarea encore vide — sans la garde l'observable serait écrasé.
+			editor.on('change keyup undo redo SetContent', () => {
+				if (editor.initialized && ko.isObservable(accessor)) {
 					accessor(editor.getContent());
 				}
 			});
@@ -89,7 +98,8 @@ ko.bindingHandlers.signatureEditor = {
 	init(element, valueAccessor) {
 		initTiny(element, valueAccessor(), {
 			height: 200,
-			toolbar: 'undo redo | bold italic underline | forecolor | bullist numlist | link | sigcaret | removeformat',
+			plugins: 'autolink link lists code',
+			toolbar: 'undo redo | bold italic underline | forecolor | bullist numlist | link | sigcaret | removeformat | code',
 			setup(editor) {
 				editor.ui.registry.addButton('sigcaret', {
 					icon: 'bookmark',

@@ -46,6 +46,34 @@ html, body { height: 100%; }
 	height: 100vh;
 }
 
+/* Barre supérieure : fond configurable (--mxwm-header) ; texte/boutons pilotés
+   par --mxwm-header-text (contraste calculé côté serveur). Sans variable émise,
+   retombent les valeurs navbar-dark/Bootstrap actuelles. */
+.app-shell > .navbar {
+	background-color: var(--mxwm-header, var(--bs-primary));
+	--bs-navbar-color: rgba(var(--mxwm-header-text-rgb, 255,255,255), .55);
+	--bs-navbar-hover-color: rgba(var(--mxwm-header-text-rgb, 255,255,255), .75);
+	--bs-navbar-active-color: rgb(var(--mxwm-header-text-rgb, 255,255,255));
+	--bs-navbar-brand-color: rgb(var(--mxwm-header-text-rgb, 255,255,255));
+	--bs-navbar-brand-hover-color: rgb(var(--mxwm-header-text-rgb, 255,255,255));
+	--bs-navbar-disabled-color: rgba(var(--mxwm-header-text-rgb, 255,255,255), .25);
+}
+.app-shell > .navbar .text-white-50 {
+	color: rgba(var(--mxwm-header-text-rgb, 255,255,255), .5) !important;
+}
+.app-shell > .navbar .btn-outline-light {
+	--bs-btn-color: rgb(var(--mxwm-header-text-rgb, 255,255,255));
+	--bs-btn-border-color: rgb(var(--mxwm-header-text-rgb, 255,255,255));
+	--bs-btn-hover-color: var(--mxwm-header, var(--bs-primary));
+	--bs-btn-hover-bg: rgb(var(--mxwm-header-text-rgb, 255,255,255));
+	--bs-btn-hover-border-color: rgb(var(--mxwm-header-text-rgb, 255,255,255));
+	--bs-btn-active-color: var(--mxwm-header, var(--bs-primary));
+	--bs-btn-active-bg: rgb(var(--mxwm-header-text-rgb, 255,255,255));
+	--bs-btn-active-border-color: rgb(var(--mxwm-header-text-rgb, 255,255,255));
+	--bs-btn-disabled-color: rgb(var(--mxwm-header-text-rgb, 255,255,255));
+	--bs-btn-disabled-border-color: rgb(var(--mxwm-header-text-rgb, 255,255,255));
+}
+
 .app-main {
 	display: grid;
 	/* défaut avant application KO (panneau, poignée, panneau, poignée, panneau) */
@@ -121,6 +149,12 @@ body.pane-resizing-v iframe { pointer-events: none; }
 	flex: 1 1 auto;
 	min-height: 0;
 	overflow-y: auto;
+	/* Dossier actif : couleur configurable (--mxwm-folder-active) ; texte via
+	   le contraste calculé côté serveur. Vars posées ici (et non sur
+	   .folder-pane) : Bootstrap les définit sur .list-group elle-même. */
+	--bs-list-group-active-bg: var(--mxwm-folder-active, var(--bs-primary));
+	--bs-list-group-active-color: var(--mxwm-folder-active-text, #fff);
+	--bs-list-group-active-border-color: var(--mxwm-folder-active, var(--bs-primary));
 }
 .folder-pane .list-group-item {
 	border: 0;
@@ -265,6 +299,19 @@ body.pane-resizing-v iframe { pointer-events: none; }
 	max-height: 160px;
 	overflow-y: auto;
 }
+
+/* Modale identité redimensionnable (même mécanique que #compose-modal) */
+#identity-modal .modal-content { overflow: hidden; max-height: calc(100vh - 56px); }
+#identity-modal .modal-body {
+	display: flex;
+	flex-direction: column;
+	min-height: 0;
+	overflow-y: auto;
+}
+#identity-modal .modal-body > * { flex: 0 0 auto; }
+/* TinyMCE suit la hauteur de la modale : le height:200px inline de
+   signatureEditor sert de flex-basis (même astuce que compose). */
+#identity-modal .tox-tinymce { flex: 1 1 auto; min-height: 160px; }
 
 .modal-resize-grip {
 	position: absolute;

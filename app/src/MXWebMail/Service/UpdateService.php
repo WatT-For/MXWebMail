@@ -8,12 +8,8 @@ use MXWebMail\Application\App;
 /**
  * Mises à jour depuis GitHub Releases (onglet admin « À propos »).
  *
- * Config : section 'update' de config.php —
- *   repo         'owner/mxwebmail' ; vide = vérification désactivée
- *   channel      stable | beta (beta = pré-releases incluses)
- *   token        PAT GitHub optionnel (rate-limit / dépôt privé)
- *   manifest_url dev uniquement : URL d'un manifeste JSON au format « release »,
- *                bypass l'API GitHub (jamais modifiable via l'API admin).
+ * HTTP/release/config : délégués à GitHubClient (partagé avec
+ * PluginPackageService — même dépôt verrouillé, même cache release).
  *
  * États persistés dans app/storage/update/state.json :
  *   downloaded → extracted → applied ; reset() pour abandonner.
@@ -24,57 +20,16 @@ use MXWebMail\Application\App;
 final class UpdateService
 {
 	private const MAX_ZIP   = 200 * 1024 * 1024;
-	// Dépôt officiel des releases — à renseigner ici à la publication (sécurité :
-	// un repo éditable via l'admin permettrait de détourner l'updater → RCE).
-	// Tant qu'il est vide, update.repo dans config.php fait foi (fallback dev,
-	// non exposé à l'API admin).
-	private const REPO = 'WatT-For/MXWebMail';
 
+	private GitHubClient $gh;
 	private string $dir;
 	private string $stateFile;
-	private string $cacheFile;
 
 	public function __construct(private App $app)
 	{
 		$this->dir = $app->storageDir() . '/update';
 		$this->stateFile = $this->dir . '/state.json';
-		$this->cacheFile = $app->storageDir() . '/cache/update-check.json';
-	}
-
-	// ─── Config & état ───
-
-	private function cfg(): array
-	{
-		$upd = $this->app->config()->get('update', []);
-		return is_array($upd) ? $upd : [];
-	}
-
-	private function repo(): ?string
-	{
-		// La constante prime ; update.repo n'est qu'un fallback dev (hors whitelist
-		// d'écriture admin — modifiable uniquement via config.php).
-		$repo = self::REPO !== '' ? self::REPO : trim((string) ($this->cfg()['repo'] ?? ''));
-		return preg_match('#^[a-z0-9_.-]+/[a-z0-9_.-]+$#i', $repo) ? $repo : null;
-	}
-
-	private function manifest(): string
-	{
-		return trim((string) ($this->cfg()['manifest_url'] ?? ''));
-	}
-
-	private function manifestMode(): bool
-	{
-		return $this->manifest() !== '';
-	}
-
-	private function channel(): string
-	{
-		return (string) ($this->cfg()['channel'] ?? 'stable') === 'beta' ? 'beta' : 'stable';
-	}
-
-	private function configured(): bool
-	{
-		return $this->repo() !== null || $this->manifestMode();
+		$this->gh = new GitHubClient($app);
 	}
 
 	/** État local sans appel réseau — utilisable dans bootstrap(). */
@@ -85,7 +40,7 @@ final class UpdateService
 			unset($state['dir'], $state['file']); // chemins internes, pas renvoyés
 		}
 		return [
-			'configured' => $this->configured(),
+			'configured' => $this->gh->configured(),
 			'current'    => APP_VERSION,
 			'state'      => $state,
 		];
@@ -121,16 +76,16 @@ final class UpdateService
 	 */
 	public function check(bool $force = false): array
 	{
-		if (!$this->configured()) {
+		if (!$this->gh->configured()) {
 			return ['configured' => false, 'current' => APP_VERSION];
 		}
-		$this->requireExts();
-		$rel = $this->fetchRelease($force);
+		$this->gh->requireExts();
+		$rel = $this->gh->release($force);
 		$latest = $this->normalizeTag((string) $rel['tag_name']);
-		$asset = $this->zipAsset($rel);
+		$asset = $this->gh->coreAsset($rel);
 		return [
 			'configured'   => true,
-			'channel'      => $this->channel(),
+			'channel'      => $this->gh->channel(),
 			'current'      => APP_VERSION,
 			'latest'       => $latest,
 			'up_to_date'   => !version_compare($latest, APP_VERSION, '>'),
@@ -145,204 +100,9 @@ final class UpdateService
 		];
 	}
 
-	private function requireExts(): void
-	{
-		if (!extension_loaded('curl') || !extension_loaded('zip')) {
-			throw new \RuntimeException('Extensions PHP requises manquantes : curl et/ou zip', 500);
-		}
-	}
-
 	private function normalizeTag(string $tag): string
 	{
 		return ltrim(trim($tag), "vV");
-	}
-
-	private function zipAsset(array $rel): ?array
-	{
-		foreach ((array) ($rel['assets'] ?? []) as $a) {
-			if (str_ends_with(strtolower((string) ($a['name'] ?? '')), '.zip')) {
-				return $a;
-			}
-		}
-		return null;
-	}
-
-	/** Asset « <zip>.sha256 » ou fichier de sommes (SHA256SUMS, checksums.txt…). */
-	private function sha256Url(array $rel, string $zipName): ?string
-	{
-		foreach ((array) ($rel['assets'] ?? []) as $a) {
-			$name = strtolower((string) ($a['name'] ?? ''));
-			if ($name === strtolower($zipName) . '.sha256'
-				|| $name === 'sha256sums' || $name === 'sha256sums.txt'
-				|| $name === 'checksums.txt') {
-				return (string) ($a['browser_download_url'] ?? '') ?: null;
-			}
-		}
-		return null;
-	}
-
-	/** Release brute (tronquée) — cache 1 h, invalidée si repo/channel/manifest changent. */
-	private function fetchRelease(bool $force): array
-	{
-		$manifest = $this->manifest();
-		$repo = $this->repo();
-		$channel = $this->channel();
-
-		if (!$force && ($c = $this->readCache()) !== null
-			&& $c['repo'] === $repo && $c['channel'] === $channel && $c['manifest'] === $manifest) {
-			return $c['release'];
-		}
-
-		if ($manifest !== '') {
-			// Mode dev : le manifeste est la réponse (canal ignoré)
-			if (!$this->validUrl($manifest, true)) {
-				throw new \RuntimeException('update.manifest_url invalide', 500);
-			}
-			$rel = json_decode($this->curlGet($manifest), true);
-		} else {
-			if ($repo === null) {
-				throw new \RuntimeException('update.repo non configuré', 400);
-			}
-			if ($channel === 'beta') {
-				$list = json_decode(
-					$this->curlGet("https://api.github.com/repos/$repo/releases?per_page=10"), true);
-				$rel = null;
-				foreach ((array) $list as $r) {
-					if (empty($r['draft'])) { $rel = $r; break; }
-				}
-			} else {
-				// /releases/latest exclut déjà drafts et pré-releases
-				$rel = json_decode(
-					$this->curlGet("https://api.github.com/repos/$repo/releases/latest"), true);
-			}
-		}
-		if (!is_array($rel) || empty($rel['tag_name'])) {
-			throw new \RuntimeException('Réponse de release invalide', 502);
-		}
-
-		$trim = [
-			'tag_name'     => (string) $rel['tag_name'],
-			'name'         => (string) ($rel['name'] ?? ''),
-			'body'         => (string) ($rel['body'] ?? ''),
-			'html_url'     => (string) ($rel['html_url'] ?? ''),
-			'published_at' => (string) ($rel['published_at'] ?? ''),
-			'assets'       => array_map(static fn($a) => [
-				'name'                  => (string) ($a['name'] ?? ''),
-				'browser_download_url'  => (string) ($a['browser_download_url'] ?? ''),
-				'size'                  => (int) ($a['size'] ?? 0),
-			], (array) ($rel['assets'] ?? [])),
-		];
-		$this->writeCache($repo, $channel, $manifest, $trim);
-		return $trim;
-	}
-
-	/** Section « cache » de la config — enabled=false → cache ignoré. */
-	private function cacheCfg(): array
-	{
-		$c = $this->app->config()->get('cache', []);
-		return is_array($c) ? $c : [];
-	}
-
-	private function cacheEnabled(): bool
-	{
-		return (bool) ($this->cacheCfg()['enabled'] ?? true);
-	}
-
-	private function readCache(): ?array
-	{
-		if (!$this->cacheEnabled()) {
-			return null;
-		}
-		$ttl = (int) ($this->cacheCfg()['update_ttl'] ?? 3600);
-		$raw = is_file($this->cacheFile) ? file_get_contents($this->cacheFile) : false;
-		$c = is_string($raw) ? json_decode($raw, true) : null;
-		return (is_array($c) && ($c['at'] ?? 0) > time() - $ttl
-			&& is_array($c['release'] ?? null)) ? $c : null;
-	}
-
-	private function writeCache(?string $repo, string $channel, string $manifest, array $release): void
-	{
-		if (!$this->cacheEnabled()) {
-			return;
-		}
-		is_dir(dirname($this->cacheFile)) || mkdir(dirname($this->cacheFile), 0700, true);
-		$this->writeJson($this->cacheFile, [
-			'at' => time(), 'repo' => $repo, 'channel' => $channel,
-			'manifest' => $manifest, 'release' => $release,
-		]);
-	}
-
-	/** GitHub uniquement ; en mode manifeste : https partout, http seulement en local. */
-	private function validUrl(string $url, bool $manifestMode): bool
-	{
-		if ($manifestMode) {
-			if (preg_match('#^https://#i', $url)) {
-				return true;
-			}
-			return (bool) preg_match('#^http://(localhost|127\.0\.0\.1)([:/]|$)#i', $url);
-		}
-		return (bool) preg_match(
-			'#^https://(api\.github\.com|github\.com|objects\.githubusercontent\.com)/#i', $url);
-	}
-
-	/**
-	 * GET via cURL. $toFile : stream vers un fichier (plafond MAX_ZIP).
-	 * Le token GitHub n'est envoyé que vers des domaines github.com.
-	 */
-	private function curlGet(string $url, ?string $toFile = null): string
-	{
-		$ch = curl_init($url);
-		$headers = ['Accept: application/vnd.github+json'];
-		$token = trim((string) ($this->cfg()['token'] ?? ''));
-		if ($token !== '' && preg_match(
-			'#^https://(api\.github\.com|github\.com|objects\.githubusercontent\.com)/#i', $url)) {
-			$headers[] = 'Authorization: Bearer ' . $token;
-		}
-		$opts = [
-			CURLOPT_RETURNTRANSFER => true,
-			CURLOPT_FOLLOWLOCATION => true,
-			CURLOPT_MAXREDIRS    => 3,
-			CURLOPT_TIMEOUT      => $toFile !== null ? 120 : 15,
-			CURLOPT_USERAGENT    => 'MXWebMail/' . APP_VERSION,
-			CURLOPT_HTTPHEADER   => $headers,
-		];
-		$fp = null;
-		if ($toFile !== null) {
-			$fp = fopen($toFile, 'wb');
-			if (!$fp) {
-				throw new \RuntimeException("Impossible d'écrire $toFile", 500);
-			}
-			$opts[CURLOPT_RETURNTRANSFER] = false;
-			$downloaded = 0;
-			$opts[CURLOPT_WRITEFUNCTION] = static function ($ch, string $chunk) use ($fp, &$downloaded) {
-				$downloaded += strlen($chunk);
-				if ($downloaded > self::MAX_ZIP) {
-					return -1; // taille différente de strlen → CURLE_WRITE_ERROR
-				}
-				return fwrite($fp, $chunk);
-			};
-		}
-		curl_setopt_array($ch, $opts);
-		$body = curl_exec($ch);
-		$code = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-		$err = curl_error($ch);
-		curl_close($ch);
-		if ($fp) {
-			fclose($fp);
-		}
-		if ($body === false) {
-			if ($toFile !== null) {
-				@unlink($toFile);
-			}
-			throw new \RuntimeException("Requête échouée : $err", 502);
-		}
-		if ($code >= 400) {
-			if ($toFile !== null) {
-				@unlink($toFile);
-			}
-			throw new \RuntimeException("HTTP $code — $url", 502);
-		}
-		return is_string($body) ? $body : '';
 	}
 
 	// ─── Téléchargement + extraction ───
@@ -350,11 +110,11 @@ final class UpdateService
 	/** Télécharge le zip de la release, vérifie la somme, extrait (prepare). */
 	public function download(): array
 	{
-		if (!$this->configured()) {
+		if (!$this->gh->configured()) {
 			throw new \RuntimeException('Mise à jour non configurée', 400);
 		}
-		$this->requireExts();
-		$rel = $this->fetchRelease(false);
+		$this->gh->requireExts();
+		$rel = $this->gh->release(false);
 		$latest = $this->normalizeTag((string) $rel['tag_name']);
 		if (!version_compare($latest, APP_VERSION, '>')) {
 			throw new \RuntimeException('Déjà à jour', 400);
@@ -373,17 +133,17 @@ final class UpdateService
 			}
 		}
 
-		$asset = $this->zipAsset($rel)
+		$asset = $this->gh->coreAsset($rel)
 			?? throw new \RuntimeException('Aucun paquet .zip dans la release', 502);
 		$url = (string) $asset['browser_download_url'];
-		if (!$this->validUrl($url, $this->manifestMode())) {
+		if (!$this->gh->validUrl($url)) {
 			throw new \RuntimeException('URL de téléchargement refusée', 502);
 		}
 
 		$this->purgeStaging();
 		is_dir($this->dir) || mkdir($this->dir, 0700, true);
 		$zipPath = $this->dir . '/update-' . $this->safeName($latest) . '.zip';
-		$this->curlGet($url, $zipPath);
+		$this->gh->getToFile($url, $zipPath, self::MAX_ZIP);
 		if (!is_file($zipPath) || filesize($zipPath) === 0) {
 			@unlink($zipPath);
 			throw new \RuntimeException('Téléchargement vide', 502);
@@ -391,16 +151,12 @@ final class UpdateService
 
 		// Somme sha256 publiée à côté de l'asset — non bloquante si absente
 		$verified = false;
-		$sumUrl = $this->sha256Url($rel, (string) $asset['name']);
-		if ($sumUrl !== null && $this->validUrl($sumUrl, $this->manifestMode())) {
-			$txt = trim($this->curlGet($sumUrl));
-			if (preg_match('/\b([0-9a-f]{64})\b/i', $txt, $m)) {
-				$verified = hash_equals(
-					strtolower($m[1]), strtolower((string) hash_file('sha256', $zipPath)));
-				if (!$verified) {
-					@unlink($zipPath);
-					throw new \RuntimeException('Somme sha256 invalide', 502);
-				}
+		$sum = $this->gh->assetSha256($rel, (string) $asset['name']);
+		if ($sum !== null) {
+			$verified = hash_equals($sum, strtolower((string) hash_file('sha256', $zipPath)));
+			if (!$verified) {
+				@unlink($zipPath);
+				throw new \RuntimeException('Somme sha256 invalide', 502);
 			}
 		}
 
@@ -495,10 +251,7 @@ final class UpdateService
 			throw new \RuntimeException('Aucune mise à jour prête à appliquer', 400);
 		}
 		is_dir($this->dir) || mkdir($this->dir, 0700, true);
-		$lock = fopen($this->dir . '/update.lock', 'c');
-		if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) {
-			throw new \RuntimeException('Une mise à jour est déjà en cours', 409);
-		}
+		$lock = $this->lock();
 		try {
 			set_time_limit(300);
 			ignore_user_abort(true);
@@ -578,17 +331,11 @@ final class UpdateService
 	public function reset(): array
 	{
 		is_dir($this->dir) || mkdir($this->dir, 0700, true);
-		$lock = fopen($this->dir . '/update.lock', 'c');
-		if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) {
-			if ($lock) {
-				fclose($lock);
-			}
-			throw new \RuntimeException('Une mise à jour est en cours', 409);
-		}
+		$lock = $this->lock();
 		try {
 			$this->purgeStaging();
 			@unlink($this->stateFile);
-			@unlink($this->cacheFile); // prochain check frais
+			$this->gh->invalidateCache(); // prochain check frais
 		} finally {
 			flock($lock, LOCK_UN);
 			fclose($lock);
@@ -597,6 +344,24 @@ final class UpdateService
 	}
 
 	// ─── Internes ───
+
+	/**
+	 * Verrou partagé des opérations update : UpdateService (apply/reset) et
+	 * PluginPackageService (install/remove) se mutuellement exclusifs — le code
+	 * sous les pieds ne doit jamais être remplacé pendant une opération.
+	 */
+	private function lock()
+	{
+		is_dir($this->dir) || mkdir($this->dir, 0700, true);
+		$lock = fopen($this->dir . '/update.lock', 'c');
+		if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) {
+			if ($lock) {
+				fclose($lock);
+			}
+			throw new \RuntimeException('Une mise à jour est en cours', 409);
+		}
+		return $lock;
+	}
 
 	private function safeName(string $version): string
 	{
@@ -620,6 +385,8 @@ final class UpdateService
 	 * .htaccess de protection, que la release doit pouvoir restaurer.
 	 * public/define.php n'est écrasé que s'il manque : il peut contenir le
 	 * chemin relocalisé saisi par l'admin.
+	 * app/plugins/ est exclu : les plugins se gèrent via le catalogue
+	 * (PluginPackageService), jamais par une mise à jour cœur.
 	 */
 	private function excluded(string $rel): bool
 	{
@@ -633,7 +400,7 @@ final class UpdateService
 		if ($rel === 'app/storage/.htaccess') {
 			return false;
 		}
-		foreach (['app/storage/', '.git/', '.github/', 'dist/'] as $p) {
+		foreach (['app/storage/', 'app/plugins/', '.git/', '.github/', 'dist/'] as $p) {
 			if (str_starts_with($rel, $p)) {
 				return true;
 			}

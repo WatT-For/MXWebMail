@@ -75,11 +75,13 @@ return [
 	'secfetch_allow'     => '',
 
 	// ─── Mises à jour (admin → À propos, GitHub Releases) ───
-	// Le dépôt officiel est verrouillé dans UpdateService::REPO. Cette section
-	// n'est pas modifiable via le panel admin (sauf channel) — édition manuelle
-	// de config.php uniquement.
+	// Le dépôt officiel est verrouillé dans GitHubClient::REPO — partagé par
+	// l'updater cœur et le catalogue plugins (même release : mxwebmail-*.zip
+	// + plugin-<name>-*.zip + plugins.index.json). Cette section n'est pas
+	// modifiable via le panel admin (sauf channel) — édition manuelle de
+	// config.php uniquement.
 	'update' => [
-		'repo'    => '',        // fallback dev si UpdateService::REPO vide ('owner/mxwebmail')
+		'repo'    => '',        // fallback dev si GitHubClient::REPO vide ('owner/mxwebmail')
 		'channel' => 'stable',  // stable | beta (le seul réglage exposé dans l'admin)
 		'token'   => '',        // PAT GitHub optionnel (rate-limit / dépôt privé)
 		'manifest_url' => '',   // dev : manifeste JSON format release, bypass l'API

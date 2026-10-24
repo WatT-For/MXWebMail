@@ -23,7 +23,7 @@ automatiquement au premier accès à la base (`App::db()`), y compris pendant l'
 |---|---|
 | `meta` | paires clé/valeur (`schema_version`, `contacts_moved`, …). |
 | `users` | `username` (unique), `display_name`, `is_admin`, `disabled`, `created_at`, `last_login_at`. |
-| `accounts` | comptes IMAP des utilisateurs : `email`, `imap_user`, `imap_pass` (chiffré), `is_default`, `auth` (`password`, `google`, `microsoft`, `yahoo` — OAuth2 : `imap_pass` stocke alors le *refresh token* chiffré). |
+| `accounts` | comptes IMAP des utilisateurs : `email`, `imap_user`, `imap_pass` (chiffré), `is_default` (compte principal, modifiable dans Réglages → Comptes), `auth` (`password`, `google`, `microsoft`, `yahoo` — OAuth2 : `imap_pass` stocke alors le *refresh token* chiffré). |
 | `oauth_apps` | applications OAuth2 par utilisateur : `provider`, `client_id`, `secret` (chiffré), `tenant` — une app par `(user_id, provider)` (voir [domaines.md](domaines.md) §8). |
 | `user_settings` | réglages utilisateur (clé/valeur), PK `(user_id, key)`. |
 | `identities` | identités d'envoi : `name`, `email`, `reply_to`, `bcc`, `signature`, `is_default`. |

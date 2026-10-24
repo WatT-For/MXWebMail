@@ -3,6 +3,28 @@
 Les plugins sont des extensions bornées dans `app/plugins/<name>/`, chargées si activées
 (depuis l'admin, onglet *Extensions*). Ils s'enregistrent sur des **hooks** du cœur.
 
+## 0. Distribution via GitHub Releases
+
+Les plugins ne sont **pas inclus** dans le zip de release `mxwebmail-<ver>.zip` : chaque
+release transporte un asset par plugin `plugin-<name>-<ver>.zip` (+ `.sha256`) et un
+index `plugins.index.json` (`{name, version, sha256, size, description, min_app?, max_app?}`),
+téléchargés depuis l'admin → *Extensions* → **Catalogue GitHub** (`PluginPackageService`).
+
+- **Installer** : télécharge le zip, vérifie la somme sha256 (index ou asset `.sha256`),
+  extrait et valide `plugin.json` (nom concordant, version semver, `main` sain,
+  compatibilité `APP_VERSION`), remplace le dossier — un plugin installé est désactivé
+  par défaut ;
+- **Mettre à jour** : même flux sur un plugin présent — l'ancien dossier part dans
+  `storage/update/plugins/backup-<name>-<ts>` (un seul conservé, rollback auto) ;
+- **Désinstaller** : suppression définitive du dossier + purge de la ligne `plugins`
+  (configuration perdue), sans backup.
+
+Le dépôt est verrouillé dans `GitHubClient::REPO` (même constante que l'updater cœur) —
+aucune URL arbitraire n'est acceptée. `update.channel`, `PAT GitHub` et le cache
+release (`cache.update_ttl`) sont partagés avec la vérification de mise à jour du cœur.
+Le `check` statique exige `version` semver dans `plugin.json` : c'est cette version qui
+nomme l'asset `plugin-<name>-<ver>.zip` au packaging.
+
 Un plugin activé peut aussi être **réservé à la surface admin** (colonne *Utilisable* de
 l'onglet *Extensions*, flag `user_allowed` en table `plugins`) : il n'est alors chargé que
 sur la page `/{admin_path}`, les routes `/api/admin/*` et les sessions admin. Ailleurs il
@@ -10,7 +32,7 @@ est totalement inerte (aucun hook, `/api/plugin/<name>/*` → 404) — y compris
 utilisateurs `is_admin` non connectés au panneau. Les hooks de login admin
 (`admin.post-login`, `admin.totp-required`, `admin.mounts`) continuent de fonctionner.
 
-## 1. Plugins livrés
+## 1. Plugins du catalogue officiel
 
 | Plugin | Rôle | Hooks |
 |---|---|---|
@@ -84,9 +106,15 @@ app/plugins/mon-plugin/
 	"main": "MonPlugin.php",
 	"version": "0.1.0",
 	"description": "plugin.mon-plugin.description",
-	"hooks": ["app.data"]
+	"hooks": ["app.data"],
+	"min_app": "0.36.0",
+	"max_app": "0.99.0"
 }
 ```
+
+`min_app`/`max_app` (optionnels, semver `x.y.z`) bornent la compatibilité avec
+`APP_VERSION` — l'installation ou la mise à jour est refusée hors plage, et le
+catalogue marque l'entrée *incompatible*.
 
 ### Classe principale
 

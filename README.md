@@ -4,7 +4,7 @@ Webmail auto-hébergé en **PHP 8.4**, inspiré de **SnappyMail**, **RainLoop** 
 **Roundcube**, autour d'une architecture MVC claire. Frontend **Knockout + Bootstrap 5.3** (sans jQuery), bibliothèque
 **MailSo** vendorée pour IMAP/SMTP/Sieve, stockage **SQLite** ou **MariaDB**.
 
-> Version courante : `0.32.0` (développement — pas encore stable).
+> Version courante : `0.36.0` (développement — pas encore stable).
 
 ## Fonctionnalités
 
@@ -19,8 +19,10 @@ Webmail auto-hébergé en **PHP 8.4**, inspiré de **SnappyMail**, **RainLoop** 
   de scripts, activation, suppression.
 - **Panneau d'administration** : domaines (IMAP/SMTP/Sieve), utilisateurs, extensions,
   thèmes, logs, mises à jour, paramètres de sécurité.
-- **15 plugins** : 2FA (TOTP), anti-spoofing, avatars, listes noire/blanche, changement de
-  mot de passe (poppassd/PDO/LDAP/Mailcow), PWA, étiquettes de couleur, etc.
+- **15 plugins** installables depuis l'admin (catalogue GitHub Releases : téléchargement,
+  mise à jour, désinstallation) : 2FA (TOTP), anti-spoofing, avatars, listes
+  noire/blanche, changement de mot de passe (poppassd/PDO/LDAP/Mailcow), PWA,
+  étiquettes de couleur, etc.
 - **Multilingue** (de, en, es, fr, it, nl, pl, pt, ru, tr) et thèmes extensibles.
 
 ## Prérequis
@@ -49,7 +51,7 @@ voir **[docs/installation.md](docs/installation.md)**.
 | Référence de configuration (`config.php`) | [docs/configuration.md](docs/configuration.md) |
 | Panneau d'administration | [docs/administration.md](docs/administration.md) |
 | Configuration des domaines / serveurs mail | [docs/domaines.md](docs/domaines.md) |
-| Plugins (livrés + développement) | [docs/plugins.md](docs/plugins.md) |
+| Plugins (catalogue GitHub + développement) | [docs/plugins.md](docs/plugins.md) |
 | Thèmes | [docs/themes.md](docs/themes.md) |
 | Traduction / langues | [docs/localisation.md](docs/localisation.md) |
 | Base de données | [docs/base-de-donnees.md](docs/base-de-donnees.md) |

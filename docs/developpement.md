@@ -17,7 +17,9 @@ app/src/MXWebMail/     code applicatif :
   Plugin/              HookRegistry, PluginManager, PluginBase
   Repository/          accès données (Database, User*, Domain, Plugin, Theme…)
   Security/            Csrf, CredentialCrypt, Headers, IpMatch, TotpRequiredException, Wildcard
-  Service/             AuthService, MailService, DomainDetector, OAuthService, UpdateService
+  Service/             AuthService, MailService, DomainDetector, OAuthService,
+                       GitHubClient (HTTP Releases partagé), UpdateService (cœur),
+                       PluginPackageService (catalogue/install/remove plugins)
   Sieve/               ScriptBuilder — génération des règles de filtres
   Theme/               ThemeManager
 app/src/MailSo/        bibliothèque mail vendorée (non modifiée)
@@ -57,6 +59,21 @@ vers `Plugin::apiAdmin<Action>`). Sans `tab` : bloc inline dans la zone `section
 lever `TotpRequiredException` y verrouille l'accès (ex. TOTP admin).
 
 Voir [plugins.md](plugins.md) pour créer un plugin.
+
+## 3bis. Distribution des plugins (GitHubClient + PluginPackageService)
+
+- `GitHubClient` mutualise l'accès aux GitHub Releases pour `UpdateService` (paquet
+  cœur `mxwebmail-*.zip` via `coreAsset`) et `PluginPackageService` (assets
+  `plugin-<name>-<ver>.zip` via `pluginAssets` + `plugins_index`). Dépôt verrouillé
+  par la constante `REPO`, cache release partagé `storage/cache/update-check.json`.
+- `PluginPackageService` : `catalog()`, `install()` (download → sha256 → extraction
+  anti-traversal → validation `plugin.json` + `min_app`/`max_app` → swap avec backup
+  unique par plugin → invalidation classmap/opcache), `remove()` (rmrf + purge de la
+  ligne `plugins` via `PluginRepository::delete()`). Verrou partagé
+  `storage/update/update.lock` avec `UpdateService`. Staging dans
+  `storage/update/plugins/`.
+- Le packaging (`tools.ps1 package`) exclut `app/plugins/*` du zip cœur et produit
+  les `plugin-*.zip(.sha256)` + `plugins.index.json` à attacher à la release.
 
 ## 4. Cache & compression
 

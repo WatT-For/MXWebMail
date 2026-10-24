@@ -16,12 +16,9 @@
 <body>
 <div class="app-shell">
 	<!-- Barre supérieure -->
-	<nav class="navbar navbar-dark bg-primary px-3">
+	<nav class="navbar navbar-dark px-3">
 		<span class="navbar-brand mb-0"><?= htmlspecialchars($app->config()->get('app_name')) ?></span>
 		<div class="d-flex align-items-center gap-3">
-			<button class="btn btn-sm btn-light" data-bind="click: compose.openNew.bind(compose)">
-				<i class="fa-solid fa-pen"></i> <?= $t('app.new_message') ?>
-			</button>
 			<div class="dropdown">
 				<a class="text-white-50 small text-decoration-none dropdown-toggle" role="button" data-bs-toggle="dropdown"
 					data-bind="text: user() && user().email"></a>
@@ -37,6 +34,9 @@
 					<li><hr class="dropdown-divider"></li>
 					<li><a class="dropdown-item" href="#" data-bind="click: addAccount">
 						<i class="fa-solid fa-plus me-1"></i><?= $t('app.add_account') ?>
+					</a></li>
+					<li><a class="dropdown-item" href="#/@settings/accounts">
+						<i class="fa-solid fa-envelopes-bulk me-1"></i><?= $t('app.manage_accounts') ?>
 					</a></li>
 					<!-- /ko -->
 				</ul>
@@ -54,8 +54,11 @@
 		style: gridTemplate, css: { 'layout-vertical': layout() === 'vertical' }" style="display:none">
 		<!-- Colonne dossiers -->
 		<aside class="folder-pane bg-light" data-bind="with: folderList">
-			<div class="d-flex justify-content-between align-items-center p-2 border-bottom">
-				<strong><?= $t('app.folders') ?></strong>
+			<div class="d-flex justify-content-between align-items-center gap-2 p-2 border-bottom">
+				<button class="btn btn-sm btn-primary text-truncate" style="min-width:0"
+					data-bind="click: $root.compose.openNew.bind($root.compose)">
+					<i class="fa-solid fa-pen"></i> <?= $t('app.new_message') ?>
+				</button>
 				<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: createFolder, tooltip: 'app.new_folder'">
 					<i class="fa-solid fa-plus"></i>
 				</button>
@@ -376,6 +379,11 @@
 					data-bind="css:{active: tab()==='general'}">
 					<i class="fa-solid fa-gear fa-fw me-2"></i><?= $t('common.general') ?></a>
 				<div class="side-menu-group"><?= $t('settings.group_account') ?></div>
+				<!-- ko if: $root.features().accounts !== false -->
+				<a class="list-group-item list-group-item-action" href="#/@settings/accounts"
+					data-bind="css:{active: tab()==='accounts'}">
+					<i class="fa-solid fa-envelopes-bulk fa-fw me-2"></i><?= $t('settings.accounts') ?></a>
+				<!-- /ko -->
 				<a class="list-group-item list-group-item-action" href="#/@settings/identities"
 					data-bind="css:{active: tab()==='identities'}">
 					<i class="fa-solid fa-id-card fa-fw me-2"></i><?= $t('settings.identities') ?></a>
@@ -530,6 +538,36 @@
 			</div></div>
 		</div>
 
+		<!-- Comptes -->
+		<div data-bind="visible: tab()==='accounts'" style="display:none">
+			<div class="d-flex justify-content-between mb-2">
+				<h5><?= $t('settings.accounts') ?></h5>
+				<button class="btn btn-sm btn-primary" data-bind="click: $root.addAccount"><i class="fa-solid fa-plus"></i> <?= $t('app.add_account') ?></button>
+			</div>
+			<p class="text-muted small"><?= $t('settings.accounts_help') ?></p>
+			<table class="table table-hover table-sm align-middle">
+				<thead class="table-light"><tr><th>Email</th><th></th><th></th></tr></thead>
+				<tbody data-bind="foreach: $root.accounts">
+					<tr>
+						<td>
+							<span data-bind="text: email"></span>
+							<span class="badge text-bg-info ms-1" data-bind="visible: auth && auth !== 'password', text: auth" style="display:none"></span>
+						</td>
+						<td>
+							<span class="badge text-bg-primary" data-bind="visible: Number(is_default)" style="display:none"><?= $t('settings.account_main') ?></span>
+							<span class="badge text-bg-success ms-1" data-bind="visible: active" style="display:none"><?= $t('settings.account_active') ?></span>
+						</td>
+						<td class="text-end">
+							<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="visible: !active, click: $root.switchAccount, tooltip: 'settings.account_switch'" style="display:none"><i class="fa-solid fa-arrow-right-arrow-left"></i></button>
+							<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: $parent.editAccount, tooltip: 'settings.account_edit'"><i class="fa-solid fa-pen"></i></button>
+							<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="visible: !Number(is_default), click: $parent.defaultAccount, tooltip: 'settings.account_set_default'" style="display:none"><i class="fa-solid fa-star"></i></button>
+							<button class="btn btn-sm btn-icon btn-outline-danger" data-bind="visible: !Number(is_default) && !active, click: $parent.deleteAccount, tooltip: 'common.delete'" style="display:none"><i class="fa-solid fa-trash"></i></button>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+		</div>
+
 		<!-- Identités -->
 		<div data-bind="visible: tab()==='identities'" style="display:none">
 			<div class="d-flex justify-content-between mb-2">
@@ -555,24 +593,6 @@
 			</table>
 			<div class="text-center py-4" data-bind="visible: identitiesLoading" style="display:none">
 				<span class="spinner-border spinner-border-sm text-secondary" role="status"></span>
-			</div>
-			<div class="card" data-bind="visible: editingIdentity">
-				<div class="card-body" data-bind="with: editingIdentity">
-					<div class="row g-2">
-						<div class="col-md-4"><input class="form-control" placeholder="<?= $t('settings.display_name') ?>" data-bind="value: name"></div>
-						<div class="col-md-4"><input class="form-control" placeholder="Email" data-bind="value: email"></div>
-						<div class="col-md-4"><input class="form-control" placeholder="<?= $t('settings.reply_to_opt') ?>" data-bind="value: reply_to"></div>
-						<div class="col-12">
-							<label class="form-label small mb-1"><?= $t('settings.signature') ?> <i class="fa-regular fa-circle-question help-icon" tabindex="0"
-								data-bind="tooltip: 'settings.signature_caret_help'"></i></label>
-							<textarea id="signature-editor" data-bind="signatureEditor: signature"></textarea>
-						</div>
-					</div>
-					<div class="mt-3">
-						<button class="btn btn-primary btn-sm" data-bind="click: $parent.saveIdentity"><?= $t('common.save') ?></button>
-						<button class="btn btn-link btn-sm" data-bind="click: () => $parent.editingIdentity(null)"><?= $t('common.cancel') ?></button>
-					</div>
-				</div>
 			</div>
 		</div>
 
@@ -1059,6 +1079,41 @@
 					<button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal"><?= $t('common.cancel') ?></button>
 					<button type="button" class="btn btn-sm btn-primary" data-bind="click: $parent.saveFilter"><?= $t('common.save') ?></button>
 				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Modale identité (redimensionnable via la poignée bas-droite) -->
+	<div class="modal fade" id="identity-modal" tabindex="-1" data-bind="with: settings">
+		<div class="modal-dialog"
+			data-bind="style: { width: identW() ? identW() + 'px' : '',
+				maxWidth: identW() ? 'calc(100vw - 32px)' : '' }">
+			<div class="modal-content" data-bind="with: editingIdentity,
+				style: { height: identH() ? identH() + 'px' : '' }">
+				<div class="modal-header">
+					<h5 class="modal-title" data-bind="text: id
+						? $root.t('settings.identity_edit')
+						: $root.t('settings.identity_new')"></h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body">
+					<div class="row g-2 mb-2">
+						<div class="col-md-4"><input id="identity-name" class="form-control" placeholder="<?= $t('settings.display_name') ?>" data-bind="value: name"></div>
+						<div class="col-md-4"><input class="form-control" placeholder="Email" data-bind="value: email"></div>
+						<div class="col-md-4"><input class="form-control" placeholder="<?= $t('settings.reply_to_opt') ?>" data-bind="value: reply_to"></div>
+					</div>
+					<label class="form-label small mb-1"><?= $t('settings.signature') ?> <i class="fa-regular fa-circle-question help-icon" tabindex="0"
+						data-bind="tooltip: 'settings.signature_caret_help'"></i></label>
+					<textarea id="signature-editor" data-bind="signatureEditor: signature"></textarea>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal"><?= $t('common.cancel') ?></button>
+					<button type="button" class="btn btn-sm btn-primary" data-bind="click: $parent.saveIdentity"><?= $t('common.save') ?></button>
+				</div>
+				<div class="modal-resize-grip" aria-hidden="true"
+					data-bind="modalResize:
+						{ w: $parent.identW, h: $parent.identH, minW: 480, minH: 400 },
+						tooltip: 'app.resize'"></div>
 			</div>
 		</div>
 	</div>

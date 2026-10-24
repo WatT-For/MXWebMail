@@ -59,15 +59,16 @@ Les serveurs IMAP/SMTP/Sieve se configurent **par domaine** dans l'admin (voir
 
 ## Mises à jour
 
-Le dépôt officiel est verrouillé dans `UpdateService::REPO` (vide actuellement : la
-vérification est désactivée tant qu'il n'est pas renseigné). Cette section n'est pas
-éditable via l'admin (sauf `channel`).
+Le dépôt officiel est verrouillé dans `GitHubClient::REPO` : la vérification est
+désactivée tant qu'il n'est pas renseigné. Cette section — partagée par l'updater cœur
+et le catalogue plugins (même release : `mxwebmail-*.zip`, `plugin-*.zip`,
+`plugins.index.json`) — n'est pas éditable via l'admin (sauf `channel`).
 
 | Clé | Défaut | Rôle |
 |---|---|---|
-| `update.repo` | `''` | Fallback dev si `UpdateService::REPO` est vide (`owner/repo`). |
+| `update.repo` | `''` | Fallback dev si `GitHubClient::REPO` est vide (`owner/repo`). |
 | `update.channel` | `stable` | `stable` / `beta` (seul réglage exposé dans l'admin). |
-| `PAT GitHub` | `''` | PAT GitHub optionnel (rate-limit / dépôt privé). |
+| `PAT GitHub` | `''` | PAT GitHub optionnel (rate-limit / dépôt privé) — aussi utilisé pour le catalogue plugins. |
 | `update.manifest_url` | `''` | Dev : manifeste JSON au format release, contourne l'API GitHub. |
 
 ## Fonctionnalités
@@ -76,7 +77,7 @@ vérification est désactivée tant qu'il n'est pas renseigné). Cette section n
 |---|---|---|
 | `attachment_max_size` | `25` | Mo maximum par fichier. Doit être ≤ `attachments_max_total` (au-delà, la limite est sans effet : l'upload borne déjà au `min` des deux — l'admin refuse la sauvegarde incohérente). |
 | `attachments_max_total` | `25` | Mo cumulés par message. |
-| `allow_additional_accounts` | `true` | L'utilisateur peut ajouter des comptes IMAP secondaires. |
+| `allow_additional_accounts` | `true` | L'utilisateur peut ajouter/gérer des comptes IMAP secondaires (Réglages → Comptes). |
 | `allow_additional_identities` | `true` | L'utilisateur peut créer des identités additionnelles. |
 | `popup_identity` | `false` | Ouvre le réglage d'identité au premier login si le nom est vide. |
 | `dangerous_actions` | `true` | Autorise vider/supprimer un dossier, supprimer des messages (dont le déplacement vers la corbeille). |

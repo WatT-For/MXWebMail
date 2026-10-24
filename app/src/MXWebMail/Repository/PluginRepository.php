@@ -54,6 +54,23 @@ final class PluginRepository
 		}
 	}
 
+	public function has(string $name): bool
+	{
+		$stmt = $this->db->pdo()->prepare('SELECT 1 FROM plugins WHERE name = :n');
+		$stmt->execute(['n' => $name]);
+		return (bool) $stmt->fetchColumn();
+	}
+
+	/** Purge complète de la ligne (enabled + user_allowed + config). */
+	public function delete(string $name): void
+	{
+		$this->db->pdo()->prepare('DELETE FROM plugins WHERE name = :n')
+			->execute(['n' => $name]);
+		if ($this->stateMap !== null) {
+			unset($this->stateMap[$name]);
+		}
+	}
+
 	private function upsert(string $name, string $column, int $value): void
 	{
 		$driver = $this->db->pdo()->getAttribute(\PDO::ATTR_DRIVER_NAME);

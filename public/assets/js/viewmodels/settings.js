@@ -95,6 +95,15 @@ export class SettingsVM {
 			this.compiledSource('');
 		});
 
+		// Modale identité : même pattern — l'observable est reset à la
+		// fermeture (Échap, backdrop, boutons) → état propre à la réouverture.
+		const identityModalEl = document.getElementById('identity-modal');
+		this.identityModal = identityModalEl ? new bootstrap.Modal(identityModalEl) : null;
+		identityModalEl?.addEventListener('hidden.bs.modal', () => this.editingIdentity(null));
+		// Taille de la modale en px (0 = défaut Bootstrap, pas d'inline)
+		this.identW = ko.observable(0);
+		this.identH = ko.observable(0);
+
 		// OpenPGP
 		this.pgpKeys = ko.observableArray([]);
 		this.pgpEmail = ko.observable('');
@@ -151,10 +160,17 @@ export class SettingsVM {
 		if (name === 'contacts' && this.app.features().contacts === false) {
 			name = 'general';
 		}
+		// Comptes secondaires désactivés : les deux onglets liés retombent sur
+		// Général (couvre aussi le deep-link #/@settings/oauthapps).
+		if (['accounts', 'oauthapps'].includes(name)
+			&& this.app.features().accounts === false) {
+			name = 'general';
+		}
 		const known = ['general', 'identities', 'contacts', 'folders', 'filters', 'pgp',
-			'oauthapps', ...this.pluginTabs().map(t => t.id)];
+			'oauthapps', 'accounts', ...this.pluginTabs().map(t => t.id)];
 		this.tab(known.includes(name) ? name : 'general');
 		if (this.tab() !== 'filters') { this.filterModal?.hide(); }
+		if (this.tab() !== 'identities') { this.identityModal?.hide(); }
 		if (this.tab() === 'identities') { this.loadIdentities(); }
 		if (this.tab() === 'contacts') { this.loadContacts(); }
 		if (this.tab() === 'folders') {
@@ -168,6 +184,7 @@ export class SettingsVM {
 			if (this.pgpTab() === 'keys') { this.loadPgpKeys(); }
 		}
 		if (this.tab() === 'oauthapps') { this.loadOauthApps(); }
+		if (this.tab() === 'accounts') { this.loadAccounts(); }
 	}
 
 	async saveSettings() {
@@ -193,6 +210,34 @@ export class SettingsVM {
 	async toggleNotify() {
 		this.notifyPermission(await notify.request());
 		return true; // laisser le binding checked écrire la valeur
+	}
+
+	// ─── Comptes ───
+
+	/** Refresh de la liste partagée app.accounts (seedée au boot par /appdata). */
+	loadAccounts() {
+		api.get('/accounts').then(a => this.app.accounts(a)).catch(() => {});
+	}
+
+	/** Ré-édition des identifiants : même flow que l'ajout (update côté serveur). */
+	editAccount(a) {
+		this.app.addAccount(a.email);
+	}
+
+	async defaultAccount(a) {
+		try {
+			await api.post(`/accounts/${a.id}/default`);
+			this.app.accounts(await api.get('/accounts'));
+		} catch (e) { this.error(e.message); }
+	}
+
+	async deleteAccount(a) {
+		if (!(await dialog.confirm(t('settings.account_delete_confirm', { email: a.email }),
+			{ variant: 'danger', okLabel: t('common.delete') }))) { return; }
+		try {
+			await api.post(`/accounts/${a.id}/delete`);
+			this.app.accounts(await api.get('/accounts'));
+		} catch (e) { this.error(e.message); }
 	}
 
 	// ─── Identités ───
@@ -227,12 +272,16 @@ export class SettingsVM {
 			bcc: ko.observable(s.bcc || ''),
 			signature: ko.observable(sig),
 		});
+		this.identityModal?.show();
+		// Focus du champ nom une fois la modale affichée (pattern search-modal)
+		document.getElementById('identity-modal')?.addEventListener('shown.bs.modal',
+			() => document.getElementById('identity-name')?.focus(), { once: true });
 	}
 
 	async saveIdentity() {
 		const i = this.editingIdentity();
 		await api.post('/identities', ko.toJS(i));
-		this.editingIdentity(null);
+		this.identityModal?.hide(); // hidden.bs.modal → editingIdentity(null)
 		this._identitiesReq = null;
 		await this.loadIdentities();
 	}

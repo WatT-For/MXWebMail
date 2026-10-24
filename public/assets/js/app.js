@@ -210,9 +210,16 @@ class AppVM {
 		location.reload();
 	}
 
-	async addAccount() {
-		const email = await dialog.prompt(t('app.add_account_email'),
-			{ title: t('app.add_account'), inputType: 'email' });
+	/**
+	 * Ajout de compte secondaire ; arg = email pré-rempli (ré-édition des
+	 * identifiants depuis Réglages → Comptes) — KO passe $data au handler
+	 * click, seule une chaîne déclenche le mode « édition ».
+	 */
+	async addAccount(arg) {
+		const preset = typeof arg === 'string' ? arg.trim() : '';
+		const title = preset ? t('settings.account_edit') : t('app.add_account');
+		const email = preset || await dialog.prompt(t('app.add_account_email'),
+			{ title, inputType: 'email' });
 		if (!email) { return; }
 		// Domaine OAuth2 (gmail, outlook…) → consentement provider en popup ;
 		// sinon ajout classique par mot de passe IMAP. needs_app : l'utilisateur
@@ -220,26 +227,26 @@ class AppVM {
 		try {
 			let r = await api.post('/accounts/oauth', { email });
 			if (r.needs_app) {
-				if (!(await this.promptOauthApp(r.provider, r.redirect_uri))) { return; }
+				if (!(await this.promptOauthApp(r.provider, r.redirect_uri, title))) { return; }
 				r = await api.post('/accounts/oauth', { email });
 			}
-			if (r.url) { this.openOauthPopup(r.url); return; }
+			if (r.url) { this.openOauthPopup(r.url, title); return; }
 		} catch (e) {
 			await dialog.alert(t('errors.failed', { msg: e.message }),
-				{ title: t('app.add_account'), variant: 'danger' });
+				{ title, variant: 'danger' });
 			return;
 		}
 		const password = await dialog.prompt(t('app.add_account_pass'),
-			{ title: t('app.add_account'), inputType: 'password' });
+			{ title, inputType: 'password' });
 		if (password === null) { return; }
 		try {
 			await api.post('/accounts', { email, password });
 			this.accounts(await api.get('/accounts'));
 			await dialog.alert(t('app.account_added'),
-				{ title: t('app.add_account'), variant: 'success' });
+				{ title, variant: 'success' });
 		} catch (e) {
 			await dialog.alert(t('errors.failed', { msg: e.message }),
-				{ title: t('app.add_account'), variant: 'danger' });
+				{ title, variant: 'danger' });
 		}
 	}
 
@@ -253,7 +260,7 @@ class AppVM {
 	 * Formulaire d'enregistrement de l'app OAuth2 de l'utilisateur pour un
 	 * provider (premier ajout d'un compte de ce domaine). false si annulé.
 	 */
-	async promptOauthApp(provider, redirectUri) {
+	async promptOauthApp(provider, redirectUri, title = null) {
 		const fields = [
 			{ name: 'client_id', label: t('settings.oauth_client_id') },
 			{ name: 'secret', label: t('settings.oauth_secret'), inputType: 'password' },
@@ -263,7 +270,7 @@ class AppVM {
 				defaultValue: 'common' });
 		}
 		const v = await dialog.form({
-			title: t('app.add_account'),
+			title: title || t('app.add_account'),
 			message: t('app.oauth_app_required', { provider })
 				+ '\n\n' + t('settings.oauth_redirect_uri') + ' : ' + redirectUri,
 			fields, okLabel: t('common.save'),
@@ -274,7 +281,7 @@ class AppVM {
 	}
 
 	/** Popup de consentement provider ; repli pleine page si bloquée. */
-	openOauthPopup(url) {
+	openOauthPopup(url, title = null) {
 		const w = window.open('about:blank', 'mxwm-oauth', 'width=620,height=720');
 		if (!w) { location.href = url; return; }
 		w.location = url;
@@ -288,7 +295,7 @@ class AppVM {
 			const ok = !!e.data.ok;
 			done();
 			dialog.alert(ok ? t('app.account_added') : this.oauthError(e.data.err),
-				{ title: t('app.add_account'), variant: ok ? 'success' : 'danger' });
+				{ title: title || t('app.add_account'), variant: ok ? 'success' : 'danger' });
 		};
 		window.addEventListener('message', onMsg);
 		// Popup fermée sans message (fermeture manuelle) → refresh quand même

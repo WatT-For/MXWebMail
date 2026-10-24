@@ -130,8 +130,10 @@ dans `trusted_proxies` (CIDR). La détection HTTPS (`isHttps`) suit la même rè
 
 ## 3. Limites connues
 
-- Le dépôt `UpdateService::REPO` est vide : la mise à jour auto est désactivée tant que le
-  dépôt officiel n'est pas renseigné.
+- Le dépôt `GitHubClient::REPO` est vide : la mise à jour auto (cœur et catalogue
+  plugins) est désactivée tant que le dépôt officiel n'est pas renseigné. Quand il est
+  renseigné, les paquets installés (zip cœur et `plugin-*.zip`) ne proviennent que de
+  ce dépôt — aucune URL arbitraire configurable.
 - Le changement SQLite → MariaDB ne migre pas les données (schéma vierge).
 - Les clés privées OpenPGP sont stockées armored côté serveur (la passphrase protège la
   clé elle-même, pas d'encapsulation supplémentaire).

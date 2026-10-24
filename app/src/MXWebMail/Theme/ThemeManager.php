@@ -19,8 +19,10 @@ use MXWebMail\Application\App;
  * décrit les champs ; les valeurs sont stockées en base (table themes).
  * L'interface expose ces valeurs via des variables CSS « --mxwm-* » + des
  * attributs data-* sur <html> (mode sombre, style d'icônes). Les clés
- * « *_dark » du schéma déclinent une variable en variante sombre, émise sous
- * « [data-bs-theme=dark] » (vide = teinte éclaircie automatique, cf. tint()).
+ * « X_color » produisent « --mxwm-X » (+ -rgb/-text) ; les clés « X_color_dark »
+ * les déclinent en variante sombre, émise sous « [data-bs-theme=dark] »
+ * (vide = défaut du champ ; sans défaut, la couleur claire s'applique aussi
+ * en sombre).
  */
 final class ThemeManager
 {
@@ -239,29 +241,41 @@ final class ThemeManager
 	}
 
 	/**
-	 * ':root{--mxwm-primary:…;--mxwm-link:…}' + bloc '[data-bs-theme=dark]{…}'
-	 * quand le schéma déclare des clés *_dark (couleurs sombres ; valeur vide =
-	 * teinte éclaircie automatique de la couleur claire, cf. tint()).
+	 * ':root{--mxwm-*}' + bloc '[data-bs-theme=dark]{…}' pour les variantes
+	 * *_dark. Chaque clé « X_color » du schéma (type color) produit
+	 * --mxwm-X, -rgb, -text (contraste auto) et -text-rgb ; la couleur claire
+	 * s'applique dans les deux modes. Si « X_color_dark » est déclarée et a une
+	 * valeur (enregistrée ou défaut du champ), la variante est émise sous
+	 * [data-bs-theme=dark] ; sinon la couleur claire persiste en sombre.
+	 * Ordre d'émission = ordre des clés claires du schéma.
 	 */
 	public function varsCss(string $name): string
 	{
 		$c = $this->config($name);
-		$primary = $this->validHex($c['primary_color'] ?? null) ?? '#0d6efd';
-		$link    = $this->validHex($c['link_color'] ?? null) ?? '#0d6efd';
-		$light = '--mxwm-primary:' . $primary . ';--mxwm-primary-rgb:' . $this->hexToRgb($primary)
-			. ';--mxwm-link:' . $link . ';--mxwm-link-rgb:' . $this->hexToRgb($link);
-
-		// $c ne contient que les clés du schéma (cf. config()) : aucune clé
-		// *_dark déclarée → template sans notion de sombre, rien à émettre.
-		if (!array_key_exists('primary_color_dark', $c)
-			&& !array_key_exists('link_color_dark', $c)) {
-			return ':root{' . $light . '}';
+		$schema = $this->schema($name);
+		$light = '';
+		$dark = '';
+		foreach ($schema as $key => $f) {
+			if (($f['type'] ?? '') !== 'color' || !str_ends_with($key, '_color')) {
+				continue;
+			}
+			$var = '--mxwm-' . str_replace('_', '-', substr($key, 0, -6));
+			$v = $this->validHex($c[$key] ?? null) ?? $this->validHex($f['default'] ?? null);
+			if ($v !== null) {
+				$light .= $this->colorVars($var, $v);
+			}
+			// Variante sombre : seulement si la clé *_dark est déclarée et
+			// résout une valeur ; vide sans défaut = la claire persiste.
+			if (isset($schema[$key . '_dark'])) {
+				$d = $this->validHex($c[$key . '_dark'] ?? null)
+					?? $this->validHex($schema[$key . '_dark']['default'] ?? null);
+				if ($d !== null) {
+					$dark .= $this->colorVars($var, $d);
+				}
+			}
 		}
-		$primaryD = $this->validHex($c['primary_color_dark'] ?? null) ?? $this->tint($primary);
-		$linkD    = $this->validHex($c['link_color_dark'] ?? null) ?? $this->tint($link);
-		$dark = '--mxwm-primary:' . $primaryD . ';--mxwm-primary-rgb:' . $this->hexToRgb($primaryD)
-			. ';--mxwm-link:' . $linkD . ';--mxwm-link-rgb:' . $this->hexToRgb($linkD);
-		return ':root{' . $light . '}[data-bs-theme=dark]{' . $dark . '}';
+		return ':root{' . $light . '}'
+			. ($dark !== '' ? '[data-bs-theme=dark]{' . $dark . '}' : '');
 	}
 
 	/** Attributs à poser sur la balise <html> des vues du template. */
@@ -352,14 +366,21 @@ JS;
 		]);
 	}
 
-	/** Teinte claire pour le mode sombre : mix(blanc, $hex, 40 %) = tint-color() Sass. */
-	private function tint(string $hex): string
+	/** Déclarations CSS d'une couleur : var + -rgb + -text (contraste) + -text-rgb. */
+	private function colorVars(string $var, string $hex): string
+	{
+		$text = $this->contrast($hex);
+		return $var . ':' . $hex . ';' . $var . '-rgb:' . $this->hexToRgb($hex)
+			. ';' . $var . '-text:' . $text . ';' . $var . '-text-rgb:' . $this->hexToRgb($text) . ';';
+	}
+
+	/** Texte lisible sur $hex : noir Bootstrap ou blanc selon la luminance perçue. */
+	private function contrast(string $hex): string
 	{
 		$hex = ltrim($hex, '#');
-		$out = '';
-		for ($i = 0; $i < 6; $i += 2) {
-			$out .= str_pad(dechex((int) round(hexdec(substr($hex, $i, 2)) * 0.6 + 102)), 2, '0', STR_PAD_LEFT);
-		}
-		return '#' . $out;
+		$lum = (hexdec(substr($hex, 0, 2)) * 299
+			+ hexdec(substr($hex, 2, 2)) * 587
+			+ hexdec(substr($hex, 4, 2)) * 114) / 1000;
+		return $lum >= 150 ? '#212529' : '#ffffff';
 	}
 }

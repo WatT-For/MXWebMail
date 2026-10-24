@@ -147,9 +147,14 @@ ce provider). URI de redirection à déclarer dans la console :
 
 ### Fonctionnement
 
-- L'utilisateur ajoute le compte depuis le menu comptes : saisie de l'adresse →
-  (première fois : saisie des identifiants d'app) → popup de consentement → le
-  compte apparaît avec un badge provider.
+- L'utilisateur ajoute le compte depuis le menu comptes ou *Réglages → Comptes* :
+  saisie de l'adresse → (première fois : saisie des identifiants d'app) → popup
+  de consentement → le compte apparaît avec un badge provider. *Réglages →
+  Comptes* permet aussi la bascule, la mise à jour des identifiants, la
+  promotion en compte principal et la suppression.
+- Un compte secondaire peut être **promu principal** (étoile dans *Réglages →
+  Comptes*) — le flag `secondary_only` du domaine ne bloque que le *login*
+  primaire, pas cette promotion.
 - Le *refresh token* est stocké chiffré (`accounts.imap_pass`) ; chaque
   connexion IMAP/SMTP échange un access token éphémère. Microsoft et Yahoo
   **réémettent un refresh token à chaque usage** : il est remplacé

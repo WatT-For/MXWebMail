@@ -338,8 +338,14 @@ final class AuthService
 		if ($row = $stmt->fetch()) {
 			// Compte déjà connu → on met à jour le mot de passe stocké
 			// (auth='password' : couvre un domaine repassé d'OAuth à mot de passe)
+			$enc = CredentialCrypt::encrypt($password, $this->app->storageDir());
 			$pdo->prepare("UPDATE accounts SET imap_pass = :ip, auth = 'password' WHERE id = :id")
-				->execute(['ip' => CredentialCrypt::encrypt($password, $this->app->storageDir()), 'id' => $row['id']]);
+				->execute(['ip' => $enc, 'id' => $row['id']]);
+			// Compte actif : la session suit les nouveaux identifiants.
+			if ((int) $row['id'] === (int) ($_SESSION['account_id'] ?? 0)) {
+				$_SESSION['imap_pass'] = $enc;
+				$_SESSION['acct_auth'] = 'password';
+			}
 			return ['id' => (int) $row['id'], 'email' => $email];
 		}
 		return ['id' => $this->provisionAccount($userId, $email, $password, false), 'email' => $email];
@@ -372,6 +378,11 @@ final class AuthService
 			// Compte déjà connu → nouveau refresh token + provider à jour
 			$pdo->prepare('UPDATE accounts SET imap_pass = :ip, auth = :a WHERE id = :id')
 				->execute(['ip' => $enc, 'a' => $provider, 'id' => $row['id']]);
+			// Compte actif : la session suit les nouveaux identifiants.
+			if ((int) $row['id'] === (int) ($_SESSION['account_id'] ?? 0)) {
+				$_SESSION['imap_pass'] = $enc;
+				$_SESSION['acct_auth'] = $provider;
+			}
 			return ['id' => (int) $row['id'], 'email' => $email];
 		}
 		return ['id' => $this->provisionAccount($userId, $email, $refreshToken, false, $provider),
@@ -412,6 +423,34 @@ final class AuthService
 		}
 	}
 
+	/**
+	 * Définit le compte principal de l'utilisateur : rattache les nouvelles
+	 * identités sans compte explicite et protège de la suppression.
+	 */
+	public function setDefaultAccount(int $userId, int $accountId): void
+	{
+		$pdo = $this->app->db()->pdo();
+		$stmt = $pdo->prepare('SELECT id FROM accounts WHERE id = :id AND user_id = :u');
+		$stmt->execute(['id' => $accountId, 'u' => $userId]);
+		if (!$stmt->fetch()) {
+			throw new \RuntimeException($this->t('errors.account_not_found'), 404);
+		}
+		$pdo->beginTransaction();
+		try {
+			$pdo->prepare('UPDATE accounts SET is_default = 0 WHERE user_id = :u')
+				->execute(['u' => $userId]);
+			$pdo->prepare('UPDATE accounts SET is_default = 1 WHERE id = :id')
+				->execute(['id' => $accountId]);
+			$pdo->commit();
+		} catch (\Throwable $e) {
+			$pdo->rollBack();
+			throw $e;
+		}
+		// Le compte actif devient secondaire s'il n'est pas le nouveau principal.
+		$_SESSION['acct_secondary'] =
+			(int) ($_SESSION['account_id'] ?? 0) !== $accountId;
+	}
+
 	// ─── Provisioning ───
 
 	private function provisionAccount(int $userId, string $email, string $password,
@@ -422,6 +461,13 @@ final class AuthService
 		$stmt->execute(['u' => $userId, 'e' => $email]);
 		if ($row = $stmt->fetch()) {
 			return (int) $row['id'];
+		}
+		// Un seul principal : un compte recréé au login après suppression de
+		// l'ancien ne doit pas produire deux is_default.
+		if ($isDefault) {
+			$d = $pdo->prepare('SELECT 1 FROM accounts WHERE user_id = :u AND is_default = 1');
+			$d->execute(['u' => $userId]);
+			$isDefault = !$d->fetchColumn();
 		}
 		$pdo->prepare(
 			'INSERT INTO accounts (user_id, email, imap_user, imap_pass, is_default, auth)

@@ -20,6 +20,14 @@ class AdminVM {
 		this.domains = ko.observableArray([]);
 		this.users = ko.observableArray([]);
 		this.plugins = ko.observableArray([]);
+		// Catalogue GitHub (PluginPackageService) : install/update/remove
+		this.pluginsErr = ko.observable('');
+		this.pluginCatalog = ko.observable(null); // {configured, plugins:[…]}
+		this.catalogLoaded = ko.observable(false);
+		this.catalogBusy = ko.observable(false);
+		this.pluginBusy = ko.observable('');      // nom du plugin en cours d'opération
+		this.catalogAvailable = ko.pureComputed(() =>
+			(this.pluginCatalog()?.plugins || []).filter(p => !p.installed));
 		// Blocs UI déclarés par les plugins (hook admin.mounts → bootstrap)
 		this.adminMounts = ko.observableArray([]);
 		this.logs = ko.observableArray([]);
@@ -98,6 +106,8 @@ class AdminVM {
 		// Navigation pilotée par l'URL : #/<page>[/<sous-onglet>]
 		window.addEventListener('hashchange', this.syncFromHash);
 		this.syncFromHash();
+		// Catalogue plugins chargé à la première ouverture de l'onglet Extensions
+		this.tab.subscribe(v => { if (v === 'plugins') { this.ensurePluginsCatalog(); } });
 	}
 	async init() {
 		const b = await api.get('/admin/bootstrap').catch(e => { this.error(e.message); return null; });
@@ -111,9 +121,8 @@ class AdminVM {
 		}
 		this.domains((b.domains || []).map(this.mapDomain));
 		this.users(b.users || []);
-		this.plugins((b.plugins || []).map(p => ({ ...p,
-			enabled: ko.observable(!!p.enabled),
-			user_allowed: ko.observable(p.user_allowed !== false) })));
+		this.plugins((b.plugins || []).map(this.mapPlugin));
+		if (this.tab() === 'plugins') { this.ensurePluginsCatalog(); }
 		this.adminMounts(b.adminMounts || []);
 		// Les sous-onglets de plugins n'étaient pas connus au syncFromHash()
 		// du constructeur — re-sync pour les deep-links (#/security/2fa…).
@@ -577,6 +586,83 @@ class AdminVM {
 			await api.post(`/admin/users/${eu.id}/identities/default`, { identity_id: i.id });
 			await this.editUser({ id: eu.id });
 		} catch (e) { eu.error(e.message); }
+	}
+	mapPlugin(p) {
+		return { ...p,
+			enabled: ko.observable(!!p.enabled),
+			user_allowed: ko.observable(p.user_allowed !== false) };
+	}
+	// Entrée catalogue d'un plugin installé (latest/update_available/compatible)
+	catalogFor(name) {
+		return (this.pluginCatalog()?.plugins || []).find(p => p.name === name) || null;
+	}
+	// Chargement paresseux à la première ouverture de l'onglet Extensions —
+	// le cache release est partagé avec le check cœur (gratuit si récent).
+	async ensurePluginsCatalog() {
+		if (this.catalogLoaded() || this.catalogBusy()) { return; }
+		this.catalogLoaded(true);
+		try {
+			this.pluginCatalog(await api.get('/admin/plugins/catalog'));
+		} catch (e) { /* silencieux — non bloquant à l'ouverture */ }
+	}
+	async checkPluginsCatalog(force = false) {
+		this.pluginsErr(''); this.catalogBusy(true);
+		try {
+			this.pluginCatalog(await api.get('/admin/plugins/catalog' + (force ? '?force=1' : '')));
+			this.catalogLoaded(true);
+		} catch (e) { this.pluginsErr(e.message); }
+		finally { this.catalogBusy(false); }
+	}
+	async refreshPlugins() {
+		try {
+			this.plugins((await api.get('/admin/plugins')).map(this.mapPlugin));
+		} catch (e) { this.pluginsErr(e.message); }
+	}
+	async installPlugin(p) {
+		this.pluginsErr(''); this.pluginBusy(p.name);
+		try {
+			await api.post(`/admin/plugins/${p.name}/install`);
+			await this.refreshPlugins();
+			await this.checkPluginsCatalog();
+			this.ok(t('admin.plugins.installed_ok', { name: p.name }));
+		} catch (e) { this.pluginsErr(e.message); }
+		finally { this.pluginBusy(''); }
+	}
+	async updatePlugin(p) {
+		const c = this.catalogFor(p.name);
+		if (!(await dialog.confirm(t('admin.plugins.confirm_update', { name: p.name, ver: c?.latest || '' }),
+			{ okLabel: t('admin.plugins.update') }))) { return; }
+		this.pluginsErr(''); this.pluginBusy(p.name);
+		const wasEnabled = !!ko.unwrap(p.enabled);
+		try {
+			await api.post(`/admin/plugins/${p.name}/install`);
+			if (wasEnabled) {
+				location.reload(); // code + assets du plugin changés
+				return;
+			}
+			await this.refreshPlugins();
+			await this.checkPluginsCatalog();
+			this.ok(t('admin.plugins.updated_ok', { name: p.name }));
+		} catch (e) { this.pluginsErr(e.message); }
+		finally { this.pluginBusy(''); }
+	}
+	// Désinstallation définitive : dossier supprimé + config purgée.
+	async removePlugin(p) {
+		if (!(await dialog.confirm(t('admin.plugins.confirm_remove', { name: p.name }),
+			{ variant: 'danger', okLabel: t('admin.plugins.remove') }))) { return; }
+		this.pluginsErr(''); this.pluginBusy(p.name);
+		const wasEnabled = !!ko.unwrap(p.enabled);
+		try {
+			await api.post(`/admin/plugins/${p.name}/remove`);
+			if (wasEnabled) {
+				location.reload(); // hooks admin.mounts du plugin disparus
+				return;
+			}
+			await this.refreshPlugins();
+			await this.checkPluginsCatalog();
+			this.ok(t('admin.plugins.removed_ok', { name: p.name }));
+		} catch (e) { this.pluginsErr(e.message); }
+		finally { this.pluginBusy(''); }
 	}
 	async togglePlugin(p, e) {
 		try {
