@@ -121,6 +121,13 @@ body.pane-resizing-v iframe { pointer-events: none; }
 	border-top: 1px solid var(--bs-border-color);
 	margin-top: 6px;
 }
+/* Le survol pose z-index:1 (Bootstrap) → contexte d'empilement qui
+   emprisonnerait le menu « ⋮ » (fixed via Popper) sous l'item .active voisin
+   (z-index:2). Inutile ici : bordures et rayons de la liste sont à 0. */
+.folder-pane .list-group-item-action:not(.active):hover,
+.folder-pane .list-group-item-action:not(.active):focus {
+	z-index: auto;
+}
 
 .message-pane {
 	overflow-y: auto;

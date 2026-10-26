@@ -65,19 +65,24 @@ export class ComposeVM {
 	}
 
 	async init() {
-		const list = await api.get('/identities').catch(() => []);
-		// Ne proposer que les identités du compte actif
+		this.setIdentities(await api.get('/identities').catch(() => []));
+		// Taille de la modale persistée dans les réglages utilisateur
+		const w = parseInt(this.app.userSettings.compose_modal_width, 10) || 0;
+		const h = parseInt(this.app.userSettings.compose_modal_height, 10) || 0;
+		this.composeW(w >= 480 ? w : 0);
+		this.composeH(h >= 360 ? h : 0);
+	}
+
+	/** Applique la liste brute des identités : filtre le compte actif et
+	 *  (ré)sélectionne l'identité par défaut — aussi après un changement de
+	 *  défaut ou une édition de signature dans Paramètres. */
+	setIdentities(list) {
 		const active = this.app.accounts().find(a => a.active);
 		const mine = active ? list.filter(i => Number(i.account_id) === Number(active.id)) : list;
 		const usable = mine.length ? mine : list;
 		this.identities(usable);
 		const def = usable.find(i => i.is_default) || usable[0];
 		if (def) { this.identity(def.email); }
-		// Taille de la modale persistée dans les réglages utilisateur
-		const w = parseInt(this.app.userSettings.compose_modal_width, 10) || 0;
-		const h = parseInt(this.app.userSettings.compose_modal_height, 10) || 0;
-		this.composeW(w >= 480 ? w : 0);
-		this.composeH(h >= 360 ? h : 0);
 	}
 
 	/** Persiste la taille de la modale dans les réglages utilisateur. */
@@ -170,10 +175,16 @@ export class ComposeVM {
 		return id?.signature ? `<div class="mxwm-signature">${id.signature}</div>` : '';
 	}
 
+	/** Ligne d'amorce avant la signature : absente quand la signature
+	 *  emporte son marqueur de curseur (sinon ligne vide parasite). */
+	sigLead(sig) {
+		return sig.includes('mxwm-sig-caret') ? '' : '<p><br></p>';
+	}
+
 	/** Insère la signature de l'identité choisie en fin de corps. */
 	applySignature() {
 		const sig = this.signatureBlock();
-		this.html(sig ? `<p><br></p>${sig}` : '');
+		this.html(sig ? this.sigLead(sig) + sig : '');
 	}
 
 	/** Remplace le bloc .mxwm-signature du corps par celui de l'identité
@@ -196,10 +207,23 @@ export class ComposeVM {
 		if (!ed?.initialized) { return; }
 		const marker = ed.getBody().querySelector('span.mxwm-sig-caret');
 		if (!marker) { return; }
+		const parent = marker.parentNode;
+		const next = marker.nextSibling;
 		const rng = ed.dom.createRng();
 		rng.setStartBefore(marker);
 		rng.collapse(true);
 		ed.dom.remove(marker);
+		// nbsp auto-inséré par l'ancien bouton sigcaret (signatures déjà enregistrées)
+		if (next?.nodeType === 3 && next.data.startsWith('\u00A0')) {
+			next.data = next.data.slice(1);
+			if (!next.data) { next.remove(); }
+		}
+		// Un bloc vidé par le retrait du marqueur garderait hauteur 0 et serait
+		// droppé par le sérialiseur — <br> = ligne vide adressable au caret.
+		if (parent?.nodeType === 1 && !parent.textContent
+			&& !parent.querySelector('br,img,hr,iframe,object,embed,video,audio')) {
+			parent.appendChild(ed.dom.create('br'));
+		}
 		ed.selection.setRng(rng);
 		// dom.remove ne déclenche ni change ni keyup → resync explicite de
 		// l'observable (update() voit le contenu identique → caret préservé).
@@ -248,7 +272,8 @@ export class ComposeVM {
 		// Mail HTML-only : la citation est dérivée du HTML (texte brut).
 		const quoted = (msg.bodyPlain || this.htmlToText(msg.bodyHtml))
 			.split('\n').map(l => '> ' + l).join('\n');
-		this.html(`<p><br></p>${this.signatureBlock()}<blockquote>` +
+		const sig = this.signatureBlock();
+		this.html(`${this.sigLead(sig)}${sig}<blockquote>` +
 			`${quoted.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>')}</blockquote>`);
 		this._dirty = false;
 		this.show();
@@ -259,7 +284,8 @@ export class ComposeVM {
 		const subject = msg.subject || '';
 		this.subject(/^\s*fwd?\s*:/i.test(subject) ? subject : 'Fwd: ' + subject);
 		const body = msg.bodyHtml || ('<pre>' + (msg.bodyPlain || '').replace(/</g, '&lt;') + '</pre>');
-		this.html(`<p><br></p>${this.signatureBlock()}<hr><p><b>${t('compose.forwarded')}</b></p>${body}`);
+		const sig = this.signatureBlock();
+		this.html(`${this.sigLead(sig)}${sig}<hr><p><b>${t('compose.forwarded')}</b></p>${body}`);
 		this.pushMsgrefAttachments(msg);
 		this._dirty = false;
 		this.show();

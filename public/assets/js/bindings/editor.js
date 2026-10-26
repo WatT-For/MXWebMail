@@ -1,5 +1,17 @@
 import { t, lang } from '../i18n.js';
 
+// Les UI auxiliaires TinyMCE (dialogue « code source », lien, image, menus)
+// vivent dans .tox-tinymce-aux, greffé sur <body> — hors des modales Bootstrap
+// dont le FocusTrap reprendrait le focus et rendrait leurs champs
+// insaisissables. Listener posé au chargement : il s'exécute avant celui du
+// FocusTrap (activé à l'ouverture d'une modale), stopImmediatePropagation
+// l'empêche de réagir pour ces cibles.
+document.addEventListener('focusin', e => {
+	if (e.target instanceof Element && e.target.closest('.tox-tinymce-aux')) {
+		e.stopImmediatePropagation();
+	}
+});
+
 // Langue TinyMCE = langue de l'interface. Seuls les codes dont le pack est
 // vendoré sous vendor/tinymce/langs/ figurent ici : un fichier langs/<code>.js
 // absent empêcherait l'éditeur de démarrer. 'en' = défaut intégré (pas de
@@ -109,7 +121,7 @@ ko.bindingHandlers.signatureEditor = {
 						editor.dom.select('span.mxwm-sig-caret')
 							.forEach(n => editor.dom.remove(n));
 						editor.insertContent(
-							'<span class="mxwm-sig-caret">&#8982;</span>&nbsp;');
+							'<span class="mxwm-sig-caret">&#8982;</span>');
 					},
 				});
 			},

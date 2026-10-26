@@ -8,7 +8,8 @@ Les plugins sont des extensions bornées dans `app/plugins/<name>/`, chargées s
 Les plugins ne sont **pas inclus** dans le zip de release `mxwebmail-<ver>.zip` : chaque
 release transporte un asset par plugin `plugin-<name>-<ver>.zip` (+ `.sha256`) et un
 index `plugins.index.json` (`{name, version, sha256, size, description, min_app?, max_app?}`),
-téléchargés depuis l'admin → *Extensions* → **Catalogue GitHub** (`PluginPackageService`).
+téléchargés depuis l'admin, onglet *Extensions* (`PluginPackageService`) — les entrées du
+catalogue non installées figurent en fin du tableau des plugins.
 
 - **Installer** : télécharge le zip, vérifie la somme sha256 (index ou asset `.sha256`),
   extrait et valide `plugin.json` (nom concordant, version semver, `main` sain,

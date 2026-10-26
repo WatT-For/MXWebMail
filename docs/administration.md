@@ -111,9 +111,10 @@ zip de release — chaque release transporte un asset `plugin-<name>-<ver>.zip` 
 et un index `plugins.index.json` (même dépôt verrouillé que l'updater cœur ; tant que
 le dépôt est privé, `PAT GitHub` dans `config.php` est requis). Le catalogue
 est chargé à l'ouverture de l'onglet (cache partagé avec le check cœur) et actualisable
-via **Vérifier** :
+via le bouton **rafraîchir** en haut à droite ; les entrées du catalogue non installées
+sont listées à la fin du tableau des plugins :
 
-- badge `vX dispo` + bouton **Mettre à jour** sur les plugins installés quand une
+- bouton **Mettre à jour** sur les plugins installés quand une
   version plus récente est publiée (l'ancien dossier est sauvegardé dans
   `storage/update/plugins/backup-<name>-<ts>` — un seul conservé, rollback automatique
   en cas d'échec) ;

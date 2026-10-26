@@ -202,6 +202,15 @@ export class SettingsVM {
 		this.app.armAutoRefresh(Math.min(60, Math.max(0,
 			parseInt(this.values().list_refresh, 10) || 0)));
 		this.app.notifyEnabled(!!this.values().notify_new_mail);
+		// Pagination : limite + rechargement immédiat de la liste
+		const mpp = parseInt(this.values().messages_per_page, 10);
+		if (mpp > 0 && mpp !== this.app.messageList.limit) {
+			this.app.messageList.limit = mpp;
+			this.app.messageList.page(1);
+			this.app.messageList.load();
+		}
+		// Déconnexion après inactivité : ré-armement (0 = désarmé)
+		this.app.armAutologout(parseInt(this.values().autologout, 10) || 0);
 	}
 
 	// ─── Notifications ───
@@ -284,6 +293,7 @@ export class SettingsVM {
 		this.identityModal?.hide(); // hidden.bs.modal → editingIdentity(null)
 		this._identitiesReq = null;
 		await this.loadIdentities();
+		this._syncComposeIdentities();
 	}
 
 	async deleteIdentity(i) {
@@ -292,12 +302,20 @@ export class SettingsVM {
 		await api.post('/identities/delete', { id: i.id });
 		this._identitiesReq = null;
 		await this.loadIdentities();
+		this._syncComposeIdentities();
 	}
 
 	async defaultIdentity(i) {
 		await api.post(`/identities/${i.id}/default`);
 		this._identitiesReq = null;
 		await this.loadIdentities();
+		this._syncComposeIdentities();
+	}
+
+	/** Après toute mutation d'identité : resynchronise la liste du compose
+	 *  (sinon signature/expéditeur périmés jusqu'au prochain rechargement). */
+	_syncComposeIdentities() {
+		this.app.compose.setIdentities(this.identities());
 	}
 
 	// ─── Contacts ───

@@ -152,7 +152,7 @@ Remarques :
 3. **Créez au moins un domaine** dans l'admin (page *Domaines*) : avec
    `restrict_domains = true` (défaut), aucun login n'est possible sans domaine configuré.
    L'installeur tente de le détecter automatiquement.
-4. **Installez les plugins** depuis l'admin → *Extensions* → **Catalogue GitHub** :
+4. **Installez les plugins** depuis l'admin, onglet *Extensions* :
    le zip de release n'embarque plus les plugins — ils se téléchargent, se mettent à
    jour et se désinstallent depuis ce catalogue (voir
    [administration.md](administration.md#extensions-plugins) et

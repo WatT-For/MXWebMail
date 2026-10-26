@@ -600,10 +600,11 @@ class AdminVM {
 	// le cache release est partagé avec le check cœur (gratuit si récent).
 	async ensurePluginsCatalog() {
 		if (this.catalogLoaded() || this.catalogBusy()) { return; }
-		this.catalogLoaded(true);
+		this.catalogLoaded(true); this.catalogBusy(true);
 		try {
 			this.pluginCatalog(await api.get('/admin/plugins/catalog'));
 		} catch (e) { /* silencieux — non bloquant à l'ouverture */ }
+		finally { this.catalogBusy(false); }
 	}
 	async checkPluginsCatalog(force = false) {
 		this.pluginsErr(''); this.catalogBusy(true);

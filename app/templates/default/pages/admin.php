@@ -228,20 +228,23 @@
 
 	<!-- Extensions -->
 	<div data-bind="visible: tab()==='plugins'" style="display:none">
-		<h5><?= $t('admin.plugins') ?></h5>
+		<div class="d-flex justify-content-between align-items-center mb-2">
+			<h5 class="mb-0"><?= $t('admin.plugins') ?></h5>
+			<button class="btn btn-sm btn-icon btn-outline-secondary" type="button"
+				data-bind="click: function(){ refreshPlugins(); checkPluginsCatalog(true) }, disable: catalogBusy, tooltip: 'common.refresh'">
+				<i class="fa-solid fa-rotate" data-bind="css:{'fa-spin': catalogBusy}"></i>
+			</button>
+		</div>
 		<div class="alert alert-danger py-2" data-bind="visible: pluginsErr, text: pluginsErr" style="display:none"></div>
 		<table class="table table-hover table-sm align-middle">
 			<thead class="table-light"><tr><th><?= $t('common.name') ?></th><th><?= $t('admin.description') ?></th><th>Version</th><th><?= $t('admin.enabled') ?></th><th><?= $t('admin.plugin_user_allowed') ?></th><th></th></tr></thead>
-			<tbody data-bind="foreach: plugins">
+			<tbody>
+				<!-- ko foreach: plugins -->
 				<tr>
 					<td data-bind="text: name"></td>
 					<td data-bind="text: $root.t(description)"></td>
 					<td>
 						<span data-bind="text: version"></span>
-						<!-- ko if: $root.catalogFor(name)?.update_available -->
-						<span class="badge text-bg-primary ms-1"
-							data-bind="text: 'v' + $root.catalogFor(name).latest + ' ' + $root.t('admin.plugins.update_available')"></span>
-						<!-- /ko -->
 						<!-- ko if: $root.catalogFor(name)?.compatible === false -->
 						<span class="badge text-bg-warning ms-1" data-bind="text: $root.t('admin.plugins.incompatible')"></span>
 						<!-- /ko -->
@@ -273,41 +276,36 @@
 						</button>
 					</td>
 				</tr>
+				<!-- /ko -->
+				<!-- Catalogue GitHub (PluginPackageService) : entrées non installées -->
+				<!-- ko foreach: catalogAvailable -->
+				<tr>
+					<td data-bind="text: name"></td>
+					<td data-bind="text: $root.t(description)"></td>
+					<td>
+						<span class="badge text-bg-secondary" data-bind="text: 'v' + latest"></span>
+						<!-- ko if: compatible === false -->
+						<span class="badge text-bg-warning ms-1" data-bind="text: $root.t('admin.plugins.incompatible')"></span>
+						<!-- /ko -->
+					</td>
+					<td></td>
+					<td></td>
+					<td class="text-end">
+						<button class="btn btn-sm btn-primary" type="button"
+							data-bind="click: $root.installPlugin, disable: $root.pluginBusy() === name || compatible === false">
+							<i class="fa-solid fa-download"></i>
+							<span data-bind="text: $root.pluginBusy() === name ? $root.t('admin.plugins.installing') : $root.t('admin.plugins.install')"></span>
+						</button>
+					</td>
+				</tr>
+				<!-- /ko -->
 			</tbody>
 		</table>
-		<div class="text-muted small" data-bind="visible: plugins().length === 0" style="display:none">
+		<div class="text-muted small" data-bind="visible: plugins().length === 0 && catalogAvailable().length === 0 && !catalogBusy()" style="display:none">
 			<?= $t('admin.no_plugins') ?>
-		</div>
-
-		<!-- Catalogue GitHub (PluginPackageService) -->
-		<div class="d-flex align-items-center gap-2 mt-4 mb-2">
-			<h6 class="mb-0"><?= $t('admin.plugins.catalog') ?></h6>
-			<button class="btn btn-sm btn-outline-primary" type="button"
-				data-bind="click: function(){ checkPluginsCatalog(true) }, disable: catalogBusy()">
-				<i class="fa-solid fa-rotate" data-bind="css:{'fa-spin': catalogBusy()}"></i>
-				<?= $t('admin.plugins.check') ?>
-			</button>
 		</div>
 		<!-- ko if: pluginCatalog() && pluginCatalog().configured === false -->
 		<div class="text-muted small"><?= $t('admin.plugins.not_configured') ?></div>
-		<!-- /ko -->
-		<!-- ko foreach: catalogAvailable -->
-		<div class="d-flex align-items-center gap-2 py-1 border-bottom">
-			<span class="fw-semibold" data-bind="text: name"></span>
-			<span class="badge text-bg-secondary" data-bind="text: 'v' + latest"></span>
-			<!-- ko if: compatible === false -->
-			<span class="badge text-bg-warning" data-bind="text: $root.t('admin.plugins.incompatible')"></span>
-			<!-- /ko -->
-			<span class="text-muted small flex-grow-1" data-bind="text: $root.t(description)"></span>
-			<button class="btn btn-sm btn-primary" type="button"
-				data-bind="click: $root.installPlugin, disable: $root.pluginBusy() === name || compatible === false">
-				<i class="fa-solid fa-download"></i>
-				<span data-bind="text: $root.pluginBusy() === name ? $root.t('admin.plugins.installing') : $root.t('admin.plugins.install')"></span>
-			</button>
-		</div>
-		<!-- /ko -->
-		<!-- ko if: catalogLoaded() && pluginCatalog() && pluginCatalog().configured !== false && catalogAvailable().length === 0 -->
-		<div class="text-muted small"><?= $t('admin.plugins.catalog_empty') ?></div>
 		<!-- /ko -->
 	</div>
 

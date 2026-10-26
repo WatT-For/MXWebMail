@@ -70,6 +70,7 @@ class AppVM {
 		this.themeData = {};
 		this.popupIdentityPending = false;
 		this._logoutTimer = null;
+		this._logoutReset = null;
 		this._refreshTimer = null;
 		// Détection nouveaux mails : fullName => { unread, lastUid } (seedé au boot)
 		this._watch = {};
@@ -379,16 +380,32 @@ class AppVM {
 		if (msg) { await this.messageList.select(msg); }
 	}
 
-	/** Timer d'inactivité → logout automatique (réglage autologout, minutes). */
+	/** Timer d'inactivité → logout automatique (réglage autologout, minutes).
+	 *  Ré-armable sans duplication de listeners ; 0 = désarmé. */
 	armAutologout(minutes) {
+		this.disarmAutologout();
+		if (minutes <= 0) { return; }
 		const reset = () => {
 			clearTimeout(this._logoutTimer);
 			this._logoutTimer = setTimeout(() => this.logout(), minutes * 60000);
 		};
+		this._logoutReset = reset;
 		for (const ev of ['click', 'keydown', 'mousemove', 'scroll']) {
 			window.addEventListener(ev, reset, { passive: true });
 		}
 		reset();
+	}
+
+	/** Retire le timer et les listeners d'inactivité (réglage autologout = 0). */
+	disarmAutologout() {
+		clearTimeout(this._logoutTimer);
+		this._logoutTimer = null;
+		if (this._logoutReset) {
+			for (const ev of ['click', 'keydown', 'mousemove', 'scroll']) {
+				window.removeEventListener(ev, this._logoutReset);
+			}
+			this._logoutReset = null;
+		}
 	}
 
 	openSettings() {
