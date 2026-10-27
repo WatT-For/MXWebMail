@@ -8,6 +8,23 @@ Catégories, dans l'ordre : `Sécurité`, `Ajouté`, `Modifié`, `Corrigé`, `Ob
 
 ## [Unreleased]
 
+## [0.39.0] — 2026-10-27
+
+### Modifié
+
+- Catalogue et installation des plugins lus directement dans le dépôt GitHub au
+  ref `update.plugins_ref` (`release` = tag de la dernière release par défaut,
+  `main` en dev — un push de `plugin.json` publie la mise à jour sans release) ;
+  chaque fichier téléchargé via `raw.githubusercontent.com` est vérifié par
+  sha1 de blob git (arbre `git/trees` du commit)
+- Nouvelle clé `update.plugins_local` (dev/tests) : dossier local de plugins —
+  catalogue et installation hors réseau depuis le disque
+
+### Supprimé
+
+- Assets `plugin-<name>-<ver>.zip` (+ `.sha256`) et `plugins.index.json` des
+  releases GitHub — le packaging ne produit plus que le zip cœur
+
 ## [0.38.0] — 2026-10-27
 
 ### Ajouté

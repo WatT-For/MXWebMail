@@ -6,13 +6,14 @@ namespace MXWebMail\Service;
 use MXWebMail\Application\App;
 
 /**
- * Installation / mise à jour / suppression des plugins depuis les assets
- * « plugin-<name>-<ver>.zip » de la dernière release GitHub (même dépôt
- * verrouillé que l'updater cœur — voir GitHubClient).
+ * Installation / mise à jour / suppression des plugins lus directement dans
+ * le dépôt GitHub au ref update.plugins_ref ('release' = tag de la dernière
+ * release, 'main', tout ref — voir GitHubClient) : tree git récursif pour la
+ * liste des fichiers, raw.githubusercontent.com pinné sur le sha du commit
+ * pour les contenus, chaque fichier vérifié par sha1 de blob git + taille.
  *
- * Catalogue : plugins_index embarqué dans la release (généré au packaging :
- * métadonnées + sha256 + compatibilité + description) ; fallback regex sur
- * les noms d'assets pour les releases antérieures sans index.
+ * Source alternative dev/tests : update.plugins_local (dossier disque —
+ * catalogue + install hors réseau, sans ancre de vérification externe).
  *
  * Staging : app/storage/update/plugins/. Verrou partagé update.lock avec
  * UpdateService — jamais d'opération cœur et plugin simultanées (le code
@@ -20,12 +21,11 @@ use MXWebMail\Application\App;
  */
 final class PluginPackageService
 {
-	private const MAX_ZIP = 20 * 1024 * 1024;
-
 	private GitHubClient $gh;
 	private string $dir;      // storage/update
 	private string $work;     // storage/update/plugins
 	private string $plugins;  // app/plugins
+	private ?array $remote = null; // {ref, sha, tree} mémoïsé par requête
 
 	public function __construct(private App $app)
 	{
@@ -38,47 +38,40 @@ final class PluginPackageService
 	// ─── Catalogue ───
 
 	/**
-	 * Plugins installés (disque) ∪ paquets de la dernière release.
-	 * Réponse publique : {configured, plugins:[…]}.
+	 * Plugins installés (disque) ∪ source distante (dépôt au ref ou
+	 * plugins_local). Réponse publique : {configured, plugins:[…]}.
 	 */
 	public function catalog(bool $force = false): array
 	{
-		if (!$this->gh->configured()) {
-			return ['configured' => false, 'plugins' => []];
-		}
-		$rel = $this->gh->release($force);
-		$assets = $this->gh->pluginAssets($rel);
-
-		$indexMap = [];
-		$idx = $rel['plugins_index'] ?? null;
-		foreach ((array) (is_array($idx) ? ($idx['plugins'] ?? []) : []) as $e) {
-			if (is_array($e) && isset($e['name'])) {
-				$indexMap[(string) $e['name']] = $e;
-			}
-		}
-
 		$installed = [];
 		foreach ($this->app->plugins()->available() as $p) {
 			$installed[$p['name']] = $p;
 		}
 
-		$names = array_unique(array_merge(
-			array_keys($installed), array_keys($indexMap), array_keys($assets)));
+		$local = $this->gh->pluginLocalDir();
+		if ($local !== null) {
+			$remote = $this->localCatalog($local);
+		} elseif ($this->gh->configured()) {
+			$remote = $this->gitCatalog($force);
+		} else {
+			return ['configured' => false, 'plugins' => []];
+		}
+
+		$names = array_unique(array_merge(array_keys($installed), array_keys($remote)));
 		sort($names);
 
 		$out = [];
 		foreach ($names as $name) {
-			$local = $installed[$name] ?? null;
-			$entry = $indexMap[$name] ?? null;
-			$asset = $assets[$name] ?? null;
-			$latest = (string) ($entry['version'] ?? $asset['version'] ?? '');
-			$cur = (string) ($local['version'] ?? '');
-			// Compat : bornes de l'index sinon du manifeste local ; inconnu = null
-			if ($entry !== null) {
+			$p = $installed[$name] ?? null;
+			$r = $remote[$name] ?? null;
+			$cur = (string) ($p['version'] ?? '');
+			$latest = (string) ($r['version'] ?? '');
+			// Compat : bornes du manifeste distant sinon du manifeste installé
+			if ($r !== null) {
 				$compat = $this->compatible(
-					(string) ($entry['min_app'] ?? ''), (string) ($entry['max_app'] ?? ''));
+					(string) ($r['min_app'] ?? ''), (string) ($r['max_app'] ?? ''));
 			} else {
-				$m = $local !== null ? $this->localManifest($name) : [];
+				$m = $p !== null ? $this->localManifest($name) : [];
 				$compat = ($m !== [])
 					? $this->compatible(
 						(string) ($m['min_app'] ?? ''), (string) ($m['max_app'] ?? ''))
@@ -86,25 +79,133 @@ final class PluginPackageService
 			}
 			$out[] = [
 				'name'             => $name,
-				'installed'        => $local !== null,
+				'installed'        => $p !== null,
 				'version'          => $cur,
 				'latest'           => $latest,
 				'update_available' => $latest !== '' && $cur !== ''
 					&& version_compare($latest, $cur, '>'),
-				'description'      => (string) (($local['description'] ?? '') !== ''
-					? $local['description'] : ($entry['description'] ?? '')),
-				'has_schema'       => (bool) ($local['has_schema'] ?? false),
-				'enabled'          => (bool) ($local['enabled'] ?? false),
-				'user_allowed'     => (bool) ($local['user_allowed'] ?? true),
-				'in_catalog'       => $entry !== null || $asset !== null,
+				'description'      => (string) (($p['description'] ?? '') !== ''
+					? $p['description'] : ($r['description'] ?? '')),
+				'has_schema'       => (bool) ($p['has_schema'] ?? false),
+				'enabled'          => (bool) ($p['enabled'] ?? false),
+				'user_allowed'     => (bool) ($p['user_allowed'] ?? true),
+				'in_catalog'       => $r !== null,
 				'compatible'       => $compat,
-				'has_sha256'       => isset($entry['sha256'])
-					|| ($asset !== null
-						&& $this->gh->sha256Url($rel, (string) $asset['name']) !== null),
-				'size'             => (int) ($entry['size'] ?? $asset['size'] ?? 0),
+				'size'             => (int) ($r['size'] ?? 0),
 			];
 		}
 		return ['configured' => true, 'plugins' => $out];
+	}
+
+	// ─── Sources du catalogue ───
+
+	/** Dossier local (update.plugins_local) → name => métadonnées manifeste. */
+	private function localCatalog(string $dir): array
+	{
+		$out = [];
+		foreach (glob(rtrim($dir, '/\\') . '/*/plugin.json') ?: [] as $f) {
+			$name = basename(dirname($f));
+			if (!preg_match('/^[a-z0-9-]+$/', $name)) {
+				continue;
+			}
+			$m = json_decode((string) file_get_contents($f), true);
+			if (!is_array($m)) {
+				continue;
+			}
+			$out[$name] = [
+				'version'     => (string) ($m['version'] ?? ''),
+				'description' => (string) ($m['description'] ?? ''),
+				'min_app'     => (string) ($m['min_app'] ?? ''),
+				'max_app'     => (string) ($m['max_app'] ?? ''),
+				'size'        => $this->dirSize(dirname($f)),
+			];
+		}
+		return $out;
+	}
+
+	/**
+	 * Dépôt au ref résolu → name => métadonnées manifeste.
+	 * plugin.json de chaque plugin via raw (cache par blob sha — seuls les
+	 * manifestes modifiés sont re-téléchargés).
+	 */
+	private function gitCatalog(bool $force): array
+	{
+		$src = $this->gitSource($force);
+		$out = [];
+		foreach ($src['tree'] as $path => $meta) {
+			if (!preg_match('#^app/plugins/([a-z0-9-]+)/plugin\.json$#', $path, $m)) {
+				continue;
+			}
+			$mf = $this->remoteManifest($src['sha'], $m[1], $path, $meta);
+			if ($mf === null) {
+				continue;
+			}
+			$out[$m[1]] = [
+				'version'     => (string) ($mf['version'] ?? ''),
+				'description' => (string) ($mf['description'] ?? ''),
+				'min_app'     => (string) ($mf['min_app'] ?? ''),
+				'max_app'     => (string) ($mf['max_app'] ?? ''),
+				'size'        => 0,
+			];
+		}
+		foreach ($src['tree'] as $path => $meta) {
+			if (preg_match('#^app/plugins/([a-z0-9-]+)/#', $path, $m) && isset($out[$m[1]])) {
+				$out[$m[1]]['size'] += $meta['size'];
+			}
+		}
+		return $out;
+	}
+
+	/** {ref, sha, tree} — ref→commit à TTL, tree immutable (mémoïsé). */
+	private function gitSource(bool $force): array
+	{
+		if (!$force && $this->remote !== null) {
+			return $this->remote;
+		}
+		$ref = $this->gh->pluginsRef($force);
+		$c = $this->gh->resolveCommit($ref, $force);
+		return $this->remote = [
+			'ref'  => $ref,
+			'sha'  => $c['sha'],
+			'tree' => $this->gh->tree($c['tree']),
+		];
+	}
+
+	/** plugin.json distant — cache par blob sha, contenu vérifié (sha1+size). */
+	private function remoteManifest(string $commit, string $name, string $path, array $blob): ?array
+	{
+		$cacheDir = $this->app->storageDir() . '/cache';
+		$file = "$cacheDir/plugin-manifest-$name-{$blob['sha']}.json";
+		$mf = is_file($file) ? json_decode((string) file_get_contents($file), true) : null;
+		if (is_array($mf)) {
+			return $mf;
+		}
+		try {
+			$raw = $this->gh->get($this->gh->rawUrl($commit, $path));
+		} catch (\RuntimeException $e) {
+			$this->app->log('error', "plugin.json $name : " . $e->getMessage());
+			return null;
+		}
+		if (strlen($raw) !== $blob['size'] || GitHubClient::blobId($raw) !== $blob['sha']) {
+			$this->app->log('error', "plugin.json $name : contenu non concordant avec le tree");
+			return null;
+		}
+		$mf = json_decode($raw, true);
+		if (!is_array($mf)) {
+			$this->app->log('error', "plugin.json $name : JSON illisible");
+			return null;
+		}
+		// GC : manifestes obsolètes du même plugin (blob sha différents)
+		foreach (glob("$cacheDir/plugin-manifest-$name-*.json") ?: [] as $old) {
+			if ($old !== $file) {
+				@unlink($old);
+			}
+		}
+		$tmp = $file . '.' . getmypid() . '.tmp';
+		if (file_put_contents($tmp, json_encode($mf, JSON_UNESCAPED_SLASHES)) !== false) {
+			rename($tmp, $file) || @unlink($tmp);
+		}
+		return $mf;
 	}
 
 	// ─── Installation / mise à jour ───
@@ -119,60 +220,29 @@ final class PluginPackageService
 		if (!preg_match('/^[a-z0-9-]+$/', $name)) {
 			throw new \RuntimeException('Nom de plugin invalide', 400);
 		}
-		if (!$this->gh->configured()) {
-			throw new \RuntimeException('Catalogue non configuré', 400);
+		$local = $this->gh->pluginLocalDir();
+		if ($local === null) {
+			if (!$this->gh->configured()) {
+				throw new \RuntimeException('Catalogue non configuré', 400);
+			}
+			$this->gh->requireExts();
 		}
-		$this->gh->requireExts();
 		$lock = $this->lock();
 		try {
-			$rel = $this->gh->release(false);
-			$assets = $this->gh->pluginAssets($rel);
-			$index = [];
-			$idx = $rel['plugins_index'] ?? null;
-			foreach ((array) (is_array($idx) ? ($idx['plugins'] ?? []) : []) as $e) {
-				if (is_array($e) && isset($e['name'])) {
-					$index[(string) $e['name']] = $e;
-				}
-			}
-			$asset = $assets[$name] ?? null;
-			if ($asset === null) {
-				throw new \RuntimeException("Aucun paquet distant pour le plugin « $name »", 404);
-			}
-			$version = (string) ($index[$name]['version'] ?? $asset['version']);
-			$url = (string) ($asset['url'] ?? '');
-			if (!$this->gh->validUrl($url)) {
-				throw new \RuntimeException('URL de téléchargement refusée', 502);
-			}
-
-			is_dir($this->work) || mkdir($this->work, 0700, true);
-			$zipPath = $this->work . '/' . $asset['name']; // nom d'asset déjà validé par regex
 			$extract = $this->work . '/extract-' . $name;
 			try {
-				$this->gh->getToFile($url, $zipPath, self::MAX_ZIP);
-				if (!is_file($zipPath) || filesize($zipPath) === 0) {
-					@unlink($zipPath);
-					throw new \RuntimeException('Téléchargement vide', 502);
+				if ($local !== null) {
+					$root = $this->stageLocal($local, $extract, $name);
+					$verified = false; // pas d'ancre de vérification externe
+				} else {
+					$root = $this->stageRemote($this->gitSource(false), $extract, $name);
+					$verified = true; // chaque fichier : taille + sha1 de blob git
 				}
-
-				// sha256 : plugins_index en priorité, sinon asset <zip>.sha256
-				// à côté — non bloquant si les deux absents
-				$verified = false;
-				$sum = strtolower((string) ($index[$name]['sha256'] ?? ''));
-				if (!preg_match('/^[0-9a-f]{64}$/', $sum)) {
-					$sum = (string) ($this->gh->assetSha256($rel, (string) $asset['name']) ?? '');
-				}
-				if ($sum !== '') {
-					$verified = hash_equals(
-						$sum, strtolower((string) hash_file('sha256', $zipPath)));
-					if (!$verified) {
-						throw new \RuntimeException('Somme sha256 invalide', 502);
-					}
-				}
-
-				$root = $this->extractAndValidate($zipPath, $extract, $name);
+				$m = $this->validatePluginDir($root, $name);
 				$this->preflight($name);
 				$previous = $this->swap($root, $name);
 				$this->invalidateCaches();
+				$version = (string) $m['version'];
 				$this->app->log('info', "plugin $name "
 					. ($previous !== null ? "$previous → $version" : "installé en $version"));
 				return [
@@ -182,7 +252,6 @@ final class PluginPackageService
 					'verified' => $verified,
 				];
 			} finally {
-				@unlink($zipPath);
 				$this->rmrf($extract);
 			}
 		} finally {
@@ -232,37 +301,68 @@ final class PluginPackageService
 
 	// ─── Internes ───
 
-	/** Extraction sécurisée + validation du paquet → racine $dest/<name>. */
-	private function extractAndValidate(string $zipPath, string $dest, string $name): string
+	/** Copie récursive <dir>/<name> → staging $dest/<name> (source locale). */
+	private function stageLocal(string $dir, string $dest, string $name): string
 	{
-		$this->rmrf($dest);
-		$zip = new \ZipArchive();
-		if ($zip->open($zipPath) !== true) {
-			throw new \RuntimeException('Paquet zip illisible', 502);
+		$srcDir = rtrim($dir, '/\\') . '/' . $name;
+		if (!is_dir($srcDir) || !is_file("$srcDir/plugin.json")) {
+			throw new \RuntimeException("Plugin « $name » absent de la source locale", 404);
 		}
-		for ($i = 0; $i < $zip->numFiles; $i++) {
-			$entry = (string) $zip->getNameIndex($i);
-			// Anti path-traversal : '..', chemin absolu, lettre de lecteur
-			if ($entry !== '' && (str_contains($entry, '..')
-				|| $entry[0] === '/' || $entry[0] === '\\'
-				|| preg_match('/^[a-zA-Z]:/', $entry))) {
-				$zip->close();
-				throw new \RuntimeException("Entrée zip dangereuse : $entry", 400);
+		$this->rmrf($dest);
+		$root = "$dest/$name";
+		$base = str_replace('\\', '/', $srcDir);
+		foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(
+				$srcDir, \FilesystemIterator::SKIP_DOTS)) as $f) {
+			if (!$f->isFile()) {
+				continue;
+			}
+			$rel = substr(str_replace('\\', '/', $f->getPathname()), strlen($base) + 1);
+			@mkdir(dirname("$root/$rel"), 0700, true);
+			copy($f->getPathname(), "$root/$rel");
+		}
+		return $root;
+	}
+
+	/**
+	 * Télécharge chaque blob app/plugins/<name>/** du tree via raw (pinné au
+	 * sha du commit) → staging $dest/<name>. Chaque fichier est vérifié :
+	 * taille + sha1 de blob git du tree (anti corruption/CDN raw obsolète).
+	 */
+	private function stageRemote(array $src, string $dest, string $name): string
+	{
+		$prefix = "app/plugins/$name/";
+		$files = [];
+		foreach ($src['tree'] as $path => $meta) {
+			if (str_starts_with($path, $prefix)) {
+				$files[substr($path, strlen($prefix))] = $meta;
 			}
 		}
-		if (!$zip->extractTo($dest)) {
-			$zip->close();
-			throw new \RuntimeException('Extraction du paquet impossible', 500);
+		if ($files === [] || !isset($files['plugin.json'])) {
+			throw new \RuntimeException(
+				"Plugin « $name » absent du dépôt (ref {$src['ref']})", 404);
 		}
-		$zip->close();
-
-		// Racine unique nommée exactement comme le plugin
-		$items = array_values(array_diff(scandir($dest) ?: [], ['.', '..']));
-		if (count($items) !== 1 || $items[0] !== $name || !is_dir("$dest/$name")) {
-			throw new \RuntimeException("Paquet invalide (racine $name attendue)", 502);
-		}
+		$this->rmrf($dest);
 		$root = "$dest/$name";
+		foreach ($files as $rel => $meta) {
+			// Anti-traversal (défense en profondeur — la source est l'API GitHub)
+			if ($rel === '' || str_contains($rel, '..') || str_contains($rel, '\\')
+				|| $rel[0] === '/' || preg_match('/^[a-zA-Z]:/', $rel)) {
+				throw new \RuntimeException("Chemin refusé : $rel", 502);
+			}
+			$raw = $this->gh->get($this->gh->rawUrl($src['sha'], $prefix . $rel));
+			if (strlen($raw) !== $meta['size'] || GitHubClient::blobId($raw) !== $meta['sha']) {
+				throw new \RuntimeException("Contenu non concordant : $rel", 502);
+			}
+			$target = "$root/$rel";
+			@mkdir(dirname($target), 0700, true);
+			file_put_contents($target, $raw);
+		}
+		return $root;
+	}
 
+	/** Validation du dossier stagé → manifeste (plugin.json concordant, semver, main sain, compat). */
+	private function validatePluginDir(string $root, string $name): array
+	{
 		$m = json_decode((string) @file_get_contents("$root/plugin.json"), true);
 		if (!is_array($m) || ($m['name'] ?? '') !== $name) {
 			throw new \RuntimeException("Paquet invalide (plugin.json absent ou name ≠ $name)", 502);
@@ -287,7 +387,7 @@ final class PluginPackageService
 				. (($m['min_app'] ?? '') !== '' ? " (min {$m['min_app']}" : '')
 				. (($m['max_app'] ?? '') !== '' ? ", max {$m['max_app']}" : '') . ')', 409);
 		}
-		return $root;
+		return $m;
 	}
 
 	/** Preflight : app/plugins/ et la cible éventuelle doivent être inscriptibles. */
@@ -387,6 +487,18 @@ final class PluginPackageService
 		if (function_exists('opcache_reset')) {
 			@opcache_reset();
 		}
+	}
+
+	private function dirSize(string $dir): int
+	{
+		$n = 0;
+		foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(
+				$dir, \FilesystemIterator::SKIP_DOTS)) as $f) {
+			if ($f->isFile()) {
+				$n += $f->getSize();
+			}
+		}
+		return $n;
 	}
 
 	private function rmrf(string $dir): void

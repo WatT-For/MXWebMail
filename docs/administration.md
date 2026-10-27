@@ -106,13 +106,15 @@ Activation/désactivation de chaque plugin + modale de **configuration** génér
 (page `/{admin_path}`, `/api/admin/*`, sessions admin) : il devient inerte pour les
 utilisateurs — voir [plugins.md](plugins.md).
 
-**Installation / mise à jour depuis GitHub** : les plugins ne sont plus livrés dans le
-zip de release — chaque release transporte un asset `plugin-<name>-<ver>.zip` (+ `.sha256`)
-et un index `plugins.index.json` (même dépôt verrouillé que l'updater cœur ; tant que
-le dépôt est privé, `PAT GitHub` dans `config.php` est requis). Le catalogue
-est chargé à l'ouverture de l'onglet (cache partagé avec le check cœur) et actualisable
-via le bouton **rafraîchir** en haut à droite ; les entrées du catalogue non installées
-sont listées à la fin du tableau des plugins :
+**Installation / mise à jour depuis GitHub** : les plugins sont lus directement dans
+le dépôt verrouillé (`GitHubClient::REPO`, même que l'updater cœur) au ref
+`update.plugins_ref` — `'release'` = tag de la dernière release par défaut, `'main'`
+en dev (un push de `plugin.json` publie la mise à jour, aucune release requise).
+Chaque fichier téléchargé via `raw.githubusercontent.com` est vérifié par sha1 de
+blob git ; tant que le dépôt est privé, `PAT GitHub` dans `config.php` est requis.
+Le catalogue est chargé à l'ouverture de l'onglet (cache partagé avec le check cœur)
+et actualisable via le bouton **rafraîchir** en haut à droite ; les entrées du
+catalogue non installées sont listées à la fin du tableau des plugins :
 
 - bouton **Mettre à jour** sur les plugins installés quand une
   version plus récente est publiée (l'ancien dossier est sauvegardé dans

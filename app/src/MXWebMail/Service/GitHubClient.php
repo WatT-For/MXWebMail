@@ -7,8 +7,8 @@ use MXWebMail\Application\App;
 
 /**
  * Client GitHub Releases partagé : UpdateService (paquet cœur
- * mxwebmail-*.zip) et PluginPackageService (assets plugin-<name>-*.zip +
- * plugins.index.json) l'utilisent.
+ * mxwebmail-*.zip) et PluginPackageService (catalogue lu dans le dépôt au
+ * ref update.plugins_ref — tree git + raw.githubusercontent.com) l'utilisent.
  *
  * Config : section 'update' de config.php —
  *   repo         'owner/mxwebmail' ; vide = vérification désactivée
@@ -136,8 +136,6 @@ final class GitHubClient
 				'download_url'          => $this->pickUrl($a),
 				'size'                  => (int) ($a['size'] ?? 0),
 			], (array) ($rel['assets'] ?? [])),
-			// Index du catalogue plugins — embarqué pour profiter du même cache
-			'plugins_index' => $this->fetchPluginIndex($rel),
 		];
 		$this->writeCache($repo, $channel, $manifest, $trim);
 		return $trim;
@@ -162,31 +160,6 @@ final class GitHubClient
 			? $api : $web;
 	}
 
-	/** plugins.index.json : inline (manifeste dev) ou asset de la release. */
-	private function fetchPluginIndex(array $rel): ?array
-	{
-		if (is_array($rel['plugins_index'] ?? null)) {
-			return $rel['plugins_index'];
-		}
-		foreach ((array) ($rel['assets'] ?? []) as $a) {
-			if (($a['name'] ?? '') !== 'plugins.index.json') {
-				continue;
-			}
-			$url = $this->pickUrl($a);
-			if (!$this->validUrl($url)) {
-				return null;
-			}
-			try {
-				$idx = json_decode($this->get($url), true);
-			} catch (\RuntimeException $e) {
-				$this->app->log('error', 'plugins.index.json : ' . $e->getMessage());
-				return null;
-			}
-			return is_array($idx) ? $idx : null;
-		}
-		return null;
-	}
-
 	// ─── Assets ───
 
 	/**
@@ -207,27 +180,6 @@ final class GitHubClient
 			$fallback ??= $a;
 		}
 		return $fallback;
-	}
-
-	/**
-	 * Assets « plugin-<name>-<ver>.zip » → map name => {name, version, url, size}.
-	 * Fallback du catalogue pour les releases sans plugins.index.json.
-	 */
-	public function pluginAssets(array $rel): array
-	{
-		$out = [];
-		foreach ((array) ($rel['assets'] ?? []) as $a) {
-			$name = (string) ($a['name'] ?? '');
-			if (preg_match('/^plugin-([a-z0-9-]+)-(\d+\.\d+\.\d+)\.zip$/', $name, $m)) {
-				$out[$m[1]] = [
-					'name'    => $name,
-					'version' => $m[2],
-					'url'     => (string) ($a['download_url'] ?? ''),
-					'size'    => (int) ($a['size'] ?? 0),
-				];
-			}
-		}
-		return $out;
 	}
 
 	/** Asset « <zip>.sha256 » ou fichier de sommes (SHA256SUMS, checksums.txt…). */
@@ -255,6 +207,162 @@ final class GitHubClient
 		return preg_match('/\b([0-9a-f]{64})\b/i', $txt, $m) ? strtolower($m[1]) : null;
 	}
 
+	// ─── Source plugins : dépôt git (tree + raw) ───
+
+	/**
+	 * Ref git source des plugins : update.plugins_ref — 'release' (défaut) =
+	 * tag de la dernière release, sinon ref littéral ('main', sha, tag…).
+	 */
+	public function pluginsRef(bool $force = false): string
+	{
+		$ref = trim((string) ($this->cfg()['plugins_ref'] ?? ''));
+		if ($ref === '' || $ref === 'release') {
+			$ref = (string) ($this->release($force)['tag_name'] ?? '');
+		}
+		if ($ref === '') {
+			throw new \RuntimeException('Ref plugins introuvable (release sans tag)', 502);
+		}
+		return $ref;
+	}
+
+	/**
+	 * Dossier local de plugins (update.plugins_local — dev/tests) : catalogue
+	 * et install hors réseau. Vide → null ; configuré mais absent → erreur.
+	 */
+	public function pluginLocalDir(): ?string
+	{
+		$d = trim((string) ($this->cfg()['plugins_local'] ?? ''));
+		if ($d === '') {
+			return null;
+		}
+		if (!is_dir($d)) {
+			throw new \RuntimeException('update.plugins_local : dossier introuvable', 500);
+		}
+		return $d;
+	}
+
+	/**
+	 * Ref → {sha, tree} du commit (GET /repos/<r>/commits/<ref>).
+	 * Cache storage/cache/plugins-ref.json à TTL update_ttl : une branche
+	 * bouge, un commit jamais — le sha obtenu épingle ensuite les URLs raw.
+	 */
+	public function resolveCommit(string $ref, bool $force = false): array
+	{
+		$c = $this->readJsonCache('plugins-ref.json');
+		if (!$force && ($c['ref'] ?? '') === $ref
+			&& ($c['at'] ?? 0) > time() - $this->updateTtl()
+			&& preg_match('/^[0-9a-f]{40}$/', (string) ($c['sha'] ?? ''))
+			&& preg_match('/^[0-9a-f]{40}$/', (string) ($c['tree'] ?? ''))) {
+			return ['sha' => $c['sha'], 'tree' => $c['tree']];
+		}
+		$repo = $this->repoOrFail();
+		$r = json_decode($this->get(
+			"https://api.github.com/repos/$repo/commits/" . rawurlencode($ref)), true);
+		$sha = (string) ($r['sha'] ?? '');
+		$tree = (string) ($r['commit']['tree']['sha'] ?? '');
+		if (!preg_match('/^[0-9a-f]{40}$/', $sha) || !preg_match('/^[0-9a-f]{40}$/', $tree)) {
+			throw new \RuntimeException("Ref git « $ref » introuvable", 502);
+		}
+		$this->writeJsonCache('plugins-ref.json',
+			['v' => 1, 'at' => time(), 'ref' => $ref, 'sha' => $sha, 'tree' => $tree]);
+		return ['sha' => $sha, 'tree' => $tree];
+	}
+
+	/**
+	 * Arborescence récursive d'un tree sha → map chemin => {sha, size} limitée
+	 * aux blobs réguliers sous app/plugins/ (symlinks 120000, sous-modules
+	 * commit et tree exclus). Cache immutable : un tree sha = contenu figé.
+	 */
+	public function tree(string $treeSha): array
+	{
+		$file = "plugins-tree-$treeSha.json";
+		$c = $this->readJsonCache($file);
+		if (is_array($c['tree'] ?? null)) {
+			return $c['tree'];
+		}
+		$repo = $this->repoOrFail();
+		$r = json_decode($this->get(
+			"https://api.github.com/repos/$repo/git/trees/$treeSha?recursive=1"), true);
+		if (!is_array($r) || !is_array($r['tree'] ?? null)) {
+			throw new \RuntimeException('Arbre git illisible', 502);
+		}
+		if (!empty($r['truncated'])) {
+			throw new \RuntimeException('Arbre git tronqué (dépôt trop volumineux)', 502);
+		}
+		$map = [];
+		foreach ($r['tree'] as $e) {
+			$path = (string) ($e['path'] ?? '');
+			$mode = (string) ($e['mode'] ?? '');
+			$sha = (string) ($e['sha'] ?? '');
+			if (($e['type'] ?? '') !== 'blob' || !str_starts_with($path, 'app/plugins/')
+				|| ($mode !== '100644' && $mode !== '100755')
+				|| !preg_match('/^[0-9a-f]{40}$/', $sha)) {
+				continue;
+			}
+			$map[$path] = ['sha' => $sha, 'size' => (int) ($e['size'] ?? 0)];
+		}
+		// GC : un seul tree conservé
+		$cacheDir = $this->app->storageDir() . '/cache';
+		foreach (glob("$cacheDir/plugins-tree-*.json") ?: [] as $old) {
+			if (basename($old) !== $file) {
+				@unlink($old);
+			}
+		}
+		$this->writeJsonCache($file, ['v' => 1, 'tree' => $map]);
+		return $map;
+	}
+
+	/** URL raw pinnée sur le sha du commit (jamais la branche — pas de course). */
+	public function rawUrl(string $commitSha, string $path): string
+	{
+		$repo = $this->repoOrFail();
+		$enc = implode('/', array_map('rawurlencode', explode('/', $path)));
+		return "https://raw.githubusercontent.com/$repo/$commitSha/$enc";
+	}
+
+	/** sha1 d'identité d'un blob git : sha1("blob <len>\0" . contenu). */
+	public static function blobId(string $content): string
+	{
+		return sha1('blob ' . strlen($content) . "\0" . $content);
+	}
+
+	/** update.repo requis pour le mode git (sinon update.plugins_local). */
+	private function repoOrFail(): string
+	{
+		$repo = $this->repo();
+		if ($repo === null) {
+			throw new \RuntimeException(
+				'update.repo requis pour le catalogue plugins (ou update.plugins_local)', 400);
+		}
+		return $repo;
+	}
+
+	private function updateTtl(): int
+	{
+		return (int) ($this->cacheCfg()['update_ttl'] ?? 3600);
+	}
+
+	private function readJsonCache(string $file): ?array
+	{
+		if (!$this->cacheEnabled()) {
+			return null;
+		}
+		$path = $this->app->storageDir() . '/cache/' . $file;
+		$raw = is_file($path) ? file_get_contents($path) : false;
+		$c = is_string($raw) ? json_decode($raw, true) : null;
+		return is_array($c) ? $c : null;
+	}
+
+	private function writeJsonCache(string $file, array $data): void
+	{
+		if (!$this->cacheEnabled()) {
+			return;
+		}
+		$path = $this->app->storageDir() . '/cache/' . $file;
+		is_dir(dirname($path)) || mkdir(dirname($path), 0700, true);
+		$this->writeJson($path, $data);
+	}
+
 	// ─── HTTP ───
 
 	/** GitHub uniquement ; en mode manifeste : https partout, http seulement en local. */
@@ -267,7 +375,8 @@ final class GitHubClient
 			return (bool) preg_match('#^http://(localhost|127\.0\.0\.1)([:/]|$)#i', $url);
 		}
 		return (bool) preg_match(
-			'#^https://(api\.github\.com|github\.com|objects\.githubusercontent\.com)/#i', $url);
+			'#^https://(api\.github\.com|github\.com|objects\.githubusercontent\.com'
+			. '|raw\.githubusercontent\.com)/#i', $url);
 	}
 
 	/**
@@ -293,7 +402,8 @@ final class GitHubClient
 			? 'application/octet-stream' : 'application/vnd.github+json')];
 		$token = trim((string) ($this->cfg()['token'] ?? ''));
 		if ($token !== '' && preg_match(
-			'#^https://(api\.github\.com|github\.com|objects\.githubusercontent\.com)/#i', $url)) {
+			'#^https://(api\.github\.com|github\.com|objects\.githubusercontent\.com'
+			. '|raw\.githubusercontent\.com)/#i', $url)) {
 			$headers[] = 'Authorization: Bearer ' . $token;
 		}
 		$opts = [
@@ -366,7 +476,7 @@ final class GitHubClient
 		$raw = is_file($this->cacheFile) ? file_get_contents($this->cacheFile) : false;
 		$c = is_string($raw) ? json_decode($raw, true) : null;
 		return (is_array($c) && ($c['at'] ?? 0) > time() - $ttl
-			&& ($c['v'] ?? 0) >= 2
+			&& ($c['v'] ?? 0) >= 3
 			&& is_array($c['release'] ?? null)) ? $c : null;
 	}
 
@@ -377,7 +487,7 @@ final class GitHubClient
 		}
 		is_dir(dirname($this->cacheFile)) || mkdir(dirname($this->cacheFile), 0700, true);
 		$this->writeJson($this->cacheFile, [
-			'v' => 2, 'at' => time(), 'repo' => $repo, 'channel' => $channel,
+			'v' => 3, 'at' => time(), 'repo' => $repo, 'channel' => $channel,
 			'manifest' => $manifest, 'release' => $release,
 		]);
 	}

@@ -3,28 +3,38 @@
 Les plugins sont des extensions bornées dans `app/plugins/<name>/`, chargées si activées
 (depuis l'admin, onglet *Extensions*). Ils s'enregistrent sur des **hooks** du cœur.
 
-## 0. Distribution via GitHub Releases
+## 0. Distribution via le dépôt GitHub
 
-Les plugins ne sont **pas inclus** dans le zip de release `mxwebmail-<ver>.zip` : chaque
-release transporte un asset par plugin `plugin-<name>-<ver>.zip` (+ `.sha256`) et un
-index `plugins.index.json` (`{name, version, sha256, size, description, min_app?, max_app?}`),
-téléchargés depuis l'admin, onglet *Extensions* (`PluginPackageService`) — les entrées du
-catalogue non installées figurent en fin du tableau des plugins.
+Les plugins ne sont **pas inclus** dans le zip de release `mxwebmail-<ver>.zip` : ils
+sont lus directement dans le dépôt à un **ref configurable** (`update.plugins_ref` —
+`'release'` = tag de la dernière release par défaut, `'main'` ou tout ref git).
+Le catalogue (`PluginPackageService`, onglet *Extensions* — les entrées non installées
+figurent en fin du tableau) est construit depuis l'API git :
 
-- **Installer** : télécharge le zip, vérifie la somme sha256 (index ou asset `.sha256`),
-  extrait et valide `plugin.json` (nom concordant, version semver, `main` sain,
-  compatibilité `APP_VERSION`), remplace le dossier — un plugin installé est désactivé
-  par défaut ;
-- **Mettre à jour** : même flux sur un plugin présent — l'ancien dossier part dans
-  `storage/update/plugins/backup-<name>-<ts>` (un seul conservé, rollback auto) ;
+- `GET /repos/<repo>/git/trees/<sha>?recursive=1` liste les fichiers sous
+  `app/plugins/` avec leur **sha1 de blob git** et leur taille ;
+- le `plugin.json` de chaque plugin est lu via `raw.githubusercontent.com` (pinné sur
+  le sha du commit) — version, description, `min_app`/`max_app` ;
+- **Installer / mettre à jour** : chaque fichier du plugin est téléchargé via `raw`,
+  vérifié (taille + sha1 de blob du tree), puis `plugin.json` validé (nom concordant,
+  version semver, `main` sain, compatibilité `APP_VERSION`) avant de remplacer le
+  dossier — un plugin installé est **désactivé** par défaut ; l'ancien dossier part
+  dans `storage/update/plugins/backup-<name>-<ts>` (un seul conservé, rollback auto) ;
 - **Désinstaller** : suppression définitive du dossier + purge de la ligne `plugins`
   (configuration perdue), sans backup.
 
+Publier une version de plugin = bumper `version` dans son `plugin.json` et pousser sur
+la branche suivie par `update.plugins_ref` — aucune release ni asset n'est requis.
+
 Le dépôt est verrouillé dans `GitHubClient::REPO` (même constante que l'updater cœur) —
 aucune URL arbitraire n'est acceptée. `update.channel`, `PAT GitHub` et le cache
-release (`cache.update_ttl`) sont partagés avec la vérification de mise à jour du cœur.
-Le `check` statique exige `version` semver dans `plugin.json` : c'est cette version qui
-nomme l'asset `plugin-<name>-<ver>.zip` au packaging.
+release (`cache.update_ttl`) sont partagés avec la vérification de mise à jour du cœur ;
+le ref→commit est caché à ce TTL, le tree et les manifestes sont adressés par leur sha
+(immutables). Le `check` statique exige `version` semver dans `plugin.json`.
+
+Pour le dev/tests hors réseau, `update.plugins_local` (chemin absolu d'un dossier de
+plugins dans `config.php`) sert de source : catalogue et installation par copie disque,
+sans vérification distante.
 
 Un plugin activé peut aussi être **réservé à la surface admin** (colonne *Utilisable* de
 l'onglet *Extensions*, flag `user_allowed` en table `plugins`) : il n'est alors chargé que

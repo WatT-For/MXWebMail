@@ -64,8 +64,9 @@ Tant que le dépôt est **privé**, `PAT GitHub` est **requis** — aussi bien p
 l'API release que pour le téléchargement des assets (servis via l'endpoint
 `releases/assets/<id>` quand un token est configuré, le `browser_download_url`
 renvoyant 404 sur dépôt privé). Cette section — partagée par l'updater cœur
-et le catalogue plugins (même release : `mxwebmail-*.zip`, `plugin-*.zip`,
-`plugins.index.json`) — n'est pas éditable via l'admin (sauf `channel`).
+et le catalogue plugins (lu dans le dépôt au ref `update.plugins_ref`, chaque
+fichier téléchargé étant vérifié par sha1 de blob git) — n'est pas éditable via
+l'admin (sauf `channel`).
 
 | Clé | Défaut | Rôle |
 |---|---|---|
@@ -73,6 +74,8 @@ et le catalogue plugins (même release : `mxwebmail-*.zip`, `plugin-*.zip`,
 | `update.channel` | `stable` | `stable` / `beta` (seul réglage exposé dans l'admin). |
 | `PAT GitHub` | `''` | PAT GitHub — **requis tant que le dépôt est privé** (accès `Contents: Read`), sinon optionnel (rate-limit). Aussi utilisé pour le catalogue plugins. |
 | `update.manifest_url` | `''` | Dev : manifeste JSON au format release, contourne l'API GitHub. |
+| `update.plugins_ref` | `'release'` | Ref git source du catalogue plugins : `'release'` (tag de la dernière release), `'main'` (branche — un push de `plugin.json` publie la MAJ) ou tout ref littéral. |
+| `update.plugins_local` | `''` | Dev/tests : chemin absolu d'un dossier de plugins — catalogue + install depuis le disque, hors réseau et sans vérification distante. Prioritaire sur `plugins_ref`. |
 
 ## Fonctionnalités
 

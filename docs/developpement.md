@@ -64,22 +64,28 @@ Voir [plugins.md](plugins.md) pour créer un plugin.
 
 ## 3bis. Distribution des plugins (GitHubClient + PluginPackageService)
 
-- `GitHubClient` mutualise l'accès aux GitHub Releases pour `UpdateService` (paquet
-  cœur `mxwebmail-*.zip` via `coreAsset`) et `PluginPackageService` (assets
-  `plugin-<name>-<ver>.zip` via `pluginAssets` + `plugins_index`). Dépôt verrouillé
-  par la constante `REPO`, cache release partagé `storage/cache/update-check.json`.
-  Chaque asset tronqué porte `download_url`, résolu par `pickUrl()` : endpoint API
-  `releases/assets/<id>` (`Accept: application/octet-stream`) si `PAT GitHub` est
-  configuré — obligatoire sur dépôt privé où `browser_download_url` renvoie 404 —
-  sinon `browser_download_url`.
-- `PluginPackageService` : `catalog()`, `install()` (download → sha256 → extraction
-  anti-traversal → validation `plugin.json` + `min_app`/`max_app` → swap avec backup
-  unique par plugin → invalidation classmap/opcache), `remove()` (rmrf + purge de la
-  ligne `plugins` via `PluginRepository::delete()`). Verrou partagé
-  `storage/update/update.lock` avec `UpdateService`. Staging dans
-  `storage/update/plugins/`.
-- Le packaging (`tools.ps1 package`) exclut `app/plugins/*` du zip cœur et produit
-  les `plugin-*.zip(.sha256)` + `plugins.index.json` à attacher à la release.
+- `GitHubClient` mutualise l'accès GitHub pour `UpdateService` (paquet cœur
+  `mxwebmail-*.zip` via `coreAsset`) et `PluginPackageService` (lecture du dépôt
+  au ref `update.plugins_ref` : `resolveCommit()` → `GET /commits/<ref>` donne
+  sha + tree sha, `tree()` → `GET /git/trees/<sha>?recursive=1` mappe les blobs
+  `app/plugins/**`, `rawUrl()` → `raw.githubusercontent.com` pinné sur le sha du
+  commit). Dépôt verrouillé par la constante `REPO`, cache release partagé
+  `storage/cache/update-check.json`. Chaque asset tronqué porte `download_url`,
+  résolu par `pickUrl()` : endpoint API `releases/assets/<id>`
+  (`Accept: application/octet-stream`) si `PAT GitHub` est configuré —
+  obligatoire sur dépôt privé où `browser_download_url` renvoie 404 — sinon
+  `browser_download_url`. Caches plugins : `plugins-ref.json` (TTL `update_ttl`),
+  `plugins-tree-<sha>.json` et `plugin-manifest-<name>-<sha>.json` (immutables).
+- `PluginPackageService` : `catalog()`, `install()` (stage chaque fichier via raw
+  → vérif taille + `blobId()` sha1 git → validation `plugin.json` +
+  `min_app`/`max_app` → swap avec backup unique par plugin → invalidation
+  classmap/opcache), `remove()` (rmrf + purge de la ligne `plugins` via
+  `PluginRepository::delete()`). Verrou partagé `storage/update/update.lock` avec
+  `UpdateService`. Staging dans `storage/update/plugins/`. Source alternative
+  `update.plugins_local` (disque, dev/tests, sans vérification distante).
+- Le packaging (`tools.ps1 package`) exclut `app/plugins/*` du zip cœur — aucun
+  asset plugin n'est publié : bump `version` dans `plugin.json` + push sur la
+  branche suivie = publication.
 
 ## 4. Cache & compression
 

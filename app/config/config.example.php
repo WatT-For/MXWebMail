@@ -76,15 +76,19 @@ return [
 
 	// ─── Mises à jour (admin → À propos, GitHub Releases) ───
 	// Le dépôt officiel est verrouillé dans GitHubClient::REPO — partagé par
-	// l'updater cœur et le catalogue plugins (même release : mxwebmail-*.zip
-	// + plugin-<name>-*.zip + plugins.index.json). Cette section n'est pas
-	// modifiable via le panel admin (sauf channel) — édition manuelle de
-	// config.php uniquement.
+	// l'updater cœur (zip mxwebmail-*.zip de la release) et le catalogue
+	// plugins (lu dans le dépôt au ref update.plugins_ref, chaque fichier
+	// vérifié par sha1 de blob git). Cette section n'est pas modifiable via
+	// le panel admin (sauf channel) — édition manuelle de config.php.
 	'update' => [
 		'repo'    => '',        // fallback dev si GitHubClient::REPO vide ('owner/mxwebmail')
 		'channel' => 'stable',  // stable | beta (le seul réglage exposé dans l'admin)
 		'token'   => '',        // PAT GitHub — requis tant que le dépôt est privé
 		'manifest_url' => '',   // dev : manifeste JSON format release, bypass l'API
+		'plugins_ref'   => 'release', // ref source des plugins : 'release' (tag de la
+		                            // dernière release) | 'main' (branche, dev) | ref git
+		'plugins_local' => '',        // dev/tests : dossier local de plugins — catalogue
+		                            // et install hors réseau, sans vérification distante
 	],
 
 	// ─── Fonctionnalités ───
