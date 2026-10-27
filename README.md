@@ -17,8 +17,8 @@ Webmail auto-hébergé en **PHP 8.4**, inspiré de **SnappyMail**, **RainLoop** 
   de scripts, activation, suppression.
 - **Panneau d'administration** : domaines (IMAP/SMTP/Sieve), utilisateurs, extensions,
   thèmes, logs, mises à jour, paramètres de sécurité.
-- **15 plugins** installables depuis l'admin (catalogue GitHub Releases : téléchargement,
-  mise à jour, désinstallation) : 2FA (TOTP), anti-spoofing, avatars, listes
+- **15 plugins** installables depuis l'admin (catalogue lu dans le dépôt GitHub :
+  installation, mise à jour, désinstallation) : 2FA (TOTP), anti-spoofing, avatars, listes
   noire/blanche, changement de mot de passe (poppassd/PDO/LDAP/Mailcow), PWA,
   étiquettes de couleur, etc.
 - **Multilingue** (de, en, es, fr, it, nl, pl, pt, ru, tr) et thèmes extensibles.
@@ -67,6 +67,9 @@ Index complet : [docs/README.md](docs/README.md).
   avec protection anti-SSRF.
 - Durcissement serveur : document root = `public/`, dossiers privés protégés par `.htaccess`.
 
+Signalement de vulnérabilités : **jamais en issue publique** — voir
+[SECURITY.md](SECURITY.md).
+
 ## Stack technique
 
 PHP 8.4 · Knockout.js · Bootstrap 5.3 · TinyMCE · OpenPGP.js · MailSo (vendoré) ·
@@ -79,3 +82,6 @@ Copyright (C) 2025-2026 MXWebMail.
 
 Les bibliothèques vendorées conservent leurs licences d'origine
 (MailSo : MIT, Sabre : BSD-3-Clause, TinyMCE : GPL-2.0+).
+
+Contribuer : voir [CONTRIBUTING.md](CONTRIBUTING.md) — toute participation est soumise
+au [code de conduite](CODE_OF_CONDUCT.md).
