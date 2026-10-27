@@ -16,17 +16,23 @@ Catégories, dans l'ordre : `Sécurité`, `Ajouté`, `Modifié`, `Corrigé`, `Ob
 
 ### Ajouté
 
-- Catalogue des plugins dans le tableau d'administration
+- Catalogue des plugins intégré au tableau de l'onglet Extensions (entrées non
+  installées en fin de liste, rafraîchissement en haut à droite) — anciennes
+  sous-sections dédiées retirées
 - Signatures et identités dans la composition
 
 ### Modifié
 
-- Autologout désarmable dans les réglages
+- Déconnexion après inactivité désarmable et ré-armée à la sauvegarde des réglages
+- Nombre de messages par page appliqué immédiatement
 
 ### Corrigé
 
-- Focus TinyMCE perdu en fenêtre modale
-- z-index du menu des dossiers
+- Dialogues TinyMCE (lien, image, code source) non saisissables dans les modales
+  Bootstrap
+- Ligne vide et `nbsp` parasite dans les signatures ; identités du compose
+  resynchronisées après édition
+- Menu contextuel des dossiers masqué derrière le fond du dossier actif
 
 ## [0.36.1] — 2026-10-24
 
@@ -38,16 +44,32 @@ Catégories, dans l'ordre : `Sécurité`, `Ajouté`, `Modifié`, `Corrigé`, `Ob
 
 ### Ajouté
 
-- Catalogue des plugins via GitHub Releases
-- Compte IMAP par défaut
-- Couleurs de thème extensibles
+- Catalogue des plugins via GitHub Releases : les plugins ne sont plus livrés dans
+  le zip cœur — chacun est un asset `plugin-<name>-<ver>.zip` installable, mettable
+  à jour et désinstallable depuis l'admin → Extensions (sha256 vérifié, backup à la
+  mise à jour, compatibilité `min_app`/`max_app`)
+- Compte IMAP par défaut configurable et synchronisation des identifiants de session
+- Couleurs de thème extensibles via `config.schema.json` (variantes sombres incluses)
 
 ## [0.32.0] — 2026-10-22
 
+### Ajouté
+
+- Compression gzip configurable des réponses (niveau, taille minimale) — fonctionne
+  même sans `mod_deflate`
+- ETag/Last-Modified et réponses 304 sur les assets thème/plugin et le favicon ;
+  TTL `Cache-Control` configurables
+- Assets versionnés `/assets/vX.Y.Z/` : cache navigateur d'un an, invalidé
+  automatiquement à chaque release
+- Cache applicatif fichier (`app/storage/cache`) : DNS, détection de domaine,
+  vérification de mise à jour, avec GC
+- En-têtes de cache Apache et `mod_deflate` préconfigurés dans `public/.htaccess`
+- Onglets « HTTP » et « Cache serveur » dans l'administration
+
 ### Modifié
 
-- Performances HTTP
-- Licence AGPL-3.0
+- Licence du projet : GNU AGPL-3.0 (les bibliothèques vendorées conservent leurs
+  licences d'origine)
 
 ## [0.31.0] — 2026-10-22
 
