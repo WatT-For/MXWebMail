@@ -4,7 +4,7 @@ Webmail auto-hébergé en **PHP 8.4**, inspiré de **SnappyMail**, **RainLoop** 
 **Roundcube**, autour d'une architecture MVC claire. Frontend **Knockout + Bootstrap 5.3** (sans jQuery), bibliothèque
 **MailSo** vendorée pour IMAP/SMTP/Sieve, stockage **SQLite** ou **MariaDB**.
 
-> Version courante : `0.36.0` (développement — pas encore stable).
+> Version courante : `0.38.0` (développement — pas encore stable) — voir [CHANGELOG.md](CHANGELOG.md).
 
 ## Fonctionnalités
 
