@@ -75,6 +75,7 @@ class MailClient
 			MimeHeader::AUTHENTICATION_RESULTS,
 			MimeHeader::X_DKIM_AUTHENTICATION_RESULTS,
 			MimeHeader::LIST_UNSUBSCRIBE,
+			MimeHeader::LIST_UNSUBSCRIBE_POST,
 			// https://autocrypt.org/level1.html#the-autocrypt-header
 			MimeHeader::AUTOCRYPT
 		);

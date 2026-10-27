@@ -99,5 +99,6 @@ abstract class Header
 		// https://www.ietf.org/archive/id/draft-brand-indicators-for-message-identification-04.html#bimi-selector
 		BIMI_SELECTOR = 'BIMI-Selector',
 
-		LIST_UNSUBSCRIBE = 'List-Unsubscribe';
+		LIST_UNSUBSCRIBE = 'List-Unsubscribe',
+		LIST_UNSUBSCRIBE_POST = 'List-Unsubscribe-Post';
 }

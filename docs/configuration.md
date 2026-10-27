@@ -113,6 +113,9 @@ celles-ci + celles déclarées par les plugins (hook `settings.allowed`).
 | `message_pane_height` | `320` | Hauteur liste des messages en mode vertical (px, 120-1200). |
 | `compose_modal_width` | `0` | Largeur modale composition (px, 0 = défaut Bootstrap). |
 | `compose_modal_height` | `0` | Hauteur modale composition (px, 0 = auto). |
+| `empty_trash_on_logout` | `false` | Vider la corbeille à la déconnexion. |
+| `empty_junk_on_logout` | `false` | Vider le dossier spam à la déconnexion. |
+| `list_threads` | `false` | Grouper les messages en conversations (IMAP THREAD). |
 | `theme` | `default` | Template d'interface (dossier `app/templates/<name>`). |
 
 ## TLS (connexions sortantes IMAP/SMTP/Sieve)

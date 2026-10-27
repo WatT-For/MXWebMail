@@ -150,6 +150,11 @@
 							<span data-bind="text: $root.t($data.label)"></span>
 						</a></li>
 						<!-- /ko -->
+						<li><hr class="dropdown-divider"></li>
+						<li><a class="dropdown-item" href="#" data-bind="click: $parent.toggleThreads, visible: threadsSupported" style="display:none">
+							<i class="fa-solid fa-check fa-fw me-1" data-bind="visible: $parent.useThreads" style="display:none"></i>
+							<?= $t('app.threads') ?>
+						</a></li>
 					</ul>
 				</div>
 			</div>
@@ -197,8 +202,16 @@
 								<input type="checkbox" class="form-check-input" data-bind="checked: isChecked, click: () => true, clickBubble: false">
 							</td>
 							<td>
-								<div class="text-truncate" data-bind="text: fromLabel()"></div>
-								<div class="text-truncate" data-bind="text: subject"></div>
+								<div class="text-truncate" data-bind="text: fromLabel(), css: { 'ps-3': isChild }"></div>
+								<div class="text-truncate">
+									<i class="fa-solid fa-caret-right me-1" style="display:none;cursor:pointer"
+										data-bind="visible: !isChild && threads && threads.length > 1,
+											click: $parent.toggleThread, clickBubble: false,
+											css: { 'fa-rotate-90': _threadOpen }"></i>
+									<span data-bind="text: subject"></span>
+									<span class="badge text-bg-secondary ms-1" style="display:none"
+										data-bind="visible: !isChild && threads && threads.length > 1, text: threads.length"></span>
+								</div>
 							</td>
 							<td class="text-end text-nowrap text-muted small">
 								<div>
@@ -284,6 +297,17 @@
 							<i class="fa-solid fa-share"></i>
 						</button>
 						<button class="btn btn-sm btn-icon btn-outline-secondary"
+							data-bind="click: () => $root.compose.openForward($data, true), tooltip: 'app.forward_attach'">
+							<span class="fa-stack fa-xs">
+								<i class="fa-solid fa-share fa-stack-1x"></i>
+								<i class="fa-solid fa-paperclip fa-stack-1x" style="font-size:.5em;transform:translate(4px,4px)"></i>
+							</span>
+						</button>
+						<button class="btn btn-sm btn-icon btn-outline-secondary" style="display:none"
+							data-bind="visible: !!unsubscribe, click: $parent.unsubscribe, tooltip: 'app.unsubscribe'">
+							<i class="fa-solid fa-user-xmark"></i>
+						</button>
+						<button class="btn btn-sm btn-icon btn-outline-secondary"
 							data-bind="click: $parent.moveWithPicker, tooltip: 'app.move_to'"><i class="fa-solid fa-file-export"></i></button>
 						<button class="btn btn-sm btn-icon btn-outline-secondary"
 							data-bind="click: $parent.toggleFlag,
@@ -331,6 +355,10 @@
 				</ul>
 
 				<div class="mb-2" data-bind="visible: $parent.tab()==='attachments'" style="display:none">
+					<a class="btn btn-sm btn-outline-primary mb-2" style="display:none"
+						data-bind="visible: attachments && attachments.length > 1,
+							attr: { href: $parent.attachmentsZipUrl() }">
+						<i class="fa-solid fa-file-zipper"></i> <?= $t('app.download_all') ?></a>
 					<div class="d-flex flex-wrap gap-1" data-bind="foreach: attachments">
 						<a class="btn btn-sm btn-outline-secondary" data-bind="attr: { href: $parents[1].attachmentUrl($data) },
 							text: name + (size ? ' (' + $parents[1].formatSize(size) + ')' : '')"></a>
@@ -407,6 +435,8 @@
 					<i class="fa-solid fa-fingerprint fa-fw me-2"></i><?= $t('settings.oauth_apps') ?></a>
 				<!-- /ko -->
 				<div class="side-menu-group"><?= $t('settings.group_messaging') ?></div>
+				<a class="list-group-item list-group-item-action" href="#/@settings/responses"
+					data-bind="css:{active:tab()==='responses'}"><i class="fa-solid fa-message fa-fw me-2"></i><?= $t('settings.responses') ?></a>
 				<a class="list-group-item list-group-item-action" href="#/@settings/filters"
 					data-bind="css:{active: tab()==='filters'}">
 					<i class="fa-solid fa-filter fa-fw me-2"></i><?= $t('settings.filters') ?></a>
@@ -539,6 +569,31 @@
 							</div>
 						</div>
 					</div>
+					<div class="col-12 col-xxl-6">
+						<div class="row align-items-center mb-2">
+							<label class="col-md-4 col-form-label col-form-label-sm" for="st-threads"><?= $t('settings.list_threads') ?> <i class="fa-regular fa-circle-question help-icon" tabindex="0"
+								data-bind="tooltip: 'settings.list_threads_help'"></i></label>
+							<div class="col-md-8"><div class="form-check">
+								<input class="form-check-input" type="checkbox" id="st-threads" data-bind="checked: values().list_threads">
+							</div></div>
+						</div>
+					</div>
+					<div class="col-12 col-xxl-6">
+						<div class="row align-items-center mb-2">
+							<label class="col-md-4 col-form-label col-form-label-sm" for="st-empty-trash"><?= $t('settings.empty_trash_logout') ?></label>
+							<div class="col-md-8"><div class="form-check">
+								<input class="form-check-input" type="checkbox" id="st-empty-trash" data-bind="checked: values().empty_trash_on_logout">
+							</div></div>
+						</div>
+					</div>
+					<div class="col-12 col-xxl-6">
+						<div class="row align-items-center mb-2">
+							<label class="col-md-4 col-form-label col-form-label-sm" for="st-empty-junk"><?= $t('settings.empty_junk_logout') ?></label>
+							<div class="col-md-8"><div class="form-check">
+								<input class="form-check-input" type="checkbox" id="st-empty-junk" data-bind="checked: values().empty_junk_on_logout">
+							</div></div>
+						</div>
+					</div>
 				</div>
 				<button class="btn btn-primary btn-sm" data-bind="click: saveSettings"><?= $t('common.save') ?></button>
 			</div></div>
@@ -610,6 +665,8 @@
 					data-bind="css:{active: foldersTab()==='roles'}"><?= $t('settings.folders_roles') ?></a></li>
 				<li class="nav-item"><a class="nav-link" href="#/@settings/folders/notify"
 					data-bind="css:{active: foldersTab()==='notify'}"><?= $t('settings.folders_notify') ?></a></li>
+				<li class="nav-item"><a class="nav-link" href="#/@settings/folders/import"
+					data-bind="css:{active: foldersTab()==='import'}"><?= $t('app.import_eml') ?></a></li>
 			</ul>
 			<div data-bind="visible: foldersTab()==='roles'" style="display:none">
 				<div class="card"><div class="card-body">
@@ -637,6 +694,26 @@
 					</div>
 					<!-- /ko -->
 					<button class="btn btn-primary btn-sm mt-2" data-bind="click: saveNotifyFolders"><?= $t('common.save') ?></button>
+				</div></div>
+			</div>
+			<div data-bind="visible: foldersTab()==='import'" style="display:none">
+				<div class="card"><div class="card-body">
+					<p class="text-muted small"><?= $t('settings.import_eml_help') ?></p>
+					<div class="row align-items-center mb-2">
+						<label class="col-md-4 col-form-label col-form-label-sm" for="eml-target"><?= $t('settings.import_folder') ?></label>
+						<div class="col-md-8">
+							<select class="form-select form-select-sm" id="eml-target"
+								data-bind="options: $root.folderList.folders, optionsText: 'label',
+									optionsValue: 'fullName', value: importFolder, disable: importBusy"></select>
+						</div>
+					</div>
+					<label class="btn btn-sm btn-primary mb-0" data-bind="css: { disabled: importBusy }">
+						<i class="fa-solid fa-file-import"></i> <?= $t('app.import_eml') ?>
+						<input type="file" accept=".eml,message/rfc822" multiple class="d-none"
+							data-bind="event: { change: importEmlFiles }, disable: importBusy">
+					</label>
+					<span class="small text-muted ms-2" style="display:none"
+						data-bind="visible: importProgress, text: importProgress"></span>
 				</div></div>
 			</div>
 		</div>
@@ -672,6 +749,37 @@
 					</tr>
 				</tbody>
 			</table>
+		</div>
+
+		<!-- Réponses types -->
+		<div data-bind="visible: tab()==='responses'" style="display:none">
+			<div class="d-flex justify-content-between mb-2">
+				<h5><?= $t('settings.responses') ?></h5>
+				<button class="btn btn-sm btn-primary" data-bind="click: () => editResponse(null)"><i class="fa-solid fa-plus"></i> <?= $t('common.add') ?></button>
+			</div>
+			<p class="text-muted small"><?= $t('settings.responses_help') ?></p>
+			<table class="table table-hover table-sm align-middle">
+				<tbody data-bind="foreach: responses">
+					<tr>
+						<td data-bind="text: name"></td>
+						<td class="text-end">
+							<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: $parent.editResponse"><i class="fa-solid fa-pen"></i></button>
+							<button class="btn btn-sm btn-icon btn-outline-danger" data-bind="click: $parent.deleteResponse"><i class="fa-solid fa-trash"></i></button>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+			<div class="card" data-bind="visible: editingResponse">
+				<div class="card-body" data-bind="with: editingResponse">
+					<input class="form-control form-control-sm mb-2" maxlength="100"
+						data-bind="value: name, attr:{placeholder:'<?= $t('settings.responses_name') ?>'}">
+					<textarea class="form-control" data-bind="signatureEditor: body"></textarea>
+					<div class="mt-2">
+						<button class="btn btn-primary btn-sm" data-bind="click: $parent.saveResponse"><?= $t('common.save') ?></button>
+						<button class="btn btn-link btn-sm" data-bind="click: () => $parent.editingResponse(null)"><?= $t('common.cancel') ?></button>
+					</div>
+				</div>
+			</div>
 		</div>
 
 		<!-- Onglets plugins (settings.tabs.*) -->
@@ -724,6 +832,32 @@
 			<div class="alert alert-info" data-bind="visible: $root.features().sieve === false" style="display:none"><?= $t('settings.sieve_unavailable') ?></div>
 			<!-- ko toast: { value: filtersError, variant: 'warning' } --><!-- /ko -->
 			<div data-bind="visible: $root.features().sieve !== false" style="display:none">
+				<div class="card mb-3" data-bind="visible: vacation" style="display:none">
+					<div class="card-body" data-bind="with: vacation">
+						<h6 class="card-title"><i class="fa-solid fa-plane-departure me-1"></i><?= $t('settings.vacation') ?></h6>
+						<div class="alert alert-warning py-1 small" style="display:none"
+							data-bind="visible: !$parent.vacationManaged()"><?= $t('settings.vacation_unmanaged') ?></div>
+						<div class="form-check mb-2">
+							<input class="form-check-input" type="checkbox" id="vac-on" data-bind="checked: enabled">
+							<label class="form-check-label" for="vac-on"><?= $t('settings.vacation_enabled') ?></label>
+						</div>
+						<div class="row g-2 mb-2">
+							<div class="col-6 col-md-3"><label class="form-label small"><?= $t('settings.vacation_from') ?></label>
+								<input type="date" class="form-control form-control-sm" data-bind="value: from"></div>
+							<div class="col-6 col-md-3"><label class="form-label small"><?= $t('settings.vacation_to') ?></label>
+								<input type="date" class="form-control form-control-sm" data-bind="value: to"></div>
+							<div class="col-6 col-md-2"><label class="form-label small"><?= $t('settings.vacation_days') ?></label>
+								<input type="number" min="1" max="30" class="form-control form-control-sm" data-bind="value: days"></div>
+							<div class="col-6 col-md-4"><label class="form-label small"><?= $t('settings.vacation_subject') ?></label>
+								<input type="text" class="form-control form-control-sm" data-bind="value: subject"></div>
+						</div>
+						<div class="mb-2"><label class="form-label small"><?= $t('settings.vacation_message') ?></label>
+							<textarea class="form-control form-control-sm" rows="4" data-bind="value: message"></textarea></div>
+						<div class="mb-2"><label class="form-label small"><?= $t('settings.vacation_addresses') ?></label>
+							<input type="text" class="form-control form-control-sm" data-bind="value: addresses"></div>
+						<button class="btn btn-primary btn-sm" data-bind="click: $parent.saveVacation, enable: $parent.vacationManaged"><?= $t('common.save') ?></button>
+					</div>
+				</div>
 				<div class="d-flex justify-content-between align-items-center mb-2">
 					<h5 class="mb-0"><?= $t('settings.scripts') ?></h5>
 					<div class="btn-group btn-group-sm">
@@ -837,6 +971,23 @@
 								<li><label class="dropdown-item"><input type="checkbox" class="form-check-input me-2"
 									data-bind="checked: pgpEncrypt"> <i class="fa-solid fa-lock me-1"></i><?= $t('compose.encrypt') ?><i class="fa-regular fa-circle-question help-icon ms-1" tabindex="0"
 									data-bind="tooltip: 'compose.encrypt_help'"></i></label></li>
+								<li><hr class="dropdown-divider"></li>
+								<li class="dropdown-submenu">
+									<!-- click noop : neutralise href="#" (sinon le routeur hash réagit) -->
+									<a class="dropdown-item d-flex justify-content-between align-items-center" href="#"
+										data-bind="click: () => {}">
+										<span><i class="fa-solid fa-message me-2"></i><?= $t('compose.responses') ?></span>
+										<i class="fa-solid fa-caret-left ms-3"></i>
+									</a>
+									<ul class="dropdown-menu">
+										<!-- ko ifnot: $root.settings.responses().length -->
+										<li><span class="dropdown-item-text text-muted"><?= $t('compose.responses_empty') ?></span></li>
+										<!-- /ko -->
+										<!-- ko foreach: $root.settings.responses -->
+										<li><a class="dropdown-item" href="#" data-bind="click: $parent.applyResponse, text: name"></a></li>
+										<!-- /ko -->
+									</ul>
+								</li>
 							</ul>
 						</div>
 					</div>
@@ -877,7 +1028,7 @@
 							<i class="fa-solid fa-paperclip"></i> <?= $t('app.attachments') ?>
 							<span class="badge text-bg-secondary ms-1" style="display:none"
 								data-bind="visible: attachments().length, text: attachments().length"></span></a></li>
-						<li class="ms-auto d-flex align-items-end pb-1">
+						<li class="ms-auto d-flex align-items-end pb-1 gap-1">
 							<label class="btn btn-sm btn-outline-secondary mb-0">
 								<i class="fa-solid fa-paperclip"></i> <?= $t('compose.attach') ?>
 								<input type="file" multiple hidden data-bind="event: { change: (d,e) => { const f = e.target, fs = [...f.files]; f.value = ''; upload(fs); } }">

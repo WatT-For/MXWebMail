@@ -122,6 +122,9 @@ return [
 		'message_pane_height' => 320,    // hauteur liste des messages en mode vertical (px, 120-1200)
 		'compose_modal_width'  => 0,     // largeur modale composition (px, 0 = défaut Bootstrap)
 		'compose_modal_height' => 0,     // hauteur modale composition (px, 0 = auto)
+		'empty_trash_on_logout' => false, // vider la corbeille à la déconnexion
+		'empty_junk_on_logout'  => false, // vider le dossier spam à la déconnexion
+		'list_threads'        => false,   // grouper la liste des messages en conversations (IMAP THREAD)
 		'theme'             => 'default', // template d'interface (dossier app/templates/<name>)
 	],
 

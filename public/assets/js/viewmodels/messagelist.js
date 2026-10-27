@@ -36,6 +36,10 @@ export class MessageListVM {
 		this.appliedFilterCount = ko.observable(0); // nb de critères → badge bouton
 		this.hasSearchFilters = ko.pureComputed(() => this.appliedAdv() !== '');
 		this.folder = ko.observable('INBOX');
+		// Conversations (IMAP THREAD) — réglage list_threads
+		this.useThreads = ko.observable(false);
+		this.threadsSupported = ko.observable(false);
+		this.threadChildren = {}; // parentUid → MessageModel[] insérés sous la ligne
 		// Critère IMAP SORT (RFC 5256) — persisté dans le réglage list_sort
 		this.sort = ko.observable(DEFAULT_SORT);
 		this.sortOptions = [
@@ -96,8 +100,11 @@ export class MessageListVM {
 			const q = `?folder=${encodeURIComponent(this.folder())}` +
 				`&page=${this.page()}&limit=${this.limit}` +
 				`&search=${encodeURIComponent(this.searchQuery())}` +
-				`&sort=${encodeURIComponent(this.sort())}`;
+				`&sort=${encodeURIComponent(this.sort())}` +
+				(this.useThreads() ? '&threads=1' : '');
 			const data = await api.get('/messages' + q);
+			this.threadsSupported(!!data.threadsSupported);
+			this.threadChildren = {};
 			this.total(data.total || 0);
 			this.messages((data.messages || []).map(m => new MessageModel(m)));
 		} catch (e) {
@@ -197,6 +204,35 @@ export class MessageListVM {
 
 	async refresh() {
 		await this.load();
+	}
+
+	/** Bascule le mode conversation — persisté dans list_threads. */
+	async toggleThreads() {
+		this.useThreads(!this.useThreads());
+		this.page(1);
+		await this.load();
+		api.post('/settings', { list_threads: this.useThreads() }).catch(() => {});
+	}
+
+	/** Déplie/replie les messages d'un fil sous la ligne parente. */
+	async toggleThread(m) {
+		const idx = this.messages.indexOf(m);
+		if (idx < 0) { return; }
+		if (m._threadOpen()) {
+			m._threadOpen(false);
+			this.messages.removeAll(this.threadChildren[m.uid] || []);
+			return;
+		}
+		try {
+			const data = await api.get(`/messages?folder=${encodeURIComponent(this.folder())}` +
+				`&threads=1&thread_uid=${m.uid}&limit=200&sort=DATE`);
+			const kids = (data.messages || [])
+				.filter(x => x.uid !== m.uid)
+				.map(x => { const c = new MessageModel(x); c.isChild = true; return c; });
+			this.threadChildren[m.uid] = kids;
+			this.messages.splice(idx + 1, 0, ...kids);
+			m._threadOpen(true);
+		} catch (e) { this.error(e.message); }
 	}
 
 	/** Compose la requête IMAP key:value — tokens en premier (détection ancrée

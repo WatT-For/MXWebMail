@@ -6,7 +6,18 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) —
 semver `0.MINOR.PATCH` en développement.
 Catégories, dans l'ordre : `Sécurité`, `Ajouté`, `Modifié`, `Corrigé`, `Obsolète`, `Supprimé`.
 
-## [Unreleased]
+## [0.42.0] — 2026-10-27
+
+### Ajouté
+
+- Bouton « Se désabonner » dans le lecteur de message (List-Unsubscribe, one-click RFC 8058, ouverture https/mailto).
+- Import de fichiers `.eml` dans un dossier depuis Paramètres → Dossiers → « Importer des .eml » (IMAP APPEND).
+- « Transférer en pièce jointe » : le message original est joint en `.eml` (message/rfc822) depuis le menu du bouton Transférer.
+- Bouton « Tout télécharger (.zip) » sur l'onglet Pièces jointes d'un message.
+- Réglages « Vider la corbeille / le spam à la déconnexion » (Paramètres → Général, avec défauts administrables).
+- Répondeur d'absence Sieve (vacation) : carte dédiée dans Paramètres → Filtres (activation, dates, intervalle, sujet, message, adresses) compilée dans le script géré actif.
+- Vue conversations : regroupement IMAP THREAD dans la liste des messages (réglage « Vue conversations », expansion des fils en sous-lignes, badge du nombre de messages).
+- Réponses types : nouvel onglet Paramètres (CRUD avec éditeur TinyMCE) et insertion dans le compose via le sous-menu « Réponses types » du menu Options.
 
 ## [0.41.0] — 2026-10-27
 

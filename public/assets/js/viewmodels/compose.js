@@ -106,6 +106,9 @@ export class ComposeVM {
 		}
 		this.visible(true);
 		this.modal.show();
+		// Réponses types : préchargement lazy pour le sous-menu « Options »
+		// (no-op si déjà chargée, refetch après édition dans Paramètres).
+		this.app.settings.loadResponses();
 		// Le focus avant la fin de la transition est volé par Bootstrap →
 		// le caret du marqueur de signature est placé une fois la modale visible.
 		document.getElementById('compose-modal').addEventListener(
@@ -279,16 +282,42 @@ export class ComposeVM {
 		this.show();
 	}
 
-	openForward(msg) {
+	openForward(msg, asAttachment = false) {
 		this.reset();
 		const subject = msg.subject || '';
 		this.subject(/^\s*fwd?\s*:/i.test(subject) ? subject : 'Fwd: ' + subject);
-		const body = msg.bodyHtml || ('<pre>' + (msg.bodyPlain || '').replace(/</g, '&lt;') + '</pre>');
-		const sig = this.signatureBlock();
-		this.html(`${this.sigLead(sig)}${sig}<hr><p><b>${t('compose.forwarded')}</b></p>${body}`);
-		this.pushMsgrefAttachments(msg);
+		if (asAttachment) {
+			const sig = this.signatureBlock();
+			this.html(`${this.sigLead(sig)}${sig}<p><i>${t('compose.forwarded_attach')}</i></p>`);
+			const name = (subject || 'message').replace(/[\\/:*?"<>|\x00-\x1F]/g, '').trim() + '.eml';
+			this.attachments.push({ token: null,
+				msgref: { folder: msg.folder, uid: msg.uid, eml: true },
+				name, size: msg.size || 0,
+				progress: ko.observable(100), uploading: ko.observable(false), req: null });
+		} else {
+			const body = msg.bodyHtml || ('<pre>' + (msg.bodyPlain || '').replace(/</g, '&lt;') + '</pre>');
+			const sig = this.signatureBlock();
+			this.html(`${this.sigLead(sig)}${sig}<hr><p><b>${t('compose.forwarded')}</b></p>${body}`);
+			this.pushMsgrefAttachments(msg);
+		}
 		this._dirty = false;
 		this.show();
+	}
+
+	/** Insère la réponse type `r` à la position du curseur (TinyMCE
+	 *  insertContent), puis ferme le menu options (auto-close « outside »). */
+	applyResponse(r) {
+		const ed = tinymce.get('compose-body');
+		if (ed?.initialized) {
+			ed.insertContent(r.body);
+			this._suspendDirty = true;
+			this.html(ed.getContent());
+			this._suspendDirty = false;
+		} else {
+			this.html((this.html() || '') + r.body);
+		}
+		const tgl = document.querySelector('#compose-modal [data-bs-toggle="dropdown"]');
+		bootstrap.Dropdown.getInstance(tgl)?.hide();
 	}
 
 	/** Référence les PJ d'un message existant (brouillon rouvert, transfert)

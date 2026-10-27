@@ -1,5 +1,6 @@
 import { api, base } from '../api.js';
 import { dialog } from '../ui/dialog.js';
+import { toast } from '../ui/toast.js';
 import { t } from '../i18n.js';
 
 /**
@@ -542,6 +543,31 @@ export class MessageViewVM {
 	rawUrl() {
 		return base() + `/api/messages/${this.message().uid}/raw` +
 			`?folder=${encodeURIComponent(this.message().folder)}`;
+	}
+
+	attachmentsZipUrl() {
+		return base() + `/api/messages/${this.message().uid}/attachments.zip` +
+			`?folder=${encodeURIComponent(this.message().folder)}`;
+	}
+
+	/** Se désabonner : one-click RFC 8058 côté serveur, sinon ouverture
+	 *  du lien https ; mailto → composition pré-remplie. */
+	async unsubscribe() {
+		const m = this.message();
+		if (!m?.unsubscribe) { return; }
+		try {
+			const r = await api.post(`/messages/${m.uid}/unsubscribe`, { folder: m.folder });
+			if (r.done) {
+				toast.success(t('app.unsubscribe_done'));
+			} else if (r.url) {
+				window.open(r.url, '_blank', 'noopener');
+			} else if (r.mailto) {
+				const c = this.app.compose;
+				c.openNew();
+				c.to(r.mailto.replace(/^mailto:/i, '').split('?')[0]);
+				c.subject('unsubscribe');
+			}
+		} catch (e) { this.error(e.message); }
 	}
 
 	/** Affiche le code source (.eml brut) du message dans une modale. */

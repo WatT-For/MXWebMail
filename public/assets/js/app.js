@@ -148,6 +148,7 @@ class AppVM {
 		const mpp = parseInt(data.settings?.messages_per_page, 10);
 		if (mpp > 0) { this.messageList.limit = mpp; }
 		this.messageList.sort(this.messageList.normalizeSort(data.settings?.list_sort));
+		this.messageList.useThreads(!!data.settings?.list_threads);
 		// Déconnexion après inactivité (minutes, 0 = jamais)
 		const autologout = parseInt(data.settings?.autologout, 10) || 0;
 		if (autologout > 0) { this.armAutologout(autologout); }

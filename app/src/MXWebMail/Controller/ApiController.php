@@ -93,6 +93,27 @@ final class ApiController
 
 	public function logout(Request $request): JsonResponse
 	{
+		// Vidage corbeille/spam à la déconnexion (réglages utilisateur) :
+		// la session doit être encore ouverte pour la connexion IMAP — les
+		// réglages sont lus et les dossiers purgés AVANT auth()->logout().
+		// Jamais bloquant : un échec IMAP n'empêche pas la déconnexion.
+		if (!empty($_SESSION['user_id'])
+			&& $this->app->config()->get('dangerous_actions', true)) {
+			$s = $this->userSettings((int) $_SESSION['user_id']);
+			if (!empty($s['empty_trash_on_logout']) || !empty($s['empty_junk_on_logout'])) {
+				try {
+					$mail = $this->app->mail();
+					if (!empty($s['empty_trash_on_logout'])
+						&& ($t = $mail->trashFolder())) {
+						$mail->folderClear($t);
+					}
+					if (!empty($s['empty_junk_on_logout'])
+						&& ($j = $mail->junkFolder())) {
+						$mail->folderClear($j);
+					}
+				} catch (\Throwable) {}
+			}
+		}
 		$this->app->auth()->logout();
 		return JsonResponse::ok();
 	}
@@ -699,8 +720,21 @@ final class ApiController
 		// doc complet ou simple tableau de règles).
 		if (is_array($rules = $request->input('rules'))) {
 			try {
-				$source = \MXWebMail\Sieve\ScriptBuilder::compile(
-					array_is_list($rules) ? ['rules' => $rules] : $rules);
+				$doc = array_is_list($rules) ? ['rules' => $rules] : $rules;
+				// Réinjecte le bloc « vacation » du script existant : l'assistant
+				// n'édite que les règles — sans merge, la sauvegarde d'un filtre
+				// éteindrait un répondeur actif.
+				$existing = $this->noCrlf((string) ($request->input('old_name') ?: $request->input('name', '')), 'name');
+				if ($existing !== '') {
+					try {
+						$prev = \MXWebMail\Sieve\ScriptBuilder::parseMarker(
+							$this->app->mail()->filterGet($existing));
+						if (isset($prev['vacation'])) {
+							$doc['vacation'] = $prev['vacation'];
+						}
+					} catch (\Throwable) {}
+				}
+				$source = \MXWebMail\Sieve\ScriptBuilder::compile($doc);
 			} catch (\InvalidArgumentException $e) {
 				return JsonResponse::error(
 					$this->t('errors.invalid_value', ['key' => 'rules'])
@@ -765,6 +799,130 @@ final class ApiController
 		return JsonResponse::ok();
 	}
 
+	// ─── Répondeur d'absence (Sieve vacation) ───
+
+	public function vacationGet(Request $request): JsonResponse
+	{
+		$this->requireAuth();
+		return JsonResponse::ok($this->app->mail()->vacationGet());
+	}
+
+	public function vacationSave(Request $request): JsonResponse
+	{
+		$this->requireAuth();
+		$this->requireCsrf();
+		$v = (array) $request->json();
+		$from = trim((string) ($v['from'] ?? ''));
+		$to = trim((string) ($v['to'] ?? ''));
+		$days = filter_var($v['days'] ?? 1, FILTER_VALIDATE_INT);
+		$subject = $this->noCrlf(trim((string) ($v['subject'] ?? '')), 'subject');
+		$message = (string) ($v['message'] ?? '');
+		$enabled = (bool) ($v['enabled'] ?? false);
+		$addresses = array_values(array_filter(array_map('trim',
+			(array) ($v['addresses'] ?? []))));
+		if ($days === false || $days < 1 || $days > 30 || strlen($subject) > 200
+			|| strlen($message) > 8192) {
+			return JsonResponse::error($this->t('errors.invalid_value', ['key' => 'vacation']), 'validation', 400);
+		}
+		foreach ([$from, $to] as $d) {
+			if ($d !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) {
+				return JsonResponse::error($this->t('errors.invalid_value', ['key' => 'vacation']), 'validation', 400);
+			}
+		}
+		if ($from !== '' && $to !== '' && $from > $to) {
+			return JsonResponse::error($this->t('errors.invalid_value', ['key' => 'vacation']), 'validation', 400);
+		}
+		if ($enabled && trim($message) === '') {
+			return JsonResponse::error($this->t('errors.invalid_value', ['key' => 'vacation']), 'validation', 400);
+		}
+		// :addresses ⊆ adresses du compte + identités déclarées (sinon le
+		// répondeur partirait pour des courriers adressés à d'autres).
+		$allowed = [mb_strtolower((string) $_SESSION['email'])];
+		foreach ($this->app->identities()->allForUser((int) $_SESSION['user_id']) as $i) {
+			$allowed[] = mb_strtolower((string) $i['email']);
+		}
+		$addresses = array_values(array_intersect(
+			array_map('mb_strtolower', $addresses), array_unique($allowed)));
+		if (!$addresses) {
+			$addresses = [mb_strtolower((string) $_SESSION['email'])];
+		}
+		$this->app->mail()->vacationSave([
+			'enabled' => $enabled, 'subject' => $subject, 'message' => $message,
+			'days' => $days, 'from' => $from, 'to' => $to, 'addresses' => $addresses,
+		]);
+		return JsonResponse::ok();
+	}
+
+	// ─── Réponses types (stockage user_settings, JSON) ───
+
+	private function cannedResponses(int $uid): array
+	{
+		$raw = $this->app->settings()->get($uid, 'canned_responses', []);
+		return is_array($raw) ? array_values($raw)
+			: (json_decode((string) $raw, true) ?: []);
+	}
+
+	public function responses(Request $request): JsonResponse
+	{
+		$this->requireAuth();
+		return JsonResponse::ok($this->cannedResponses((int) $_SESSION['user_id']));
+	}
+
+	public function responseSave(Request $request): JsonResponse
+	{
+		$this->requireAuth();
+		$this->requireCsrf();
+		$uid = (int) $_SESSION['user_id'];
+		$data = (array) $request->json();
+		$id = (int) ($data['id'] ?? 0);
+		$name = trim((string) ($data['name'] ?? ''));
+		$body = (string) ($data['body'] ?? '');
+		if ($name === '' || mb_strlen($name) > 100 || trim($body) === ''
+			|| strlen($body) > 65536) {
+			return JsonResponse::error($this->t('errors.invalid_value', ['key' => 'name']), 'validation', 400);
+		}
+		$list = $this->cannedResponses($uid);
+		foreach ($list as $r) {
+			if (strcasecmp((string) $r['name'], $name) === 0 && (int) $r['id'] !== $id) {
+				return JsonResponse::error($this->t('errors.invalid_value', ['key' => 'name']), 'duplicate', 400);
+			}
+		}
+		if ($id) {
+			$found = false;
+			foreach ($list as &$r) {
+				if ((int) $r['id'] === $id) {
+					$r = ['id' => $id, 'name' => $name, 'body' => $body];
+					$found = true;
+					break;
+				}
+			}
+			unset($r);
+			if (!$found) {
+				return JsonResponse::error($this->t('errors.not_found'), 'not_found', 404);
+			}
+		} else {
+			if (count($list) >= 50) {
+				return JsonResponse::error($this->t('errors.invalid_value', ['key' => 'name']), 'limit', 400);
+			}
+			$id = max([0, ...array_map(fn($r) => (int) $r['id'], $list)]) + 1;
+			$list[] = ['id' => $id, 'name' => $name, 'body' => $body];
+		}
+		$this->app->settings()->set($uid, 'canned_responses', array_values($list));
+		return JsonResponse::ok(['id' => $id]);
+	}
+
+	public function responseDelete(Request $request): JsonResponse
+	{
+		$this->requireAuth();
+		$this->requireCsrf();
+		$uid = (int) $_SESSION['user_id'];
+		$id = (int) $request->params['id'];
+		$list = array_values(array_filter($this->cannedResponses($uid),
+			fn($r) => (int) $r['id'] !== $id));
+		$this->app->settings()->set($uid, 'canned_responses', $list);
+		return JsonResponse::ok();
+	}
+
 	// ─── Messages ───
 
 	public function messages(Request $request): JsonResponse
@@ -780,7 +938,9 @@ final class ApiController
 		if (!in_array($sort, self::SORT_CRITERIA, true)) {
 			$sort = 'REVERSE DATE';
 		}
-		$data = $this->app->mail()->messages($folder, ($page - 1) * $limit, $limit, $search, $sort);
+		$threads = (bool) $request->input('threads', false);
+		$threadUid = (int) $request->input('thread_uid', 0);
+		$data = $this->app->mail()->messages($folder, ($page - 1) * $limit, $limit, $search, $sort, $threads, $threadUid);
 		$data['page'] = $page;
 		$data['limit'] = $limit;
 		return JsonResponse::ok($data);
@@ -929,6 +1089,130 @@ final class ApiController
 			$this->noCrlf((string) $request->input('folder', 'INBOX'), 'folder'),
 			(int) $request->params['uid']
 		));
+	}
+
+	/** Import d'un .eml dans un dossier (IMAP APPEND) — un fichier par requête. */
+	public function folderImport(Request $request): JsonResponse
+	{
+		$this->requireAuth();
+		$this->requireCsrf();
+		$mail = $this->app->mail();
+		$folder = $this->folderParam($request);
+		if (!in_array($folder, array_column($mail->folders(), 'fullName'), true)) {
+			return JsonResponse::error($this->t('errors.not_found'), 'not_found', 404);
+		}
+		$f = $request->files['file'] ?? null;
+		if (!is_array($f) || (int) ($f['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK
+			|| !is_uploaded_file((string) ($f['tmp_name'] ?? ''))) {
+			return JsonResponse::error($this->t('errors.bad_upload'), 'bad_upload');
+		}
+		$maxSize = (int) $this->app->config()->get('attachment_max_size', 25) * 1024 * 1024;
+		if ((int) ($f['size'] ?? 0) > $maxSize) {
+			return JsonResponse::error(
+				$this->t('errors.file_too_big', ['mb' => (int) ($maxSize / 1048576)]), 'too_big', 400);
+		}
+		$raw = file_get_contents((string) $f['tmp_name']);
+		if ($raw === false || trim($raw) === '') {
+			return JsonResponse::error($this->t('errors.bad_upload'), 'bad_upload');
+		}
+		return JsonResponse::ok(['uid' => $mail->appendMessage($raw, $folder, ['\\Seen'])]);
+	}
+
+	/** Toutes les PJ d'un message en un zip streamé (MXWebMailLib\Stream\ZIP). */
+	public function attachmentsZip(Request $request): Response
+	{
+		$this->requireAuth();
+		$folder = $this->noCrlf((string) $request->input('folder', 'INBOX'), 'folder');
+		$uid = (int) $request->params['uid'];
+		$mail = $this->app->mail();
+		$msg = $mail->message($folder, $uid);
+		$atts = $msg['attachments'] ?? [];
+		if (!$msg || !$atts) {
+			return Response::notFound();
+		}
+		$maxTotal = 4 * (int) $this->app->config()->get('attachments_max_total', 25) * 1024 * 1024;
+		$names = [];
+		$total = 0;
+		foreach ($atts as $att) {
+			$total += (int) ($att['size'] ?? 0);
+			$names[] = (string) preg_replace('/[\x00-\x1F\x7F\/\\\\]/', '_', (string) $att['name']);
+		}
+		if ($total > $maxTotal) {
+			return JsonResponse::error(
+				$this->t('errors.attachments_too_big', ['mb' => (int) ($maxTotal / 1048576)]), 'too_big', 413);
+		}
+		// Déduplique les noms : « name (2).ext »
+		$seen = [];
+		$names = array_map(function ($n) use (&$seen) {
+			if (!isset($seen[$n])) { $seen[$n] = 1; return $n; }
+			$i = ++$seen[$n];
+			$dot = strrpos($n, '.');
+			return $dot === false ? "{$n} ({$i})"
+				: substr($n, 0, $dot) . " ({$i})" . substr($n, $dot);
+		}, $names);
+		$zip = new \MXWebMailLib\Stream\ZIP();
+		$zip->pushHttpHeaders("attachments-{$uid}");
+		foreach ($atts as $i => $att) {
+			$name = $names[$i];
+			$mail->mimeStream($folder, $uid, (string) $att['mimeIndex'],
+				function ($r) use ($zip, $name) { $zip->addFromStream($r, $name); });
+		}
+		$zip->close();
+		return new Response('', 200);
+	}
+
+	/**
+	 * Désabonnement (List-Unsubscribe). RFC 8058 : si le message annonce
+	 * « List-Unsubscribe-Post: List-Unsubscribe=One-Click » et une cible
+	 * https, le POST part côté serveur (même garde SSRF que le proxy
+	 * d'images, redirects revalidés). Sinon la cible url/mailto est
+	 * renvoyée pour action côté client.
+	 */
+	public function messageUnsubscribe(Request $request): JsonResponse
+	{
+		$this->requireAuth();
+		$this->requireCsrf();
+		$folder = $this->noCrlf((string) $request->input('folder', 'INBOX'), 'folder');
+		$msg = $this->app->mail()->message($folder, (int) $request->params['uid']);
+		$u = $msg['unsubscribe'] ?? null;
+		if (!$u || (!$u['url'] && !$u['mailto'])) {
+			return JsonResponse::error($this->t('errors.unsubscribe_none'), 'unavailable', 400);
+		}
+		if (!empty($u['post']) && $u['url']) {
+			$url = $u['url'];
+			for ($hop = 0; $hop <= 3; $hop++) {
+				if ($this->proxyUrlError($url, [])) {
+					return JsonResponse::error($this->t('errors.host_blocked'), 'ssrf', 403);
+				}
+				$ctx = stream_context_create(['http' => [
+					'method' => 'POST', 'timeout' => 8, 'max_redirects' => 0,
+					'ignore_errors' => true, 'user_agent' => 'MXWebMail-Unsubscribe',
+					'header' => "Content-Type: application/x-www-form-urlencoded\r\n",
+					'content' => 'List-Unsubscribe=One-Click',
+				]]);
+				$body = @file_get_contents($url, false, $ctx);
+				$status = 0; $location = null;
+				foreach ($http_response_header ?? [] as $i => $h) {
+					if ($i === 0 && preg_match('#^HTTP/\S+\s+(\d{3})#', $h, $m)) {
+						$status = (int) $m[1];
+					} else if (stripos($h, 'Location:') === 0) {
+						$location = trim(substr($h, 9));
+					}
+				}
+				if ($status >= 300 && $status < 400 && $location && $hop < 3) {
+					$url = $this->resolveRedirect($url, $location) ?? '';
+					if ($url !== '' && preg_match('#^https://#i', $url)) {
+						continue;
+					}
+					return JsonResponse::error($this->t('errors.bad_url'), 'bad_url');
+				}
+				return ($status >= 200 && $status < 300)
+					? JsonResponse::ok(['done' => true])
+					: JsonResponse::error($this->t('errors.unsubscribe_failed'), 'failed', 502);
+			}
+			return JsonResponse::error($this->t('errors.unsubscribe_failed'), 'failed', 502);
+		}
+		return JsonResponse::ok(['url' => $u['url'], 'mailto' => $u['mailto']]);
 	}
 
 	// ─── Compose ───
@@ -1226,6 +1510,41 @@ final class ApiController
 			}
 			$folder = $this->noCrlf((string) ($att['folder'] ?? ''), 'attachments');
 			$uid = (int) ($att['uid'] ?? 0);
+			if (!empty($att['eml'])) {
+				// Transfert en pièce jointe : le message source complet est
+				// attaché en message/rfc822 (nom = sujet côté serveur).
+				if ($folder === '' || $uid <= 0) {
+					throw new \RuntimeException($this->t('errors.attachment_missing'), 400);
+				}
+				$cacheKey = $folder . "\0" . $uid;
+				if (!array_key_exists($cacheKey, $msgCache)) {
+					$msgCache[$cacheKey] = $this->app->mail()->message($folder, $uid);
+				}
+				$src = $msgCache[$cacheKey];
+				if (!$src) {
+					throw new \RuntimeException($this->t('errors.attachment_missing'), 400);
+				}
+				$stream = null;
+				$ok = $this->app->mail()->mimeStream($folder, $uid, '', function ($r) use (&$stream) {
+					$stream = fopen('php://temp', 'w+b');
+					stream_copy_to_stream($r, $stream);
+					rewind($stream);
+				});
+				if (!$ok || !is_resource($stream)) {
+					throw new \RuntimeException($this->t('errors.attachment_missing'), 400);
+				}
+				$size = fstat($stream)['size'] ?? 0;
+				$attachTotal += $size;
+				if ($attachTotal > $attachLimit) {
+					throw new \RuntimeException(
+						$this->t('errors.attachments_too_big', ['mb' => (int) ($attachLimit / 1048576)]), 400);
+				}
+				$fname = trim((string) preg_replace('/[\x00-\x1F\x7F\/\\\\:*?"<>|]/', '', (string) ($src['subject'] ?? '')));
+				$message->Attachments()->append(new \MailSo\Mime\Attachment(
+					$stream, ($fname !== '' ? $fname : 'message') . '.eml', $size,
+					false, false, '', [], '', 'message/rfc822'));
+				continue;
+			}
 			$partId = (string) ($att['part'] ?? '');
 			// folder vide → message('') lèverait une exception non mappée (500)
 			if ($folder === '' || $uid <= 0 || !preg_match('/^\d+(\.\d+)*$/', $partId)) {

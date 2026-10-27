@@ -20,6 +20,10 @@ export class MessageModel {
 		this.colorTagId = data.colorTagId || null;
 		this.colorTagLabel = data.colorTagLabel || null;
 		this.hasAttach = !!data.hasAttach;
+		this.threads = data.threads || [];
+		this.threadUnseen = data.threadUnseen || [];
+		this.isChild = false;      // sous-ligne d'un fil déplié
+		this._threadOpen = ko.observable(false);
 		this.raw = data;
 	}
 

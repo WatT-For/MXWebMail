@@ -149,7 +149,7 @@ final class MailService
 
 	// ─── Messages ───
 
-	public function messages(string $folder, int $offset, int $limit, string $search = '', string $sort = 'REVERSE DATE'): array
+	public function messages(string $folder, int $offset, int $limit, string $search = '', string $sort = 'REVERSE DATE', bool $threads = false, int $threadUid = 0): array
 	{
 		$params = new \MailSo\Mail\MessageListParams();
 		$params->sFolderName = $folder;
@@ -158,12 +158,16 @@ final class MailService
 		$params->sSearch = $search;
 		$params->sSort = $sort;
 		$params->bUseSort = true;
+		$params->bUseThreads = $threads || $threadUid > 0;
+		$params->iThreadUid = $threadUid;
 
 		$collection = $this->client()->MessageList($params);
 		$out = [
 			'total'    => $collection->totalEmails,
 			'folder'   => $collection->FolderName,
 			'messages' => [],
+			'threadsSupported' => (bool) $this->client()->ImapClient()->CapabilityValue('THREAD'),
+			'totalThreads'     => $collection->totalThreads,
 		];
 		foreach ($collection as $msg) {
 			$meta = self::messageMeta($msg);
@@ -723,6 +727,87 @@ final class MailService
 		$this->sieve()->DeleteScript($name);
 	}
 
+	/**
+	 * Configuration du répondeur d'absence (Sieve vacation) : lue dans le
+	 * doc géré (marqueur MXWM-RULES) du script actif. 'managed' indique si
+	 * le script actif est géré par l'assistant — un script externe n'est
+	 * jamais réécrit silencieusement.
+	 */
+	public function vacationGet(): array
+	{
+		$sieve = $this->sieve();
+		$scripts = $sieve->ListScripts();
+		$active = null;
+		$managed = [];
+		foreach (array_keys($scripts) as $name) {
+			$doc = \MXWebMail\Sieve\ScriptBuilder::parseMarker(
+				$sieve->GetScript((string) $name));
+			if ($doc !== null) {
+				$managed[] = $name;
+			}
+			if ($scripts[$name]) {
+				$active = $name;
+			}
+		}
+		$vacation = null;
+		if ($active !== null && in_array($active, $managed, true)) {
+			$doc = \MXWebMail\Sieve\ScriptBuilder::parseMarker(
+				$sieve->GetScript((string) $active));
+			$vacation = $doc['vacation'] ?? null;
+		}
+		return [
+			'script'  => $active,
+			'managed' => $active !== null && in_array($active, $managed, true),
+			'vacation'=> $vacation,
+			'modules' => $sieve->Modules(),
+		];
+	}
+
+	/**
+	 * Écrit la config vacation dans le document géré : script actif géré
+	 * s'il existe, sinon premier script géré activé, sinon nouveau script
+	 * 'mxwebmail' activé. Script actif non géré → refus (409).
+	 */
+	public function vacationSave(array $vacation): void
+	{
+		$sieve = $this->sieve();
+		if (!in_array('vacation', $sieve->Modules(), true)) {
+			throw new \RuntimeException(
+				$this->t('errors.sieve_module', ['module' => 'vacation']), 400);
+		}
+		$scripts = $sieve->ListScripts();
+		$active = null;
+		$managed = [];
+		foreach (array_keys($scripts) as $name) {
+			$doc = \MXWebMail\Sieve\ScriptBuilder::parseMarker(
+				$sieve->GetScript((string) $name));
+			if ($doc !== null) {
+				$managed[(string) $name] = $doc;
+			}
+			if ($scripts[$name]) {
+				$active = (string) $name;
+			}
+		}
+		if ($active !== null) {
+			if (!isset($managed[$active])) {
+				throw new \RuntimeException($this->t('errors.sieve_unmanaged'), 409);
+			}
+			$target = $active;
+		} else {
+			$target = $managed ? (string) array_key_first($managed) : 'mxwebmail';
+			$managed[$target] ??= ['rules' => []];
+		}
+		$doc = $managed[$target];
+		$doc['vacation'] = $vacation;
+		$source = \MXWebMail\Sieve\ScriptBuilder::compile($doc);
+		$this->filterCheck($source);
+		$sieve->PutScript($target, $source);
+		// Activation uniquement si le répondeur est actif et le script ne l'est pas
+		if (!empty($vacation['enabled']) && $active !== $target) {
+			$sieve->SetActiveScript($target);
+		}
+	}
+
 	// ─── ACL dossiers ───
 
 	/** 400 explicite si le serveur n'a pas la capacité ACL (sinon réponse vide
@@ -859,6 +944,38 @@ final class MailService
 			'isSpam'    => !empty($d['isSpam']),
 			'spamScore' => $d['spamScore'] ?? 0,
 			'isJunk'    => in_array('$junk', $flags, true),
+			'threads'      => $d['threads'] ?? [],
+			'threadUnseen' => $d['threadUnseen'] ?? [],
+		];
+	}
+
+	/** Cibles List-Unsubscribe (+ one-click RFC 8058) lues dans les en-têtes
+	 *  du message : {mailto, url, post} ou null si absent. */
+	private static function parseUnsubscribe(?\MailSo\Mime\HeaderCollection $h): ?array
+	{
+		if (!$h) {
+			return null;
+		}
+		$raw = $h->ValueByName(\MailSo\Mime\Enumerations\Header::LIST_UNSUBSCRIBE);
+		if ($raw === '') {
+			return null;
+		}
+		$mailto = null; $url = null;
+		preg_match_all('/<([^>]+)>/', $raw, $m);
+		foreach ($m[1] ?? [] as $target) {
+			if (stripos($target, 'mailto:') === 0 && $mailto === null) {
+				$mailto = $target;
+			} else if (preg_match('#^https?://#i', $target) && $url === null) {
+				$url = $target;
+			}
+		}
+		if (!$mailto && !$url) {
+			return null;
+		}
+		return [
+			'mailto' => $mailto,
+			'url'    => $url,
+			'post'   => stripos($h->ValueByName(\MailSo\Mime\Enumerations\Header::LIST_UNSUBSCRIBE_POST), 'List-Unsubscribe=One-Click') !== false,
 		];
 	}
 
@@ -896,6 +1013,7 @@ final class MailService
 			'pgpEncrypted'=> $d['pgpEncrypted'] ?? null,
 			'pgpSigned'   => $d['pgpSigned'] ?? null,
 			'smimeSigned' => $d['smimeSigned'] ?? null,
+			'unsubscribe' => self::parseUnsubscribe($msg->Headers ?? null),
 		]);
 	}
 

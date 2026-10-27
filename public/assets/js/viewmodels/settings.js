@@ -1,4 +1,4 @@
-import { api, base } from '../api.js';
+import { api, base, b64url } from '../api.js';
 import { dialog } from '../ui/dialog.js';
 import { notify } from '../ui/notify.js';
 import { toast } from '../ui/toast.js';
@@ -44,7 +44,11 @@ export class SettingsVM {
 
 		// Dossiers système (assignation par compte : auto | none | fullName ;
 		// /folders/special renvoie {assigned, detected} par rôle)
-		this.foldersTab = ko.observable('roles'); // sous-onglet : roles | notify
+		this.foldersTab = ko.observable('roles'); // sous-onglet : roles | notify | import
+		// Import .eml (sous-onglet « Importer » de l'onglet Dossiers)
+		this.importFolder = ko.observable('INBOX');
+		this.importProgress = ko.observable(null);
+		this.importBusy = ko.observable(false);
 		this.folderRoles = ko.observableArray([]);
 		this.folderRolesLoaded = false;
 
@@ -104,6 +108,15 @@ export class SettingsVM {
 		// Taille de la modale en px (0 = défaut Bootstrap, pas d'inline)
 		this.identW = ko.observable(0);
 		this.identH = ko.observable(0);
+
+		// Réponses types
+		this.responses = ko.observableArray([]);
+		this.editingResponse = ko.observable(null);
+		this.responsesLoaded = false;
+
+		// Répondeur d'absence (Sieve vacation)
+		this.vacation = ko.observable(null);
+		this.vacationManaged = ko.observable(true);
 
 		// OpenPGP
 		this.pgpKeys = ko.observableArray([]);
@@ -168,14 +181,14 @@ export class SettingsVM {
 			name = 'general';
 		}
 		const known = ['general', 'identities', 'contacts', 'folders', 'filters', 'pgp',
-			'oauthapps', 'accounts', ...this.pluginTabs().map(t => t.id)];
+			'oauthapps', 'accounts', 'responses', ...this.pluginTabs().map(t => t.id)];
 		this.tab(known.includes(name) ? name : 'general');
 		if (this.tab() !== 'filters') { this.filterModal?.hide(); }
 		if (this.tab() !== 'identities') { this.identityModal?.hide(); }
 		if (this.tab() === 'identities') { this.loadIdentities(); }
 		if (this.tab() === 'contacts') { this.loadContacts(); }
 		if (this.tab() === 'folders') {
-			this.foldersTab(detail === 'notify' ? 'notify' : 'roles');
+			this.foldersTab(['notify', 'import'].includes(detail) ? detail : 'roles');
 			if (this.foldersTab() === 'roles') { this.loadFolderRoles(); }
 			else { this.loadNotifyFolders(); }
 		}
@@ -186,6 +199,7 @@ export class SettingsVM {
 		}
 		if (this.tab() === 'oauthapps') { this.loadOauthApps(); }
 		if (this.tab() === 'accounts') { this.loadAccounts(); }
+		if (this.tab() === 'responses') { this.loadResponses(); }
 	}
 
 	async saveSettings() {
@@ -203,6 +217,7 @@ export class SettingsVM {
 		this.app.armAutoRefresh(Math.min(60, Math.max(0,
 			parseInt(this.values().list_refresh, 10) || 0)));
 		this.app.notifyEnabled(!!this.values().notify_new_mail);
+		this.app.messageList.useThreads(!!this.values().list_threads);
 		// Pagination : limite + rechargement immédiat de la liste
 		const mpp = parseInt(this.values().messages_per_page, 10);
 		if (mpp > 0 && mpp !== this.app.messageList.limit) {
@@ -432,6 +447,34 @@ export class SettingsVM {
 		}).catch(e => { this.error(e.message); this.notifyFoldersLoaded = false; });
 	}
 
+	/** Import de fichiers .eml dans le dossier choisi (IMAP APPEND serveur,
+	 *  un fichier par requête — progression n/N affichée). */
+	async importEmlFiles(d, e) {
+		const files = [...e.target.files];
+		e.target.value = '';
+		if (!files.length || this.importBusy()) { return; }
+		this.importBusy(true);
+		let done = 0;
+		for (const file of files) {
+			this.importProgress(t('settings.import_running', { n: done + 1, total: files.length }));
+			const fd = new FormData();
+			fd.append('file', file);
+			try {
+				await api.upload(`/folders/${b64url(this.importFolder())}/import`, fd);
+				done++;
+			} catch (err) { this.error(err.message); break; }
+		}
+		this.importBusy(false);
+		this.importProgress(null);
+		if (done) {
+			toast.success(t('app.import_done', { n: done }));
+			this.app.folderList.load();
+			if (this.app.messageList.folder() === this.importFolder()) {
+				this.app.messageList.load();
+			}
+		}
+	}
+
 	async saveNotifyFolders() {
 		const names = this.notifyChecks()
 			.filter(r => !r.isInbox && r.checked())
@@ -457,6 +500,71 @@ export class SettingsVM {
 		} catch (e) {
 			this.filtersError(e.message); // ex. Sieve non configuré pour le domaine
 		}
+		this.loadVacation();
+	}
+
+	// ─── Répondeur d'absence ───
+
+	async loadVacation() {
+		try {
+			const r = await api.get('/filters/vacation');
+			if (r.modules) { this.sieveModules(r.modules); }
+			this.vacationManaged(r.managed !== false);
+			const v = r.vacation || {};
+			this.vacation({
+				enabled: ko.observable(!!v.enabled),
+				subject: ko.observable(v.subject || ''),
+				message: ko.observable(v.message || ''),
+				days: ko.observable(v.days ?? 1),
+				from: ko.observable(v.from || ''),
+				to: ko.observable(v.to || ''),
+				addresses: ko.observable((v.addresses || []).join(', ')),
+			});
+		} catch (e) { this.filtersError(e.message); }
+	}
+
+	async saveVacation() {
+		const v = this.vacation();
+		try {
+			await api.post('/filters/vacation', {
+				enabled: v.enabled(), subject: v.subject(), message: v.message(),
+				days: parseInt(v.days(), 10) || 1, from: v.from(), to: v.to(),
+				addresses: v.addresses().split(/[,;\s]+/).filter(Boolean),
+			});
+			this.saved(true);
+		} catch (e) { this.filtersError(e.message); }
+	}
+
+	// ─── Réponses types ───
+
+	loadResponses() {
+		if (this.responsesLoaded) { return; }
+		api.get('/responses')
+			.then(d => { this.responses(d); this.responsesLoaded = true; })
+			.catch(e => this.error(e.message));
+	}
+
+	editResponse(r) {
+		this.editingResponse(r
+			? { id: r.id, name: ko.observable(r.name), body: ko.observable(r.body) }
+			: { id: 0, name: ko.observable(''), body: ko.observable('') });
+	}
+
+	async saveResponse() {
+		const r = this.editingResponse();
+		await api.post('/responses', { id: r.id, name: r.name(), body: r.body() });
+		this.editingResponse(null);
+		this.responsesLoaded = false;
+		this.loadResponses();
+		this.saved(true);
+	}
+
+	async deleteResponse(r) {
+		if (!(await dialog.confirm(t('settings.responses_delete', { name: r.name }),
+			{ variant: 'danger', okLabel: t('common.delete') }))) { return; }
+		await api.post(`/responses/${r.id}/delete`);
+		this.responsesLoaded = false;
+		this.loadResponses();
 	}
 
 	// Règle KO = observables {match, conditions, actions} ; sérialisée en doc

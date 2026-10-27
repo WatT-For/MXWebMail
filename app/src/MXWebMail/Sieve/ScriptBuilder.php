@@ -15,7 +15,9 @@ namespace MXWebMail\Sieve;
  *                  "op":"contains|is|not_contains|starts_with|regex",
  *                  "value":"…", "header":"X-…"?}],
  *   "actions":[{"type":"fileinto|redirect|discard|keep|seen|reject|stop",
- *               "arg":"…"?}] }] }
+ *               "arg":"…"?}] }],
+ *   "vacation"?:{"enabled":bool,"subject":"…","message":"…","days":1-30,
+ *                "from":"AAAA-MM-JJ"?,"to":"AAAA-MM-JJ"?,"addresses":[…]} }
  *
  * La validation du schéma est stricte (whitelist champs/ops/actions) : elle
  * fait foi côté serveur — CHECKSCRIPT reste le filet syntaxique final avant
@@ -59,7 +61,9 @@ final class ScriptBuilder
 	/** @throws \InvalidArgumentException sur schéma invalide */
 	public static function compile(array $doc): string
 	{
-		$rules = self::rules($doc);
+		$vacation = isset($doc['vacation']) && is_array($doc['vacation'])
+			? self::vacation($doc['vacation']) : null;
+		$rules = self::rules($doc, $vacation !== null && !empty($vacation['enabled']));
 		$require = [];
 		$blocks = [];
 		$normalized = ['version' => self::VERSION, 'rules' => []];
@@ -74,6 +78,12 @@ final class ScriptBuilder
 				'conditions' => $conds,
 				'actions' => $actions,
 			];
+		}
+		if ($vacation !== null) {
+			$normalized['vacation'] = $vacation;
+			if (!empty($vacation['enabled'])) {
+				$blocks[] = self::vacationBlock($vacation, $require);
+			}
 		}
 
 		$out = self::marker($normalized) . "\r\n";
@@ -96,13 +106,92 @@ final class ScriptBuilder
 		return $match;
 	}
 
-	private static function rules(array $doc): array
+	private static function rules(array $doc, bool $allowEmpty = false): array
 	{
 		$rules = $doc['rules'] ?? null;
-		if (!is_array($rules) || !count($rules) || count($rules) > 50) {
-			throw new \InvalidArgumentException('rules : 1 à 50 règles requises');
+		if (!is_array($rules) || count($rules) > 50
+			|| (!$allowEmpty && !count($rules))) {
+			throw new \InvalidArgumentException(
+				$allowEmpty ? 'rules : 50 règles max' : 'rules : 1 à 50 règles requises');
 		}
 		return $rules;
+	}
+
+	/**
+	 * Normalise+valide le bloc « vacation » du doc (répondeur d'absence) :
+	 * enabled, subject ≤200c sans CRLF, message ≤8K (requis si enabled),
+	 * days 1-30, bornes AAAA-MM-JJ (from ≤ to), addresses = emails valides.
+	 */
+	private static function vacation(array $v): array
+	{
+		$out = [
+			'enabled' => (bool) ($v['enabled'] ?? false),
+			'subject' => self::str($v['subject'] ?? '', 'subject', 200),
+			'message' => (string) ($v['message'] ?? ''),
+			'days'    => (int) ($v['days'] ?? 1),
+			'from'    => self::str($v['from'] ?? '', 'from', 10),
+			'to'      => self::str($v['to'] ?? '', 'to', 10),
+			'addresses' => [],
+		];
+		if ($out['days'] < 1 || $out['days'] > 30) {
+			throw new \InvalidArgumentException('vacation.days : 1 à 30');
+		}
+		foreach (['from', 'to'] as $k) {
+			if ($out[$k] !== ''
+				&& !preg_match('/^\d{4}-\d{2}-\d{2}$/', $out[$k])) {
+				throw new \InvalidArgumentException("vacation.{$k} : format AAAA-MM-JJ");
+			}
+		}
+		if ($out['from'] !== '' && $out['to'] !== '' && $out['from'] > $out['to']) {
+			throw new \InvalidArgumentException('vacation : début > fin');
+		}
+		if (strlen($out['message']) > 8192
+			|| ($out['enabled'] && trim($out['message']) === '')) {
+			throw new \InvalidArgumentException('vacation.message invalide');
+		}
+		foreach ((array) ($v['addresses'] ?? []) as $a) {
+			$a = self::str($a, 'addresses', 254);
+			if ($a === '' || !filter_var($a, FILTER_VALIDATE_EMAIL)
+				|| count($out['addresses']) >= 20) {
+				throw new \InvalidArgumentException('vacation.addresses invalide');
+			}
+			$out['addresses'][] = $a;
+		}
+		return $out;
+	}
+
+	/** Commande Sieve vacation, enveloppée d'un garde-fou currentdate si
+	 *  des bornes sont définies (extensions date + relational). */
+	private static function vacationBlock(array $v, array &$require): string
+	{
+		$require[] = 'vacation';
+		$args = 'vacation :days ' . $v['days'];
+		if ($v['subject'] !== '') {
+			$args .= ' :subject ' . self::q($v['subject']);
+		}
+		if ($v['addresses']) {
+			$args .= ' :addresses [' . implode(', ',
+				array_map(fn($a) => self::q($a), $v['addresses'])) . ']';
+		}
+		// Corps multiline : text: … CRLF "." seul termine (dot-stuffing si
+		// une ligne du corps commence par un point).
+		$body = str_replace(["\r\n", "\r"], "\n", $v['message']);
+		$body = "\r\n" . preg_replace('/^\./m', '..', $body) . "\r\n.\r\n";
+		$cmd = $args . ' text:' . $body . ';';
+		$tests = [];
+		if ($v['from'] !== '') {
+			$tests[] = 'currentdate :value "ge" "date" ' . self::q($v['from']);
+		}
+		if ($v['to'] !== '') {
+			$tests[] = 'currentdate :value "le" "date" ' . self::q($v['to']);
+		}
+		if (!$tests) {
+			return $cmd;
+		}
+		$require[] = 'date';
+		$require[] = 'relational';
+		$test = count($tests) === 1 ? $tests[0] : 'allof (' . implode(', ', $tests) . ')';
+		return 'if ' . $test . " {\n\t" . $cmd . "\n}";
 	}
 
 	/** @return array{0:string,1:array} test Sieve + conditions normalisées */

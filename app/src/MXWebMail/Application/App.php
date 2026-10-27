@@ -46,7 +46,7 @@ final class App
 
 	public function __construct(?string $rootDir = null, ?string $installDir = null)
 	{
-		defined('APP_VERSION') || define('APP_VERSION', '0.41.0'); // X-Mailer MailSo
+		defined('APP_VERSION') || define('APP_VERSION', '0.42.0'); // X-Mailer MailSo
 		$this->rootDir = $rootDir ?? dirname(__DIR__, 3);
 		// Racine d'installation (parent de public/) — passée explicitement par
 		// index.php car indéductible de rootDir quand app/ est hors racine web.
@@ -484,6 +484,9 @@ final class App
 			'compose_modal_width' => 'int:0:3000',
 			'compose_modal_height' => 'int:0:3000',
 			'theme' => 'key',
+			'empty_trash_on_logout' => 'bool',
+			'empty_junk_on_logout'  => 'bool',
+			'list_threads'          => 'bool',
 		];
 	}
 
@@ -688,6 +691,7 @@ final class App
 		$router->post('/api/folders/{name}/rename', [$api, 'folderRename']);
 		$router->post('/api/folders/{name}/subscribe', [$api, 'folderSubscribe']);
 		$router->post('/api/folders/{name}/clear', [$api, 'folderClear']);
+		$router->post('/api/folders/{name}/import', [$api, 'folderImport']);
 		$router->get('/api/folders/{name}/acl', [$api, 'folderAcl']);
 		$router->post('/api/folders/{name}/acl', [$api, 'folderAclSet']);
 		$router->post('/api/folders/{name}/acl/delete', [$api, 'folderAclDelete']);
@@ -705,6 +709,11 @@ final class App
 		$router->post('/api/messages/{uid}/copy', [$api, 'messageCopy']);
 		$router->post('/api/messages/{uid}/delete', [$api, 'messageDelete']);
 		$router->post('/api/messages/{uid}/spam', [$api, 'messageSpam']);
+		$router->post('/api/messages/{uid}/unsubscribe', [$api, 'messageUnsubscribe']);
+		$router->get('/api/messages/{uid}/attachments.zip', [$api, 'attachmentsZip']);
+		$router->get('/api/responses', [$api, 'responses']);
+		$router->post('/api/responses', [$api, 'responseSave']);
+		$router->post('/api/responses/{id}/delete', [$api, 'responseDelete']);
 
 		$router->post('/api/compose/send', [$api, 'composeSend']);
 		$router->post('/api/compose/upload', [$api, 'composeUpload']);
@@ -744,6 +753,8 @@ final class App
 		$router->post('/api/filters/activate', [$api, 'filterActivate']);
 		$router->post('/api/filters/deactivate', [$api, 'filterDeactivate']);
 		$router->post('/api/filters/compile', [$api, 'filterCompile']);
+		$router->get('/api/filters/vacation', [$api, 'vacationGet']);
+		$router->post('/api/filters/vacation', [$api, 'vacationSave']);
 		$router->post('/api/filters/delete', [$api, 'filterDelete']);
 		// PGP — gestion du keyring (crypto côté navigateur, OpenPGP.js)
 		$router->get('/api/pgp/keys', [$api, 'pgpKeys']);
