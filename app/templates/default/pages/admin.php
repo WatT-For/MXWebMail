@@ -18,6 +18,9 @@
 		<?php if ($sponsorUrl !== ''): ?>
 		<a class="btn btn-sm btn-outline-light me-2" href="<?= htmlspecialchars($sponsorUrl) ?>" target="_blank" rel="noopener"><i class="fa-solid fa-heart"></i> <?= $t('common.sponsor') ?></a>
 		<?php endif; ?>
+		<?php if ($githubUrl !== ''): ?>
+		<a class="btn btn-sm btn-outline-light me-2" href="<?= htmlspecialchars($githubUrl) ?>" target="_blank" rel="noopener"><i class="fa-brands fa-github"></i> GitHub</a>
+		<?php endif; ?>
 		<a class="btn btn-sm btn-outline-light me-2" href="<?= $base ?>/"><i class="fa-solid fa-envelope"></i> <?= $t('admin.webmail') ?></a>
 		<button class="btn btn-sm btn-outline-light" data-bind="click: logout"><i class="fa-solid fa-right-from-bracket"></i></button>
 	</div>
@@ -496,6 +499,9 @@
 					<div class="fs-5" data-bind="text: app_name"></div>
 					<div class="text-muted small"><?= $t('admin.about.tagline') ?></div>
 				</div>
+				<!-- ko if: repo_url -->
+				<a class="btn btn-sm btn-outline-secondary" data-bind="attr: { href: repo_url }" target="_blank" rel="noopener"><i class="fa-brands fa-github"></i> GitHub</a>
+				<!-- /ko -->
 				<span class="badge text-bg-primary fs-6">v<span data-bind="text: version"></span></span>
 			</div>
 		</div>

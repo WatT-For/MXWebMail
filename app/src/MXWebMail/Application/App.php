@@ -39,13 +39,14 @@ final class App
 	private ?Translator $locale = null;
 	private ?ThemeManager $themes = null;
 	private ?\MXWebMail\Service\UpdateService $updater = null;
+	private ?\MXWebMail\Service\GitHubClient $github = null;
 	private ?\MXWebMail\Service\PluginPackageService $pluginPackages = null;
 	private ?\MXWebMail\Service\DomainDetector $domainDetector = null;
 	private \DateTimeZone|false|null $logTimeZone = null;
 
 	public function __construct(?string $rootDir = null, ?string $installDir = null)
 	{
-		defined('APP_VERSION') || define('APP_VERSION', '0.40.0'); // X-Mailer MailSo
+		defined('APP_VERSION') || define('APP_VERSION', '0.41.0'); // X-Mailer MailSo
 		$this->rootDir = $rootDir ?? dirname(__DIR__, 3);
 		// Racine d'installation (parent de public/) — passée explicitement par
 		// index.php car indéductible de rootDir quand app/ est hors racine web.
@@ -309,6 +310,11 @@ final class App
 	public function updater(): \MXWebMail\Service\UpdateService
 	{
 		return $this->updater ??= new \MXWebMail\Service\UpdateService($this);
+	}
+
+	public function github(): \MXWebMail\Service\GitHubClient
+	{
+		return $this->github ??= new \MXWebMail\Service\GitHubClient($this);
 	}
 
 	public function pluginPackages(): \MXWebMail\Service\PluginPackageService

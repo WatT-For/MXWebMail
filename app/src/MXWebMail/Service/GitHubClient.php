@@ -50,6 +50,13 @@ final class GitHubClient
 		return preg_match('#^[a-z0-9_.-]+/[a-z0-9_.-]+$#i', $repo) ? $repo : null;
 	}
 
+	/** URL publique du dépôt (lien « GitHub » de l'admin) ; null si non résolu. */
+	public function repoUrl(): ?string
+	{
+		$repo = $this->repo();
+		return $repo !== null ? 'https://github.com/' . $repo : null;
+	}
+
 	private function manifest(): string
 	{
 		return trim((string) ($this->cfg()['manifest_url'] ?? ''));

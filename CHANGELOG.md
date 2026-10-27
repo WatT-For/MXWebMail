@@ -8,6 +8,15 @@ Catégories, dans l'ordre : `Sécurité`, `Ajouté`, `Modifié`, `Corrigé`, `Ob
 
 ## [Unreleased]
 
+## [0.41.0] — 2026-10-27
+
+### Ajouté
+
+- Lien vers le dépôt GitHub dans le panel d'administration (navbar + onglet
+  « À propos »)
+- Documentation de la sémantique des `exceptions` des plugins listes
+  noire/blanche (`docs/plugins.md`)
+
 ## [0.40.0] — 2026-10-27
 
 ### Ajouté
@@ -162,8 +171,12 @@ Première release publiée de MXWebMail — webmail auto-hébergé en PHP 8.4, i
 - Credentials IMAP chiffrés (XSalsa20-Poly1305, libsodium) en session et en base
 - Corps des messages sanitisés ; images externes via proxy anti-SSRF
 
-[Unreleased]: https://github.com/WatT-For/MXWebMail/compare/v0.39.1...HEAD
+[Unreleased]: https://github.com/WatT-For/MXWebMail/compare/v0.41.0...HEAD
+[0.41.0]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.41.0
+[0.40.0]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.40.0
 [0.39.1]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.39.1
+[0.39.0]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.39.0
+[0.38.0]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.38.0
 [0.37.4]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.37.4
 [0.36.1]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.36.1
 [0.36.0]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.36.0

@@ -165,7 +165,9 @@ Voir [themes.md](themes.md).
 ### À propos
 
 Version (`APP_VERSION`), PHP/SAPI/limites, pilote et taille de la base, chemins,
-extensions chargées. Gère aussi les **mises à jour** via GitHub Releases :
+extensions chargées. Un lien vers le dépôt GitHub officiel est affiché dans la
+navbar et l'en-tête de cet onglet. Gère aussi les **mises à jour** via GitHub
+Releases :
 
 - *Vérifier* → *Télécharger* → *Appliquer* ; états conservés dans `storage/update/state.json` ;
 - sauvegarde `storage/update/backup-<ts>` pour revenir en arrière, action *Réinitialiser*.

@@ -205,6 +205,8 @@ final class PageController
 		$vars['faviconUrl'] = $vars['base'] . '/favicon.ico?v=' . $this->faviconVersion();
 		// Lien « Sponsor » GitHub (clé config sponsor_url ; vide = bouton masqué)
 		$vars['sponsorUrl'] = (string) $this->app->config()->get('sponsor_url', '');
+		// Lien du dépôt GitHub officiel (GitHubClient::REPO ; vide = bouton masqué)
+		$vars['githubUrl'] = $this->app->github()->repoUrl() ?? '';
 		// Thème actif — pour construire les URLs d'assets du template
 		$vars['theme'] = $theme;
 		$vars['themeVer'] = $this->app->themes()->version($theme);

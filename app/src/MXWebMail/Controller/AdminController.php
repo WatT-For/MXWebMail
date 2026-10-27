@@ -1025,6 +1025,7 @@ final class AdminController
 		return [
 			'app_name' => $this->app->config()->get('app_name'),
 			'version' => defined('APP_VERSION') ? APP_VERSION : '?',
+			'repo_url' => $this->app->github()->repoUrl(),
 			'php' => PHP_VERSION,
 			'php_sapi' => PHP_SAPI,
 			'memory_limit' => (string) ini_get('memory_limit'),

@@ -92,6 +92,15 @@ Détails de configuration notables :
   2FA du compte admin local : secret `admin_totp_secret` en `config.php` (via l'API admin
   `/api/admin/plugin/two-factor-auth/*`), pending en session, exigé au login admin via
   le hook `admin.post-login`. Désactiver le plugin désactive l'enforcement admin.
+- **`black-list` / `white-list`** — `black_list`/`white_list` (wildcards ;
+  valeurs séparées par espaces, virgules ou point-virgules), `exceptions`,
+  `auth_error` (403 « compte non autorisé » → 401 générique). Attention à
+  la sémantique héritée du plugin legacy : pour black-list, `exceptions`
+  = emails de la liste noire qui **restent autorisés** ; pour white-list,
+  si `exceptions` est vide tout email hors liste blanche est rejeté, mais
+  si elle est renseignée **seuls les emails des exceptions sont rejetés**
+  et tout le reste passe — ne pas y mettre des adresses « autorisées en
+  plus » (effet inverse attendu).
 
 Certains plugins n'ont pas de schéma admin : leur configuration est **par utilisateur**
 (ex. `carddav-contacts`, `color-tags`, `two-factor-auth` pour l'état du compte).
