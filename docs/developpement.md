@@ -55,7 +55,9 @@ descripteur `{js, plugin, section, tab?, label?}` monté via le binding `pluginM
 (opt `admin: true` → `ctx.admin`, les appels du module sont préfixés `/admin/plugin/…`
 vers `Plugin::apiAdmin<Action>`). Sans `tab` : bloc inline dans la zone `section`
 (ex. `security-account`) ; avec `tab` + `label` : sous-onglet dédié de la page `section`
-(ex. `security` → `#/security/<tab>`), rendu uniquement si le plugin est activé. `admin.post-login` est émis au login du compte admin local ;
+(ex. `security` → `#/security/<tab>`), rendu uniquement si le plugin est activé.
+La section spéciale `'page'` (+ `icon` optionnel, classe Font Awesome) crée une
+**page de niveau supérieur** dans le menu latéral (`#/<tab>`). `admin.post-login` est émis au login du compte admin local ;
 lever `TotpRequiredException` y verrouille l'accès (ex. TOTP admin).
 
 Voir [plugins.md](plugins.md) pour créer un plugin.

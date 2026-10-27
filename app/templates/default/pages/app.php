@@ -63,6 +63,7 @@
 					<i class="fa-solid fa-plus"></i>
 				</button>
 			</div>
+			<!-- ko toast: { value: error, variant: 'danger' } --><!-- /ko -->
 			<div class="list-group list-group-flush" data-bind="foreach: folders">
 				<div class="list-group-item list-group-item-action" role="button"
 					data-bind="click: (d, e) => { if (!e.target.closest('.dropdown')) { $parent.select(d); } },
@@ -153,7 +154,7 @@
 				</div>
 			</div>
 
-			<div class="alert alert-danger m-2 mb-0" data-bind="visible: error, text: error" style="display:none"></div>
+			<!-- ko toast: { value: error, variant: 'danger' } --><!-- /ko -->
 
 			<!-- Barre d'actions groupées -->
 			<div class="p-1 border-bottom bg-light d-flex align-items-center gap-2">
@@ -250,7 +251,7 @@
 			<div class="text-center p-5" data-bind="visible: loading" style="display:none">
 				<span class="spinner-border"></span>
 			</div>
-			<div class="alert alert-danger" data-bind="visible: error, text: error" style="display:none"></div>
+			<!-- ko toast: { value: error, variant: 'danger' } --><!-- /ko -->
 
 			<div data-bind="visible: message() && !loading(), with: message" style="display:none">
 				<div class="d-flex justify-content-between align-items-start mb-3">
@@ -420,8 +421,8 @@
 		</div>
 		<div class="col-12 col-md-9 col-lg-10">
 
-		<div class="alert alert-danger" data-bind="visible: error, text: error" style="display:none"></div>
-		<div class="alert alert-success" data-bind="visible: saved" style="display:none"><?= $t('settings.saved') ?></div>
+		<!-- ko toast: { value: error, variant: 'danger' } --><!-- /ko -->
+		<!-- ko toast: { value: saved, variant: 'success', text: 'settings.saved' } --><!-- /ko -->
 
 		<!-- Général -->
 		<div data-bind="visible: tab()==='general'" style="display:none">
@@ -677,7 +678,11 @@
 		<div data-bind="visible: tab()==='contacts'" style="display:none">
 			<div class="d-flex justify-content-between mb-2">
 				<h5><?= $t('settings.contacts') ?></h5>
-				<button class="btn btn-sm btn-primary" data-bind="click: () => editContact(null)"><i class="fa-solid fa-plus"></i> <?= $t('common.add') ?></button>
+				<div>
+					<button class="btn btn-sm btn-outline-secondary me-1" data-bind="click: exportContacts"><i class="fa-solid fa-file-export"></i> <?= $t('settings.export') ?></button>
+					<label class="btn btn-sm btn-outline-secondary me-1 mb-0"><i class="fa-solid fa-file-import"></i> <?= $t('settings.import') ?><input type="file" accept=".vcf,text/vcard" class="d-none" data-bind="event: {change: importContacts}"></label>
+					<button class="btn btn-sm btn-primary" data-bind="click: () => editContact(null)"><i class="fa-solid fa-plus"></i> <?= $t('common.add') ?></button>
+				</div>
 			</div>
 			<table class="table table-hover table-sm align-middle">
 				<thead class="table-light"><tr><th><?= $t('common.name') ?></th><th>Emails</th><th></th></tr></thead>
@@ -712,7 +717,7 @@
 		<!-- Filtres Sieve -->
 		<div data-bind="visible: tab()==='filters'" style="display:none">
 			<div class="alert alert-info" data-bind="visible: $root.features().sieve === false" style="display:none"><?= $t('settings.sieve_unavailable') ?></div>
-			<div data-bind="visible: filtersError, text: filtersError" class="alert alert-warning" style="display:none"></div>
+			<!-- ko toast: { value: filtersError, variant: 'warning' } --><!-- /ko -->
 			<div data-bind="visible: $root.features().sieve !== false" style="display:none">
 				<div class="d-flex justify-content-between align-items-center mb-2">
 					<h5 class="mb-0"><?= $t('settings.scripts') ?></h5>
@@ -833,7 +838,7 @@
 					<button type="button" class="btn-close ms-0" data-bind="click: hide"></button>
 				</div>
 				<div class="modal-body">
-					<div class="alert alert-danger" data-bind="visible: error, text: error" style="display:none"></div>
+					<!-- ko toast: { value: error, variant: 'danger' } --><!-- /ko -->
 
 					<div class="mb-2 position-relative">
 						<input class="form-control form-control-sm" placeholder="<?= $t('compose.to') ?>" data-bind="value: to, event: { input: () => suggest('to') }">
@@ -1007,7 +1012,7 @@
 					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
 				</div>
 				<div class="modal-body">
-					<div class="alert alert-danger" data-bind="visible: error, text: error" style="display:none"></div>
+					<!-- ko toast: { value: error, variant: 'danger' } --><!-- /ko -->
 					<div class="d-flex gap-2 align-items-end mb-3">
 						<div class="flex-grow-1">
 							<label class="form-label form-label-sm mb-1"><?= $t('settings.script_name') ?></label>

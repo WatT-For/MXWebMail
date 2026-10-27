@@ -6,6 +6,7 @@ import './bindings/pane-resize.js';
 import './bindings/modal-resize.js';
 import './bindings/indeterminate.js';
 import './bindings/tooltip.js';
+import './bindings/toast.js';
 import { FolderListVM } from './viewmodels/folders.js';
 import { MessageListVM } from './viewmodels/messagelist.js';
 import { MessageViewVM } from './viewmodels/messageview.js';
@@ -13,6 +14,7 @@ import { ComposeVM } from './viewmodels/compose.js';
 import { SettingsVM } from './viewmodels/settings.js';
 import { dialog } from './ui/dialog.js';
 import { notify } from './ui/notify.js';
+import { toast } from './ui/toast.js';
 
 /** decodeURIComponent qui ne casse pas le routage sur un hash malformé (%zz). */
 const safeDecode = (s) => { try { return decodeURIComponent(s); } catch { return s; } };
@@ -113,8 +115,12 @@ class AppVM {
 		const oauth = new URLSearchParams(location.search).get('oauth');
 		if (oauth) {
 			history.replaceState(null, '', location.pathname + location.hash);
-			dialog.alert(oauth === 'ok' ? t('app.account_added') : this.oauthError(oauth),
-				{ title: t('app.add_account'), variant: oauth === 'ok' ? 'success' : 'danger' });
+			if (oauth === 'ok') {
+				toast.success(t('app.account_added'), { title: t('app.add_account') });
+			} else {
+				dialog.alert(this.oauthError(oauth),
+					{ title: t('app.add_account'), variant: 'danger' });
+			}
 		}
 		this.features(data.features || {});
 		this.messageToolbar(data.messageToolbar || []);
@@ -243,8 +249,7 @@ class AppVM {
 		try {
 			await api.post('/accounts', { email, password });
 			this.accounts(await api.get('/accounts'));
-			await dialog.alert(t('app.account_added'),
-				{ title, variant: 'success' });
+			toast.success(t('app.account_added'), { title });
 		} catch (e) {
 			await dialog.alert(t('errors.failed', { msg: e.message }),
 				{ title, variant: 'danger' });
@@ -295,8 +300,12 @@ class AppVM {
 			if (e.origin !== location.origin || e.data?.type !== 'mxwm-oauth') { return; }
 			const ok = !!e.data.ok;
 			done();
-			dialog.alert(ok ? t('app.account_added') : this.oauthError(e.data.err),
-				{ title: title || t('app.add_account'), variant: ok ? 'success' : 'danger' });
+			if (ok) {
+				toast.success(t('app.account_added'), { title: title || t('app.add_account') });
+			} else {
+				dialog.alert(this.oauthError(e.data.err),
+					{ title: title || t('app.add_account'), variant: 'danger' });
+			}
 		};
 		window.addEventListener('message', onMsg);
 		// Popup fermée sans message (fermeture manuelle) → refresh quand même

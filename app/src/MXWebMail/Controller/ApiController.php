@@ -1344,6 +1344,46 @@ final class ApiController
 		return JsonResponse::ok();
 	}
 
+	/** Import .vcf (multipart 'file') : déduplication sur les emails existants. */
+	public function contactsImport(Request $request): JsonResponse
+	{
+		$this->requireAuth();
+		$this->requireCsrf();
+		$this->requireContacts();
+		$f = $request->files['file'] ?? null;
+		if (!is_array($f) || (int) ($f['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK
+			|| !is_uploaded_file((string) ($f['tmp_name'] ?? ''))) {
+			return JsonResponse::error($this->t('errors.bad_upload'), 'bad_upload');
+		}
+		if ((int) ($f['size'] ?? 0) > 5 * 1024 * 1024) {
+			return JsonResponse::error(
+				$this->t('errors.file_too_big', ['mb' => 5]), 'too_big', 400);
+		}
+		$vcf = file_get_contents((string) $f['tmp_name']);
+		if ($vcf === false || trim($vcf) === '') {
+			return JsonResponse::error($this->t('errors.bad_upload'), 'bad_upload');
+		}
+		$items = \MXWebMail\Service\VCardContacts::parse($vcf);
+		if (!$items) {
+			throw new \RuntimeException($this->t('settings.contacts_import_none'), 400);
+		}
+		$report = $this->app->contacts()->import((int) $_SESSION['user_id'], $items);
+		return JsonResponse::ok($report);
+	}
+
+	/** Export du carnet complet en .vcf (vCard 3.0). */
+	public function contactsExport(Request $request): Response
+	{
+		$this->requireAuth();
+		$this->requireContacts();
+		$vcf = \MXWebMail\Service\VCardContacts::export(
+			$this->app->contacts()->exportRows((int) $_SESSION['user_id']));
+		return new Response($vcf, 200, [
+			'Content-Type'        => 'text/vcard; charset=utf-8',
+			'Content-Disposition' => 'attachment; filename="contacts.vcf"',
+		]);
+	}
+
 	/** Changement de mot de passe — délégué à un plugin via le hook password.change. */
 	public function passwordChange(Request $request): JsonResponse
 	{

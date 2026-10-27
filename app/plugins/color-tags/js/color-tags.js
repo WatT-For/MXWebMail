@@ -38,18 +38,13 @@ export default function mount(el, ctx) {
 			<button class="btn btn-sm btn-outline-secondary" id="ct-add-rule"><i class="fa-solid fa-plus"></i> ${t('common.add')}</button>
 			<div class="mt-3">
 				<button class="btn btn-sm btn-primary" id="ct-save">${t('common.save')}</button>
-				<span class="ms-2" id="ct-msg"></span>
 			</div>
 			<p class="text-muted small mt-3">${t(K + 'help')}</p>
 		</div>`;
 
 	const $ = id => el.querySelector('#' + id);
 	const call = (a, b) => ctx.api.post(`/plugin/color-tags/${a}`, b || {});
-	const msg = (m, ok) => {
-		const s = $('ct-msg');
-		s.textContent = m || '';
-		s.className = 'ms-2 ' + (ok ? 'text-success' : 'text-danger');
-	};
+	const msg = (m, ok) => { if (m) { (ok ? ctx.toast.success : ctx.toast.error)(m); } };
 
 	const slug = s => String(s).toLowerCase().normalize('NFD')
 		.replace(/[̀-ͯ]/g, '')

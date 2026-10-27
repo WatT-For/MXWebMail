@@ -45,7 +45,7 @@ final class App
 
 	public function __construct(?string $rootDir = null, ?string $installDir = null)
 	{
-		defined('APP_VERSION') || define('APP_VERSION', '0.37.4'); // X-Mailer MailSo
+		defined('APP_VERSION') || define('APP_VERSION', '0.38.0'); // X-Mailer MailSo
 		$this->rootDir = $rootDir ?? dirname(__DIR__, 3);
 		// Racine d'installation (parent de public/) — passée explicitement par
 		// index.php car indéductible de rootDir quand app/ est hors racine web.
@@ -708,6 +708,8 @@ final class App
 		$router->get('/api/contacts', [$api, 'contacts']);
 		$router->post('/api/contacts', [$api, 'contactSave']);
 		$router->post('/api/contacts/delete', [$api, 'contactDelete']);
+		$router->post('/api/contacts/import', [$api, 'contactsImport']);
+		$router->get('/api/contacts/export', [$api, 'contactsExport']);
 		$router->post('/api/password/change', [$api, 'passwordChange']);
 		$router->get('/api/settings', [$api, 'settingsGet']);
 		$router->post('/api/settings', [$api, 'settingsSet']);

@@ -289,23 +289,14 @@ final class CardDavContacts extends PluginBase
 		} catch (\Throwable) {
 			return null;
 		}
-		$emails = [];
-		if (isset($card->EMAIL)) {
-			foreach ($card->EMAIL as $e) {
-				$mail = trim((string) $e);
-				if (filter_var($mail, FILTER_VALIDATE_EMAIL)) {
-					$emails[] = $mail;
-				}
-			}
+		if (!$card instanceof \Sabre\VObject\Component\VCard) {
+			return null;
 		}
-		if (!$emails) {
-			return null; // sans email, inutile pour un webmail
+		// Mapping vCard → item partagé (import /api/contacts, plugin webmail-migration)
+		$item = \MXWebMail\Service\VCardContacts::fromVCard($card);
+		if ($item !== null && $item['source_uid'] === '') {
+			$item['source_uid'] = $uid;
 		}
-		return [
-			'name'       => trim((string) ($card->FN ?? $card->NICKNAME ?? '')) ?: $emails[0],
-			'emails'     => array_values(array_unique($emails)),
-			'source_uid' => (string) ($card->UID ?? $uid),
-			'properties' => ['org' => (string) ($card->ORG ?? ''), 'tel' => (string) ($card->TEL ?? '')],
-		];
+		return $item;
 	}
 }

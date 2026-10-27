@@ -125,6 +125,31 @@ sont listées à la fin du tableau des plugins :
 - `min_app`/`max_app` du `plugin.json` distant : une entrée incompatible avec
   `APP_VERSION` est marquée *incompatible* et son installation refusée.
 
+### Migration webmail (RainLoop / SnappyMail)
+
+Si le plugin `webmail-migration` est activé, une page **Migration webmail** apparaît
+dans le menu latéral (avant *À propos*) : elle migre les données d'un dossier
+`data/_data_/_default_/` d'une installation **RainLoop ou SnappyMail**, indiqué par
+**chemin serveur** ou **upload ZIP**
+(extraction en `storage/tmp`, purgée via le bouton dédié ou après 2 h).
+
+- **Analyser** : inventaire sans écriture (domaines `*.ini`/`*.json`, comptes
+  trouvés, volumes contacts/identités/clés/réglages par utilisateur) ;
+- **Lancer l'import** : import idempotent — domaines manquants, contacts
+  (carnets par compte + globale + DSN PDO déclarée dans `application.ini`,
+  fréquences et types d'emails conservés, contacts supprimés exclus), identités
+  (par défaut = `Id` vide), réglages utilisateur connus (messages par page,
+  réactualisation, auto-enregistrement des contacts, dossiers système, thème
+  s'il existe) et clés PGP armored. Ré-exécutable sans doublons.
+
+Seuls les comptes correspondant à un **utilisateur existant** sont importés ;
+les autres sont listés au rapport. Les mots de passe des comptes additionnels
+ne sont pas récupérables (chiffrés par le webmail d'origine) — à recréer
+manuellement. Les filtres Sieve vivent côté serveur mail : rien à importer.
+
+Côté utilisateur, l'onglet *Paramètres → Contacts* offre aussi un **import/export
+vCard** (`.vcf`) couvrant tout autre carnet, dont un export manuel SnappyMail.
+
 ### Thèmes
 
 - thème **par défaut** (écrit `user_defaults.theme`) ;

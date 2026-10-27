@@ -56,6 +56,12 @@
 			<a class="list-group-item list-group-item-action" href="#/themes"
 				data-bind="css:{active: tab()==='themes'}">
 				<i class="fa-solid fa-palette fa-fw me-2"></i><?= $t('admin.themes') ?></a>
+			<!-- Pages de niveau supérieur déclarées par les plugins (admin.mounts, section « page ») -->
+			<!-- ko foreach: adminTabsIn('page') -->
+			<a class="list-group-item list-group-item-action"
+				data-bind="attr: { href: '#/' + $data.tab }, css: { active: $root.tab() === $data.tab }">
+				<i data-bind="attr: { class: 'fa-solid fa-fw me-2 ' + ($data.icon || 'fa-puzzle-piece') }"></i><span data-bind="text: $root.t($data.label || $data.tab)"></span></a>
+			<!-- /ko -->
 			<a class="list-group-item list-group-item-action" href="#/about"
 				data-bind="css:{active: tab()==='about'}">
 				<i class="fa-solid fa-circle-info fa-fw me-2"></i><?= $t('admin.about') ?></a>
@@ -63,8 +69,8 @@
 	</div>
 	<div class="col-12 col-md-9 col-lg-10">
 
-	<div class="alert alert-danger" data-bind="visible: error, text: error" style="display:none"></div>
-	<div class="alert alert-success" data-bind="visible: notice, text: notice" style="display:none"></div>
+	<!-- ko toast: { value: error, variant: 'danger' } --><!-- /ko -->
+	<!-- ko toast: { value: notice, variant: 'success' } --><!-- /ko -->
 	<div class="alert alert-warning" data-bind="visible: maintenance" style="display:none">
 		<i class="fa-solid fa-triangle-exclamation"></i> <?= $t('admin.maintenance_active') ?>
 	</div>
@@ -235,7 +241,7 @@
 				<i class="fa-solid fa-rotate" data-bind="css:{'fa-spin': catalogBusy}"></i>
 			</button>
 		</div>
-		<div class="alert alert-danger py-2" data-bind="visible: pluginsErr, text: pluginsErr" style="display:none"></div>
+		<!-- ko toast: { value: pluginsErr, variant: 'danger' } --><!-- /ko -->
 		<table class="table table-hover table-sm align-middle">
 			<thead class="table-light"><tr><th><?= $t('common.name') ?></th><th><?= $t('admin.description') ?></th><th>Version</th><th><?= $t('admin.enabled') ?></th><th><?= $t('admin.plugin_user_allowed') ?></th><th></th></tr></thead>
 			<tbody>
@@ -529,7 +535,7 @@
 				<p class="text-muted small mb-0"><?= $t('admin.update.not_configured') ?></p>
 				<!-- /ko -->
 				<!-- ko if: updateInfo() && updateInfo().configured -->
-				<div class="alert alert-danger py-2" data-bind="visible: updateErr, text: updateErr" style="display:none"></div>
+				<!-- ko toast: { value: updateErr, variant: 'danger' } --><!-- /ko -->
 				<div class="d-flex align-items-center gap-2 flex-wrap">
 					<span class="small"><?= $t('admin.update.current') ?> <strong>v<span data-bind="text: updateInfo().current"></span></strong></span>
 					<button class="btn btn-sm btn-outline-primary" type="button"
@@ -637,6 +643,13 @@
 		</div></div>
 		<!-- /ko -->
 	</div>
+
+	<!-- Pages de niveau supérieur déclarées par les plugins (admin.mounts, section « page ») -->
+	<!-- ko foreach: adminTabsIn('page') -->
+	<div data-bind="visible: $root.tab() === $data.tab" style="display:none">
+		<div data-bind="pluginMount: { js: $data.js, plugin: $data.plugin, admin: true }"></div>
+	</div>
+	<!-- /ko -->
 	</div>
 </div>
 </div>
@@ -651,7 +664,7 @@
 				<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
 			</div>
 			<div class="modal-body">
-				<div class="alert alert-danger" data-bind="visible: error, text: error" style="display:none"></div>
+				<!-- ko toast: { value: error, variant: 'danger' } --><!-- /ko -->
 				<div class="text-muted small" data-bind="visible: !fields().length" style="display:none">
 					<?= $t('admin.no_schema') ?>
 				</div>
@@ -723,7 +736,7 @@
 				<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
 			</div>
 			<div class="modal-body">
-				<div class="alert alert-danger" data-bind="visible: error, text: error" style="display:none"></div>
+				<!-- ko toast: { value: error, variant: 'danger' } --><!-- /ko -->
 				<div class="text-muted small" data-bind="visible: !fields().length" style="display:none">
 					<?= $t('admin.no_schema') ?>
 				</div>
@@ -781,7 +794,7 @@
 				<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
 			</div>
 			<div class="modal-body">
-				<div class="alert alert-danger" data-bind="visible: error, text: error" style="display:none"></div>
+				<!-- ko toast: { value: error, variant: 'danger' } --><!-- /ko -->
 				<ul class="nav nav-tabs mb-3">
 					<li class="nav-item"><a class="nav-link" href="#" data-bind="css:{active: $root.userModalTab()==='profile'}, click: () => $root.userModalTab('profile')"><?= $t('admin.user_tab_profile') ?></a></li>
 					<li class="nav-item"><a class="nav-link" href="#" data-bind="css:{active: $root.userModalTab()==='settings'}, click: () => $root.userModalTab('settings')"><?= $t('admin.user_tab_settings') ?></a></li>
@@ -902,7 +915,7 @@
 				<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
 			</div>
 			<div class="modal-body">
-				<div class="alert alert-danger" data-bind="visible: error, text: error" style="display:none"></div>
+				<!-- ko toast: { value: error, variant: 'danger' } --><!-- /ko -->
 				<ul class="nav nav-tabs mb-3">
 					<li class="nav-item"><a class="nav-link" href="#"
 						data-bind="css:{active: $root.domainModalTab()==='general'}, click: () => $root.domainModalTab('general')"><?= $t('common.general') ?></a></li>

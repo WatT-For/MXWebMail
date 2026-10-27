@@ -1,6 +1,7 @@
-import { api } from '../api.js';
+import { api, base } from '../api.js';
 import { dialog } from '../ui/dialog.js';
 import { notify } from '../ui/notify.js';
+import { toast } from '../ui/toast.js';
 import { t } from '../i18n.js';
 import { parseMarker, FIELDS, OPS, ACTIONS, TEMPLATES, templateRules } from '../filters.js';
 
@@ -350,6 +351,31 @@ export class SettingsVM {
 		await api.post('/contacts/delete', { id: c.id });
 		this._contactsReq = null;
 		await this.loadContacts();
+	}
+
+	/** Import .vcf (dédup côté serveur sur les emails existants). */
+	async importContacts(vm, e) {
+		const input = e.target;
+		const file = input.files && input.files[0];
+		input.value = ''; // re-sélection du même fichier = nouvel import
+		if (!file) { return; }
+		const fd = new FormData();
+		fd.append('file', file);
+		try {
+			const r = await api.upload('/contacts/import', fd);
+			toast.success(t('settings.contacts_import_done', r),
+				{ title: t('settings.import') });
+			this._contactsReq = null;
+			await this.loadContacts();
+		} catch (err) {
+			await dialog.alert(err.message,
+				{ title: t('settings.import'), variant: 'danger' });
+		}
+	}
+
+	/** Export du carnet en .vcf — navigation GET, téléchargement direct. */
+	exportContacts() {
+		location.href = base() + '/api/contacts/export';
 	}
 
 	// ─── Dossiers système ───

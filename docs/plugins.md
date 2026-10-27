@@ -51,6 +51,7 @@ utilisateurs `is_admin` non connectés au panneau. Les hooks de login admin
 | `ldap-login` | Résolution LDAP : uid/alias → adresse IMAP réelle avant le login. | `auth.login.mapping` |
 | `mailbox-detect` | Détection des dossiers système et création des manquants. | `app.data` |
 | `pwa` | Rend le webmail installable (manifest + service worker minimal, icônes). | `app.head`, `app.routes` |
+| `webmail-migration` | Page admin d'import depuis un dossier `data` **RainLoop ou SnappyMail** (chemin serveur ou ZIP) : domaines, carnets `AddressBook.sqlite`/PDO, identités, réglages, dossiers système, clés PGP — scan dry-run puis import idempotent, comptes inconnus ignorés. | `admin.mounts` |
 | `two-factor-auth` | TOTP à deux facteurs (Google Authenticator, Aegis…) — comptes utilisateurs **et** compte admin local (provisioning QR dans un sous-onglet dédié de Admin → Sécurité ; exigé au login admin tant que le plugin est activé). | `auth.post-login`, `app.data`, `admin.mounts`, `admin.post-login`, `admin.totp-required` |
 
 ## 2. Configuration d'un plugin

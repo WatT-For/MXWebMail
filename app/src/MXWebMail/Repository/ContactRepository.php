@@ -33,6 +33,34 @@ final class ContactRepository
 		return $stmt->fetchAll();
 	}
 
+	/**
+	 * Lignes complètes pour l'export : emails typés, properties décodées.
+	 * @return array<int, array>
+	 */
+	public function exportRows(int $userId): array
+	{
+		$pdo = $this->udb->for($userId)->pdo();
+		$rows = $pdo->prepare(
+			'SELECT id, name, properties, source_uid FROM contacts
+			 WHERE user_id = :u ORDER BY name'
+		);
+		$rows->execute(['u' => $userId]);
+		$out = [];
+		$emails = $pdo->prepare(
+			'SELECT email, type FROM contact_emails WHERE contact_id = :c ORDER BY id');
+		foreach ($rows->fetchAll() as $r) {
+			$emails->execute(['c' => $r['id']]);
+			$out[] = [
+				'id'         => (int) $r['id'],
+				'name'       => (string) $r['name'],
+				'emails'     => $emails->fetchAll(),
+				'properties' => json_decode((string) ($r['properties'] ?? ''), true) ?: [],
+				'source_uid' => $r['source_uid'],
+			];
+		}
+		return $out;
+	}
+
 	public function save(int $userId, array $data): int
 	{
 		$pdo = $this->udb->for($userId)->pdo();
@@ -65,7 +93,8 @@ final class ContactRepository
 	/**
 	 * Resynchronise les contacts d'une source externe (carddav, ldap…).
 	 * Remplace intégralement les contacts de cette source — les locaux sont préservés.
-	 * @param array<array{name:string,emails:string[],source_uid:string}> $items
+	 * @param array<array{name:string,emails:array,source_uid:string}> $items
+	 *   emails : chaînes ou {email, type} (format VCardContacts).
 	 */
 	public function syncFrom(int $userId, string $source, array $items): int
 	{
@@ -77,7 +106,7 @@ final class ContactRepository
 			$ins = $pdo->prepare(
 				'INSERT INTO contacts (user_id, name, properties, source, source_uid) VALUES (:u,:n,:p,:s,:su)'
 			);
-			$insMail = $pdo->prepare('INSERT INTO contact_emails (contact_id, email) VALUES (:c,:e)');
+			$insMail = $pdo->prepare('INSERT INTO contact_emails (contact_id, email, type) VALUES (:c,:e,:t)');
 			$n = 0;
 			foreach ($items as $item) {
 				$ins->execute([
@@ -88,13 +117,115 @@ final class ContactRepository
 					'su' => (string) ($item['source_uid'] ?? ''),
 				]);
 				$id = (int) $pdo->lastInsertId();
-				foreach ((array) ($item['emails'] ?? []) as $email) {
-					$insMail->execute(['c' => $id, 'e' => $email]);
+				foreach (\MXWebMail\Service\VCardContacts::normalizeEmails(
+						(array) ($item['emails'] ?? [])) as $e) {
+					$insMail->execute(['c' => $id, 'e' => $e['email'], 't' => $e['type']]);
 				}
 				$n++;
 			}
 			$pdo->commit();
 			return $n;
+		} catch (\Throwable $e) {
+			$pdo->rollBack();
+			throw $e;
+		}
+	}
+
+	/**
+	 * Import additif (vCard, SnappyMail…) : déduplique sur les emails
+	 * existants. Un contact déjà présent (un de ses emails) reçoit les
+	 * adresses manquantes + son nom s'il était vide — jamais de remplacement.
+	 * @param array<int, array> $items items VCardContacts ({name, emails,
+	 *   properties, source_uid, frequency}) — emails chaînes ou {email,type}.
+	 * @return array{imported:int, merged:int, skipped:int}
+	 */
+	public function import(int $userId, array $items, string $source = ''): array
+	{
+		$pdo = $this->udb->for($userId)->pdo();
+		$find = $pdo->prepare(
+			'SELECT c.id, c.name, c.properties FROM contacts c
+			 JOIN contact_emails ce ON ce.contact_id = c.id
+			 WHERE c.user_id = :u AND ce.email = :e COLLATE NOCASE
+			 ORDER BY c.id LIMIT 1'
+		);
+		$report = ['imported' => 0, 'merged' => 0, 'skipped' => 0];
+		$pdo->beginTransaction();
+		try {
+			foreach ($items as $item) {
+				$raw = $item['emails'] ?? [];
+				if (is_string($raw)) {
+					$raw = preg_split('/[,;]/', $raw) ?: [];
+				}
+				$emails = \MXWebMail\Service\VCardContacts::normalizeEmails((array) $raw);
+				if (!$emails) {
+					$report['skipped']++;
+					continue;
+				}
+
+				$existing = null;
+				foreach ($emails as $e) {
+					$find->execute(['u' => $userId, 'e' => $e['email']]);
+					if ($row = $find->fetch()) {
+						$existing = $row;
+						break;
+					}
+				}
+
+				if ($existing) {
+					$id = (int) $existing['id'];
+					$changed = false;
+					foreach ($emails as $e) {
+						$ins = $pdo->prepare(
+							'INSERT INTO contact_emails (contact_id, email, type)
+							 SELECT :c, :e, :t WHERE NOT EXISTS (
+								SELECT 1 FROM contact_emails WHERE contact_id = :c AND email = :e COLLATE NOCASE)'
+						);
+						$ins->execute(['c' => $id, 'e' => $e['email'], 't' => $e['type']]);
+						$changed = $changed || $ins->rowCount() > 0;
+					}
+					if (trim((string) $existing['name']) === ''
+						&& trim((string) ($item['name'] ?? '')) !== '') {
+						$pdo->prepare('UPDATE contacts SET name = :n WHERE id = :id')
+							->execute(['n' => trim((string) $item['name']), 'id' => $id]);
+						$changed = true;
+					}
+					// Properties : fusion additive, l'existant prévaut.
+					$newProps = (array) ($item['properties'] ?? []);
+					if ($newProps) {
+						$oldProps = json_decode((string) ($existing['properties'] ?? ''), true) ?: [];
+						$merged = $oldProps + $newProps;
+						if ($merged !== $oldProps) {
+							$pdo->prepare('UPDATE contacts SET properties = :p WHERE id = :id')
+								->execute(['p' => json_encode($merged), 'id' => $id]);
+							$changed = true;
+						}
+					}
+					$report[$changed ? 'merged' : 'skipped']++;
+					continue;
+				}
+
+				$pdo->prepare(
+					'INSERT INTO contacts (user_id, name, frequency, properties, source, source_uid)
+					 VALUES (:u, :n, :f, :p, :s, :su)'
+				)->execute([
+					'u'  => $userId,
+					'n'  => trim((string) ($item['name'] ?? '')) ?: $emails[0]['email'],
+					'f'  => max(0, (int) ($item['frequency'] ?? 0)),
+					'p'  => json_encode($item['properties'] ?? []),
+					's'  => $source,
+					'su' => (string) ($item['source_uid'] ?? '') !== ''
+						? (string) $item['source_uid'] : null,
+				]);
+				$id = (int) $pdo->lastInsertId();
+				$insMail = $pdo->prepare(
+					'INSERT INTO contact_emails (contact_id, email, type) VALUES (:c,:e,:t)');
+				foreach ($emails as $e) {
+					$insMail->execute(['c' => $id, 'e' => $e['email'], 't' => $e['type']]);
+				}
+				$report['imported']++;
+			}
+			$pdo->commit();
+			return $report;
 		} catch (\Throwable $e) {
 			$pdo->rollBack();
 			throw $e;

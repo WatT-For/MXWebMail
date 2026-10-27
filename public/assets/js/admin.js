@@ -5,9 +5,11 @@
  */
 import { api, base } from './api.js';
 import { dialog } from './ui/dialog.js';
+import { toast } from './ui/toast.js';
 import { t, lang } from './i18n.js';
 import './bindings/tooltip.js';
 import './bindings/plugin-mount.js';
+import './bindings/toast.js';
 
 class AdminVM {
 	constructor() {
@@ -133,7 +135,9 @@ class AdminVM {
 		this.updateInfo(b.update || null);
 		this.loadLogs();
 	}
-	ok(msg) { this.notice(msg); setTimeout(() => this.notice(''), 4000); }
+	// notice('') puis notice(msg) : le binding toast n'est re-notifié que
+	// sur changement — deux succès identiques consécutifs doivent re-toaster.
+	ok(msg) { this.notice(''); this.notice(msg); }
 
 	// Favicon : upload multipart (champ 'file') → storage/branding + config.
 	async uploadFavicon() {
@@ -218,7 +222,9 @@ class AdminVM {
 	}
 	syncFromHash() {
 		const pages = ['general','database','features','security','logs',
-			'performance','domains','users','plugins','themes','about'];
+			'performance','domains','users','plugins','themes','about',
+			// Pages de niveau supérieur déclarées par les plugins (admin.mounts)
+			...this.adminTabsIn('page').map(m => m.tab)];
 		const subs = {
 			security: ['account', 'access', 'headers', 'tls',
 				...this.adminTabsIn('security').map(m => m.tab)],
@@ -250,7 +256,7 @@ class AdminVM {
 	async testDb() {
 		const title = t('admin.test_db_title');
 		try { const r = await api.post('/admin/test-db', this.collectSection('database'));
-			await dialog.alert(r.message, { title, variant: 'success' }); }
+			toast.success(r.message, { title }); }
 		catch (e) { await dialog.alert(e.message, { title, variant: 'danger' }); }
 	}
 	addMyIp() {
@@ -412,7 +418,7 @@ class AdminVM {
 		// options en dernier : écrase le JSON stocké présent dans editingDomain
 		const d = { ...this.editingDomain(), options: this.buildDomainOptions(this.editingDomain()) };
 		try { const r = await api.post('/admin/test-connexion', { type: proto, ...d });
-			await dialog.alert(r.message, { title, variant: 'success' }); }
+			toast.success(r.message, { title }); }
 		catch(e) { await dialog.alert(e.message, { title, variant: 'danger' }); }
 	}
 	// Détection explicite depuis le formulaire domaine (indépendante de
@@ -438,8 +444,7 @@ class AdminVM {
 				opt_imap_shortLogin: !!o.imap?.shortLogin,
 				opt_sieve_encryption: o.sieve?.encryption || '',
 			});
-			// notice racine masquée par le backdrop → dialogue empilé
-			await dialog.alert(t('admin.detect_ok'), { title, variant: 'success' });
+			toast.success(t('admin.detect_ok'), { title });
 		} catch (e) { await dialog.alert(e.message, { title, variant: 'danger' }); }
 	}
 	async deleteDomain(d) {

@@ -1,11 +1,12 @@
 import { api, base } from '../api.js';
 import { dialog } from '../ui/dialog.js';
+import { toast } from '../ui/toast.js';
 import { t } from '../i18n.js';
 
 /**
  * Binding : monte le module JS d'un plugin dans l'élément.
  * Usage : <div data-bind="pluginMount: { js: 'two-factor.js', plugin: 'two-factor-auth' }"></div>
- * Le module reçoit (element, { api, base, user, dialog, t, list }).
+ * Le module reçoit (element, { api, base, user, dialog, toast, t, list }).
  */
 ko.bindingHandlers.pluginMount = {
 	init(element, valueAccessor) {
@@ -14,7 +15,7 @@ ko.bindingHandlers.pluginMount = {
 		const src = `${base()}/assets/plugin/${opts.plugin}/${opts.js}${v ? '?v=' + v : ''}`;
 		import(src)
 			.then(mod => (mod.default || mod.mount)?.(element, {
-				api, base: base(), user: opts.user || null, dialog, t,
+				api, base: base(), user: opts.user || null, dialog, toast, t,
 				list: window.mxList || null,
 				// Contexte admin : le module préfixe ses appels /admin/plugin/*
 				admin: !!opts.admin,
