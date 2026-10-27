@@ -177,7 +177,7 @@ final class ScriptBuilder
 			// :matches = glob : les métacaractères de la valeur sont échappés
 			// avant d'ajouter le « * » de suffixe.
 			'starts_with'  => 'header :matches ' . $h . ' "'
-				. addcslashes($value, '\\*?') . '*"',
+				. addcslashes($value, '\\"*?') . '*"',
 			'regex'        => "header :regex {$h} {$v}",
 		};
 	}

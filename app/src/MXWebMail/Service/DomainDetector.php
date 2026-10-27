@@ -424,8 +424,18 @@ final class DomainDetector
 		if (!($this->cacheCfg()['enabled'] ?? true)) {
 			return false;
 		}
-		$all = is_file($this->negFile())
-			? (json_decode((string) file_get_contents($this->negFile()), true) ?: []) : [];
+		$file = $this->negFile();
+		if (!is_file($file)) {
+			return false;
+		}
+		$fp = fopen($file, 'rb');
+		if (!$fp) {
+			return false;
+		}
+		flock($fp, LOCK_SH);
+		$all = json_decode((string) stream_get_contents($fp), true) ?: [];
+		flock($fp, LOCK_UN);
+		fclose($fp);
 		return (int) ($all[$d] ?? 0) > time();
 	}
 
@@ -435,10 +445,22 @@ final class DomainDetector
 			return;
 		}
 		$ttl = (int) ($this->cacheCfg()['domain_detect_ttl'] ?? 86400);
-		$all = is_file($this->negFile())
-			? (json_decode((string) file_get_contents($this->negFile()), true) ?: []) : [];
-		$all = array_filter($all, fn($ts) => (int) $ts > time());
-		$all[$d] = time() + $ttl;
-		file_put_contents($this->negFile(), json_encode($all), LOCK_EX);
+		$fp = fopen($this->negFile(), 'c+');
+		if (!$fp) {
+			return;
+		}
+		try {
+			flock($fp, LOCK_EX);
+			$all = json_decode((string) stream_get_contents($fp), true) ?: [];
+			$all = array_filter($all, fn($ts) => (int) $ts > time());
+			$all[$d] = time() + $ttl;
+			rewind($fp);
+			ftruncate($fp, 0);
+			fwrite($fp, json_encode($all));
+			fflush($fp);
+		} finally {
+			flock($fp, LOCK_UN);
+			fclose($fp);
+		}
 	}
 }

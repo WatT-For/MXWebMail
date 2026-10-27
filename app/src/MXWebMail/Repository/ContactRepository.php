@@ -65,7 +65,8 @@ final class ContactRepository
 	{
 		$pdo = $this->udb->for($userId)->pdo();
 		$emails = array_values(array_filter(array_map('trim',
-			preg_split('/[,;]/', (string) ($data['emails'] ?? '')))));
+			preg_split('/[,;]/', (string) ($data['emails'] ?? ''))),
+			static fn(string $e) => filter_var($e, FILTER_VALIDATE_EMAIL) !== false));
 
 		if (!empty($data['id'])) {
 			$id = (int) $data['id'];

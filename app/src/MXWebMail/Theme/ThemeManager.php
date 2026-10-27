@@ -56,7 +56,7 @@ final class ThemeManager
 	public function version(string $name): string
 	{
 		$v = (string) ($this->manifest($name)['version'] ?? '');
-		return $v !== '' ? $v : \MXWebMail\Application\App::APP_VERSION;
+		return $v !== '' ? $v : APP_VERSION;
 	}
 
 	/** Liste [{name, label, version}] des templates utilisables — pour le frontend (appdata → <select> KO). */

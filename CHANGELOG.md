@@ -8,6 +8,19 @@ Catégories, dans l'ordre : `Sécurité`, `Ajouté`, `Modifié`, `Corrigé`, `Ob
 
 ## [Unreleased]
 
+## [0.39.1] — 2026-10-27
+
+### Corrigé
+
+- Erreur 500 sur l'affichage quand un thème sans `version` était sélectionné
+- Hôte de base de données validé avant construction du DSN MariaDB
+- Noms de pièces jointes contenant des caractères de contrôle neutralisés dans
+  l'en-tête de téléchargement
+- Guillemets correctement échappés dans la valeur compilée du filtre Sieve
+  « commence par »
+- Cache négatif de détection de domaine écrit sous verrou
+- Emails invalides ignorés à l'enregistrement d'un contact
+
 ## [0.39.0] — 2026-10-27
 
 ### Modifié
@@ -136,7 +149,8 @@ Première release publiée de MXWebMail — webmail auto-hébergé en PHP 8.4, i
 - Credentials IMAP chiffrés (XSalsa20-Poly1305, libsodium) en session et en base
 - Corps des messages sanitisés ; images externes via proxy anti-SSRF
 
-[Unreleased]: https://github.com/WatT-For/MXWebMail/compare/v0.37.4...HEAD
+[Unreleased]: https://github.com/WatT-For/MXWebMail/compare/v0.39.1...HEAD
+[0.39.1]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.39.1
 [0.37.4]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.37.4
 [0.36.1]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.36.1
 [0.36.0]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.36.0

@@ -66,6 +66,10 @@ function ex(string $k, string $d = ''): string
 	$val = $GLOBALS['example'][$k] ?? $d;
 	return is_scalar($val) ? (string) $val : $d;
 }
+function validDbHost(string $host): bool
+{
+	return $host !== '' && preg_match('/^[A-Za-z0-9.\-:\[\]]+$/', $host) === 1;
+}
 
 // Champs persistés en session à chaque étape (token/action exclus)
 const STEP_FIELDS = [
@@ -335,14 +339,19 @@ function validateStep(int $step, bool $blocking): array
 	} elseif ($step === 3 && post('db_driver') === 'mysql') {
 		// Test de connexion seule — CREATE DATABASE uniquement à l'installation
 		$exDb = $GLOBALS['exDb'];
-		try {
-			new PDO('mysql:host=' . post('db_host', $exDb['host'])
-				. ';port=' . (int) post('db_port', $exDb['port']) . ';charset=utf8mb4',
-				post('db_user'), post('db_pass'),
-				[PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-			$_SESSION['flash'] = t('setup.db_ok');
-		} catch (Throwable $x) {
-			$e[] = t('setup.err_db', ['msg' => $x->getMessage()]);
+		$host = post('db_host', $exDb['host']);
+		if (!validDbHost($host)) {
+			$e[] = t('errors.invalid_value', ['key' => 'db_host']);
+		} else {
+			try {
+				new PDO('mysql:host=' . $host
+					. ';port=' . (int) post('db_port', $exDb['port']) . ';charset=utf8mb4',
+					post('db_user'), post('db_pass'),
+					[PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+				$_SESSION['flash'] = t('setup.db_ok');
+			} catch (Throwable $x) {
+				$e[] = t('setup.err_db', ['msg' => $x->getMessage()]);
+			}
 		}
 	} elseif ($step === 4) {
 		if (post('admin_user') === '') {
@@ -405,21 +414,25 @@ function doInstall(array $d): array
 
 	// Base de données
 	if (!$errors && ($d['db_driver'] ?? 'sqlite') === 'mysql') {
-		$host = $d['db_host'] ?? $exDb['host'];
+		$host = (string) ($d['db_host'] ?? $exDb['host']);
 		$port = (int) ($d['db_port'] ?? $exDb['port']);
 		$dbname = preg_replace('/[^a-zA-Z0-9_]/', '', $d['db_name'] ?? $exDb['name']);
-		try {
-			// Connexion sans base pour pouvoir la créer si besoin
-			$pdo = new PDO("mysql:host=$host;port=$port;charset=utf8mb4",
-				$d['db_user'] ?? '', $d['db_pass'] ?? '',
-				[PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-			$pdo->exec("CREATE DATABASE IF NOT EXISTS `$dbname` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
-		} catch (Throwable $e) {
-			$errors[] = t('setup.err_db', ['msg' => $e->getMessage()]);
+		if (!validDbHost($host)) {
+			$errors[] = t('errors.invalid_value', ['key' => 'db_host']);
+		} else {
+			try {
+				// Connexion sans base pour pouvoir la créer si besoin
+				$pdo = new PDO("mysql:host=$host;port=$port;charset=utf8mb4",
+					$d['db_user'] ?? '', $d['db_pass'] ?? '',
+					[PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+				$pdo->exec("CREATE DATABASE IF NOT EXISTS `$dbname` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+			} catch (Throwable $e) {
+				$errors[] = t('setup.err_db', ['msg' => $e->getMessage()]);
+			}
+			$config['db_dsn'] = "mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4";
+			$config['db_user'] = $d['db_user'] ?? '';
+			$config['db_pass'] = $d['db_pass'] ?? '';
 		}
-		$config['db_dsn'] = "mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4";
-		$config['db_user'] = $d['db_user'] ?? '';
-		$config['db_pass'] = $d['db_pass'] ?? '';
 	} else {
 		$config['db_dsn'] = 'sqlite';
 	}

@@ -840,7 +840,8 @@ final class ApiController
 		}
 		$disposition = $download ? 'attachment' : 'inline';
 		header('Content-Type: ' . $meta['mime']);
-		header('Content-Disposition: ' . $disposition . '; filename="' . addslashes($meta['name']) . '"');
+		$filename = (string) preg_replace('/[\x00-\x1F\x7F]/', '', (string) $meta['name']);
+		header('Content-Disposition: ' . $disposition . '; filename="' . addslashes($filename) . '"');
 		// Contenu utilisateur servi sous notre origine (images cid inline) :
 		// sandbox CSP = jamais de script même si la PJ est du HTML ouvert en direct.
 		header('Content-Security-Policy: sandbox');

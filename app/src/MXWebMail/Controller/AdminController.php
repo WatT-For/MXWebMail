@@ -697,6 +697,9 @@ final class AdminController
 			return ['db_dsn' => 'sqlite', 'db_user' => '', 'db_pass' => ''];
 		}
 		$host = trim((string) ($input['db_host'] ?? 'localhost'));
+		if (!preg_match('/^[A-Za-z0-9.\-:\[\]]+$/', $host)) {
+			throw new \RuntimeException($this->t('errors.invalid_value', ['key' => 'db_host']), 400);
+		}
 		$port = (int) ($input['db_port'] ?? 3306);
 		$name = preg_replace('/[^a-zA-Z0-9_]/', '', (string) ($input['db_name'] ?? 'mxwebmail'));
 		$user = (string) ($input['db_user'] ?? '');
