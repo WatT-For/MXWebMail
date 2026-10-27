@@ -14,6 +14,7 @@ return [
 	'common.add'     => 'Aggiungi',
 	'common.close'   => 'Chiudi',
 	'common.back'    => 'Indietro',
+	'common.sponsor' => 'Sponsor',
 	'common.confirm' => 'Conferma',
 	'common.refresh' => 'Aggiorna',
 	'common.test'    => 'Prova',

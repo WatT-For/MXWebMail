@@ -81,7 +81,7 @@ reconnecter. Sauvegardez toujours `app.key`.
 **Où sont les journaux ?**
 `app/storage/logs/app.log` (applicatif), `mail.log` (protocoles IMAP/SMTP/Sieve, si
 `logs.enabled`), et le journal d'auth (`auth_logging`). Visionnables dans l'admin
-(*Journaux*).
+(*Journaux*). Intégration fail2ban : [fail2ban.md](fail2ban.md).
 
 **Passer à MariaDB a vidé les données**
 Comportement attendu : le changement de `db_dsn` repart sur un schéma vierge (les fichiers

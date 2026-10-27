@@ -42,6 +42,7 @@ final class AdminController
 					(string) $request->input('totp', ''));
 				$_SESSION['admin'] = true;
 				$auth->resetRateLimit($rateKey);
+				$this->app->logAuth('admin:' . $user, 'AUTH OK');
 				return JsonResponse::ok();
 			}
 
@@ -52,14 +53,17 @@ final class AdminController
 				// login() a créé une session webmail complète : la détruire,
 				// sinon un non-admin repart avec une session valide.
 				$auth->logout();
+				$this->app->logAuth('admin:' . $user, 'AUTH FAILED (403)');
 				return JsonResponse::error($this->t('errors.admin_required'), 'forbidden', 403);
 			}
 			$_SESSION['admin'] = (int) $u['id'];
 			$auth->resetRateLimit($rateKey);
+			$this->app->logAuth('admin:' . $user, 'AUTH OK');
 			return JsonResponse::ok();
 		} catch (\MXWebMail\Security\TotpRequiredException $e) {
 			if (trim((string) $request->input('totp', '')) !== '') {
 				$auth->recordFailedAttempt($rateKey);
+				$this->app->logAuth('admin:' . $user, 'AUTH FAILED (totp)');
 			}
 			return JsonResponse::error($e->getMessage(), 'totp_required', 401);
 		} catch (\Throwable $e) {
@@ -67,6 +71,7 @@ final class AdminController
 			if ($e->getCode() !== 429) {
 				$auth->recordFailedAttempt($rateKey);
 			}
+			$this->app->logAuth('admin:' . $user, 'AUTH FAILED (' . $e->getCode() . ')');
 			$this->app->log('warning', 'Login admin échoué: ' . $e->getMessage());
 			if (in_array($e->getCode(), [401, 403, 429], true)) {
 				return JsonResponse::error($e->getMessage(), 'auth', $e->getCode());

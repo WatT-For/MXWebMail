@@ -367,9 +367,14 @@
 	<div class="container-fluid py-3" data-bind="visible: view() === 'settings', with: settings" style="display:none">
 		<div class="d-flex justify-content-between align-items-center mb-3">
 			<h4 class="mb-0"><?= $t('app.settings') ?></h4>
-			<button class="btn btn-sm btn-outline-secondary" data-bind="click: () => location.hash = '#/INBOX'">
-				<i class="fa-solid fa-arrow-left"></i> <?= $t('common.back') ?>
-			</button>
+			<div class="d-flex gap-2">
+				<?php if ($sponsorUrl !== ''): ?>
+				<a class="btn btn-sm btn-outline-secondary" href="<?= htmlspecialchars($sponsorUrl) ?>" target="_blank" rel="noopener"><i class="fa-solid fa-heart"></i> <?= $t('common.sponsor') ?></a>
+				<?php endif; ?>
+				<button class="btn btn-sm btn-outline-secondary" data-bind="click: () => location.hash = '#/INBOX'">
+					<i class="fa-solid fa-arrow-left"></i> <?= $t('common.back') ?>
+				</button>
+			</div>
 		</div>
 
 		<div class="row">

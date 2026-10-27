@@ -15,6 +15,9 @@
 <nav class="navbar navbar-dark bg-dark px-3">
 	<span class="navbar-brand mb-0"><?= htmlspecialchars($app->config()->get('app_name')) ?> — <?= $t('admin.administration') ?></span>
 	<div>
+		<?php if ($sponsorUrl !== ''): ?>
+		<a class="btn btn-sm btn-outline-light me-2" href="<?= htmlspecialchars($sponsorUrl) ?>" target="_blank" rel="noopener"><i class="fa-solid fa-heart"></i> <?= $t('common.sponsor') ?></a>
+		<?php endif; ?>
 		<a class="btn btn-sm btn-outline-light me-2" href="<?= $base ?>/"><i class="fa-solid fa-envelope"></i> <?= $t('admin.webmail') ?></a>
 		<button class="btn btn-sm btn-outline-light" data-bind="click: logout"><i class="fa-solid fa-right-from-bracket"></i></button>
 	</div>

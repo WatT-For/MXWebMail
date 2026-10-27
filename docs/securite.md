@@ -51,7 +51,9 @@ persisté dans `storage/cache/login_attempts.json` (clé `sha256(IP|login)`, pur
 entrées inactives > 1 h, écriture sous verrou `flock`). Un blocage actif n'est ni
 prolongé ni réenregistré par les tentatives rejetées (429). S'applique aussi au login
 admin. Un journal d'authentification type fail2ban est disponible (`auth_logging*`,
-placeholders `{request:ip}`, `{imap:login}`, `{result}` ; CR/LF neutralisés).
+placeholders `{request:ip}`, `{imap:login}`, `{result}` ; CR/LF neutralisés) : il couvre
+les logins webmail et admin (login préfixé `admin:`) ainsi que les échecs de code
+TOTP. Intégration complète : [fail2ban.md](fail2ban.md).
 
 ### Sanitisation du HTML des messages
 

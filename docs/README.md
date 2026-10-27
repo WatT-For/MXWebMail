@@ -27,6 +27,7 @@ MXWebMail, ainsi qu'aux **développeurs** qui étendent le projet (plugins, thè
 | [localisation.md](localisation.md) | Langues disponibles, ajout d'une langue, dictionnaires plugins/thèmes. |
 | [base-de-donnees.md](base-de-donnees.md) | Schéma, migrations, SQLite ↔ MariaDB, `app.key`, bases par utilisateur. |
 | [securite.md](securite.md) | Modèle de sécurité et recommandations de durcissement. |
+| [fail2ban.md](fail2ban.md) | Intégration fail2ban : journal d'authentification, filtre, jail, logrotate. |
 | [developpement.md](developpement.md) | Architecture, autoloader, hooks du cœur. |
 | [depannage.md](depannage.md) | Erreurs courantes, journaux, FAQ. |
 
@@ -34,5 +35,5 @@ MXWebMail, ainsi qu'aux **développeurs** qui étendent le projet (plugins, thè
 
 - Les chemins sont relatifs à la racine du projet.
 - Les valeurs par défaut citées correspondent à `app/config/config.example.php` et au code
-  (`app/src/MXWebMail/…`), version `0.30.1`.
+  (`app/src/MXWebMail/…`), version `0.40.0`.
 - Cette documentation décrit la **réalité du code** : si un fichier diverge, corrigez-le.

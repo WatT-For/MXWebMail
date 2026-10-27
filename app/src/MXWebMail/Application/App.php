@@ -45,7 +45,7 @@ final class App
 
 	public function __construct(?string $rootDir = null, ?string $installDir = null)
 	{
-		defined('APP_VERSION') || define('APP_VERSION', '0.39.1'); // X-Mailer MailSo
+		defined('APP_VERSION') || define('APP_VERSION', '0.40.0'); // X-Mailer MailSo
 		$this->rootDir = $rootDir ?? dirname(__DIR__, 3);
 		// Racine d'installation (parent de public/) — passée explicitement par
 		// index.php car indéductible de rootDir quand app/ est hors racine web.

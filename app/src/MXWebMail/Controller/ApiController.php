@@ -70,6 +70,7 @@ final class ApiController
 			// compte comme tentative ratée, pas la demande initiale.
 			if (trim((string) $request->input('totp', '')) !== '') {
 				$this->app->auth()->recordFailedAttempt((string) $request->input('email', ''));
+				$this->app->logAuth((string) $request->input('email', ''), 'AUTH FAILED (totp)');
 			}
 			return JsonResponse::error($this->t('errors.totp_required'), 'totp_required', 401);
 		} catch (\Throwable $e) {

@@ -21,6 +21,7 @@ Les tableaux associatifs sont fusionnés en profondeur ; les listes sont remplac
 |---|---|---|
 | `app_name` | `MXWebMail` | Nom affiché (titre, PWA, TOTP). |
 | `favicon` | `''` | Fichier favicon uploadé dans `storage/branding`, servi via `/favicon.ico` ; vide = icône par défaut. |
+| `sponsor_url` | `https://github.com/sponsors/WatT-For` | Lien « Sponsor » GitHub (bouton admin + paramètres webmail) ; vide = masqué. |
 | `debug` | `false` | Renvoie les erreurs internes aux clients API (jamais en production). |
 | `language` | `auto` | `auto` = `Accept-Language` du navigateur ; sinon code d'une langue installée (`fr`, `en`…). Repli final `en`. |
 
@@ -175,6 +176,10 @@ Les réponses privées/API ne reçoivent jamais de cache public ; le HTML est `n
 | `auth_logging` | `false` | Active le journal d'authentification dédié. |
 | `auth_logging_filename` | `auth.log` | Fichier dans `storage/logs`. |
 | `auth_logging_format` | `{date:Y-m-d H:i:s} [{request:ip}] {imap:login} {result}` | Placeholders : `{date:FMT}`, `{request:ip}`, `{imap:login}`, `{result}`. |
+
+`{result}` vaut `AUTH OK`, `AUTH FAILED (<code http>)` ou `AUTH FAILED (totp)`. Le
+journal couvre le login webmail et le login admin (login préfixé `admin:`). Pour le
+branchement fail2ban (filtre, jail, logrotate), voir [fail2ban.md](fail2ban.md).
 
 ## Labs / compatibilité
 

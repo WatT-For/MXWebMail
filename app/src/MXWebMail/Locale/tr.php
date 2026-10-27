@@ -14,6 +14,7 @@ return [
 	'common.add'     => 'Ekle',
 	'common.close'   => 'Kapat',
 	'common.back'    => 'Geri',
+	'common.sponsor' => 'Sponsor ol',
 	'common.confirm' => 'Onayla',
 	'common.refresh' => 'Yenile',
 	'common.test'    => 'Test et',

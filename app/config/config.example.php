@@ -15,6 +15,8 @@ return [
 	// Nom du fichier favicon uploadé dans app/storage/branding (admin → Général) ;
 	// vide = icône MXWebMail par défaut. Servi via /favicon.ico.
 	'favicon'    => '',
+	// Lien « Sponsor » GitHub (bouton admin + paramètres webmail) ; vide = masqué.
+	'sponsor_url' => 'https://github.com/sponsors/WatT-For',
 	'debug'      => false,          // affiche les erreurs internes aux clients API (jamais en production)
 	// 'auto' = Accept-Language du navigateur ; sinon code d'un fichier
 	// app/src/MXWebMail/Locale/<lang>.php (en, fr…). Repli final : 'en'.

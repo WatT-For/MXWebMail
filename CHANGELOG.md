@@ -8,6 +8,19 @@ Catégories, dans l'ordre : `Sécurité`, `Ajouté`, `Modifié`, `Corrigé`, `Ob
 
 ## [Unreleased]
 
+## [0.40.0] — 2026-10-27
+
+### Ajouté
+
+- Documentation d'intégration fail2ban (`docs/fail2ban.md`) : filtre `filter.d`,
+  jail, rotation logrotate, pièges fuseau horaire et `trusted_proxies`
+
+### Corrigé
+
+- Le journal d'authentification (`auth_logging*`) couvre désormais le login
+  admin — succès et échecs, login préfixé `admin:` — et les mauvais codes TOTP
+  (`AUTH FAILED (totp)`) : ces tentatives sont visibles par fail2ban
+
 ## [0.39.1] — 2026-10-27
 
 ### Corrigé
