@@ -28,4 +28,7 @@ return [
 	'plugin.two-factor-auth.admin_local_only'     => 'Применяется к локальной учётной записи администратора (admin_user).',
 	'plugin.two-factor-auth.admin_no_local'       => 'Локальная учётная запись администратора не настроена (admin_user/admin_password_hash) — настройка не будет действовать.',
 	'plugin.two-factor-auth.admin_config_readonly' => 'config.php недоступен для записи — включение невозможно.',
+	'plugin.two-factor-auth.recovery_title'   => 'Резервные коды',
+	'plugin.two-factor-auth.recovery_regen'   => 'Сгенерировать коды заново',
+	'plugin.two-factor-auth.recovery_left'    => 'Осталось кодов восстановления: {v} — одноразовые, вводятся в поле TOTP.',
 ];

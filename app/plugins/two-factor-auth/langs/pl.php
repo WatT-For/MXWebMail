@@ -28,4 +28,7 @@ return [
 	'plugin.two-factor-auth.admin_local_only'     => 'Dotyczy lokalnego konta administratora (admin_user).',
 	'plugin.two-factor-auth.admin_no_local'       => 'Brak lokalnego konta administratora (admin_user/admin_password_hash) — ustawienie bez efektu.',
 	'plugin.two-factor-auth.admin_config_readonly' => 'config.php nie jest zapisywalny — włączenie niemożliwe.',
+	'plugin.two-factor-auth.recovery_title'   => 'Kody zapasowe',
+	'plugin.two-factor-auth.recovery_regen'   => 'Wygeneruj kody ponownie',
+	'plugin.two-factor-auth.recovery_left'    => 'Pozostało {v} kodów zapasowych — jednorazowe, wpisywane w polu TOTP.',
 ];

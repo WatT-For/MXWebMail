@@ -133,6 +133,148 @@ final class AuthService
 		return ['email' => $email];
 	}
 
+	// ─── Jetons « se souvenir de moi » (cookie mxwm_remember = selector:validator) ───
+
+	private const REMEMBER_DAYS = 30;
+
+	/** Émet un jeton persistant + cookie après un login réussi. */
+	public function issueRememberToken(int $userId): void
+	{
+		$selector = bin2hex(random_bytes(9));
+		$validator = bin2hex(random_bytes(32));
+		$this->app->db()->pdo()->prepare(
+			'INSERT INTO auth_tokens (user_id, selector, token, agent, created_at, expires_at)
+			 VALUES (:u,:s,:t,:a,:c,:e)')
+			->execute([
+				'u' => $userId, 's' => $selector,
+				't' => hash('sha256', $validator),
+				'a' => mb_substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255),
+				'c' => time(), 'e' => time() + self::REMEMBER_DAYS * 86400,
+			]);
+		$this->setRememberCookie($selector . ':' . $validator);
+	}
+
+	private function setRememberCookie(string $value, ?int $expires = null): void
+	{
+		setcookie('mxwm_remember', $value, [
+			'expires'  => $expires ?? time() + self::REMEMBER_DAYS * 86400,
+			'path'     => '/',
+			'secure'   => $this->app->isHttps(),
+			'httponly' => true,
+			'samesite' => 'Lax',
+		]);
+	}
+
+	public function clearRememberCookie(): void
+	{
+		$this->setRememberCookie('', time() - 42000);
+	}
+
+	/** Selector du jeton présenté (pour marquer « session courante »). */
+	public function currentTokenSelector(): ?string
+	{
+		$c = (string) ($_COOKIE['mxwm_remember'] ?? '');
+		return preg_match('/^([0-9a-f]{18}):/', $c, $m) ? $m[1] : null;
+	}
+
+	/**
+	 * Restaure une session depuis le cookie mxwm_remember : jeton vérifié,
+	 * validator **tourné** à chaque usage, compte is_default (toujours
+	 * password — OAuth n'existe que pour les comptes secondaires), mot de
+	 * passe IMAP déchiffré puis re-vérifié. Tout échec → jeton + cookie
+	 * supprimés, pas de session (le visiteur retombe sur le login).
+	 */
+	public function resumeFromRemember(): void
+	{
+		$cookie = (string) ($_COOKIE['mxwm_remember'] ?? '');
+		if (!preg_match('/^([0-9a-f]{18}):([0-9a-f]{64})$/', $cookie, $m)) {
+			if ($cookie !== '') {
+				$this->clearRememberCookie();
+			}
+			return;
+		}
+		$pdo = $this->app->db()->pdo();
+		$stmt = $pdo->prepare(
+			'SELECT t.id, t.user_id, t.token, t.expires_at, u.disabled
+			 FROM auth_tokens t JOIN users u ON u.id = t.user_id
+			 WHERE t.selector = :s');
+		$stmt->execute(['s' => $m[1]]);
+		$row = $stmt->fetch(\PDO::FETCH_ASSOC);
+		$fail = function (bool $purge) use ($row, $pdo): void {
+			if ($purge && $row) {
+				$pdo->prepare('DELETE FROM auth_tokens WHERE id = :id')
+					->execute(['id' => $row['id']]);
+			}
+			$this->clearRememberCookie();
+		};
+		if (!$row || !hash_equals((string) $row['token'], hash('sha256', $m[2]))
+			|| (int) $row['expires_at'] < time() || (int) $row['disabled']) {
+			$fail((bool) $row);
+			return;
+		}
+		$acct = $pdo->prepare(
+			'SELECT * FROM accounts WHERE user_id = :u AND is_default = 1');
+		$acct->execute(['u' => $row['user_id']]);
+		$account = $acct->fetch(\PDO::FETCH_ASSOC);
+		$plain = $account ? CredentialCrypt::decrypt(
+			(string) $account['imap_pass'], $this->app->storageDir()) : null;
+		if (!$account || $plain === null) {
+			$fail(true);
+			return;
+		}
+		$domainName = (string) substr(strrchr((string) $account['email'], '@') ?: '', 1);
+		try {
+			$this->verifyImapCredentials(
+				(string) $account['email'], $plain, $this->domainFor($domainName));
+		} catch (\Throwable) {
+			$fail(true); // mot de passe changé / IMAP indisponible
+			return;
+		}
+		// Rotation : nouveau validator, cookie réémis, last_used_at à jour.
+		$newVal = bin2hex(random_bytes(32));
+		$pdo->prepare('UPDATE auth_tokens SET token = :t, last_used_at = :n WHERE id = :id')
+			->execute(['t' => hash('sha256', $newVal), 'n' => time(), 'id' => $row['id']]);
+		$this->setRememberCookie($m[1] . ':' . $newVal);
+
+		session_regenerate_id(true);
+		$_SESSION['user_id']    = (int) $row['user_id'];
+		$_SESSION['account_id'] = (int) $account['id'];
+		$_SESSION['email']      = (string) $account['email'];
+		// Copie du ciphertext — même schéma CredentialCrypt (comme accountSwitch).
+		$_SESSION['imap_pass']  = (string) $account['imap_pass'];
+		$_SESSION['domain']     = $domainName;
+		$_SESSION['acct_auth']      = 'password';
+		$_SESSION['acct_secondary'] = false;
+		$this->app->users()->touchLastLogin((int) $row['user_id']);
+	}
+
+	/** Sessions/jetons de l'utilisateur (hash jamais renvoyé). */
+	public function rememberSessions(int $userId): array
+	{
+		$stmt = $this->app->db()->pdo()->prepare(
+			'SELECT id, selector, agent, created_at, last_used_at, expires_at
+			 FROM auth_tokens WHERE user_id = :u ORDER BY last_used_at DESC, created_at DESC');
+		$stmt->execute(['u' => $userId]);
+		$current = $this->currentTokenSelector();
+		return array_map(fn($r) => $r + ['current' => $r['selector'] === $current],
+			$stmt->fetchAll(\PDO::FETCH_ASSOC));
+	}
+
+	public function deleteRememberToken(int $userId, int $id): void
+	{
+		$this->app->db()->pdo()->prepare(
+			'DELETE FROM auth_tokens WHERE id = :id AND user_id = :u')
+			->execute(['id' => $id, 'u' => $userId]);
+	}
+
+	public function revokeOtherRememberTokens(int $userId): void
+	{
+		$sel = $this->currentTokenSelector();
+		$this->app->db()->pdo()->prepare(
+			'DELETE FROM auth_tokens WHERE user_id = :u AND selector != :s')
+			->execute(['u' => $userId, 's' => $sel ?? '']);
+	}
+
 	public function logout(): void
 	{
 		if (!empty($_SESSION['admin'])) {

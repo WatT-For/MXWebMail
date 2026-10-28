@@ -18,9 +18,10 @@ final class PageController
 
 	public function home(Request $request): Response
 	{
-		// Mode maintenance : page dédiée 503 pour tous (session conservée —
-		// l'utilisateur retrouve l'app à la fin). L'admin reste sur /{admin_path}.
-		if ($this->app->config()->get('maintenance', false)) {
+		// Mode maintenance ou mise à jour en cours : page dédiée 503 pour tous
+		// (session conservée — l'utilisateur retrouve l'app à la fin).
+		// L'admin reste sur /{admin_path}.
+		if ($this->app->config()->get('maintenance', false) || $this->app->isUpdating()) {
 			return $this->render('maintenance', [], 503,
 				['Retry-After' => '300', 'Cache-Control' => 'no-store']);
 		}

@@ -322,4 +322,16 @@ abstract class NetClient
 			throw $oException;
 		}
 	}
+
+	/**
+	 * Variante « courte » : message seul, sans pile d'appel — pour les
+	 * erreurs protocolaires attendues (réponses NO/BAD du serveur).
+	 */
+	protected function writeLogExceptionShort(\Throwable $oException, int $iDescType = \LOG_NOTICE, bool $bThrowException = true) : void
+	{
+		$this->oLogger && $this->oLogger->WriteExceptionShort($oException, $iDescType, $this->getLogName());
+		if ($bThrowException) {
+			throw $oException;
+		}
+	}
 }

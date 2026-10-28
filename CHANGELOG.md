@@ -6,6 +6,47 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) —
 semver `0.MINOR.PATCH` en développement.
 Catégories, dans l'ordre : `Sécurité`, `Ajouté`, `Modifié`, `Corrigé`, `Obsolète`, `Supprimé`.
 
+## [0.43.0] — 2026-10-28
+
+### Ajouté
+
+- Rotation automatique des journaux au-delà de `logs.max_size` Mio (`app.log`, `mail.log`, journal d'authentification ; `logs.keep` rotations conservées).
+- Enregistrement automatique du brouillon pendant la composition (réglage `compose_autosave`, secondes ; indicateur de dernier enregistrement dans la modale).
+- Aperçu des pièces jointes (icône loupe dans l'onglet Pièces jointes) : images bitmap, PDF (iframe — sandbox CSP levée pour ce type seul) et texte brut.
+- Plugin two-factor-auth : codes de secours à usage unique (8 codes `xxxx-xxxx` générés à l'activation, régénérables dans l'onglet, hashés en base — saisissables dans le champ TOTP à la connexion).
+- Import de contacts au format CSV (Paramètres → Contacts) en plus du vCard : en-tête reconnue ou heuristique de colonnes, séparateur `,` `;` ou tabulation.
+- Import de boîtes au format mbox (Paramètres → Dossiers → Importer) en plus du `.eml` : dates `From ` préservées en INTERNALDATE, plafond `import_max_size` (100 Mo, 2000 messages).
+- Groupes de contacts : champ « Groupes » (catégories vCard `CATEGORIES` en import/export), badges dans la liste, recherche étendue aux catégories.
+- Recherche multi-dossiers : portée « Tous les dossiers » dans la recherche avancée (résultats fusionnés, badge du dossier sur chaque ligne).
+- Accusés de réception (RFC 3798) : demande dans les options de composition, bandeau « Envoyer/Ignorer » à la lecture (réglage `mdn_mode`), flag `$MDNSent` posé après envoi.
+- Vérification S/MIME : badge cliquable sur les messages signés — signature cryptographique vérifiée via `openssl_pkcs7_verify` (confiance CA si `smime_ca_path` configuré), signataire affiché.
+- « Rester connecté » à la connexion (jetons selector:validator persistants 30 j, rotation à l'usage) + onglet « Sessions » dans les Paramètres (appareils, révocation).
+- Admin → Logs : bouton « Vider » pour tronquer le fichier de log sélectionné (app/mail/auth), avec confirmation.
+- « Tout marquer comme lu » dans le menu d'un dossier (visible s'il reste des non lus).
+- Bouton « Archiver » (barre d'actions groupées + lecteur de message) : déplacement direct vers le dossier de rôle archive quand il existe.
+- Compteur de non lus de la boîte de réception dans le titre de l'onglet (« (3) MXWebMail »).
+- Réglage « Après suppression ou déplacement » (Paramètres → Général) : ouvrir le message suivant / précédent ou fermer le lecteur.
+- Téléchargement groupé des messages cochés en `.eml` dans un zip (bouton de la barre d'actions groupées, 100 messages maximum).
+- Rappel « pièce jointe oubliée » avant envoi quand le corps ou l'objet annonce une pièce jointe absente (citations de réponse ignorées, désactivé si chiffrement OpenPGP).
+- Option « Priorité haute » dans le menu Options de la composition (en-tête `X-Priority: 1 (Highest)`).
+- Mise à jour robuste : vérification d'intégrité par fichier (`files.sha256` embarqué dans le paquet), contrôle des prérequis (constantes `APP_REQ_PHP`/`APP_REQ_FROM` de `App.php` : version PHP, version source minimale), et détection des fichiers modifiés localement signalée avant application.
+- Sauvegarde de la base avant chaque mise à jour : `webmail.sqlite` et les bases contacts sont copiées après checkpoint WAL dans `backup-<ts>/db/` (sous MariaDB, un avertissement rappelle de faire un `mysqldump` — la sauvegarde externe reste requise).
+- Finalisation des migrations de base après application d'une mise à jour (bouton/étape « Finaliser » + commande de secours `php app/bin/post-update.php`) ; les bases contacts des utilisateurs sont migrées dans la foulée.
+- Rollback assisté depuis « À propos » : restauration des fichiers du dernier backup, suppression des fichiers créés par l'update et recopie des bases SQLite (sous MariaDB, restaurer le dump d'abord puis confirmer).
+- Verrou applicatif pendant la copie d'une mise à jour : l'API utilisateur répond 503 et le web sert la page maintenance jusqu'à la fin (expiration automatique après 15 min en cas d'échec).
+- Bandeau « schéma de la base plus récent que le code » dans « À propos » quand un rollback fichiers n'a pas été suivi d'une restauration de la base.
+
+### Modifié
+
+- Barre d'actions du lecteur de message allégée : les actions secondaires (transférer en pièce jointe, se désabonner, déplacer, archiver, marquer non lu, imprimer, télécharger .eml, voir le source) sont regroupées dans un menu « … ».
+- Le zip de release n'embarque plus les fichiers méta du dépôt (`.github`, `docs`, `README.md`, `CHANGELOG.md`, `SECURITY.md`, `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`) — `LICENSE` reste distribué.
+- Paramètres → Filtres : sous-onglets « Filtres » (scripts Sieve) et « Répondeur d'absence », titres internes redondants supprimés ; le champ « Adresses » du répondeur devient une liste à cocher des adresses du compte.
+
+### Corrigé
+
+- `mail.log` : un refus protocolaire du serveur (mot de passe IMAP/SMTP/Sieve erroné, quota absent…) n'écrit plus la pile d'appel complète — une seule ligne `WARNING` avec le message du serveur.
+- Admin → Logs : sélections rapides ou « Vider » pendant un chargement ne laissent plus une réponse tardive écraser l'affichage (contenu obsolète ressuscité) ; les erreurs de chargement sont désormais signalées.
+
 ## [0.42.0] — 2026-10-27
 
 ### Ajouté

@@ -17,6 +17,14 @@ Le schéma est **portable** SQLite/MariaDB (clés primaires auto-incrément adap
 driver). Les migrations sont versionnées (`meta.schema_version`) et appliquées
 automatiquement au premier accès à la base (`App::db()`), y compris pendant l'installation.
 
+Après une mise à jour du code, l'onglet *À propos* déclenche la **finalisation**
+(`/api/admin/update/finalize`) : les migrations de la nouvelle version tournent en
+contexte admin, puis les bases contacts par utilisateur sont migrées à leur tour
+(une base en échec est consignée et retentée à son prochain accès). En secours :
+`php app/bin/post-update.php` rejoue les migrations en CLI. Si le schéma est plus
+récent que le code (rollback fichiers sans restauration de la base), `meta.schema_ahead`
+est posé et signalé dans *À propos* — les migrations sont alors suspendues.
+
 ## 3. Tables globales
 
 | Table | Contenu |

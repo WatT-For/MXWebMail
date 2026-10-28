@@ -601,7 +601,7 @@ class SmtpClient extends \MailSo\Net\NetClient
 
 			if (3 === \count($aParts) && \is_numeric($aParts[0])) {
 				if ('-' !== \substr($aParts[1], 0, 1) && !\in_array((int) $aParts[0], $mExpectCode)) {
-					$this->writeLogException(
+					$this->writeLogExceptionShort(
 						new Exceptions\NegativeResponseException($this->aResults,
 							('' === $sErrorPrefix ? '' : $sErrorPrefix.': ').\trim(
 							(\count($this->aResults) ? \implode("\r\n", $this->aResults)."\r\n" : '').

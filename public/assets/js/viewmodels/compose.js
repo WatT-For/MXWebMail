@@ -7,6 +7,10 @@ import { dialog } from '../ui/dialog.js';
  * Ouvert dans la modale Bootstrap #compose-modal.
  */
 export class ComposeVM {
+	// Mention d'une pièce jointe dans le corps/sujet (fr/en) — rappel pré-envoi.
+	// « attach » couvre attacher/attaché(e)(s) et attached/attachment.
+	static RE_ATTACH = /(ci[-\s]?(?:jointe?s?|inclus)|pi[eè]ce\s+jointe|document\s+joint|en\s+annexe|j'ai\s+joint|je\s+(?:t'?envoie|joins)|\battach\w*|please\s+find\s+(?:\w+\s+)?(?:attach|enclos))/i;
+
 	constructor(app) {
 		this.app = app;
 		this.visible = ko.observable(false);
@@ -33,6 +37,8 @@ export class ComposeVM {
 		this.draftFolder = '';
 		this.modal = null;
 		this.pgpEncrypt = ko.observable(false);
+		this.priority = ko.observable(false);  // « Priorité haute » → X-Priority: 1
+		this.mdn = ko.observable(false);       // « Accusé de réception » → Disposition-Notification-To
 		this.showCc = ko.observable(false);   // champ Cc déplié (menu options du header)
 		this.showBcc = ko.observable(false);  // champ Cci déplié
 		this.suggestField = ko.observable(''); // 'to'|'cc'|'bcc' — champ sous lequel afficher les suggestions
@@ -42,6 +48,11 @@ export class ComposeVM {
 		this._suspendDirty = false;
 		this._prompting = false;      // dialogue de confirmation de fermeture déjà ouvert
 		this._closeConfirmed = false; // fermeture validée (envoi, brouillon, abandon)
+		// Enregistrement auto du brouillon (réglage compose_autosave, secondes,
+		// 0 = jamais) : timer démarré à l'ouverture, tué à la fermeture.
+		this._autosaveTimer = null;
+		this._autoSaving = false;     // anti-chevauchement des ticks
+		this.savedAt = ko.observable(null); // Date du dernier enregistrement auto
 		for (const o of [this.to, this.cc, this.bcc, this.subject, this.html, this.attachments]) {
 			o.subscribe(() => { if (!this._suspendDirty) { this._dirty = true; } });
 		}
@@ -102,10 +113,14 @@ export class ComposeVM {
 			// Garde de fermeture : contenu saisi non envoyé/enregistré →
 			// confirmation (couvre ×, Échap, backdrop et hide() programmatique).
 			el.addEventListener('hide.bs.modal', e => this.guardClose(e));
-			el.addEventListener('hidden.bs.modal', () => this.visible(false));
+			el.addEventListener('hidden.bs.modal', () => {
+				this.visible(false);
+				this.stopAutosave();
+			});
 		}
 		this.visible(true);
 		this.modal.show();
+		this.startAutosave();
 		// Réponses types : préchargement lazy pour le sous-menu « Options »
 		// (no-op si déjà chargée, refetch après édition dans Paramètres).
 		this.app.settings.loadResponses();
@@ -145,6 +160,8 @@ export class ComposeVM {
 		this.to(''); this.cc(''); this.bcc('');
 		this.showCc(false); this.showBcc(false);
 		this.subject(''); this.html('');
+		this.priority(false); // intention par message, contrairement à pgpEncrypt
+		this.mdn(false);
 		// Invalide la boucle upload() en vol, annule les transferts et
 		// purge les tmp serveur des PJ abandonnées.
 		++this.uploadGen;
@@ -163,6 +180,44 @@ export class ComposeVM {
 		this.draftUid = null; this.draftFolder = '';
 		this._dirty = false;
 		this._closeConfirmed = false;
+		this.savedAt(null);
+		this.stopAutosave();
+	}
+
+	// ─── Enregistrement auto du brouillon ───
+
+	startAutosave() {
+		this.stopAutosave();
+		const secs = parseInt(this.app.userSettings?.compose_autosave, 10) || 0;
+		if (secs > 0) {
+			this._autosaveTimer = setInterval(() => this.autoSave(),
+				Math.max(10, secs) * 1000);
+		}
+	}
+
+	stopAutosave() {
+		if (this._autosaveTimer) {
+			clearInterval(this._autosaveTimer);
+			this._autosaveTimer = null;
+		}
+	}
+
+	/** Enregistrement silencieux : jamais de fermeture ni d'erreur affichée
+	 *  (contrairement à saveDraft) — un échec est réessayé au prochain tick. */
+	async autoSave() {
+		if (!this.visible() || this._autoSaving || this.sending()
+			|| this.uploadPending() || !this._dirty || this.bodyEmpty()) {
+			return;
+		}
+		this._autoSaving = true;
+		try {
+			const r = await api.post('/compose/save-draft', this.payload());
+			this.draftUid = r?.uid ?? null;
+			this.draftFolder = r?.folder || '';
+			this._dirty = false;
+			this.savedAt(new Date());
+		} catch { /* silencieux : prochain tick */ }
+		this._autoSaving = false;
 	}
 
 	openNew() {
@@ -459,6 +514,14 @@ export class ComposeVM {
 		return ed?.initialized ? ed.getContent() : (this.html() || '');
 	}
 
+	/** Texte du corps hors citations (réponses : l'original en <blockquote>
+	 *  ne doit pas déclencher le rappel « pièce jointe oubliée »). */
+	bodyText() {
+		const doc = new DOMParser().parseFromString(this.bodyHtml(), 'text/html');
+		doc.body.querySelectorAll('blockquote').forEach(el => el.remove());
+		return doc.body.textContent || '';
+	}
+
 	/** Corps visuellement vide : <p><br></p>, &nbsp;… comptent comme vide,
 	 *  un corps image/média compte comme rempli. */
 	bodyEmpty() {
@@ -472,6 +535,8 @@ export class ComposeVM {
 			from: this.identity(),
 			to: this.to(), cc: this.cc(), bcc: this.bcc(),
 			subject: this.subject(),
+			priority: this.priority(),
+			mdn: this.mdn(),
 			html: this.bodyHtml(),
 			inReplyTo: this.inReplyTo,
 			references: this.references,
@@ -536,6 +601,14 @@ export class ComposeVM {
 		}
 		if (!this.subject().trim()
 			&& !(await dialog.confirm(t('compose.empty_subject'), { variant: 'warning' }))) {
+			return;
+		}
+		// Rappel « pièce jointe oubliée » : le corps/sujet annonce une PJ mais
+		// rien n'est joint. Citations (<blockquote>) exclues du texte testé ;
+		// PGP exclu (les PJ y sont déjà refusées — encrypt_no_attach).
+		if (!this.attachments().length && !this.pgpEncrypt()
+			&& ComposeVM.RE_ATTACH.test(this.bodyText() + ' ' + this.subject())
+			&& !(await dialog.confirm(t('compose.attach_reminder'), { variant: 'warning' }))) {
 			return;
 		}
 		this.sending(true);

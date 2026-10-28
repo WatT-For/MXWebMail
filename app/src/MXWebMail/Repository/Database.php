@@ -68,7 +68,21 @@ final class Database
 	{
 		try {
 			$version = (int) ($this->meta('schema_version') ?? 0);
-			if ($version >= max(array_keys($this->migrations))) {
+			$max = max(array_keys($this->migrations));
+			if ($version > $max) {
+				// Schéma plus récent que le code : rollback fichiers ou branche
+				// plus ancienne. On ne touche à rien ; meta.schema_ahead est
+				// remonté dans l'admin (« À propos ») pour signaler l'écart.
+				if ($this->meta('schema_ahead') !== (string) $version) {
+					$this->setMeta('schema_ahead', (string) $version);
+				}
+				return;
+			}
+			// Code revenu au niveau (ou au-delà) du schéma → le flag tombe.
+			if ($this->meta('schema_ahead') !== null) {
+				$this->setMeta('schema_ahead', '');
+			}
+			if ($version >= $max) {
 				return; // schéma à jour : aucun DDL par requête
 			}
 		} catch (\PDOException) {
@@ -209,12 +223,17 @@ final class Database
 				type       VARCHAR(32) DEFAULT NULL
 			)",
 
+			// Jetons « se souvenir de moi » : cookie mxwm_remember =
+			// selector:validator ; seul le sha256 du validator est stocké.
 			"CREATE TABLE IF NOT EXISTS auth_tokens (
-				id         $pk,
-				user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-				token      VARCHAR(128) NOT NULL UNIQUE,
-				expires_at INTEGER NOT NULL,
-				created_at INTEGER NOT NULL
+				id           $pk,
+				user_id      INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+				selector     VARCHAR(32) NOT NULL UNIQUE,
+				token        VARCHAR(64) NOT NULL,
+				agent        VARCHAR(255) DEFAULT NULL,
+				created_at   INTEGER NOT NULL,
+				last_used_at INTEGER DEFAULT NULL,
+				expires_at   INTEGER NOT NULL
 			)",
 
 			"CREATE TABLE IF NOT EXISTS pgp_keys (

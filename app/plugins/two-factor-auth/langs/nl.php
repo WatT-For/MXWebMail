@@ -28,4 +28,7 @@ return [
 	'plugin.two-factor-auth.admin_local_only'     => 'Geldt voor het lokale beheerdersaccount (admin_user).',
 	'plugin.two-factor-auth.admin_no_local'       => 'Geen lokaal beheerdersaccount geconfigureerd (admin_user/admin_password_hash) — instelling heeft geen effect.',
 	'plugin.two-factor-auth.admin_config_readonly' => 'config.php is niet beschrijfbaar — activeren onmogelijk.',
+	'plugin.two-factor-auth.recovery_title'   => 'Herstelcodes',
+	'plugin.two-factor-auth.recovery_regen'   => 'Codes opnieuw genereren',
+	'plugin.two-factor-auth.recovery_left'    => 'Nog {v} herstelcode(s) — eenmalig, in te voeren in het TOTP-veld.',
 ];

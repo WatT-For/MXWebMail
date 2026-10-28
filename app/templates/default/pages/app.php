@@ -85,6 +85,7 @@
 								<!-- ko ifnot: isSystem -->
 								<li><a class="dropdown-item" href="#" data-bind="click: $parent.renameFolder"><i class="fa-solid fa-pen me-2"></i><?= $t('app.rename') ?></a></li>
 								<!-- /ko -->
+								<li><a class="dropdown-item" href="#" data-bind="visible: unread() > 0, click: $parent.markAllRead"><i class="fa-regular fa-envelope-open me-2"></i><?= $t('app.mark_all_read') ?></a></li>
 								<!-- ko if: $root.features().dangerous_actions !== false && !isInbox -->
 								<li><a class="dropdown-item" href="#" data-bind="click: $parent.clearFolder"><i class="fa-solid fa-broom me-2"></i><?= $t('app.empty_folder') ?></a></li>
 								<!-- /ko -->
@@ -180,6 +181,11 @@
 					<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: () => bulkSpam(!$root.folderList.isJunkFolder(folder())), disable: !hasChecked(), tooltip: $root.folderList.isJunkFolder(folder()) ? 'app.mark_not_spam' : 'app.mark_spam'"><i class="fa-solid fa-shield-halved"></i></button>
 					<button class="btn btn-sm btn-icon btn-outline-secondary"
 						data-bind="click: moveWithPicker, disable: !hasChecked(), tooltip: 'app.move_to'"><i class="fa-solid fa-file-export"></i></button>
+					<button class="btn btn-sm btn-icon btn-outline-secondary" style="display:none"
+						data-bind="visible: $root.folderList.archiveFolder() && folder() !== $root.folderList.archiveFolder().fullName,
+							click: bulkArchive, disable: !hasChecked(), tooltip: 'app.archive'"><i class="fa-solid fa-box-archive"></i></button>
+					<button class="btn btn-sm btn-icon btn-outline-secondary"
+						data-bind="click: downloadEmlZip, disable: !hasChecked(), tooltip: 'app.download_eml_zip'"><i class="fa-solid fa-file-zipper"></i></button>
 					<!-- ko if: $root.features().dangerous_actions !== false -->
 					<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: bulkDelete, disable: !hasChecked(), tooltip: 'common.delete'"><i class="fa-solid fa-trash text-danger"></i></button>
 					<!-- /ko -->
@@ -211,6 +217,8 @@
 									<span data-bind="text: subject"></span>
 									<span class="badge text-bg-secondary ms-1" style="display:none"
 										data-bind="visible: !isChild && threads && threads.length > 1, text: threads.length"></span>
+									<span class="badge text-bg-info ms-1" style="display:none"
+										data-bind="visible: $parent.searchScope() === 'all' && $parent.searchQuery() !== '', text: folder"></span>
 								</div>
 							</td>
 							<td class="text-end text-nowrap text-muted small">
@@ -297,25 +305,9 @@
 							<i class="fa-solid fa-share"></i>
 						</button>
 						<button class="btn btn-sm btn-icon btn-outline-secondary"
-							data-bind="click: () => $root.compose.openForward($data, true), tooltip: 'app.forward_attach'">
-							<span class="fa-stack fa-xs">
-								<i class="fa-solid fa-share fa-stack-1x"></i>
-								<i class="fa-solid fa-paperclip fa-stack-1x" style="font-size:.5em;transform:translate(4px,4px)"></i>
-							</span>
-						</button>
-						<button class="btn btn-sm btn-icon btn-outline-secondary" style="display:none"
-							data-bind="visible: !!unsubscribe, click: $parent.unsubscribe, tooltip: 'app.unsubscribe'">
-							<i class="fa-solid fa-user-xmark"></i>
-						</button>
-						<button class="btn btn-sm btn-icon btn-outline-secondary"
-							data-bind="click: $parent.moveWithPicker, tooltip: 'app.move_to'"><i class="fa-solid fa-file-export"></i></button>
-						<button class="btn btn-sm btn-icon btn-outline-secondary"
 							data-bind="click: $parent.toggleFlag,
 								tooltip: isFlagged() ? 'app.mark_unflagged' : 'app.mark_flagged'">
 							<i class="fa-star" data-bind="css: isFlagged() ? 'fa-solid text-warning' : 'fa-regular'"></i>
-						</button>
-						<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: $parent.markUnread, tooltip: 'app.mark_unread'">
-							<i class="fa-regular fa-envelope"></i>
 						</button>
 						<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: $parent.toggleSpam, tooltip: $parent.spamLabel()"><i class="fa-solid fa-shield-halved"></i></button>
 						<!-- ko if: $root.features().dangerous_actions !== false -->
@@ -324,15 +316,25 @@
 						</button>
 						<!-- /ko -->
 						<button class="btn btn-sm btn-icon btn-outline-secondary"
-							data-bind="click: $parent.printMessage, tooltip: 'app.print'">
-							<i class="fa-solid fa-print"></i>
+							data-bs-toggle="dropdown"
+							data-bs-popper-config='{"strategy":"fixed"}'
+							aria-label="<?= $t('app.more_actions') ?>">
+							<i class="fa-solid fa-ellipsis" data-bind="tooltip: 'app.more_actions'"></i>
 						</button>
-						<a class="btn btn-sm btn-icon btn-outline-secondary" data-bind="attr: { href: $parent.rawUrl() }, tooltip: 'app.download_eml'">
-							<i class="fa-solid fa-download"></i>
-						</a>
-						<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: $parent.showSource, tooltip: 'app.view_source'">
-							<i class="fa-solid fa-code"></i>
-						</button>
+						<ul class="dropdown-menu dropdown-menu-end">
+							<li><a class="dropdown-item" href="#" data-bind="click: () => $root.compose.openForward($data, true)"><i class="fa-solid fa-paperclip me-2"></i><?= $t('app.forward_attach') ?></a></li>
+							<li style="display:none" data-bind="visible: !!unsubscribe"><a class="dropdown-item" href="#"
+								data-bind="click: $parent.unsubscribe"><i class="fa-solid fa-user-xmark me-2"></i><?= $t('app.unsubscribe') ?></a></li>
+							<li><a class="dropdown-item" href="#" data-bind="click: $parent.moveWithPicker"><i class="fa-solid fa-file-export me-2"></i><?= $t('app.move_to') ?></a></li>
+							<li style="display:none"
+								data-bind="visible: $root.folderList.archiveFolder() && folder !== $root.folderList.archiveFolder().fullName"><a class="dropdown-item" href="#"
+								data-bind="click: $parent.archive"><i class="fa-solid fa-box-archive me-2"></i><?= $t('app.archive') ?></a></li>
+							<li><a class="dropdown-item" href="#" data-bind="click: $parent.markUnread"><i class="fa-regular fa-envelope me-2"></i><?= $t('app.mark_unread') ?></a></li>
+							<li><hr class="dropdown-divider"></li>
+							<li><a class="dropdown-item" href="#" data-bind="click: $parent.printMessage"><i class="fa-solid fa-print me-2"></i><?= $t('app.print') ?></a></li>
+							<li><a class="dropdown-item" data-bind="attr: { href: $parent.rawUrl() }"><i class="fa-solid fa-download me-2"></i><?= $t('app.download_eml') ?></a></li>
+							<li><a class="dropdown-item" href="#" data-bind="click: $parent.showSource"><i class="fa-solid fa-code me-2"></i><?= $t('app.view_source') ?></a></li>
+						</ul>
 					</div>
 				</div>
 
@@ -369,6 +371,12 @@
 							<i class="fa-solid fa-calendar-days"></i>
 						</button>
 						<!-- /ko -->
+						<!-- ko if: $parents[1].isPreviewable($data) -->
+						<button class="btn btn-sm btn-icon btn-outline-primary"
+							data-bind="click: () => $parents[1].preview($data), tooltip: 'app.preview'">
+							<i class="fa-solid fa-magnifying-glass"></i>
+						</button>
+						<!-- /ko -->
 					</div>
 				</div>
 
@@ -379,8 +387,19 @@
 						<button class="btn btn-sm btn-outline-primary" style="display:none"
 							data-bind="visible: $root.features().image_proxy, click: $parent.showRemoteImages"><?= $t('app.show') ?></button>
 					</div>
+					<div class="alert alert-warning py-1 px-2 mb-2 small ko-flex justify-content-between align-items-center"
+						data-bind="visible: $parent.mdnBanner" style="display:none">
+						<span><i class="fa-solid fa-receipt"></i> <?= $t('app.mdn_requested') ?></span>
+						<span class="d-flex gap-1">
+							<button class="btn btn-sm btn-outline-primary" data-bind="click: $parent.sendMdn"><?= $t('app.mdn_send') ?></button>
+							<button class="btn btn-sm btn-outline-secondary" data-bind="click: $parent.dismissMdn"><?= $t('app.mdn_ignore') ?></button>
+						</span>
+					</div>
 					<button class="btn btn-sm btn-outline-primary mb-2" data-bind="visible: $parent.isPgp(), click: $parent.decryptPgp" style="display:none">
 						<i class="fa-solid fa-key"></i> <?= $t('app.decrypt_pgp') ?>
+					</button>
+					<button class="btn btn-sm btn-outline-secondary mb-2" data-bind="visible: $parent.message() && $parent.message().smimeSigned, click: $parent.verifySmime" style="display:none">
+						<i class="fa-solid fa-certificate"></i> <span data-bind="text: $parent.smimeLabel"></span>
 					</button>
 					<pre class="border rounded p-3 bg-white" style="white-space:pre-wrap;display:none"
 						data-bind="visible: $parent.decryptedText, text: $parent.decryptedText"></pre>
@@ -443,6 +462,9 @@
 				<a class="list-group-item list-group-item-action" href="#/@settings/pgp"
 					data-bind="css:{active: tab()==='pgp'}">
 					<i class="fa-solid fa-key fa-fw me-2"></i>OpenPGP</a>
+				<a class="list-group-item list-group-item-action" href="#/@settings/sessions"
+					data-bind="css:{active: tab()==='sessions'}">
+					<i class="fa-solid fa-laptop fa-fw me-2"></i><?= $t('settings.sessions') ?></a>
 				<!-- ko if: pluginTabs().length -->
 				<div class="side-menu-group"><?= $t('settings.group_plugins') ?></div>
 				<!-- /ko -->
@@ -512,6 +534,18 @@
 					</div>
 					<div class="col-12 col-xxl-6">
 						<div class="row align-items-center mb-2">
+							<label class="col-md-4 col-form-label col-form-label-sm"><?= $t('settings.auto_advance') ?></label>
+							<div class="col-md-8">
+								<select class="form-select form-select-sm" data-bind="value: values().auto_advance">
+									<option value="next"><?= $t('settings.auto_advance.next') ?></option>
+									<option value="prev"><?= $t('settings.auto_advance.prev') ?></option>
+									<option value="none"><?= $t('settings.auto_advance.none') ?></option>
+								</select>
+							</div>
+						</div>
+					</div>
+					<div class="col-12 col-xxl-6">
+						<div class="row align-items-center mb-2">
 							<label class="col-md-4 col-form-label col-form-label-sm"><?= $t('settings.mark_read_delay') ?></label>
 							<div class="col-md-8">
 								<input type="number" min="0" max="300" class="form-control form-control-sm" data-bind="value: values().mark_read_delay">
@@ -528,6 +562,15 @@
 									<i class="fa-regular fa-circle-question help-icon ms-2" tabindex="0"
 										data-bind="tooltip: 'settings.contacts_autosave_help'"></i>
 								</div>
+							</div>
+						</div>
+					</div>
+					<div class="col-12 col-xxl-6">
+						<div class="row align-items-center mb-2">
+							<label class="col-md-4 col-form-label col-form-label-sm"><?= $t('settings.compose_autosave') ?> <i class="fa-regular fa-circle-question help-icon" tabindex="0"
+								data-bind="tooltip: 'settings.compose_autosave_help'"></i></label>
+							<div class="col-md-8">
+								<input type="number" min="0" max="300" class="form-control form-control-sm" data-bind="value: values().compose_autosave">
 							</div>
 						</div>
 					</div>
@@ -709,7 +752,7 @@
 					</div>
 					<label class="btn btn-sm btn-primary mb-0" data-bind="css: { disabled: importBusy }">
 						<i class="fa-solid fa-file-import"></i> <?= $t('app.import_eml') ?>
-						<input type="file" accept=".eml,message/rfc822" multiple class="d-none"
+						<input type="file" accept=".eml,.mbox,message/rfc822" multiple class="d-none"
 							data-bind="event: { change: importEmlFiles }, disable: importBusy">
 					</label>
 					<span class="small text-muted ms-2" style="display:none"
@@ -793,16 +836,19 @@
 				<h5><?= $t('settings.contacts') ?></h5>
 				<div>
 					<button class="btn btn-sm btn-outline-secondary me-1" data-bind="click: exportContacts"><i class="fa-solid fa-file-export"></i> <?= $t('settings.export') ?></button>
-					<label class="btn btn-sm btn-outline-secondary me-1 mb-0"><i class="fa-solid fa-file-import"></i> <?= $t('settings.import') ?><input type="file" accept=".vcf,text/vcard" class="d-none" data-bind="event: {change: importContacts}"></label>
+					<label class="btn btn-sm btn-outline-secondary me-1 mb-0"><i class="fa-solid fa-file-import"></i> <?= $t('settings.import') ?><input type="file" accept=".vcf,.csv,text/vcard,text/csv" class="d-none" data-bind="event: {change: importContacts}"></label>
 					<button class="btn btn-sm btn-primary" data-bind="click: () => editContact(null)"><i class="fa-solid fa-plus"></i> <?= $t('common.add') ?></button>
 				</div>
 			</div>
 			<table class="table table-hover table-sm align-middle">
-				<thead class="table-light"><tr><th><?= $t('common.name') ?></th><th>Emails</th><th></th></tr></thead>
+				<thead class="table-light"><tr><th><?= $t('common.name') ?></th><th>Emails</th><th><?= $t('settings.contact_groups') ?></th><th></th></tr></thead>
 				<tbody data-bind="foreach: contacts">
 					<tr>
 						<td data-bind="text: name"></td>
 						<td data-bind="text: emails"></td>
+						<td><!-- ko foreach: (properties && properties.categories) || [] -->
+							<span class="badge text-bg-secondary me-1" data-bind="text: $data"></span>
+						<!-- /ko --></td>
 						<td class="text-end">
 							<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: $parent.editContact"><i class="fa-solid fa-pen"></i></button>
 							<button class="btn btn-sm btn-icon btn-outline-danger" data-bind="click: $parent.deleteContact"><i class="fa-solid fa-trash"></i></button>
@@ -817,7 +863,8 @@
 				<div class="card-body" data-bind="with: editingContact">
 					<div class="row g-2">
 						<div class="col-md-4"><input class="form-control" placeholder="<?= $t('common.name') ?>" data-bind="value: name"></div>
-						<div class="col-md-8"><input class="form-control" placeholder="<?= $t('settings.emails_csv') ?>" data-bind="value: emails"></div>
+						<div class="col-md-5"><input class="form-control" placeholder="<?= $t('settings.emails_csv') ?>" data-bind="value: emails"></div>
+						<div class="col-md-3"><input class="form-control" placeholder="<?= $t('settings.groups_csv') ?>" data-bind="value: categories"></div>
 					</div>
 					<div class="mt-3">
 						<button class="btn btn-primary btn-sm" data-bind="click: $parent.saveContact"><?= $t('common.save') ?></button>
@@ -832,69 +879,92 @@
 			<div class="alert alert-info" data-bind="visible: $root.features().sieve === false" style="display:none"><?= $t('settings.sieve_unavailable') ?></div>
 			<!-- ko toast: { value: filtersError, variant: 'warning' } --><!-- /ko -->
 			<div data-bind="visible: $root.features().sieve !== false" style="display:none">
-				<div class="card mb-3" data-bind="visible: vacation" style="display:none">
-					<div class="card-body" data-bind="with: vacation">
-						<h6 class="card-title"><i class="fa-solid fa-plane-departure me-1"></i><?= $t('settings.vacation') ?></h6>
-						<div class="alert alert-warning py-1 small" style="display:none"
-							data-bind="visible: !$parent.vacationManaged()"><?= $t('settings.vacation_unmanaged') ?></div>
-						<div class="form-check mb-2">
-							<input class="form-check-input" type="checkbox" id="vac-on" data-bind="checked: enabled">
-							<label class="form-check-label" for="vac-on"><?= $t('settings.vacation_enabled') ?></label>
+				<ul class="nav nav-tabs mb-3">
+					<li class="nav-item"><a class="nav-link" href="#/@settings/filters/list"
+						data-bind="css:{active: filtersTab()==='list'}"><?= $t('settings.filters') ?></a></li>
+					<li class="nav-item"><a class="nav-link" href="#/@settings/filters/vacation"
+						data-bind="css:{active: filtersTab()==='vacation'}"><?= $t('settings.vacation') ?></a></li>
+				</ul>
+				<div data-bind="visible: filtersTab()==='list'" style="display:none">
+					<div class="d-flex justify-content-end mb-2">
+						<div class="btn-group btn-group-sm">
+							<button class="btn btn-primary" data-bind="click: () => newFilter('empty')">
+								<i class="fa-solid fa-plus"></i> <?= $t('common.add') ?></button>
+							<button class="btn btn-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
+								<span class="visually-hidden"><?= $t('settings.filters.templates') ?></span>
+							</button>
+							<ul class="dropdown-menu dropdown-menu-end" data-bind="foreach: filterTemplates">
+								<li><a class="dropdown-item" href="#" data-bind="click: () => $parent.newFilter(value), text: $root.t(key)"></a></li>
+							</ul>
 						</div>
-						<div class="row g-2 mb-2">
-							<div class="col-6 col-md-3"><label class="form-label small"><?= $t('settings.vacation_from') ?></label>
-								<input type="date" class="form-control form-control-sm" data-bind="value: from"></div>
-							<div class="col-6 col-md-3"><label class="form-label small"><?= $t('settings.vacation_to') ?></label>
-								<input type="date" class="form-control form-control-sm" data-bind="value: to"></div>
-							<div class="col-6 col-md-2"><label class="form-label small"><?= $t('settings.vacation_days') ?></label>
-								<input type="number" min="1" max="30" class="form-control form-control-sm" data-bind="value: days"></div>
-							<div class="col-6 col-md-4"><label class="form-label small"><?= $t('settings.vacation_subject') ?></label>
-								<input type="text" class="form-control form-control-sm" data-bind="value: subject"></div>
+					</div>
+					<table class="table table-hover table-sm align-middle">
+						<thead class="table-light"><tr>
+							<th><?= $t('common.name') ?></th><th><?= $t('settings.status') ?></th><th></th>
+						</tr></thead>
+						<tbody data-bind="foreach: filters">
+							<tr>
+								<td data-bind="text: name"></td>
+								<td><span class="badge text-bg-success" data-bind="visible: active" style="display:none"><?= $t('settings.active') ?></span></td>
+								<td class="text-end text-nowrap">
+									<button class="btn btn-sm btn-icon btn-outline-success" data-bind="click: $parent.activateFilter, visible: !active" style="display:none">
+										<i class="fa-solid fa-circle-play" data-bind="tooltip: 'settings.activate'"></i></button>
+									<button class="btn btn-sm btn-icon btn-outline-warning" data-bind="click: $parent.deactivateFilter, visible: active" style="display:none">
+										<i class="fa-solid fa-circle-stop" data-bind="tooltip: 'settings.deactivate'"></i></button>
+									<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: $parent.editFilter"><i class="fa-solid fa-pen"></i></button>
+									<button class="btn btn-sm btn-icon btn-outline-danger" data-bind="click: $parent.deleteFilter, visible: !active" style="display:none"><i class="fa-solid fa-trash"></i></button>
+									<!-- ko if: active -->
+									<span class="d-inline-block" tabindex="0" data-bind="tooltip: 'settings.filters.delete_active_hint'">
+										<button class="btn btn-sm btn-icon btn-outline-danger" disabled><i class="fa-solid fa-trash"></i></button>
+									</span>
+									<!-- /ko -->
+								</td>
+							</tr>
+						</tbody>
+					</table>
+				</div>
+				<div data-bind="visible: filtersTab()==='vacation'" style="display:none">
+					<div class="card mb-3" data-bind="visible: vacation" style="display:none">
+						<div class="card-body" data-bind="with: vacation">
+							<div class="alert alert-warning py-1 small" style="display:none"
+								data-bind="visible: !$parent.vacationManaged()"><?= $t('settings.vacation_unmanaged') ?></div>
+							<div class="form-check mb-2">
+								<input class="form-check-input" type="checkbox" id="vac-on" data-bind="checked: enabled">
+								<label class="form-check-label" for="vac-on"><?= $t('settings.vacation_enabled') ?></label>
+							</div>
+							<div class="row g-2 mb-2">
+								<div class="col-6 col-md-3"><label class="form-label small"><?= $t('settings.vacation_from') ?></label>
+									<input type="date" class="form-control form-control-sm" data-bind="value: from"></div>
+								<div class="col-6 col-md-3"><label class="form-label small"><?= $t('settings.vacation_to') ?></label>
+									<input type="date" class="form-control form-control-sm" data-bind="value: to"></div>
+								<div class="col-6 col-md-2"><label class="form-label small"><?= $t('settings.vacation_days') ?></label>
+									<input type="number" min="1" max="30" class="form-control form-control-sm" data-bind="value: days"></div>
+								<div class="col-6 col-md-4"><label class="form-label small"><?= $t('settings.vacation_subject') ?></label>
+									<input type="text" class="form-control form-control-sm" data-bind="value: subject"></div>
+							</div>
+							<div class="mb-2"><label class="form-label small"><?= $t('settings.vacation_message') ?></label>
+								<textarea class="form-control form-control-sm" rows="4" data-bind="value: message"></textarea></div>
+							<div class="mb-2">
+								<label class="form-label small"><?= $t('settings.vacation_addresses') ?>
+									<i class="fa-regular fa-circle-question help-icon" tabindex="0"
+										data-bind="tooltip: 'settings.vacation_addresses_help'"></i></label>
+								<div class="dropdown">
+									<button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button"
+										data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"
+										data-bind="text: $root.t('settings.vacation_n_addresses', { n: addresses().length })"></button>
+									<ul class="dropdown-menu" data-bind="foreach: $parent.vacationAddressChoices">
+										<li><label class="dropdown-item d-flex align-items-center gap-2">
+											<input class="form-check-input m-0" type="checkbox"
+												data-bind="checkedValue: $data, checked: $parent.addresses">
+											<span data-bind="text: $data"></span>
+										</label></li>
+									</ul>
+								</div>
+							</div>
+							<button class="btn btn-primary btn-sm" data-bind="click: $parent.saveVacation, enable: $parent.vacationManaged"><?= $t('common.save') ?></button>
 						</div>
-						<div class="mb-2"><label class="form-label small"><?= $t('settings.vacation_message') ?></label>
-							<textarea class="form-control form-control-sm" rows="4" data-bind="value: message"></textarea></div>
-						<div class="mb-2"><label class="form-label small"><?= $t('settings.vacation_addresses') ?></label>
-							<input type="text" class="form-control form-control-sm" data-bind="value: addresses"></div>
-						<button class="btn btn-primary btn-sm" data-bind="click: $parent.saveVacation, enable: $parent.vacationManaged"><?= $t('common.save') ?></button>
 					</div>
 				</div>
-				<div class="d-flex justify-content-between align-items-center mb-2">
-					<h5 class="mb-0"><?= $t('settings.scripts') ?></h5>
-					<div class="btn-group btn-group-sm">
-						<button class="btn btn-primary" data-bind="click: () => newFilter('empty')">
-							<i class="fa-solid fa-plus"></i> <?= $t('common.add') ?></button>
-						<button class="btn btn-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false">
-							<span class="visually-hidden"><?= $t('settings.filters.templates') ?></span>
-						</button>
-						<ul class="dropdown-menu dropdown-menu-end" data-bind="foreach: filterTemplates">
-							<li><a class="dropdown-item" href="#" data-bind="click: () => $parent.newFilter(value), text: $root.t(key)"></a></li>
-						</ul>
-					</div>
-				</div>
-				<table class="table table-hover table-sm align-middle">
-					<thead class="table-light"><tr>
-						<th><?= $t('common.name') ?></th><th><?= $t('settings.status') ?></th><th></th>
-					</tr></thead>
-					<tbody data-bind="foreach: filters">
-						<tr>
-							<td data-bind="text: name"></td>
-							<td><span class="badge text-bg-success" data-bind="visible: active" style="display:none"><?= $t('settings.active') ?></span></td>
-							<td class="text-end text-nowrap">
-								<button class="btn btn-sm btn-icon btn-outline-success" data-bind="click: $parent.activateFilter, visible: !active" style="display:none">
-									<i class="fa-solid fa-circle-play" data-bind="tooltip: 'settings.activate'"></i></button>
-								<button class="btn btn-sm btn-icon btn-outline-warning" data-bind="click: $parent.deactivateFilter, visible: active" style="display:none">
-									<i class="fa-solid fa-circle-stop" data-bind="tooltip: 'settings.deactivate'"></i></button>
-								<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: $parent.editFilter"><i class="fa-solid fa-pen"></i></button>
-								<button class="btn btn-sm btn-icon btn-outline-danger" data-bind="click: $parent.deleteFilter, visible: !active" style="display:none"><i class="fa-solid fa-trash"></i></button>
-								<!-- ko if: active -->
-								<span class="d-inline-block" tabindex="0" data-bind="tooltip: 'settings.filters.delete_active_hint'">
-									<button class="btn btn-sm btn-icon btn-outline-danger" disabled><i class="fa-solid fa-trash"></i></button>
-								</span>
-								<!-- /ko -->
-							</td>
-						</tr>
-					</tbody>
-				</table>
 			</div>
 		</div>
 
@@ -940,6 +1010,35 @@
 				</div></div>
 			</div>
 		</div>
+
+		<!-- Onglet Sessions (jetons « se souvenir de moi ») -->
+		<div data-bind="visible: tab()==='sessions'" style="display:none">
+			<h5><?= $t('settings.sessions') ?></h5>
+			<p class="text-muted small"><?= $t('settings.sessions_help') ?></p>
+			<table class="table table-hover table-sm align-middle" data-bind="visible: sessions().length" style="display:none">
+				<thead class="table-light"><tr>
+					<th><?= $t('settings.session_agent') ?></th>
+					<th><?= $t('settings.session_created') ?></th>
+					<th><?= $t('settings.session_last_used') ?></th>
+					<th></th>
+				</tr></thead>
+				<tbody data-bind="foreach: sessions">
+					<tr>
+						<td class="text-truncate" style="max-width:280px">
+							<span data-bind="text: agent || '—'"></span>
+							<span class="badge text-bg-primary ms-1" style="display:none" data-bind="visible: current"><?= $t('settings.session_current') ?></span>
+						</td>
+						<td class="small" data-bind="text: $parent.fmtTs(created_at)"></td>
+						<td class="small" data-bind="text: last_used_at ? $parent.fmtTs(last_used_at) : '—'"></td>
+						<td class="text-end">
+							<button class="btn btn-sm btn-icon btn-outline-danger" data-bind="click: $parent.deleteSession, tooltip: 'common.delete'"><i class="fa-solid fa-trash"></i></button>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+			<p class="text-muted small" data-bind="visible: !sessions().length" style="display:none"><?= $t('settings.sessions_none') ?></p>
+			<button class="btn btn-sm btn-outline-danger" style="display:none" data-bind="click: revokeOtherSessions, visible: sessions().length > 1"><?= $t('settings.sessions_revoke_others') ?></button>
+		</div>
 		</div>
 		</div>
 	</div>
@@ -967,6 +1066,11 @@
 									data-bind="checked: showCc, enable: !cc()"> <?= $t('compose.cc') ?></label></li>
 								<li><label class="dropdown-item"><input type="checkbox" class="form-check-input me-2"
 									data-bind="checked: showBcc, enable: !bcc()"> <?= $t('compose.bcc') ?></label></li>
+								<li><hr class="dropdown-divider"></li>
+								<li><label class="dropdown-item"><input type="checkbox" class="form-check-input me-2"
+									data-bind="checked: priority"> <i class="fa-solid fa-exclamation me-1"></i><?= $t('compose.priority') ?></label></li>
+								<li><label class="dropdown-item"><input type="checkbox" class="form-check-input me-1"
+									data-bind="checked: mdn"> <i class="fa-solid fa-receipt me-1"></i><?= $t('compose.mdn') ?></label></li>
 								<li><hr class="dropdown-divider"></li>
 								<li><label class="dropdown-item"><input type="checkbox" class="form-check-input me-2"
 									data-bind="checked: pgpEncrypt"> <i class="fa-solid fa-lock me-1"></i><?= $t('compose.encrypt') ?><i class="fa-regular fa-circle-question help-icon ms-1" tabindex="0"
@@ -1065,6 +1169,8 @@
 					</div>
 				</div>
 				<div class="modal-footer">
+					<span class="small text-muted me-auto" style="display:none"
+						data-bind="visible: savedAt, text: savedAt() ? $root.t('compose.autosaved_at', { v: savedAt().toLocaleTimeString().slice(0,5) }) : ''"></span>
 					<button class="btn btn-sm btn-outline-secondary" data-bind="click: saveDraft, disable: sending() || uploadPending()"><?= $t('compose.draft') ?></button>
 					<button class="btn btn-sm btn-primary" data-bind="click: send, disable: sending() || uploadPending()">
 						<span data-bind="visible: !sending()"><i class="fa-solid fa-paper-plane"></i> <?= $t('compose.send') ?></span>
@@ -1090,6 +1196,30 @@
 				<div class="modal-body">
 					<pre class="font-monospace small mb-0" style="max-height:70vh;overflow:auto"
 						data-bind="text: sourceText"></pre>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Modale d'aperçu d'une pièce jointe (image, PDF, texte). -->
+	<div class="modal fade" id="preview-modal" tabindex="-1" data-bind="with: messageView">
+		<div class="modal-dialog modal-xl">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" data-bind="text: previewName"></h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body text-center">
+					<img class="img-fluid" style="max-height:75vh;display:none" alt=""
+						data-bind="visible: previewType() === 'image', attr: { src: previewType() === 'image' ? previewUrl() : '' }">
+					<iframe style="width:100%;height:75vh;border:0;display:none" title=""
+						data-bind="visible: previewType() === 'pdf', attr: { src: previewType() === 'pdf' ? previewUrl() : '' }"></iframe>
+					<pre class="font-monospace small mb-0 text-start" style="max-height:75vh;overflow:auto;display:none"
+						data-bind="visible: previewType() === 'text', text: previewText"></pre>
+				</div>
+				<div class="modal-footer">
+					<a class="btn btn-sm btn-outline-primary" download
+						data-bind="attr: { href: previewUrl() }"><i class="fa-solid fa-download"></i> <?= $t('common.download') ?></a>
 				</div>
 			</div>
 		</div>
@@ -1145,6 +1275,13 @@
 						<label class="d-flex align-items-center gap-1 mb-0 small" for="mx-search-before">
 							<?= $t('app.search.before') ?>
 							<input type="date" class="form-control form-control-sm w-auto" id="mx-search-before" data-bind="value: searchBefore">
+						</label>
+						<label class="d-flex align-items-center gap-1 mb-0 small" for="mx-search-scope">
+							<?= $t('app.search.scope') ?>
+							<select class="form-select form-select-sm w-auto" id="mx-search-scope" data-bind="value: searchScope">
+								<option value="folder"><?= $t('app.search.scope_folder') ?></option>
+								<option value="all"><?= $t('app.search.scope_all') ?></option>
+							</select>
 						</label>
 					</div>
 				</div>

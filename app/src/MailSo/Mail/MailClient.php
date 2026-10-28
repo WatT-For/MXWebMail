@@ -280,7 +280,7 @@ class MailClient
 		return ($aFetchResponse && 1 === \count($aFetchResponse));
 	}
 
-	public function MessageAppendFile(string $sMessageFileName, string $sFolderToSave, ?array $aAppendFlags = null) : int
+	public function MessageAppendFile(string $sMessageFileName, string $sFolderToSave, ?array $aAppendFlags = null, int $iDateTime = 0) : int
 	{
 		if (!\is_file($sMessageFileName) || !\is_readable($sMessageFileName)) {
 			throw new \ValueError;
@@ -289,7 +289,7 @@ class MailClient
 		$iMessageStreamSize = \filesize($sMessageFileName);
 		$rMessageStream = \fopen($sMessageFileName, 'rb');
 
-		$iUid = $this->oImapClient->MessageAppendStream($sFolderToSave, $rMessageStream, $iMessageStreamSize, $aAppendFlags);
+		$iUid = $this->oImapClient->MessageAppendStream($sFolderToSave, $rMessageStream, $iMessageStreamSize, $aAppendFlags, $iDateTime);
 
 		\fclose($rMessageStream);
 

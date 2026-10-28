@@ -2,6 +2,16 @@
 
 ## 1. Modèle de sécurité intégré
 
+### « Rester connecté » (jetons persistants)
+
+La case « Rester connecté » émet un cookie `mxwm_remember` (`selector:validator`,
+HttpOnly, Secure, SameSite=Lax, 30 jours). La table `auth_tokens` ne stocke que le
+**hash SHA-256** du validator ; celui-ci est **tourné à chaque usage** (un cookie
+volé déjà présenté est détectable et invalidé). La restauration re-déchiffre le mot
+de passe IMAP (`CredentialCrypt`) et re-vérifie les identifiants — un échec supprime
+le jeton. Les jetons sont listés et révocables dans Paramètres → Sessions, et le
+jeton courant est révoqué à la déconnexion.
+
 ### CSRF
 
 Tout POST exige un jeton CSRF de session (`X-CSRF-Token`, champ de formulaire ou clé JSON) ;
@@ -136,12 +146,18 @@ dans `trusted_proxies` (CIDR). La détection HTTPS (`isHttps`) suit la même rè
   paquets installés (zip cœur de la release, fichiers plugins lus dans le dépôt au
   ref `update.plugins_ref` via l'API git + `raw.githubusercontent.com`, chacun
   vérifié par sha1 de blob git) ne proviennent que de ce dépôt — aucune URL
-  arbitraire configurable. Tant que le dépôt reste **privé**, `PAT GitHub` (PAT
+  arbitraire configurable. Le paquet cœur est vérifié en deux niveaux : somme
+  sha256 de l'asset (fichier `<zip>.sha256` de la release) puis `files.sha256`
+  (manifeste par fichier embarqué, contrôlé après extraction) ; les constantes
+  `APP_REQ_PHP`/`APP_REQ_FROM` du `App.php` du paquet déclarent les prérequis
+  (version PHP, version source minimale) appliqués avant copie. Tant que le dépôt reste **privé**, `PAT GitHub` (PAT
   avec accès `Contents: Read` au dépôt) est requis : l'API, les assets (servis via
   l'endpoint `releases/assets/<id>` — le `browser_download_url` renvoie 404 sur
   dépôt privé même authentifié) et les `raw` en dépendent. `update.plugins_local`
-  (source plugins disque, sans vérification distante) est réservé au dev/tests —
-  modifiable uniquement via `config.php`, jamais via l'API admin.
+  et `update.manifest_url` (manifeste de release alternatif) sont réservés au
+  dev/tests — modifiables uniquement via `config.php`, jamais via l'API admin.
+  Pendant la copie des fichiers, le flag `storage/update/applying` coupe l'API
+  utilisateur (503, expire après 15 min).
 - Le changement SQLite → MariaDB ne migre pas les données (schéma vierge).
 - Les clés privées OpenPGP sont stockées armored côté serveur (la passphrase protège la
   clé elle-même, pas d'encapsulation supplémentaire).

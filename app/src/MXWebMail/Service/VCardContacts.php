@@ -69,6 +69,13 @@ final class VCardContacts
 				$properties[$key] = $v;
 			}
 		}
+		if (isset($card->CATEGORIES)) {
+			$cats = array_values(array_filter(array_map(
+				fn($c) => trim((string) $c), $card->CATEGORIES->getParts())));
+			if ($cats) {
+				$properties['categories'] = $cats;
+			}
+		}
 
 		$name = trim((string) ($card->FN ?? '')) ?: trim((string) ($card->NICKNAME ?? ''));
 		return [
@@ -129,6 +136,9 @@ final class VCardContacts
 				if ($v !== '') {
 					$card->add($prop, $v);
 				}
+			}
+			if (!empty($props['categories']) && is_array($props['categories'])) {
+				$card->add('CATEGORIES', implode(',', array_map('trim', $props['categories'])));
 			}
 			$out .= $card->serialize();
 		}

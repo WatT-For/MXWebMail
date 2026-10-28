@@ -69,7 +69,7 @@ activé), *Accès*, *En-têtes*, *TLS* :
 Sous-onglets *Visionneuse* et *Paramètres* :
 
 - visionneuse des journaux `app.log`, `mail.log` et du journal d'auth (200 dernières
-  lignes) ;
+  lignes), avec bouton « Vider » pour tronquer le fichier sélectionné ;
 - `debug`, `logs.*`, `auth_logging*`, `labs.smtp_show_server_errors`.
 
 ### Domaines
@@ -169,8 +169,25 @@ extensions chargées. Un lien vers le dépôt GitHub officiel est affiché dans 
 navbar et l'en-tête de cet onglet. Gère aussi les **mises à jour** via GitHub
 Releases :
 
-- *Vérifier* → *Télécharger* → *Appliquer* ; états conservés dans `storage/update/state.json` ;
-- sauvegarde `storage/update/backup-<ts>` pour revenir en arrière, action *Réinitialiser*.
+- *Vérifier* → *Télécharger* → *Appliquer* → finalisation automatique des
+  migrations ; états conservés dans `storage/update/state.json` ;
+- à l'extraction, `files.sha256` (manifeste par fichier du paquet) est vérifié,
+  les prérequis du paquet (`APP_REQ_PHP`/`APP_REQ_FROM` dans son `App.php` :
+  version PHP, version source minimale) sont contrôlés, et les fichiers
+  modifiés localement sont signalés avant application ;
+- pendant la copie, l'API utilisateur répond 503 (flag `storage/update/applying`,
+  page maintenance côté web — expire après 15 min en cas d'échec) ;
+- chaque fichier écrasé est sauvegardé dans `storage/update/backup-<ts>` avec
+  `manifest.json` (version, `schema_version`, listes) ; sous SQLite la base
+  (`webmail.sqlite` + `db/users/*.sqlite`) est copiée après checkpoint WAL —
+  sous MariaDB, la sauvegarde externe (`mysqldump`) reste à la charge de l'admin
+  (avertissement avant application) ;
+- *Restaurer* (rollback) : restaure les fichiers du dernier backup, supprime les
+  fichiers créés et recopie les bases SQLite ; sous MariaDB, refus si le schéma
+  a avancé (restaurez le dump puis confirmez le forçage) ;
+- le bandeau « schéma plus récent que le code » signale un rollback fichiers
+  sans restauration de base ;
+- action *Réinitialiser* pour abandonner un paquet téléchargé/extrait.
 
 > Le dépôt officiel est verrouillé dans `GitHubClient::REPO` : la vérification est
 > désactivée tant qu'il n'est pas renseigné. `update.channel` reste modifiable ici ;

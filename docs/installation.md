@@ -161,6 +161,11 @@ Remarques :
 5. Vérifiez `force_https` / `hsts` si vous êtes derrière un reverse proxy (voir
    [securite.md](securite.md) pour `trusted_proxies`).
 6. Positionnez `admin_ip_allowlist` si le panneau admin doit être restreint à certaines IP.
+7. **Mises à jour** : elles se font depuis l'admin (*À propos*) via les GitHub
+   Releases — vérification `files.sha256` par fichier, sauvegarde fichiers +
+   base SQLite, rollback assisté et migrations de base orchestrées. Détail dans
+   [administration.md](administration.md#à-propos) et procédures de secours dans
+   [depannage.md](depannage.md#mises-à-jour).
 
 ## 7. URLs principales
 

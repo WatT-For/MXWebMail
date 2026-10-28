@@ -111,7 +111,10 @@ return [
 		'list_sort'         => 'REVERSE DATE', // tri liste messages (critère IMAP SORT whitelisté API)
 		'view_images'       => 'ask',    // images externes : always | ask | match (expéditeur connu)
 		'msg_default_action' => 'reply', // bouton répondre par défaut : reply | reply_all
+		'auto_advance'      => 'next',   // après suppression/déplacement du message ouvert : next | prev | none
 		'mark_read_delay'   => 5,        // secondes avant de marquer lu un message ouvert (0 = immédiat)
+		'compose_autosave'  => 60,       // secondes entre enregistrements auto du brouillon (0 = jamais)
+		'mdn_mode'          => 'ask',    // accusés de réception : ask (bandeau) | never (masquer)
 		'autologout'        => 30,       // minutes d'inactivité avant déconnexion (0 = jamais)
 		'list_refresh'      => 5,        // minutes entre réactualisations auto de la liste (0 = jamais)
 		'notify_new_mail'   => false,    // notification navigateur à l'arrivée d'un mail (onglet ouvert)
@@ -141,6 +144,10 @@ return [
 	],
 
 	// ─── Proxy images externes ───
+	'import_max_size'    => 100,    // taille max d'un .mbox importé (Mo) — les .eml
+	                                // gardent le plafond attachment_max_size
+	'smime_ca_path'      => '',     // chemin CA (fichier PEM) pour la confiance S/MIME ;
+	                                // vide = signature crypto vérifiée seule (PKCS7_NOVERIFY)
 	'image_proxy' => true,          // servir les images distantes via /api/proxy
 	'image_proxy_allowlist' => '',  // domaines autorisés (CSV, *.domaine ok) ; vide = tous — IP privées toujours bloquées
 
@@ -150,6 +157,9 @@ return [
 		'level'   => LOG_WARNING,       // LOG_DEBUG pour tracer le protocole
 		'syslog'  => false,             // doublon vers syslog() quand le log fichier est inactif
 		'time_zone' => '',              // fuseau des horodatages de log (ex. 'Europe/Paris') ; vide = serveur
+		'max_size' => 5,                // rotation au-delà de N Mio — vaut pour
+		                              // mail.log, app.log et le journal d'auth
+		'keep'    => 3,                 // rotations conservées : app.1.log … app.{keep}.log
 	],
 
 	// ─── Journal d'authentification (type fail2ban) ───

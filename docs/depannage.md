@@ -100,6 +100,33 @@ Sur dépôt privé, le `browser_download_url` des assets renvoie 404 même avec 
 token valide. Corrigé à partir de la 0.36.1 : les assets sont téléchargés via
 l'endpoint API `releases/assets/<id>` quand `PAT GitHub` est configuré.
 
+**Le site répond 503 « update » / page maintenance pendant une mise à jour**
+Normal : le flag `app/storage/update/applying` coupe l'API utilisateur pendant la
+copie des fichiers (jamais de mix ancien/nouveau code). Il est retiré à la fin ;
+s'il reste après un plantage, il expire tout seul au bout de 15 min — ou
+supprimez `app/storage/update/applying` manuellement.
+
+**« Migrations en attente » après une mise à jour**
+La finalisation (`/api/admin/update/finalize`) n'a pas tourné : bouton
+*Finaliser* dans *À propos*, ou en CLI `php app/bin/post-update.php`. Sans
+action, les migrations s'appliquent quand même à la prochaine requête
+(migration paresseuse), mais il est préférable de les contrôler.
+
+**Revenir en arrière après une mise à jour (rollback)**
+Bouton *Restaurer* dans *À propos* : restaure les fichiers de
+`app/storage/update/backup-<ts>` (les 3 derniers backups sont conservés),
+supprime les fichiers créés et recopie les bases SQLite sauvegardées.
+Sous **MariaDB**, les migrations ne sont pas réversibles : restaurez d'abord la
+base depuis votre `mysqldump`, puis relancez le rollback (la confirmation forcée
+est proposée). S'il faut repartir de zéro : réinstaller le paquet d'origine et
+restaurer `app/storage/` (dont `app.key` et `db/`).
+
+**Bandeau « schéma de la base plus récent que le code »**
+`meta.schema_ahead` : le code installé est plus ancien que le schéma (rollback
+fichiers sans restauration de la base, ou paquet plus ancien déployé). Restaurez
+la base ou réappliquez la version correspondante ; les migrations restent
+suspendues tant que l'écart existe.
+
 ## Divers
 
 **Sous Nginx, les dossiers privés sont accessibles ?**

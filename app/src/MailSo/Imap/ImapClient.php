@@ -528,6 +528,10 @@ class ImapClient extends \MailSo\Net\NetClient
 
 			$oResult->validate();
 
+		} catch (Exceptions\NegativeResponseException $e) {
+			// NO/BAD = refus protocolaire attendu (login refusé, quota
+			// absent…) : message court, sans pile d'appel.
+			$this->writeLogExceptionShort($e, \LOG_WARNING);
 		} catch (\Throwable $e) {
 			$this->writeLogException($e, \LOG_WARNING);
 		}
@@ -572,6 +576,9 @@ class ImapClient extends \MailSo\Net\NetClient
 
 			$oResult->validate();
 
+		} catch (Exceptions\NegativeResponseException $e) {
+			// NO/BAD : message court, sans pile d'appel (cf. getResponse).
+			$this->writeLogExceptionShort($e, \LOG_WARNING);
 		} catch (\Throwable $e) {
 			$this->writeLogException($e, \LOG_WARNING);
 		}

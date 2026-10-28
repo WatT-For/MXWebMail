@@ -445,7 +445,7 @@
 		</ul>
 		<div data-bind="visible: subtabs.logs()==='viewer'" style="display:none">
 			<div class="d-flex align-items-center gap-2 mb-2">
-				<select class="form-select form-select-sm" style="width:auto" data-bind="value: logFile, event: {change: loadLogs}">
+				<select class="form-select form-select-sm" style="width:auto" data-bind="value: logFile">
 					<option value="app"><?= $t('admin.log_app') ?></option>
 					<option value="mail"><?= $t('admin.log_mail') ?></option>
 					<option value="auth"><?= $t('admin.log_auth') ?></option>
@@ -453,6 +453,10 @@
 				<button class="btn btn-sm btn-icon btn-outline-secondary" type="button"
 					data-bind="click: loadLogs, tooltip: 'common.refresh'">
 					<i class="fa-solid fa-rotate"></i>
+				</button>
+				<button class="btn btn-sm btn-icon btn-outline-danger" type="button"
+					data-bind="click: clearLog, tooltip: 'admin.log_clear'">
+					<i class="fa-solid fa-eraser"></i>
 				</button>
 			</div>
 			<pre class="bg-dark text-light p-3 rounded small" style="max-height:60vh;overflow:auto" data-bind="text: logs().join('\n')"></pre>
@@ -579,18 +583,47 @@
 				</div>
 				<!-- /ko -->
 
+				<!-- ko if: updateInfo().db && updateInfo().db.schema_ahead -->
+				<div class="alert alert-danger py-2 mt-3 mb-0 small">
+					<i class="fa-solid fa-triangle-exclamation me-1"></i>
+					<span data-bind="text: $root.t('admin.update.schema_ahead', {v: updateInfo().db.schema_ahead})"></span>
+				</div>
+				<!-- /ko -->
 				<!-- ko if: updateStep()==='downloaded' || updateStep()==='extracted' -->
 				<div class="alert alert-warning py-2 mt-3 mb-0 small">
 					<i class="fa-solid fa-box-open me-1"></i>
 					<span data-bind="text: $root.t('admin.update.pending', {ver: updateInfo().state.version})"></span>
 					<span class="badge ms-1" data-bind="text: updateInfo().state.verified ? $root.t('admin.update.verified') : $root.t('admin.update.unverified'),
 						css: updateInfo().state.verified ? 'text-bg-success' : 'text-bg-secondary'"></span>
+					<!-- ko if: updateInfo().state.modified && updateInfo().state.modified.length -->
+					<div class="mt-1">
+						<i class="fa-solid fa-file-pen me-1"></i>
+						<span data-bind="text: $root.t('admin.update.modified_list', {count: updateInfo().state.modified.length})"></span>
+						<div class="text-muted" data-bind="text: updateInfo().state.modified.slice(0,5).join(', ') + (updateInfo().state.modified.length > 5 ? '…' : '')"></div>
+					</div>
+					<!-- /ko -->
 				</div>
 				<!-- /ko -->
 				<!-- ko if: updateStep()==='applied' -->
 				<div class="alert alert-success py-2 mt-3 mb-0 small">
 					<i class="fa-solid fa-check me-1"></i>
 					<span data-bind="text: $root.t('admin.update.applied_state', {ver: updateInfo().state.version})"></span>
+				</div>
+				<!-- ko if: updateInfo().state.migrations_pending -->
+				<div class="alert alert-warning py-2 mt-2 mb-0 small d-flex align-items-center gap-2">
+					<i class="fa-solid fa-database"></i>
+					<span data-bind="text: $root.t('admin.update.migrations_pending')"></span>
+					<button class="btn btn-sm btn-warning" type="button"
+						data-bind="click: finalizeUpdate, disable: !!updateBusy()">
+						<?= $t('admin.update.finalize') ?>
+					</button>
+				</div>
+				<!-- /ko -->
+				<!-- /ko -->
+				<!-- ko if: updateStep()==='rolled_back' -->
+				<div class="alert alert-info py-2 mt-3 mb-0 small">
+					<i class="fa-solid fa-rotate-left me-1"></i>
+					<span data-bind="text: $root.t('admin.update.rolled_back_state', {ver: updateInfo().state.version})"></span>
 				</div>
 				<!-- /ko -->
 
@@ -613,6 +646,14 @@
 					<button class="btn btn-sm btn-outline-secondary" type="button"
 						data-bind="click: resetUpdate, disable: !!updateBusy()">
 						<?= $t('admin.update.reset') ?>
+					</button>
+					<!-- /ko -->
+					<!-- ko if: updateInfo().rollback -->
+					<button class="btn btn-sm btn-outline-danger" type="button"
+						data-bind="click: rollbackUpdate, disable: !!updateBusy(),
+							attr: {title: $root.t('admin.update.rollback_title', {from: updateInfo().rollback.from, to: updateInfo().rollback.to})}">
+						<i class="fa-solid fa-rotate-left"></i>
+						<?= $t('admin.update.rollback') ?>
 					</button>
 					<!-- /ko -->
 				</div>

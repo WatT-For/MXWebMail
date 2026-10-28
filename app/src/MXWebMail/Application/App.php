@@ -46,7 +46,11 @@ final class App
 
 	public function __construct(?string $rootDir = null, ?string $installDir = null)
 	{
-		defined('APP_VERSION') || define('APP_VERSION', '0.42.0'); // X-Mailer MailSo
+		defined('APP_VERSION') || define('APP_VERSION', '0.43.0'); // X-Mailer MailSo
+		// Prérequis du paquet de mise à jour — lus par regex dans le App.php du
+		// paquet extrait (UpdateService::checkRequirements) avant application.
+		defined('APP_REQ_PHP') || define('APP_REQ_PHP', '>=8.4');
+		defined('APP_REQ_FROM') || define('APP_REQ_FROM', ''); // source minimale, '' = aucune
 		$this->rootDir = $rootDir ?? dirname(__DIR__, 3);
 		// Racine d'installation (parent de public/) — passée explicitement par
 		// index.php car indéductible de rootDir quand app/ est hors racine web.
@@ -84,6 +88,16 @@ final class App
 			$this->db->migrate();
 		}
 		return $this->db;
+	}
+
+	/**
+	 * Libère la connexion PDO globale. Requis avant de remplacer le fichier
+	 * sqlite (rollback update : sous Windows un fichier ouvert est verrouillé).
+	 * La prochaine sollicitation de db() reconnecte et migre normalement.
+	 */
+	public function closeDb(): void
+	{
+		$this->db = null;
 	}
 
 	/**
@@ -312,6 +326,16 @@ final class App
 		return $this->updater ??= new \MXWebMail\Service\UpdateService($this);
 	}
 
+	/**
+	 * Copie de fichiers d'une mise à jour en cours (flag UpdateService).
+	 * Expire après 15 min : un apply mort ne laisse pas l'app bloquée.
+	 */
+	public function isUpdating(): bool
+	{
+		$f = $this->storageDir() . '/update/applying';
+		return is_file($f) && (int) @file_get_contents($f) > time() - 900;
+	}
+
 	public function github(): \MXWebMail\Service\GitHubClient
 	{
 		return $this->github ??= new \MXWebMail\Service\GitHubClient($this);
@@ -472,7 +496,10 @@ final class App
 			'list_sort' => 'enum:REVERSE DATE,DATE,ARRIVAL,REVERSE ARRIVAL,FROM,REVERSE FROM,TO,REVERSE TO,CC,SUBJECT,REVERSE SUBJECT,SIZE,REVERSE SIZE',
 			'view_images' => 'enum:ask,match,always',
 			'msg_default_action' => 'enum:reply,reply_all',
+			'auto_advance'      => 'enum:next,prev,none',
 			'mark_read_delay' => 'int:0:300',
+			'compose_autosave' => 'int:0:300',
+			'mdn_mode' => 'enum:ask,never',
 			'autologout' => 'int:0:1440',
 			'list_refresh' => 'int:0:60',
 			'notify_new_mail' => 'bool',
@@ -624,6 +651,16 @@ final class App
 			return;
 		}
 
+		// Mise à jour en cours (flag posé par UpdateService::apply/rollback) :
+		// bloque l'API non-admin — les fichiers sont remplacés pendant la copie.
+		if ($isApi && $this->isUpdating()
+			&& !str_starts_with($request->path, '/api/admin/')
+			&& $request->path !== '/api/ping') {
+			$this->sendResponse(\MXWebMail\Http\JsonResponse::error(
+				$this->locale()->t('errors.updating'), 'updating', 503), $request);
+			return;
+		}
+
 		// Mode maintenance : bloque l'API sauf admin et ping
 		if ($isApi && $this->config->get('maintenance', false)
 			&& !str_starts_with($request->path, '/api/admin/')
@@ -634,6 +671,15 @@ final class App
 		}
 
 		$this->startSession();
+		// Jeton « se souvenir de moi » : restaure une session webmail
+		// absente/expirée avant le dispatch (rotation du validator à l'usage).
+		if (empty($_SESSION['user_id']) && !empty($_COOKIE['mxwm_remember'])) {
+			try {
+				$this->auth()->resumeFromRemember();
+			} catch (\Throwable $e) {
+				$this->log('warning', 'Remember-token: ' . $e->getMessage());
+			}
+		}
 		// Charge les plugins activés : enregistre leurs hooks dans HookRegistry.
 		// Surface admin = page /{admin_path} + /api/admin/* (cf. doc de plugins()).
 		$this->plugins(
@@ -691,7 +737,9 @@ final class App
 		$router->post('/api/folders/{name}/rename', [$api, 'folderRename']);
 		$router->post('/api/folders/{name}/subscribe', [$api, 'folderSubscribe']);
 		$router->post('/api/folders/{name}/clear', [$api, 'folderClear']);
+		$router->post('/api/folders/{name}/mark-read', [$api, 'folderMarkRead']);
 		$router->post('/api/folders/{name}/import', [$api, 'folderImport']);
+		$router->get('/api/folders/{name}/eml.zip', [$api, 'emlZip']);
 		$router->get('/api/folders/{name}/acl', [$api, 'folderAcl']);
 		$router->post('/api/folders/{name}/acl', [$api, 'folderAclSet']);
 		$router->post('/api/folders/{name}/acl/delete', [$api, 'folderAclDelete']);
@@ -710,6 +758,8 @@ final class App
 		$router->post('/api/messages/{uid}/delete', [$api, 'messageDelete']);
 		$router->post('/api/messages/{uid}/spam', [$api, 'messageSpam']);
 		$router->post('/api/messages/{uid}/unsubscribe', [$api, 'messageUnsubscribe']);
+		$router->post('/api/messages/{uid}/mdn', [$api, 'messageMdnSend']);
+		$router->post('/api/messages/{uid}/smime-verify', [$api, 'messageSmimeVerify']);
 		$router->get('/api/messages/{uid}/attachments.zip', [$api, 'attachmentsZip']);
 		$router->get('/api/responses', [$api, 'responses']);
 		$router->post('/api/responses', [$api, 'responseSave']);
@@ -726,6 +776,9 @@ final class App
 		$router->post('/api/contacts/import', [$api, 'contactsImport']);
 		$router->get('/api/contacts/export', [$api, 'contactsExport']);
 		$router->post('/api/password/change', [$api, 'passwordChange']);
+		$router->get('/api/sessions', [$api, 'sessions']);
+		$router->post('/api/sessions/{id}/delete', [$api, 'sessionDelete']);
+		$router->post('/api/sessions/revoke-others', [$api, 'sessionsRevokeOthers']);
 		$router->get('/api/settings', [$api, 'settingsGet']);
 		$router->post('/api/settings', [$api, 'settingsSet']);
 		$router->get('/api/identities', [$api, 'identities']);
@@ -805,6 +858,7 @@ final class App
 		$router->post('/api/admin/test-connexion', [$admin, 'testConnexion']);
 		$router->post('/api/admin/test-db', [$admin, 'testDb']);
 		$router->get('/api/admin/logs', [$admin, 'logs']);
+		$router->post('/api/admin/logs/clear', [$admin, 'logsClear']);
 		$router->get('/api/admin/settings', [$admin, 'settingsGet']);
 		$router->post('/api/admin/settings', [$admin, 'settingsSet']);
 		$router->post('/api/admin/password', [$admin, 'passwordSet']);
@@ -815,6 +869,8 @@ final class App
 		$router->get('/api/admin/update/status', [$admin, 'updateStatus']);
 		$router->post('/api/admin/update/download', [$admin, 'updateDownload']);
 		$router->post('/api/admin/update/apply', [$admin, 'updateApply']);
+		$router->post('/api/admin/update/finalize', [$admin, 'updateFinalize']);
+		$router->post('/api/admin/update/rollback', [$admin, 'updateRollback']);
 		$router->post('/api/admin/update/reset', [$admin, 'updateReset']);
 
 		// Les plugins activés enregistrent leurs routes publiques/dédiées
@@ -831,6 +887,7 @@ final class App
 		if (!is_dir($dir)) {
 			mkdir($dir, 0700, true);
 		}
+		self::rotateLog($dir . '/app.log', $this->logMaxSize(), $this->logKeep());
 		$line = sprintf("[%s] [%s] %s\n",
 			(new \DateTime('now', $this->logTimeZone()))->format('Y-m-d H:i:s'),
 			strtoupper($level), $message);
@@ -864,7 +921,40 @@ final class App
 			'{result}'     => str_replace(["\r", "\n"], '', $result),
 		]);
 		$filename = basename((string) $this->config->get('auth_logging_filename', 'auth.log')) ?: 'auth.log';
+		self::rotateLog($dir . '/' . $filename, $this->logMaxSize(), $this->logKeep());
 		file_put_contents($dir . '/' . $filename, rtrim($line) . "\n", FILE_APPEND | LOCK_EX);
+	}
+
+	/**
+	 * Rotation par taille : file.log → file.1.log → … → file.{keep}.log.
+	 * Publique/statique : aussi appelée par MailSo\Log\Drivers\File (mail.log).
+	 */
+	public static function rotateLog(string $file, int $maxBytes, int $keep): void
+	{
+		if ($keep < 1 || !is_file($file) || (int) filesize($file) < $maxBytes) {
+			return;
+		}
+		$rotated = static fn(int $i): string => str_ends_with($file, '.log')
+			? substr($file, 0, -4) . '.' . $i . '.log' : $file . '.' . $i;
+		@unlink($rotated($keep));
+		for ($i = $keep - 1; $i >= 1; --$i) {
+			is_file($rotated($i)) && @rename($rotated($i), $rotated($i + 1));
+		}
+		@rename($file, $rotated(1));
+	}
+
+	/** logs.max_size (Mio) → octets ; défaut 5 Mio, minimum 1. */
+	private function logMaxSize(): int
+	{
+		$logs = $this->config->get('logs');
+		return max(1, (int) (is_array($logs) ? ($logs['max_size'] ?? 5) : 5)) * 1048576;
+	}
+
+	/** logs.keep : rotations conservées ; défaut 3, plafond 20. */
+	private function logKeep(): int
+	{
+		$logs = $this->config->get('logs');
+		return min(20, max(0, (int) (is_array($logs) ? ($logs['keep'] ?? 3) : 3)));
 	}
 
 	/** Fuseau des horodatages de log (logs.time_zone) ; null = défaut serveur. */

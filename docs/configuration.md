@@ -102,6 +102,7 @@ celles-ci + celles déclarées par les plugins (hook `settings.allowed`).
 | `list_sort` | `REVERSE DATE` | Tri de la liste (critère IMAP SORT whitelisté). |
 | `view_images` | `ask` | Images externes : `always` / `ask` / `match` (expéditeur connu). |
 | `msg_default_action` | `reply` | Bouton répondre par défaut : `reply` / `reply_all`. |
+| `auto_advance` | `next` | Après suppression/déplacement du message ouvert : `next` / `prev` / `none`. |
 | `mark_read_delay` | `5` | Secondes avant de marquer lu un message ouvert (0 = immédiat). |
 | `autologout` | `30` | Minutes d'inactivité avant déconnexion (0 = jamais). |
 | `list_refresh` | `5` | Minutes entre réactualisations auto (0 = jamais). |
@@ -171,6 +172,10 @@ Les réponses privées/API ne reçoivent jamais de cache public ; le HTML est `n
 | `logs.level` | `LOG_WARNING` | `LOG_DEBUG` pour tracer le protocole. |
 | `logs.syslog` | `false` | Doublon vers `syslog()` si le log fichier est inactif. |
 | `logs.time_zone` | `''` | Fuseau des horodatages (ex. `Europe/Paris`) ; vide = serveur. |
+| `import_max_size` | `100` | Taille max d'un `.mbox` importé (Mo) — les `.eml` gardent le plafond `attachment_max_size`. |
+| `smime_ca_path` | `''` | Chemin CA (fichier PEM) pour la confiance S/MIME ; vide = signature crypto vérifiée seule (`PKCS7_NOVERIFY`). |
+| `logs.max_size` | `5` | Rotation au-delà de N Mio — vaut pour `mail.log`, `app.log` et le journal d'auth. |
+| `logs.keep` | `3` | Rotations conservées (`app.1.log` … `app.{keep}.log`, plafond 20). |
 
 ## Journal d'authentification (type fail2ban)
 

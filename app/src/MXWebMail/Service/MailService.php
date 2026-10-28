@@ -177,6 +177,46 @@ final class MailService
 		return $out;
 	}
 
+	/**
+	 * Recherche sur tous les dossiers sélectionnables+abonnés : même syntaxe
+	 * de requête que messages(), résultats fusionnés triés date desc.
+	 * Plafonds : 50 dossiers scannés, 50 résultats par dossier.
+	 */
+	public function searchAllFolders(string $search, int $limit): array
+	{
+		$folders = array_values(array_filter($this->folders(),
+			fn($f) => !empty($f['isSelectable']) && !empty($f['isSubscribed'])));
+		$truncated = count($folders) > 50;
+		$all = [];
+		foreach (array_slice($folders, 0, 50) as $f) {
+			$params = new \MailSo\Mail\MessageListParams();
+			$params->sFolderName = $f['fullName'];
+			$params->iOffset = 0;
+			$params->iLimit = 50;
+			$params->sSearch = $search;
+			$params->sSort = 'REVERSE DATE';
+			$params->bUseSort = true;
+			try {
+				$collection = $this->client()->MessageList($params);
+			} catch (\Throwable) {
+				continue; // dossier en échec : les autres restent servis
+			}
+			foreach ($collection as $msg) {
+				$all[] = $this->app->hooks()->filter('message.meta',
+					self::messageMeta($msg), $msg);
+			}
+		}
+		usort($all, fn($a, $b) => ($b['date'] ?? 0) <=> ($a['date'] ?? 0));
+		$truncated = $truncated || count($all) > $limit;
+		return [
+			'total' => count($all),
+			'folder' => '*',
+			'truncated' => $truncated,
+			'messages' => array_slice($all, 0, $limit),
+			'threadsSupported' => false,
+		];
+	}
+
 	public function message(string $folder, int $uid): ?array
 	{
 		$msg = $this->client()->Message($folder, $uid, true);
@@ -310,6 +350,13 @@ final class MailService
 	public function folderClear(string $name): void
 	{
 		$this->client()->FolderClear($name);
+	}
+
+	/** Marque tous les messages du dossier comme lus (UID STORE 1:* +FLAGS \Seen). */
+	public function folderMarkRead(string $name): void
+	{
+		$this->client()->MessageSetFlag($name,
+			new \MailSo\Imap\SequenceSet('1:*'), '\\Seen', true);
 	}
 
 	public function quota(): ?array
@@ -601,14 +648,14 @@ final class MailService
 	}
 
 	/** Ajoute un message brut (EML) dans un dossier via IMAP APPEND. Retourne l'UID. */
-	public function appendMessage(string $rawMessage, string $folder, array $flags = ['\\Seen']): int
+	public function appendMessage(string $rawMessage, string $folder, array $flags = ['\\Seen'], int $internalDate = 0): int
 	{
 		$tmpDir = $this->app->storageDir() . '/tmp';
 		is_dir($tmpDir) || mkdir($tmpDir, 0700, true);
 		$tmp = tempnam($tmpDir, 'append_');
 		file_put_contents($tmp, $rawMessage);
 		try {
-			return $this->client()->MessageAppendFile($tmp, $folder, $flags);
+			return $this->client()->MessageAppendFile($tmp, $folder, $flags, $internalDate);
 		} finally {
 			@unlink($tmp);
 		}
@@ -1013,6 +1060,10 @@ final class MailService
 			'pgpEncrypted'=> $d['pgpEncrypted'] ?? null,
 			'pgpSigned'   => $d['pgpSigned'] ?? null,
 			'smimeSigned' => $d['smimeSigned'] ?? null,
+			// Accusé de réception demandé (RFC 3798) + déjà honoré ($MDNSent).
+			'dispositionTo' => trim((string) ($msg->Headers
+				?->ValueByName(\MailSo\Mime\Enumerations\Header::DISPOSITION_NOTIFICATION_TO) ?? '')),
+			'mdnSent'     => in_array('$mdnsent', $d['flags'] ?? [], true),
 			'unsubscribe' => self::parseUnsubscribe($msg->Headers ?? null),
 		]);
 	}

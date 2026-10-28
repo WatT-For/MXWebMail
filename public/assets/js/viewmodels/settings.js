@@ -42,6 +42,10 @@ export class SettingsVM {
 		this.contactsLoading = ko.observable(false);
 		this._contactsReq = null;
 
+		// Sessions « se souvenir de moi » (jetons persistants)
+		this.sessions = ko.observableArray([]);
+		this._sessionsLoaded = false;
+
 		// Dossiers système (assignation par compte : auto | none | fullName ;
 		// /folders/special renvoie {assigned, detected} par rôle)
 		this.foldersTab = ko.observable('roles'); // sous-onglet : roles | notify | import
@@ -73,6 +77,7 @@ export class SettingsVM {
 			})));
 
 		// Filtres Sieve
+		this.filtersTab = ko.observable('list'); // sous-onglet : list | vacation
 		this.filters = ko.observableArray([]);
 		this.sieveModules = ko.observableArray([]); // extensions SIEVE annoncées
 		this.editingFilter = ko.observable(null);
@@ -117,6 +122,21 @@ export class SettingsVM {
 		// Répondeur d'absence (Sieve vacation)
 		this.vacation = ko.observable(null);
 		this.vacationManaged = ko.observable(true);
+		// Choix « :addresses » : email du compte actif + ses identités (le
+		// serveur n'accepte de toute façon que ce sous-ensemble).
+		this.vacationAddressChoices = ko.pureComputed(() => {
+			const acct = this.app.accounts().find(a => a.active);
+			const acctId = acct ? Number(acct.id) : null;
+			const emails = acct ? [String(acct.email)] : [];
+			for (const i of this.identities()) {
+				const e = String(i.email || '');
+				if (e && !emails.includes(e)
+					&& (acctId === null || Number(i.account_id) === acctId)) {
+					emails.push(e);
+				}
+			}
+			return emails;
+		});
 
 		// OpenPGP
 		this.pgpKeys = ko.observableArray([]);
@@ -181,18 +201,22 @@ export class SettingsVM {
 			name = 'general';
 		}
 		const known = ['general', 'identities', 'contacts', 'folders', 'filters', 'pgp',
-			'oauthapps', 'accounts', 'responses', ...this.pluginTabs().map(t => t.id)];
+			'sessions', 'oauthapps', 'accounts', 'responses', ...this.pluginTabs().map(t => t.id)];
 		this.tab(known.includes(name) ? name : 'general');
 		if (this.tab() !== 'filters') { this.filterModal?.hide(); }
 		if (this.tab() !== 'identities') { this.identityModal?.hide(); }
 		if (this.tab() === 'identities') { this.loadIdentities(); }
 		if (this.tab() === 'contacts') { this.loadContacts(); }
+		if (this.tab() === 'sessions') { this.loadSessions(); }
 		if (this.tab() === 'folders') {
 			this.foldersTab(['notify', 'import'].includes(detail) ? detail : 'roles');
 			if (this.foldersTab() === 'roles') { this.loadFolderRoles(); }
 			else { this.loadNotifyFolders(); }
 		}
-		if (this.tab() === 'filters') { this.loadFilters(); }
+		if (this.tab() === 'filters') {
+			this.filtersTab(detail === 'vacation' ? 'vacation' : 'list');
+			this.loadFilters();
+		}
 		if (this.tab() === 'pgp') {
 			this.pgpTab(detail === 'import' ? 'import' : 'keys');
 			if (this.pgpTab() === 'keys') { this.loadPgpKeys(); }
@@ -349,11 +373,18 @@ export class SettingsVM {
 	}
 
 	editContact(c) {
-		this.editingContact({ ...(c || { name: '', emails: '' }) });
+		const cats = (c?.properties?.categories || []).join(', ');
+		this.editingContact({ ...(c || { name: '', emails: '' }), categories: cats });
 	}
 
 	async saveContact() {
 		const c = this.editingContact();
+		// Champ « Groupes » (CSV) → properties.categories, les autres clés
+		// de properties (org/tel/…) sont préservées.
+		const cats = (c.categories || '').split(',').map(s => s.trim()).filter(Boolean);
+		c.properties = { ...(c.properties || {}), categories: cats };
+		if (!cats.length) { delete c.properties.categories; }
+		delete c.categories;
 		await api.post('/contacts', c);
 		this.editingContact(null);
 		this._contactsReq = null;
@@ -447,32 +478,63 @@ export class SettingsVM {
 		}).catch(e => { this.error(e.message); this.notifyFoldersLoaded = false; });
 	}
 
-	/** Import de fichiers .eml dans le dossier choisi (IMAP APPEND serveur,
-	 *  un fichier par requête — progression n/N affichée). */
+	/** Import de fichiers .eml/.mbox dans le dossier choisi (IMAP APPEND
+	 *  serveur, un fichier par requête — progression n/N affichée ; la
+	 *  réponse d'un .mbox compte ses messages : {imported, failed}). */
 	async importEmlFiles(d, e) {
 		const files = [...e.target.files];
 		e.target.value = '';
 		if (!files.length || this.importBusy()) { return; }
 		this.importBusy(true);
-		let done = 0;
+		let done = 0; let msgs = 0; let failed = 0;
 		for (const file of files) {
 			this.importProgress(t('settings.import_running', { n: done + 1, total: files.length }));
 			const fd = new FormData();
 			fd.append('file', file);
 			try {
-				await api.upload(`/folders/${b64url(this.importFolder())}/import`, fd);
+				const r = await api.upload(`/folders/${b64url(this.importFolder())}/import`, fd);
+				msgs += (r?.imported ?? 0) || 1; // .eml → {uid}, pas de compteur
+				failed += r?.failed ?? 0;
 				done++;
 			} catch (err) { this.error(err.message); break; }
 		}
 		this.importBusy(false);
 		this.importProgress(null);
 		if (done) {
-			toast.success(t('app.import_done', { n: done }));
+			toast.success(t('app.import_done', { n: msgs })
+				+ (failed ? ' — ' + t('app.import_failed', { n: failed }) : ''));
 			this.app.folderList.load();
 			if (this.app.messageList.folder() === this.importFolder()) {
 				this.app.messageList.load();
 			}
 		}
+	}
+
+	// ─── Sessions ───
+
+	fmtTs(ts) {
+		return ts ? new Date(Number(ts) * 1000).toLocaleString() : '—';
+	}
+
+	async loadSessions() {
+		if (this._sessionsLoaded) { return; }
+		this.sessions(await api.get('/sessions').catch(() => []));
+		this._sessionsLoaded = true;
+	}
+
+	async deleteSession(s) {
+		if (!(await dialog.confirm(t('settings.session_delete_confirm'),
+			{ variant: 'danger', okLabel: t('common.delete') }))) { return; }
+		await api.post(`/sessions/${s.id}/delete`);
+		this.sessions.remove(s);
+	}
+
+	async revokeOtherSessions() {
+		if (!(await dialog.confirm(t('settings.sessions_revoke_confirm'),
+			{ variant: 'danger', okLabel: t('common.delete') }))) { return; }
+		await api.post('/sessions/revoke-others');
+		this._sessionsLoaded = false;
+		await this.loadSessions();
 	}
 
 	async saveNotifyFolders() {
@@ -506,6 +568,7 @@ export class SettingsVM {
 	// ─── Répondeur d'absence ───
 
 	async loadVacation() {
+		this.loadIdentities(); // mémoïsé — peuple vacationAddressChoices
 		try {
 			const r = await api.get('/filters/vacation');
 			if (r.modules) { this.sieveModules(r.modules); }
@@ -518,7 +581,7 @@ export class SettingsVM {
 				days: ko.observable(v.days ?? 1),
 				from: ko.observable(v.from || ''),
 				to: ko.observable(v.to || ''),
-				addresses: ko.observable((v.addresses || []).join(', ')),
+				addresses: ko.observableArray(v.addresses || []),
 			});
 		} catch (e) { this.filtersError(e.message); }
 	}
@@ -529,9 +592,12 @@ export class SettingsVM {
 			await api.post('/filters/vacation', {
 				enabled: v.enabled(), subject: v.subject(), message: v.message(),
 				days: parseInt(v.days(), 10) || 1, from: v.from(), to: v.to(),
-				addresses: v.addresses().split(/[,;\s]+/).filter(Boolean),
+				addresses: v.addresses(),
 			});
 			this.saved(true);
+			// Relecture : reflète la normalisation serveur (tout décoché →
+			// repli sur l'email du compte, adresses hors whitelist purgées).
+			await this.loadVacation();
 		} catch (e) { this.filtersError(e.message); }
 	}
 

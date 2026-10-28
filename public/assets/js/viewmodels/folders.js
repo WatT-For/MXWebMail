@@ -47,6 +47,10 @@ export class FolderListVM {
 		this.current = ko.observable('INBOX');
 		this.loading = ko.observable(false);
 		this.error = ko.observable('');
+		// Dossier de rôle « archive » (assignation > special-use > nom usuel,
+		// déjà résolu serveur en f.special) — null si absent.
+		this.archiveFolder = ko.pureComputed(() =>
+			this.folders().find(f => f.special === 'archive') || null);
 
 		// Knockout invoque les handlers avec this = $data du contexte courant
 		// (item dans un foreach / objet dans un with) : on force le binding sur le VM.
@@ -185,6 +189,17 @@ export class FolderListVM {
 			{ variant: 'danger', okLabel: t('common.delete') }))) { return; }
 		await api.post(`/folders/${b64url(f.fullName)}/clear`);
 		await this.load();
+	}
+
+	async markAllRead(f) {
+		await api.post(`/folders/${b64url(f.fullName)}/mark-read`);
+		f.unread(0);
+		// Dossier courant : marque les modèles chargés sans reload.
+		if (f.fullName === this.app.messageList.folder()) {
+			this.app.messageList.messages().forEach(m => m.isSeen(true));
+			const open = this.app.messageView.message();
+			if (open && open.folder === f.fullName) { open.isSeen(true); }
+		}
 	}
 
 	async editAcl(f) {

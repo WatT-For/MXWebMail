@@ -441,7 +441,8 @@ class SieveClient extends \MailSo\Net\NetClient
 		}
 
 		if (!$aResult || 'OK' !== \substr($aResult[\array_key_last($aResult)], 0, 2)) {
-			$this->writeLogException(new \MailSo\Sieve\Exceptions\NegativeResponseException($aResult), \LOG_WARNING);
+			$this->writeLogExceptionShort(new \MailSo\Sieve\Exceptions\NegativeResponseException(
+				$aResult, (string) (\end($aResult) ?: 'Empty response')), \LOG_WARNING);
 		}
 
 		return $aResult;

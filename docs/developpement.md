@@ -85,7 +85,9 @@ Voir [plugins.md](plugins.md) pour créer un plugin.
   `update.plugins_local` (disque, dev/tests, sans vérification distante).
 - Le packaging (`tools.ps1 package`) exclut `app/plugins/*` du zip cœur — aucun
   asset plugin n'est publié : bump `version` dans `plugin.json` + push sur la
-  branche suivie = publication.
+  branche suivie = publication. Le zip exclut aussi les fichiers méta du dépôt
+  (`.github/`, `docs/`, `README.md`, `CHANGELOG.md`, `SECURITY.md`,
+  `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`) ; `LICENSE` reste distribué.
 
 ## 4. Cache & compression
 

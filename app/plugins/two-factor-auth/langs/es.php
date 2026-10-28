@@ -28,4 +28,7 @@ return [
 	'plugin.two-factor-auth.admin_local_only'     => 'Se aplica a la cuenta de administrador local (admin_user).',
 	'plugin.two-factor-auth.admin_no_local'       => 'Sin cuenta de administrador local (admin_user/admin_password_hash) — el ajuste no tendrá efecto.',
 	'plugin.two-factor-auth.admin_config_readonly' => 'config.php no tiene permisos de escritura — no se puede activar.',
+	'plugin.two-factor-auth.recovery_title'   => 'Códigos de recuperación',
+	'plugin.two-factor-auth.recovery_regen'   => 'Regenerar códigos',
+	'plugin.two-factor-auth.recovery_left'    => 'Quedan {v} código(s) de recuperación — de un solo uso, en el campo TOTP.',
 ];

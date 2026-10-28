@@ -62,6 +62,10 @@ final class ApiController
 				(string) $request->input('password', ''),
 				$request->input('totp')
 			);
+			if ($request->input('remember') === true || $request->input('remember') === '1'
+				|| $request->input('remember') === 1) {
+				$this->app->auth()->issueRememberToken((int) $_SESSION['user_id']);
+			}
 			$this->app->logAuth((string) $request->input('email', ''), 'AUTH OK');
 			return JsonResponse::ok($data);
 		} catch (TotpRequiredException $e) {
@@ -97,6 +101,17 @@ final class ApiController
 		// la session doit être encore ouverte pour la connexion IMAP — les
 		// réglages sont lus et les dossiers purgés AVANT auth()->logout().
 		// Jamais bloquant : un échec IMAP n'empêche pas la déconnexion.
+		// Le jeton « se souvenir de moi » courant est révoqué à la déconnexion
+		// (le cookie expire aussi côté client).
+		if (!empty($_SESSION['user_id'])) {
+			$sel = $this->app->auth()->currentTokenSelector();
+			if ($sel !== null) {
+				$this->app->db()->pdo()->prepare(
+					'DELETE FROM auth_tokens WHERE selector = :s AND user_id = :u')
+					->execute(['s' => $sel, 'u' => (int) $_SESSION['user_id']]);
+			}
+			$this->app->auth()->clearRememberCookie();
+		}
 		if (!empty($_SESSION['user_id'])
 			&& $this->app->config()->get('dangerous_actions', true)) {
 			$s = $this->userSettings((int) $_SESSION['user_id']);
@@ -124,7 +139,10 @@ final class ApiController
 		// /api/*) pour se recharger automatiquement à la fin de la maintenance.
 		return JsonResponse::ok([
 			'logged'      => $this->app->isLoggedIn(),
-			'maintenance' => (bool) $this->app->config()->get('maintenance', false),
+			// Mise à jour en cours incluse : la page maintenance sonde ce champ
+			// pour se recharger — l'app revient dès que le flag tombe.
+			'maintenance' => (bool) $this->app->config()->get('maintenance', false)
+				|| $this->app->isUpdating(),
 		]);
 	}
 
@@ -390,6 +408,15 @@ final class ApiController
 		$this->requireCsrf();
 		$this->requireDangerous();
 		$this->app->mail()->folderClear($this->requireNonSystemFolder($request, true));
+		return JsonResponse::ok();
+	}
+
+	public function folderMarkRead(Request $request): JsonResponse
+	{
+		$this->requireAuth();
+		$this->requireCsrf();
+		// Pas de requireNonSystemFolder : non destructif et utile sur INBOX/système.
+		$this->app->mail()->folderMarkRead($this->folderParam($request));
 		return JsonResponse::ok();
 	}
 
@@ -940,7 +967,10 @@ final class ApiController
 		}
 		$threads = (bool) $request->input('threads', false);
 		$threadUid = (int) $request->input('thread_uid', 0);
-		$data = $this->app->mail()->messages($folder, ($page - 1) * $limit, $limit, $search, $sort, $threads, $threadUid);
+		// folder=* : recherche multi-dossiers (fusion triée date desc).
+		$data = $folder === '*'
+			? $this->app->mail()->searchAllFolders($search, $limit)
+			: $this->app->mail()->messages($folder, ($page - 1) * $limit, $limit, $search, $sort, $threads, $threadUid);
 		$data['page'] = $page;
 		$data['limit'] = $limit;
 		return JsonResponse::ok($data);
@@ -962,6 +992,126 @@ final class ApiController
 			try { $this->app->mail()->flags($folder, (int) $request->params['uid'], '\Seen', true); } catch (\Throwable) {}
 		}
 		return JsonResponse::ok($msg);
+	}
+
+	/** Envoie l'accusé de réception (RFC 3798, action manuelle) puis pose
+	 *  le mot-clé $MDNSent sur le message source. */
+	public function messageMdnSend(Request $request): JsonResponse
+	{
+		$this->requireAuth();
+		$this->requireCsrf();
+		$folder = $this->folderParam($request);
+		$uid = (int) $request->params['uid'];
+		$msg = $this->app->mail()->message($folder, $uid);
+		if (empty($msg['dispositionTo'])) {
+			return JsonResponse::error($this->t('errors.no_mdn'), 'no_mdn', 400);
+		}
+		if ($msg['mdnSent']) {
+			return JsonResponse::ok(); // idempotent : accusé déjà parti
+		}
+		$this->app->mail()->send($this->buildMdnReport($msg));
+		try {
+			$this->app->mail()->flags($folder, $uid, '$MDNSent', true);
+		} catch (\Throwable) {} // l'accusé est parti ; le flag est best-effort
+		return JsonResponse::ok();
+	}
+
+	/** multipart/report; report-type=disposition-notification (RFC 3798 §3). */
+	private function buildMdnReport(array $msg): \MailSo\Mime\Message
+	{
+		$m = new \MailSo\Mime\Message();
+		$m->DoesNotAddDefaultXMailer();
+		$m->SetFrom(\MailSo\Mime\Email::Parse((string) $_SESSION['email']));
+		$rcpt = new \MailSo\Mime\EmailCollection();
+		foreach (preg_split('/[,;]/', (string) $msg['dispositionTo']) as $a) {
+			$a = trim($a);
+			if (filter_var($a, FILTER_VALIDATE_EMAIL)) {
+				$rcpt->append(new \MailSo\Mime\Email($a));
+			}
+		}
+		if (!$rcpt->count()) {
+			throw new \RuntimeException($this->t('errors.no_mdn'), 400);
+		}
+		$m->SetTo($rcpt);
+		$m->SetSubject($this->t('app.mdn_subject', ['s' => (string) ($msg['subject'] ?? '')]));
+		$m->SetInReplyTo(str_replace(["\r", "\n"], '', (string) ($msg['messageId'] ?? '')));
+		$m->RegenerateMessageId($_SESSION['domain'] ?? '');
+		$m->Headers->AddByName(\MailSo\Mime\Enumerations\Header::CONTENT_TYPE,
+			'multipart/report; report-type=disposition-notification');
+
+		$text = new \MailSo\Mime\Part();
+		$text->Headers->AddByName(\MailSo\Mime\Enumerations\Header::CONTENT_TYPE,
+			'text/plain; charset=utf-8');
+		$text->Headers->AddByName(
+			\MailSo\Mime\Enumerations\Header::CONTENT_TRANSFER_ENCODING, 'quoted-printable');
+		$text->Body = quoted_printable_encode($this->t('app.mdn_body'));
+
+		$report = new \MailSo\Mime\Part();
+		$report->Headers->AddByName(\MailSo\Mime\Enumerations\Header::CONTENT_TYPE,
+			'message/disposition-notification');
+		$report->Body = "Reporting-UA: mxwebmail\r\n"
+			. 'Final-Recipient: rfc822;' . str_replace(["\r", "\n"], '', (string) $_SESSION['email']) . "\r\n"
+			. 'Original-Message-ID: ' . str_replace(["\r", "\n"], '', (string) ($msg['messageId'] ?? '')) . "\r\n"
+			. "Disposition: manual-action/MDN-sent-manually; displayed\r\n";
+
+		$m->SubParts->append($text);
+		$m->SubParts->append($report);
+		return $m;
+	}
+
+	/**
+	 * Vérifie la signature S/MIME du message : le .eml brut complet est passé
+	 * à openssl_pkcs7_verify (multipart/signed et p7m opaque traités
+	 * nativement). Sans CA store (smime_ca_path) la signature crypto reste
+	 * vérifiable → {valid, trusted:false}.
+	 */
+	public function messageSmimeVerify(Request $request): JsonResponse
+	{
+		$this->requireAuth();
+		$this->requireCsrf();
+		$folder = $this->folderParam($request);
+		$uid = (int) $request->params['uid'];
+		$msg = $this->app->mail()->message($folder, $uid);
+		if (empty($msg['smimeSigned'])) {
+			return JsonResponse::error($this->t('errors.not_signed'), 'not_signed', 400);
+		}
+		if (!function_exists('openssl_pkcs7_verify')) {
+			return JsonResponse::error($this->t('errors.no_openssl'), 'no_openssl', 501);
+		}
+		$tmpDir = $this->app->storageDir() . '/tmp';
+		is_dir($tmpDir) || mkdir($tmpDir, 0700, true);
+		$eml = tempnam($tmpDir, 'smime_') . '.eml';
+		$signers = tempnam($tmpDir, 'signer_') . '.pem';
+		$out = null;
+		try {
+			$fh = fopen($eml, 'wb');
+			$this->app->mail()->mimeStream($folder, $uid, '',
+				function ($r) use ($fh) { stream_copy_to_stream($r, $fh); });
+			fclose($fh);
+			$caPath = trim((string) $this->app->config()->get('smime_ca_path', ''));
+			$flags = $caPath !== '' ? 0 : PKCS7_NOVERIFY;
+			$ca = $caPath !== '' ? [$caPath] : [];
+			$ok = openssl_pkcs7_verify($eml, $flags, $signers, $ca);
+			$out = ['valid' => $ok === true, 'trusted' => $caPath !== '', 'signer' => null];
+			if ($ok === true && is_file($signers)) {
+				$pem = (string) file_get_contents($signers);
+				if (preg_match('/-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----/s', $pem, $m)) {
+					$x = openssl_x509_parse($m[0]);
+					$out['signer'] = is_array($x) ? [
+						'email'  => $x['subject']['emailAddress'] ?? null,
+						'cn'     => $x['subject']['CN'] ?? null,
+						'issuer' => $x['issuer']['O'] ?? ($x['issuer']['CN'] ?? null),
+					] : null;
+				}
+			}
+			if ($ok === false) {
+				$out['error'] = trim((string) openssl_error_string()) ?: null;
+			}
+		} finally {
+			@unlink($eml);
+			@unlink($signers);
+		}
+		return JsonResponse::ok($out);
 	}
 
 	public function messageRaw(Request $request): Response
@@ -1005,7 +1155,12 @@ final class ApiController
 		header('Content-Disposition: ' . $disposition . '; filename="' . addslashes($filename) . '"');
 		// Contenu utilisateur servi sous notre origine (images cid inline) :
 		// sandbox CSP = jamais de script même si la PJ est du HTML ouvert en direct.
-		header('Content-Security-Policy: sandbox');
+		// Exception PDF : les viewers natifs (pdfium) n'exécutent pas le JS
+		// embarqué mais sont neutralisés par la sandbox — sans elle, l'aperçu
+		// en iframe fonctionne (le type bitmap applicatif reste inerte).
+		if (strtolower((string) $meta['mime']) !== 'application/pdf') {
+			header('Content-Security-Policy: sandbox');
+		}
 		header('X-Content-Type-Options: nosniff');
 		$ok = $this->app->mail()->mimeStream($folder, $uid, $mimeIndex, function ($r) {
 			\MailSo\Base\Utils::FpassthruWithTimeLimitReset($r);
@@ -1091,7 +1246,8 @@ final class ApiController
 		));
 	}
 
-	/** Import d'un .eml dans un dossier (IMAP APPEND) — un fichier par requête. */
+	/** Import dans un dossier (IMAP APPEND) : .eml (1 message) ou .mbox
+	 *  (détection par contenu : 1ʳᵉ ligne « From » — extension non fiable). */
 	public function folderImport(Request $request): JsonResponse
 	{
 		$this->requireAuth();
@@ -1107,9 +1263,17 @@ final class ApiController
 			return JsonResponse::error($this->t('errors.bad_upload'), 'bad_upload');
 		}
 		$maxSize = (int) $this->app->config()->get('attachment_max_size', 25) * 1024 * 1024;
+		$isMbox = str_starts_with((string) file_get_contents((string) $f['tmp_name'], false, null, 0, 5), 'From ');
+		if ($isMbox) {
+			$maxSize = max($maxSize,
+				(int) $this->app->config()->get('import_max_size', 100) * 1024 * 1024);
+		}
 		if ((int) ($f['size'] ?? 0) > $maxSize) {
 			return JsonResponse::error(
 				$this->t('errors.file_too_big', ['mb' => (int) ($maxSize / 1048576)]), 'too_big', 400);
+		}
+		if ($isMbox) {
+			return JsonResponse::ok($this->importMbox($mail, (string) $f['tmp_name'], $folder));
 		}
 		$raw = file_get_contents((string) $f['tmp_name']);
 		if ($raw === false || trim($raw) === '') {
@@ -1118,7 +1282,79 @@ final class ApiController
 		return JsonResponse::ok(['uid' => $mail->appendMessage($raw, $folder, ['\\Seen'])]);
 	}
 
+	/**
+	 * Découpe un fichier mbox et APPEND chaque message (lecture en stream —
+	 * pas de chargement complet d'un gros fichier en mémoire).
+	 * Séparateur : ligne « From » ; « >From » est dés-échappé. La date de la
+	 * ligne « From » devient l'INTERNALDATE du message quand elle est parsable.
+	 * @return array{imported:int, failed:int}
+	 */
+	private function importMbox(\MXWebMail\Service\MailService $mail, string $path, string $folder): array
+	{
+		$handle = fopen($path, 'rb');
+		if (!is_resource($handle)) {
+			throw new \RuntimeException($this->t('errors.bad_upload'), 400);
+		}
+		$imported = 0; $failed = 0;
+		$msg = ''; $date = 0;
+		$flush = function () use (&$msg, &$date, &$imported, &$failed, $mail, $folder) {
+			if (trim($msg) !== '') {
+				try {
+					$mail->appendMessage($msg, $folder, ['\\Seen'], $date);
+					$imported++;
+				} catch (\Throwable) { $failed++; }
+			}
+			$msg = ''; $date = 0;
+		};
+		while (($line = fgets($handle)) !== false) {
+			if ($imported + $failed >= 2000) {
+				$failed++; // plafond de sécurité
+				break;
+			}
+			if (str_starts_with($line, 'From ')) {
+				$flush();
+				$ts = strtotime(substr($line, 5));
+				$date = $ts !== false ? $ts : 0;
+				continue;
+			}
+			// Un-escaping « >From » (mboxrd) : > supplémentaire retiré.
+			if (preg_match('/^>+From /', $line)) {
+				$line = substr($line, 1);
+			}
+			$msg .= $line;
+		}
+		$flush();
+		fclose($handle);
+		return ['imported' => $imported, 'failed' => $failed];
+	}
+
 	/** Toutes les PJ d'un message en un zip streamé (MXWebMailLib\Stream\ZIP). */
+	/** Zip des .eml des messages cochés : GET ?uids=1,2,3 (cap 100, streamé). */
+	public function emlZip(Request $request): Response
+	{
+		$this->requireAuth();
+		$folder = $this->folderParam($request);
+		$uids = array_values(array_unique(array_filter(array_map('intval',
+			explode(',', (string) $request->input('uids', ''))))));
+		if (!$uids) {
+			return JsonResponse::error($this->t('errors.invalid_value', ['key' => 'uids']), 'bad_uids', 400);
+		}
+		if (count($uids) > 100) {
+			return JsonResponse::error(
+				$this->t('errors.too_many', ['max' => 100]), 'too_many', 413);
+		}
+		$mail = $this->app->mail();
+		$zip = new \MXWebMailLib\Stream\ZIP();
+		$zip->pushHttpHeaders('messages');
+		foreach ($uids as $uid) {
+			// uid disparu entre la coche et le téléchargement : ignoré.
+			$mail->mimeStream($folder, $uid, '',
+				function ($r) use ($zip, $uid) { $zip->addFromStream($r, "message-{$uid}.eml"); });
+		}
+		$zip->close();
+		return new Response('', 200);
+	}
+
 	public function attachmentsZip(Request $request): Response
 	{
 		$this->requireAuth();
@@ -1439,6 +1675,16 @@ final class ApiController
 		// CR/LF neutralisés à la source : ces valeurs partent dans des
 		// en-têtes MIME (Subject, In-Reply-To, References).
 		$message->SetSubject(str_replace(["\r", "\n"], ' ', (string) $request->input('subject', '')));
+		if ($request->input('priority') === true || $request->input('priority') === 'high') {
+			$message->SetPriority(\MailSo\Mime\Enumerations\MessagePriority::HIGH);
+		}
+		// Accusé de réception (RFC 3798) : From validé, jamais l'input brut.
+		if ($request->input('mdn') === true || $request->input('mdn') === '1'
+			|| $request->input('mdn') === 1) {
+			$message->Headers->AddByName(
+				\MailSo\Mime\Enumerations\Header::DISPOSITION_NOTIFICATION_TO,
+				$fromEmail);
+		}
 		$message->SetInReplyTo(str_replace(["\r", "\n"], '', (string) $request->input('inReplyTo', '')));
 		$message->SetReferences(str_replace(["\r", "\n"], '', (string) $request->input('references', '')));
 		$message->RegenerateMessageId($_SESSION['domain'] ?? '');
@@ -1625,6 +1871,32 @@ final class ApiController
 		return $message;
 	}
 
+	// ─── Sessions « se souvenir de moi » ───
+
+	public function sessions(Request $request): JsonResponse
+	{
+		$this->requireAuth();
+		return JsonResponse::ok(
+			$this->app->auth()->rememberSessions((int) $_SESSION['user_id']));
+	}
+
+	public function sessionDelete(Request $request): JsonResponse
+	{
+		$this->requireAuth();
+		$this->requireCsrf();
+		$this->app->auth()->deleteRememberToken(
+			(int) $_SESSION['user_id'], (int) $request->params['id']);
+		return JsonResponse::ok();
+	}
+
+	public function sessionsRevokeOthers(Request $request): JsonResponse
+	{
+		$this->requireAuth();
+		$this->requireCsrf();
+		$this->app->auth()->revokeOtherRememberTokens((int) $_SESSION['user_id']);
+		return JsonResponse::ok();
+	}
+
 	// ─── Contacts / Settings / Identities / Quota ───
 
 	public function contacts(Request $request): JsonResponse
@@ -1680,11 +1952,15 @@ final class ApiController
 			return JsonResponse::error(
 				$this->t('errors.file_too_big', ['mb' => 5]), 'too_big', 400);
 		}
-		$vcf = file_get_contents((string) $f['tmp_name']);
-		if ($vcf === false || trim($vcf) === '') {
+		$raw = file_get_contents((string) $f['tmp_name']);
+		if ($raw === false || trim($raw) === '') {
 			return JsonResponse::error($this->t('errors.bad_upload'), 'bad_upload');
 		}
-		$items = \MXWebMail\Service\VCardContacts::parse($vcf);
+		// .csv → parseur CSV (mapping heuristique) ; tout le reste = vCard.
+		$isCsv = str_ends_with(strtolower((string) ($f['name'] ?? '')), '.csv');
+		$items = $isCsv
+			? \MXWebMail\Service\CsvContacts::parse($raw)
+			: \MXWebMail\Service\VCardContacts::parse($raw);
 		if (!$items) {
 			throw new \RuntimeException($this->t('settings.contacts_import_none'), 400);
 		}

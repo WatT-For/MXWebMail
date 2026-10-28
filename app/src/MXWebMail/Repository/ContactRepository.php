@@ -12,7 +12,8 @@ final class ContactRepository
 		$stmt = $this->udb->for($userId)->pdo()->prepare(
 			'SELECT c.id, c.name, ce.email FROM contacts c
 			 JOIN contact_emails ce ON ce.contact_id = c.id
-			 WHERE c.user_id = :u AND (c.name LIKE :q OR ce.email LIKE :q)
+			 WHERE c.user_id = :u AND (c.name LIKE :q OR ce.email LIKE :q
+			 	OR c.properties LIKE :q)
 			 ORDER BY c.frequency DESC, c.name LIMIT :l'
 		);
 		$stmt->bindValue('u', $userId, \PDO::PARAM_INT);
@@ -30,7 +31,11 @@ final class ContactRepository
 			 WHERE c.user_id = :u GROUP BY c.id ORDER BY c.name'
 		);
 		$stmt->execute(['u' => $userId]);
-		return $stmt->fetchAll();
+		$rows = $stmt->fetchAll();
+		foreach ($rows as &$r) {
+			$r['properties'] = json_decode((string) ($r['properties'] ?? ''), true) ?: [];
+		}
+		return $rows;
 	}
 
 	/**

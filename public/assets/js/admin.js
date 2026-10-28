@@ -34,6 +34,9 @@ class AdminVM {
 		this.adminMounts = ko.observableArray([]);
 		this.logs = ko.observableArray([]);
 		this.logFile = ko.observable('app');
+		// Dernier rédacteur gagne : une réponse tardive d'un chargement
+		// périmé ne peut pas écraser l'état courant (cf. loadLogs/clearLog).
+		this.logsSeq = 0;
 		this.editingDomain = ko.observable(null);
 		this.editingPlugin = ko.observable(null);
 		this.editingTheme = ko.observable(null);
@@ -110,6 +113,9 @@ class AdminVM {
 		this.syncFromHash();
 		// Catalogue plugins chargé à la première ouverture de l'onglet Extensions
 		this.tab.subscribe(v => { if (v === 'plugins') { this.ensurePluginsCatalog(); } });
+		// Rechargement piloté par l'observable (écritures programmatiques
+		// incluses) plutôt que par l'évènement DOM du <select>.
+		this.logFile.subscribe(() => { this.loadLogs(); });
 	}
 	async init() {
 		const b = await api.get('/admin/bootstrap').catch(e => { this.error(e.message); return null; });
@@ -295,7 +301,32 @@ class AdminVM {
 		catch (e) { this.error(e.message); }
 		finally { this.usersBusy(false); }
 	}
-	async loadLogs() { this.logs(await api.get('/admin/logs?file=' + this.logFile())); }
+	async loadLogs() {
+		const file = this.logFile();
+		const seq = ++this.logsSeq;
+		try {
+			const lines = await api.get('/admin/logs?file=' + file);
+			// Une réponse tardive d'un chargement périmé est ignorée.
+			if (seq === this.logsSeq) { this.logs(lines); }
+		} catch (e) {
+			if (seq === this.logsSeq) { this.error(e.message); }
+		}
+	}
+	async clearLog() {
+		const file = this.logFile();
+		if (!(await dialog.confirm(
+			t('admin.log_clear_confirm', { file: t('admin.log_' + file) }),
+			{ variant: 'danger', okLabel: t('admin.log_clear') }))) { return; }
+		try {
+			await api.post('/admin/logs/clear', { file });
+			// Recharge l'état réel (vide + nouvelles lignes éventuelles) :
+			// le bump seq invalide les GET en vol — le contenu vidé ne
+			// ressuscite pas — et si la sélection a changé pendant la
+			// modale c'est le bon fichier qui est affiché.
+			await this.loadLogs();
+			this.ok(t('admin.log_cleared'));
+		} catch (e) { this.error(e.message); }
+	}
 
 	async refreshUpdateStatus() {
 		try { this.updateInfo(await api.get('/admin/update/status')); } catch (e) { /* silencieux */ }
@@ -323,15 +354,68 @@ class AdminVM {
 	}
 	async applyUpdate() {
 		this.updateErr('');
-		const ver = this.updateInfo()?.state?.version || '';
-		if (!(await dialog.confirm(t('admin.update.confirm_apply', { ver }),
+		const st = this.updateInfo()?.state || {};
+		const ver = st.version || '';
+		let msg = t('admin.update.confirm_apply', { ver });
+		if (this.about()?.db_driver === 'mysql') {
+			msg += ' ' + t('admin.update.confirm_apply_db');
+		}
+		if (st.modified?.length) {
+			msg += ' ' + t('admin.update.confirm_apply_modified', { count: st.modified.length });
+		}
+		if (!(await dialog.confirm(msg,
 			{ variant: 'danger', okLabel: t('admin.update.apply') }))) { return; }
 		this.updateBusy('apply');
 		try {
 			const r = await api.post('/admin/update/apply');
+			// Finalize = migrations du nouveau code (requête fraîche).
+			let done = t('admin.update.applied', { ver: r.version });
+			try {
+				const f = await api.post('/admin/update/finalize');
+				done = t('admin.update.applied_migrated',
+					{ ver: r.version, schema: f.schema_version ?? '?' });
+			} catch (e) {
+				done += ' ' + t('admin.update.migrations_failed', { msg: e.message });
+			}
 			await this.refreshUpdateStatus();
-			await dialog.alert(t('admin.update.applied', { ver: r.version }), { variant: 'success' });
+			await dialog.alert(done, { variant: 'success' });
 			location.reload(); // le code vient de changer : recharger le panneau
+		} catch (e) { this.updateErr(e.message); }
+		finally { this.updateBusy(''); }
+	}
+	async finalizeUpdate() {
+		this.updateErr(''); this.updateBusy('apply');
+		try {
+			const f = await api.post('/admin/update/finalize');
+			this.ok(t('admin.update.finalized', { schema: f.schema_version ?? '?' }));
+			await this.refreshUpdateStatus();
+		} catch (e) { this.updateErr(e.message); }
+		finally { this.updateBusy(''); }
+	}
+	async rollbackUpdate() {
+		this.updateErr('');
+		const rb = this.updateInfo()?.rollback || {};
+		if (!(await dialog.confirm(t('admin.update.confirm_rollback',
+			{ from: rb.from || '', to: rb.to || '' }),
+			{ variant: 'danger', okLabel: t('admin.update.rollback') }))) { return; }
+		this.updateBusy('apply');
+		try {
+			let r;
+			try {
+				r = await api.post('/admin/update/rollback');
+			} catch (e) {
+				// 409 = schéma MariaDB plus récent que le backup : l'admin doit
+				// restaurer son dump puis confirmer le rollback forcé.
+				if (e.status !== 409
+					|| !(await dialog.confirm(e.message + ' ' + t('admin.update.rollback_forcedb'),
+						{ variant: 'danger', okLabel: t('admin.update.rollback') }))) {
+					throw e;
+				}
+				r = await api.post('/admin/update/rollback', { force: 1 });
+			}
+			await dialog.alert(t('admin.update.rolled_back', { ver: r.version }),
+				{ variant: 'success' });
+			location.reload();
 		} catch (e) { this.updateErr(e.message); }
 		finally { this.updateBusy(''); }
 	}

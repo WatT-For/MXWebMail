@@ -79,6 +79,16 @@ class AppVM {
 		this.notifyFolders = ko.observableArray([]); // surveillés, INBOX incluse
 		this.notifyEnabled = ko.observable(false);   // réglage notify_new_mail
 
+		// Badge non-lus de l'INBOX dans le titre d'onglet (« (3) MXWebMail ») —
+		// computed en effet de bord : retracke chaque unread() (poll, lectures,
+		// bulk ops) sans site d'appel à maintenir.
+		this._baseTitle = document.title;
+		ko.computed(() => {
+			const n = this.folderList.folders()
+				.filter(f => f.isInbox).reduce((s, f) => s + f.unread(), 0);
+			document.title = n > 0 ? `(${n}) ${this._baseTitle}` : this._baseTitle;
+		});
+
 		this.quota = {
 			used: ko.observable(0),   // Ko
 			limit: ko.observable(0),  // Ko — 0 = pas de quota / non supporté

@@ -430,12 +430,36 @@ final class AdminController
 	public function logs(Request $request): JsonResponse
 	{
 		$this->requireAdmin();
-		$map = ['app' => 'app.log', 'mail' => 'mail.log',
-			'auth' => basename((string) $this->app->config()->get('auth_logging_filename', 'auth.log'))];
+		$map = $this->logFilesMap();
 		$name = $map[$request->input('file', 'app')] ?? 'app.log';
 		$file = $this->app->storageDir() . '/logs/' . $name;
 		$lines = is_file($file) ? $this->tail($file, 200) : [];
 		return JsonResponse::ok($lines);
+	}
+
+	/** Whitelist clé → nom de fichier (basename : anti-traversée). */
+	private function logFilesMap(): array
+	{
+		return ['app' => 'app.log', 'mail' => 'mail.log',
+			'auth' => basename((string) $this->app->config()->get('auth_logging_filename', 'auth.log'))];
+	}
+
+	public function logsClear(Request $request): JsonResponse
+	{
+		$this->requireAdmin();
+		$this->requireCsrf();
+		$map = $this->logFilesMap();
+		$key = (string) $request->input('file', '');
+		// Action destructive : pas de fallback silencieux sur app.log —
+		// une clé hors whitelist est refusée.
+		if (!isset($map[$key])) {
+			return JsonResponse::error($this->t('errors.forbidden'), 'bad_file', 400);
+		}
+		$file = $this->app->storageDir() . '/logs/' . $map[$key];
+		if (is_file($file)) {
+			file_put_contents($file, '', LOCK_EX);
+		}
+		return JsonResponse::ok();
 	}
 
 	/** Lit les $max dernières lignes sans charger tout le fichier en mémoire. */
@@ -937,6 +961,22 @@ final class AdminController
 		$this->requireAdmin();
 		$this->requireCsrf();
 		return $this->serviceApi(fn() => $this->app->updater()->apply());
+	}
+
+	/** Migrations post-update : requête nouvelle → nouveau code chargé. */
+	public function updateFinalize(Request $request): JsonResponse
+	{
+		$this->requireAdmin();
+		$this->requireCsrf();
+		return $this->serviceApi(fn() => $this->app->updater()->finalize());
+	}
+
+	public function updateRollback(Request $request): JsonResponse
+	{
+		$this->requireAdmin();
+		$this->requireCsrf();
+		$force = (bool) $request->input('force', false);
+		return $this->serviceApi(fn() => $this->app->updater()->rollback($force));
 	}
 
 	public function updateReset(Request $request): JsonResponse

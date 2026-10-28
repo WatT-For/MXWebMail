@@ -39,7 +39,9 @@ async function request(method, path, body = null, formData = null) {
 	const res = await fetch(cfg.base + '/api' + path, opts);
 	const json = await res.json().catch(() => ({ ok: false, error: { code: 'http', message: 'HTTP ' + res.status } }));
 	if (!json.ok) {
-		if (json.error?.code === 'maintenance') { maintenanceReload(); }
+		// 'updating' : mise à jour en cours — reload vers la page maintenance
+		// (qui sonde /api/ping et revient seule à la fin de l'opération).
+		if (json.error?.code === 'maintenance' || json.error?.code === 'updating') { maintenanceReload(); }
 		throw new ApiError(json.error?.code || 'error', json.error?.message || t('errors.generic'), res.status);
 	}
 	return json.data;

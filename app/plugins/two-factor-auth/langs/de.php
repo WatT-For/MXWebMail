@@ -28,4 +28,7 @@ return [
 	'plugin.two-factor-auth.admin_local_only'     => 'Gilt für das lokale Admin-Konto (admin_user).',
 	'plugin.two-factor-auth.admin_no_local'       => 'Kein lokales Admin-Konto konfiguriert (admin_user/admin_password_hash) — die Einstellung bleibt wirkungslos.',
 	'plugin.two-factor-auth.admin_config_readonly' => 'config.php ist nicht beschreibbar — Aktivierung nicht möglich.',
+	'plugin.two-factor-auth.recovery_title'   => 'Wiederherstellungscodes',
+	'plugin.two-factor-auth.recovery_regen'   => 'Codes neu generieren',
+	'plugin.two-factor-auth.recovery_left'    => '{v} Wiederherstellungscode(s) übrig — einmalig, beim Login im TOTP-Feld einzugeben.',
 ];

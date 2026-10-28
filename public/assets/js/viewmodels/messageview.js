@@ -19,6 +19,28 @@ export class MessageViewVM {
 		this.avatarSrc = ko.observable('');       // plugin avatars
 		this.sourceText = ko.observable('');      // source MIME affiché dans la modale
 		this.sourceModal = null;
+		// Aperçu de pièce jointe (image/PDF/texte) — modale dédiée #preview-modal.
+		this.previewModal = null;
+		this.previewName = ko.observable('');
+		this.previewType = ko.observable('');      // 'image' | 'pdf' | 'text'
+		this.previewUrl = ko.observable('');
+		this.previewText = ko.observable('');
+		this._mdnDismissed = false;                // « Ignorer » : masque le bandeau du message courant
+		// Bandeau accusé de réception : demandé + pas encore honoré +
+		// réglage mdn_mode ≠ 'never' (ask par défaut).
+		this.mdnBanner = ko.pureComputed(() => {
+			const m = this.message();
+			return !this._mdnDismissed && !!m?.dispositionTo && !m?.mdnSent
+				&& (this.app.userSettings?.mdn_mode || 'ask') !== 'never';
+		});
+		// Badge S/MIME : '' | 'checking' | 'valid' | 'untrusted' | 'invalid'
+		this.smimeState = ko.observable('');
+		this.smimeLabel = ko.pureComputed(() => {
+			const k = { '': 'app.smime_signed', checking: 'app.smime_checking',
+				valid: 'app.smime_valid', untrusted: 'app.smime_untrusted',
+				invalid: 'app.smime_invalid' }[this.smimeState()] || 'app.smime_signed';
+			return t(k);
+		});
 		this.tab = ko.observable('message');      // onglet actif : 'message' | 'attachments'
 		this.security = ko.observable(null);      // verdict plugin anti-spoofing
 		this.requestedUid = null;                 // uid+dossier passés à show() — évite
@@ -53,6 +75,8 @@ export class MessageViewVM {
 		this.imagesBlocked(false);
 		this.avatarSrc('');
 		this.security(null);
+		this._mdnDismissed = false;
+		this.smimeState('');
 		this.loading(true);
 		try {
 			const data = await api.get(`/messages/${uid}?folder=${encodeURIComponent(folder)}`);
@@ -501,6 +525,48 @@ export class MessageViewVM {
 		return 0;
 	}
 
+	/** Types servis en aperçu inline : bitmap uniquement (pas de svg/html —
+	 *  même whitelist bitmap que PROXY_IMAGE_TYPES côté serveur). */
+	static PREVIEW_IMAGES = /^(image\/(png|jpe?g|gif|webp|avif|bmp|x-icon|vnd\.microsoft\.icon))$/i;
+
+	isPreviewable(att) {
+		const mime = (att.mime || '').toLowerCase();
+		return MessageViewVM.PREVIEW_IMAGES.test(mime)
+			|| mime === 'application/pdf'
+			|| mime === 'text/plain';
+	}
+
+	/** URL inline (download=0) — attachment() refuse le téléchargement forcé. */
+	previewAttachmentUrl(att) {
+		return this.attachmentUrl(att) + '&download=0';
+	}
+
+	async preview(att) {
+		const mime = (att.mime || '').toLowerCase();
+		this.previewName(att.name || t('app.search.attachment'));
+		this.previewUrl(this.previewAttachmentUrl(att));
+		this.previewText('');
+		if (MessageViewVM.PREVIEW_IMAGES.test(mime)) {
+			this.previewType('image');
+		} else if (mime === 'application/pdf') {
+			this.previewType('pdf');
+		} else {
+			this.previewType('text');
+			try {
+				const r = await fetch(this.previewUrl(), { credentials: 'same-origin' });
+				if (!r.ok) { throw new Error('HTTP ' + r.status); }
+				const raw = await r.text();
+				this.previewText(raw.length > 262144 ? raw.slice(0, 262144) + '\n…' : raw);
+			} catch (e) {
+				this.previewText(t('errors.preview_failed') + ' (' + e.message + ')');
+			}
+		}
+		if (!this.previewModal) {
+			this.previewModal = new bootstrap.Modal(document.getElementById('preview-modal'));
+		}
+		this.previewModal.show();
+	}
+
 	/** Aperçu d'une pièce jointe iCalendar (plugin ics-viewer). */
 	async previewIcs(att) {
 		const m = this.message();
@@ -524,6 +590,41 @@ export class MessageViewVM {
 		} catch (e) {
 			await dialog.alert(e.message, { title: t('plugin.ics-viewer.attachment'), variant: 'danger' });
 		}
+	}
+
+	async verifySmime() {
+		const m = this.message();
+		if (!m || this.smimeState() === 'checking') { return; }
+		this.smimeState('checking');
+		try {
+			const r = await api.post(`/messages/${m.uid}/smime-verify`, { folder: m.folder });
+			this.smimeState(r.valid ? (r.trusted ? 'valid' : 'untrusted') : 'invalid');
+			const s = r.signer;
+			if (s && (s.email || s.cn)) {
+				toast.info(t('app.smime_signer', { v: s.email || s.cn }));
+			}
+		} catch (e) {
+			this.smimeState('invalid');
+			await dialog.alert(e.message, { variant: 'danger' });
+		}
+	}
+
+	/** Envoie l'accusé de réception demandé (action manuelle — RFC 3798). */
+	async sendMdn() {
+		const m = this.message();
+		if (!m) { return; }
+		try {
+			await api.post(`/messages/${m.uid}/mdn`, { folder: m.folder });
+			m.mdnSent = true; // masque le bandeau sans re-fetch
+			toast.success(t('app.mdn_sent'));
+		} catch (e) {
+			await dialog.alert(e.message, { variant: 'danger' });
+		}
+		this._mdnDismissed = true;
+	}
+
+	dismissMdn() {
+		this._mdnDismissed = true;
 	}
 
 	/** Taille de pièce jointe lisible (estimatedSize est en octets). */
@@ -706,11 +807,22 @@ export class MessageViewVM {
 			? 'messages.delete_confirm_perm' : 'messages.delete_confirm';
 		if (!(await dialog.confirm(t(key, { n: 1 }),
 			{ variant: 'danger', okLabel: t('common.delete'), title: t('messages.delete_title') }))) { return; }
+		const ml = this.app.messageList;
+		const next = ml.peekAdvance(m.uid);
 		try {
 			await api.post(`/messages/${m.uid}/delete`, { folder: m.folder });
 		} catch (e) { this.error(e.message); return; }
-		this.clear();
-		this.app.messageList.refresh();
+		const model = ml.messages().find(x => x.uid === m.uid);
+		if (model) {
+			if (!model.isSeen()) { ml.adjustUnread(-1); }
+			ml.messages.remove(model);
+		}
+		if (next && ml.messages().includes(next)) {
+			await ml.select(next);
+		} else {
+			this.clear();
+			ml.refresh();
+		}
 	}
 
 	async markUnread() {
@@ -727,15 +839,32 @@ export class MessageViewVM {
 	async moveTo(target) {
 		const m = this.message();
 		if (!m || !target) { return; }
+		const ml = this.app.messageList;
+		const next = ml.peekAdvance(m.uid);
 		await api.post(`/messages/${m.uid}/move`, { folder: m.folder, to: target });
-		this.clear();
-		this.app.messageList.refresh();
+		const model = ml.messages().find(x => x.uid === m.uid);
+		if (model) {
+			if (!model.isSeen()) { ml.adjustUnread(-1); }
+			ml.messages.remove(model);
+		}
+		if (next && ml.messages().includes(next)) {
+			await ml.select(next);
+		} else {
+			this.clear();
+			ml.refresh();
+		}
 	}
 
 	async moveWithPicker() {
 		const m = this.message();
 		if (!m) { return; }
 		const target = await this.app.folderList.pickFolder(m.folder);
+		if (target) { await this.moveTo(target); }
+	}
+
+	/** Déplace le message affiché vers le dossier de rôle « archive ». */
+	async archive() {
+		const target = this.app.folderList.archiveFolder()?.fullName;
 		if (target) { await this.moveTo(target); }
 	}
 

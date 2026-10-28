@@ -28,4 +28,7 @@ return [
 	'plugin.two-factor-auth.admin_local_only'     => 'Yerel yönetici hesabı için geçerlidir (admin_user).',
 	'plugin.two-factor-auth.admin_no_local'       => 'Yerel yönetici hesabı yapılandırılmamış (admin_user/admin_password_hash) — ayar etkisiz olur.',
 	'plugin.two-factor-auth.admin_config_readonly' => 'config.php yazılabilir değil — etkinleştirme mümkün değil.',
+	'plugin.two-factor-auth.recovery_title'   => 'Kurtarma kodları',
+	'plugin.two-factor-auth.recovery_regen'   => 'Kodları yeniden oluştur',
+	'plugin.two-factor-auth.recovery_left'    => '{v} kurtarma kodu kaldı — tek kullanımlık, TOTP alanına girilir.',
 ];

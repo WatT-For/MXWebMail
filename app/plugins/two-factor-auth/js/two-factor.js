@@ -26,6 +26,12 @@ export default function mount(el, ctx) {
 					<button id="tfa-enable" class="btn btn-sm btn-primary" style="display:none">${t(K + 'generate')}</button>
 					<button id="tfa-disable" class="btn btn-sm btn-outline-danger" style="display:none">${t(K + 'disable')}</button>
 				</div>
+				<div id="tfa-recovery" class="mt-3" style="display:none">
+					<h6>${t(K + 'recovery_title')}</h6>
+					<p class="text-muted small" id="tfa-recovery-count"></p>
+					<div id="tfa-recovery-codes" class="font-monospace small border rounded p-2 mb-2" style="display:none;column-count:2;max-width:300px"></div>
+					<button id="tfa-regen" class="btn btn-sm btn-outline-secondary">${t(K + 'recovery_regen')}</button>
+				</div>
 				<div id="tfa-error" class="text-danger small mt-2"></div>
 			</div>
 		</div>`;
@@ -52,6 +58,29 @@ export default function mount(el, ctx) {
 		$('tfa-enable').style.display = st.enabled ? 'none' : '';
 		$('tfa-disable').style.display = st.enabled ? '' : 'none';
 		$('tfa-setup').style.display = 'none';
+		// Codes de secours : compte utilisateur uniquement (admin = secret
+		// en config.php, pas de recovery) ; codes jamais re-lisibles.
+		const recov = $('tfa-recovery');
+		if (admin) {
+			recov.style.display = 'none';
+		} else {
+			recov.style.display = st.enabled ? '' : 'none';
+			$('tfa-recovery-count').textContent =
+				t(K + 'recovery_left', { v: st.recovery || 0 });
+			$('tfa-recovery-codes').style.display = 'none';
+		}
+	}
+
+	function showRecovery(codes) {
+		const box = $('tfa-recovery-codes');
+		box.textContent = '';
+		for (const c of codes || []) {
+			const div = document.createElement('div');
+			div.textContent = c;
+			box.appendChild(div);
+		}
+		box.style.display = codes && codes.length ? '' : 'none';
+		$('tfa-recovery').style.display = '';
 	}
 
 	function drawQr(matrix) {
@@ -80,11 +109,17 @@ export default function mount(el, ctx) {
 		const code = $('tfa-code').value.trim();
 		if ($('tfa-setup').style.display !== 'none') {
 			const r = await call('enable', { code }).catch(e => { err(e.message); return null; });
-			if (r) { await refresh(); }
+			if (r) { await refresh(); showRecovery(r.recovery); }
 		} else {
 			const r = await call('disable', { code }).catch(e => { err(e.message); return null; });
 			if (r) { await refresh(); }
 		}
+	};
+
+	$('tfa-regen').onclick = async () => {
+		err('');
+		const r = await call('recovery').catch(e => { err(e.message); return null; });
+		if (r) { await refresh(); showRecovery(r.recovery); }
 	};
 
 	$('tfa-disable').onclick = () => {

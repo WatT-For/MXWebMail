@@ -1,4 +1,4 @@
-import { api } from '../api.js';
+import { api, b64url, base } from '../api.js';
 import { dialog } from '../ui/dialog.js';
 import { t } from '../i18n.js';
 import { MessageModel } from '../models/message.js';
@@ -32,6 +32,7 @@ export class MessageListVM {
 		this.searchSince   = ko.observable('');
 		this.searchBefore  = ko.observable('');
 		this.searchQuery = ko.observable(''); // requête appliquée (tokens + texte)
+		this.searchScope = ko.observable('folder'); // 'folder' | 'all' (multi-dossiers)
 		this.appliedAdv  = ko.observable(''); // portion tokens → indicateur actif
 		this.appliedFilterCount = ko.observable(0); // nb de critères → badge bouton
 		this.hasSearchFilters = ko.pureComputed(() => this.appliedAdv() !== '');
@@ -97,11 +98,12 @@ export class MessageListVM {
 	async load() {
 		this.loading(true);
 		try {
-			const q = `?folder=${encodeURIComponent(this.folder())}` +
+			const global = this.searchScope() === 'all' && this.searchQuery() !== '';
+			const q = `?folder=${encodeURIComponent(global ? '*' : this.folder())}` +
 				`&page=${this.page()}&limit=${this.limit}` +
 				`&search=${encodeURIComponent(this.searchQuery())}` +
 				`&sort=${encodeURIComponent(this.sort())}` +
-				(this.useThreads() ? '&threads=1' : '');
+				(!global && this.useThreads() ? '&threads=1' : '');
 			const data = await api.get('/messages' + q);
 			this.threadsSupported(!!data.threadsSupported);
 			this.threadChildren = {};
@@ -138,9 +140,9 @@ export class MessageListVM {
 		if (alreadyShown) { return; }
 		this.cancelReadTimer();
 		// Dans le dossier Brouillons : ouvrir le message dans le compose
-		const role = (this.app.folderList.folders().find(f => f.fullName === this.folder())?.role || '').toLowerCase();
-		if (role.includes('draft') || /draft|brouillon/i.test(this.folder())) {
-			const full = await api.get(`/messages/${message.uid}?folder=${encodeURIComponent(this.folder())}`);
+		const role = (this.app.folderList.folders().find(f => f.fullName === message.folder)?.role || '').toLowerCase();
+		if (role.includes('draft') || /draft|brouillon/i.test(message.folder)) {
+			const full = await api.get(`/messages/${message.uid}?folder=${encodeURIComponent(message.folder)}`);
 			this.app.compose.openDraft(full);
 			return;
 		}
@@ -340,12 +342,37 @@ export class MessageListVM {
 		}
 	}
 
+	/** Voisin à sélectionner quand uid va être retiré de la liste
+	 *  (réglage auto_advance : next|prev|none). Non mutateur — à appeler
+	 *  AVANT le retrait, sur la liste encore complète ; le repli bascule
+	 *  sur l'autre côté (ex. dernier élément + mode next → précédent). */
+	peekAdvance(uid) {
+		const mode = this.app.userSettings?.auto_advance || 'next';
+		if (mode === 'none' || uid == null) { return null; }
+		const list = this.messages();
+		const i = list.findIndex(m => m.uid === uid);
+		if (i < 0) { return null; }
+		const fwd = mode !== 'prev';
+		return list[fwd ? i + 1 : i - 1] ?? list[fwd ? i - 1 : i + 1] ?? null;
+	}
+
+	/** Après un bulk : rouvre le voisin du message visionné s'il a été retiré,
+	 *  sinon ferme le lecteur (comportement historique). */
+	async advanceOrClear(next) {
+		if (next && this.messages().includes(next)) {
+			await this.select(next);
+		} else {
+			this.app.messageView.clear();
+		}
+	}
+
 	async bulkDelete() {
 		const list = this.checkedMessages();
 		const key = this.app.folderList.isTrashFolder(this.folder())
 			? 'messages.delete_confirm_perm' : 'messages.delete_confirm';
 		if (!list.length || !(await dialog.confirm(t(key, { n: list.length }),
 			{ variant: 'danger', okLabel: t('common.delete'), title: t('messages.delete_title') }))) { return; }
+		const next = this.peekAdvance(this.app.messageView.requestedUid);
 		for (const m of list) {
 			try {
 				await api.post(`/messages/${m.uid}/delete`, { folder: this.folder() });
@@ -353,10 +380,11 @@ export class MessageListVM {
 				this.messages.remove(m);
 			} catch (e) { this.error(e.message); }
 		}
-		this.app.messageView.clear();
+		await this.advanceOrClear(next);
 	}
 
 	async bulkMove(target) {
+		const next = this.peekAdvance(this.app.messageView.requestedUid);
 		for (const m of this.checkedMessages()) {
 			try {
 				await api.post(`/messages/${m.uid}/move`, { folder: this.folder(), to: target });
@@ -364,7 +392,7 @@ export class MessageListVM {
 				this.messages.remove(m);
 			} catch (e) { this.error(e.message); }
 		}
-		this.app.messageView.clear();
+		await this.advanceOrClear(next);
 	}
 
 	async moveWithPicker() {
@@ -372,8 +400,22 @@ export class MessageListVM {
 		if (target) { await this.bulkMove(target); }
 	}
 
+	/** Déplace la sélection vers le dossier de rôle « archive » (s'il existe). */
+	async bulkArchive() {
+		const target = this.app.folderList.archiveFolder()?.fullName;
+		if (target) { await this.bulkMove(target); }
+	}
+
+	/** Télécharge les messages cochés en .eml dans un zip (GET direct). */
+	downloadEmlZip() {
+		const uids = this.checkedMessages().map(m => m.uid);
+		if (!uids.length) { return; }
+		location.assign(`${base()}/api/folders/${b64url(this.folder())}/eml.zip?uids=${uids.join(',')}`);
+	}
+
 	async bulkSpam(spam) {
 		let moved = false;
+		const next = this.peekAdvance(this.app.messageView.requestedUid);
 		for (const m of this.checkedMessages()) {
 			try {
 				const r = await api.post(`/messages/${m.uid}/spam`, { folder: this.folder(), spam });
@@ -386,6 +428,6 @@ export class MessageListVM {
 				}
 			} catch (e) { this.error(e.message); }
 		}
-		if (moved) { this.app.messageView.clear(); }
+		if (moved) { await this.advanceOrClear(next); }
 	}
 }

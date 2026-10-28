@@ -21,8 +21,9 @@ use MXWebMailLib\TOTP;
  */
 final class TwoFactorAuth extends PluginBase
 {
-	private const KEY_ACTIVE  = 'plugin.2fa.secret';
-	private const KEY_PENDING = 'plugin.2fa.pending';
+	private const KEY_ACTIVE   = 'plugin.2fa.secret';
+	private const KEY_PENDING  = 'plugin.2fa.pending';
+	private const KEY_RECOVERY = 'plugin.2fa.recovery';
 
 	public function register(HookRegistry $hooks): void
 	{
@@ -32,6 +33,11 @@ final class TwoFactorAuth extends PluginBase
 				return; // 2FA non activée pour ce compte
 			}
 			if (!$code || !TOTP::Verify($secret, (string) $code)) {
+				// Repli : codes de secours (consommés à l'usage) — saisis
+				// dans le même champ que le code TOTP.
+				if ($code && $this->consumeRecovery((int) $user['id'], (string) $code)) {
+					return;
+				}
 				throw new \MXWebMail\Security\TotpRequiredException(
 					$this->t('errors.totp_required'), 401);
 			}
@@ -74,7 +80,11 @@ final class TwoFactorAuth extends PluginBase
 
 	public function apiStatus(Request $request, ?array $user): array
 	{
-		return ['enabled' => (bool) $this->app->settings()->get((int) $user['id'], self::KEY_ACTIVE)];
+		$recovery = $this->app->settings()->get((int) $user['id'], self::KEY_RECOVERY);
+		return [
+			'enabled' => (bool) $this->app->settings()->get((int) $user['id'], self::KEY_ACTIVE),
+			'recovery' => is_array($recovery) ? count($recovery) : 0,
+		];
 	}
 
 	/** Génère (ou régénère) un secret de provisioning + la matrice QR. */
@@ -98,7 +108,11 @@ final class TwoFactorAuth extends PluginBase
 		}
 		$this->app->settings()->set((int) $user['id'], self::KEY_ACTIVE, $pending);
 		$this->app->settings()->set((int) $user['id'], self::KEY_PENDING, null);
-		return ['enabled' => true];
+		// Codes de secours affichés une seule fois — seuls les hash persistent.
+		$recovery = self::recoveryGenerate();
+		$this->app->settings()->set((int) $user['id'], self::KEY_RECOVERY,
+			array_map(static fn(string $c) => hash('sha256', $c), $recovery));
+		return ['enabled' => true, 'recovery' => $recovery];
 	}
 
 	public function apiDisable(Request $request, ?array $user): array
@@ -109,7 +123,48 @@ final class TwoFactorAuth extends PluginBase
 			throw new \RuntimeException($this->t('plugin.two-factor-auth.code_invalid_disable'), 400);
 		}
 		$this->app->settings()->set((int) $user['id'], self::KEY_ACTIVE, null);
+		$this->app->settings()->set((int) $user['id'], self::KEY_RECOVERY, null);
 		return ['enabled' => false];
+	}
+
+	/** Régénère les codes de secours (2FA active exigée). */
+	public function apiRecovery(Request $request, ?array $user): array
+	{
+		if (!$this->app->settings()->get((int) $user['id'], self::KEY_ACTIVE)) {
+			throw new \RuntimeException($this->t('plugin.two-factor-auth.no_pending'), 400);
+		}
+		$recovery = self::recoveryGenerate();
+		$this->app->settings()->set((int) $user['id'], self::KEY_RECOVERY,
+			array_map(static fn(string $c) => hash('sha256', $c), $recovery));
+		return ['recovery' => $recovery];
+	}
+
+	/** 8 codes « xxxx-xxxx » — le hash sha256 du code est stocké, jamais le code. */
+	private static function recoveryGenerate(): array
+	{
+		$codes = [];
+		for ($i = 0; $i < 8; $i++) {
+			$h = bin2hex(random_bytes(4));
+			$codes[] = substr($h, 0, 4) . '-' . substr($h, 4);
+		}
+		return $codes;
+	}
+
+	/** Consomme un code de secours valide (retrait + persistance). */
+	private function consumeRecovery(int $userId, string $code): bool
+	{
+		$hashes = $this->app->settings()->get($userId, self::KEY_RECOVERY);
+		if (!is_array($hashes) || !$hashes) {
+			return false;
+		}
+		$hash = hash('sha256', strtolower(trim($code)));
+		$key = array_search($hash, $hashes, true);
+		if ($key === false) {
+			return false;
+		}
+		unset($hashes[$key]);
+		$this->app->settings()->set($userId, self::KEY_RECOVERY, array_values($hashes));
+		return true;
 	}
 
 	// ─── API admin (/api/admin/plugin/two-factor-auth/<action>) ───

@@ -28,4 +28,7 @@ return [
 	'plugin.two-factor-auth.admin_local_only'     => 'S\'applique au compte admin local (admin_user).',
 	'plugin.two-factor-auth.admin_no_local'       => 'Aucun compte admin local configuré (admin_user/admin_password_hash) — réglage sans effet tant qu\'il n\'existe pas.',
 	'plugin.two-factor-auth.admin_config_readonly' => 'config.php n\'est pas accessible en écriture — activation impossible.',
+	'plugin.two-factor-auth.recovery_title'   => 'Codes de secours',
+	'plugin.two-factor-auth.recovery_regen'   => 'Régénérer les codes',
+	'plugin.two-factor-auth.recovery_left'    => '{v} code(s) de secours restant(s) — à usage unique, saisissables dans le champ TOTP à la connexion.',
 ];
