@@ -1,0 +1,8 @@
+{
+	"name": "spam-learn",
+	"class": "SpamLearn",
+	"main": "SpamLearn.php",
+	"version": "0.1.0",
+	"description": "plugin.spam-learn.description",
+	"hooks": ["message.spam"]
+}

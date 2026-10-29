@@ -10,7 +10,7 @@ use MXWebMail\Security\Wildcard;
 /**
  * Liste blanche de connexion : refuse le login avant la vérification IMAP
  * si l'email ne correspond pas (évite le probing). Exception levée dans
- * auth.login.mapping — jamais de session établie.
+ * auth.login.mapped (email résolu post-mapping) — jamais de session établie.
  * Portage du plugin legacy white-list (même sémantique : « exceptions »
  * = les emails hors liste qui sont explicitement rejetés quand la
  * liste d'exceptions est renseignée).
@@ -19,7 +19,7 @@ final class WhiteList extends PluginBase
 {
 	public function register(HookRegistry $hooks): void
 	{
-		$hooks->on('auth.login.mapping', function (string $email) {
+		$hooks->on('auth.login.mapped', function (string $email, array $domain) {
 			$whiteList = \trim((string) ($this->config['white_list'] ?? ''));
 			if ($whiteList !== '' && !Wildcard::match($email, $whiteList)) {
 				$exceptions = \trim((string) ($this->config['exceptions'] ?? ''));

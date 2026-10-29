@@ -161,44 +161,11 @@ final class CardDavContacts extends PluginBase
 		$parts = parse_url($url) ?: [];
 		if (($parts['scheme'] ?? '') !== 'https'
 			|| empty($parts['host'])
-			|| !self::isPublicHost((string) $parts['host'])) {
+			|| !$this->app->isPublicHost((string) $parts['host'])) {
 			throw new \RuntimeException($this->t('plugin.carddav-contacts.bad_url'), 400);
 		}
 		$parts['scheme'] = 'https';
 		return $parts;
-	}
-
-	/** L'hôte résout-il vers une/des IP publiques ? (cf. plugin avatars) */
-	private static function isPublicHost(string $host): bool
-	{
-		$h = trim($host, '[]');
-		if ($h === '') {
-			return false;
-		}
-		if (filter_var($h, FILTER_VALIDATE_IP)) {
-			return (bool) filter_var($h, FILTER_VALIDATE_IP,
-				FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
-		}
-		// A + AAAA : gethostbyname (IPv4 seul) refuserait un hôte IPv6-only.
-		$ips = [];
-		foreach (dns_get_record($h, DNS_A + DNS_AAAA) ?: [] as $r) {
-			if (isset($r['ip'])) {
-				$ips[] = $r['ip'];
-			}
-			if (isset($r['ipv6'])) {
-				$ips[] = $r['ipv6'];
-			}
-		}
-		if (!$ips) {
-			return false; // échec DNS → fail-closed
-		}
-		foreach ($ips as $ip) {
-			if (!filter_var($ip, FILTER_VALIDATE_IP,
-				FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
-				return false; // une seule IP privée/réservée suffit à refuser
-			}
-		}
-		return true;
 	}
 
 	private function isAddressbook(DavClient $client, string $path): bool

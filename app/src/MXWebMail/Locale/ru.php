@@ -82,6 +82,7 @@ return [
 	'app.page_prev'       => 'Предыдущая страница',
 	'app.page_next'       => 'Следующая страница',
 	'app.select_message'  => 'Выберите сообщение',
+	'app.selected_count'  => 'Выбрано сообщений: {n}',
 	'app.from'            => 'От:',
 	'app.to'              => 'Кому:',
 	'app.cc'              => 'Копия:',

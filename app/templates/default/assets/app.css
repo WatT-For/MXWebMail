@@ -217,6 +217,7 @@ body.pane-resizing-v iframe { pointer-events: none; }
 /* Icône d'aide (tooltip Bootstrap) accolée aux labels de champ */
 .help-icon { cursor: help; color: var(--bs-secondary-color); }
 .help-icon:hover, .help-icon:focus-visible { color: var(--bs-primary); }
+.col-form-label:has(> .help-icon) { display: flex; align-items: center; justify-content: space-between; gap: .25rem; }
 
 .reader-pane .mail-body img { max-width: 100%; }
 

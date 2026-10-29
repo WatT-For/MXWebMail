@@ -6,6 +6,46 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) —
 semver `0.MINOR.PATCH` en développement.
 Catégories, dans l'ordre : `Sécurité`, `Ajouté`, `Modifié`, `Corrigé`, `Obsolète`, `Supprimé`.
 
+## [Unreleased]
+
+## [0.44.0] — 2026-10-29
+
+### Sécurité
+
+- La liste blanche (`white-list`) pouvait être contournée lorsqu'un plugin de mapping (ex. `ldap-login`) résolvait l'identifiant : les listes de contrôle de connexion sont désormais évaluées sur l'email résolu via le nouveau hook `auth.login.mapped`.
+- Validation anti-SSRF mutualisée dans `App::isPublicHost()` (résolution A+AAAA complète, refus dès qu'une IP est privée ou réservée) — le plugin `avatars` ne se limitait auparavant qu'aux adresses IPv4.
+
+### Ajouté
+
+- Hook cœur `auth.login.mapped` (type `run`) : émis après `auth.login.mapping` avec l'email résolu, destiné aux contrôles post-mapping des plugins (black-list, white-list).
+- Hooks cœur `message.spam` (à chaque marquage/démarquage spam, avant le déplacement) et `attachment.upload` (après chaque upload de pièce jointe et import de fichier, avant exploitation).
+- Plugin `anti-spoofing` : le bandeau de sécurité affiche désormais les verdicts SPF/DKIM/DMARC déjà fournis par le MTA (`Authentication-Results`), avec un indicateur positif quand tout passe.
+- Plugin `ics-viewer` : réponse iTIP aux invitations (`METHOD:REQUEST`) — boutons Accepter / Peut-être / Refuser envoyant un `REPLY` calendrier à l'organisateur par SMTP.
+- Nouveau plugin `announcement` : bannière d'annonce administrateur (app, optionnellement page de login).
+- Nouveau plugin `spam-learn` : apprentissage spam/ham vers `rspamc`/`sa-learn` ou dossier dovecot-antispam.
+- Nouveau plugin `attachments-clamav` : scan antiviral ClamAV des pièces jointes à l'upload.
+- Nouveau plugin `filelink` : pièces jointes trop volumineuses envoyées via un lien de téléchargement expirable.
+- Nouveau plugin `admin-stats` : page d'administration de statistiques (stockage, utilisateurs, tables, orphelins, plugins).
+- Nouveau plugin `wkd-keys` : découverte automatique des clés PGP (WKD, Autocrypt, keyserver optionnel).
+- Compteur de multi-sélection : lorsque plusieurs messages sont cochés, la zone de lecture affiche « N messages sélectionnés » à la place du contenu.
+
+### Modifié
+
+- Changement de dossier : la zone de lecture est réinitialisée à l'état par défaut (« Sélectionnez un message ») au lieu de conserver le message du dossier précédent.
+- Paramètres webmail et panneau admin : les icônes d'aide `?` sont désormais alignées en colonne sur le bord droit des libellés, juste avant le champ (auparavant collées à la fin du texte du libellé — position variable selon sa longueur).
+
+### Corrigé
+
+- Actions groupées en recherche « Tous les dossiers » : marquage lu/suivi, déplacement, suppression, spam et téléchargement `.eml` ciblaient le dossier courant au lieu du dossier réel de chaque message (les UID IMAP étant par dossier, un autre message pouvait être affecté) ; le zip est désormais généré par dossier source.
+- Codes de secours 2FA impossibles à saisir à la connexion : le champ TOTP était limité à 6 caractères alors qu'un code de secours fait 9 (`xxxx-xxxx`).
+- Suppression/déplacement depuis le lecteur : la sélection du message suivant et le badge non lus pouvaient viser la mauvaise ligne en recherche multi-dossiers (correspondance par UID seul).
+- Clic sur un brouillon dont la récupération échoue : erreur désormais affichée au lieu d'un silence.
+- Suggestions de destinataires : une requête par frappe remplacée par une requête après 250 ms de pause.
+- Les menus déroulants du compte (barre supérieure) et d'un dossier sont désormais atteignables au clavier.
+- Plugins `ldap-login` et `ldap-contacts` : le filtre LDAP réellement appliqué tant que la configuration n'était pas enregistrée différait du défaut affiché dans l'administration — les fallbacks du code sont alignés sur les défauts du schéma.
+- Plugin `avatars` : les images mises en cache localement n'expiraient jamais — ajout d'un TTL de 30 jours (rafraîchissement automatique et borne sur `storage/avatars`).
+- Plugin `ics-viewer` : les dates de l'aperçu étaient figées au format français pour toutes les langues — elles sont désormais formatées selon la langue de l'interface.
+
 ## [0.43.0] — 2026-10-28
 
 ### Ajouté
@@ -223,7 +263,10 @@ Première release publiée de MXWebMail — webmail auto-hébergé en PHP 8.4, i
 - Credentials IMAP chiffrés (XSalsa20-Poly1305, libsodium) en session et en base
 - Corps des messages sanitisés ; images externes via proxy anti-SSRF
 
-[Unreleased]: https://github.com/WatT-For/MXWebMail/compare/v0.41.0...HEAD
+[Unreleased]: https://github.com/WatT-For/MXWebMail/compare/v0.44.0...HEAD
+[0.44.0]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.44.0
+[0.43.0]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.43.0
+[0.42.0]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.42.0
 [0.41.0]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.41.0
 [0.40.0]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.40.0
 [0.39.1]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.39.1

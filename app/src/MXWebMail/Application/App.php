@@ -46,7 +46,7 @@ final class App
 
 	public function __construct(?string $rootDir = null, ?string $installDir = null)
 	{
-		defined('APP_VERSION') || define('APP_VERSION', '0.43.0'); // X-Mailer MailSo
+		defined('APP_VERSION') || define('APP_VERSION', '0.44.0'); // X-Mailer MailSo
 		// Prérequis du paquet de mise à jour — lus par regex dans le App.php du
 		// paquet extrait (UpdateService::checkRequirements) avant application.
 		defined('APP_REQ_PHP') || define('APP_REQ_PHP', '>=8.4');
@@ -439,6 +439,45 @@ final class App
 		return $proxies !== ''
 			&& $ip !== ''
 			&& \MXWebMail\Security\IpMatch::inList($ip, $proxies);
+	}
+
+	/**
+	 * L'hôte résout-il vers une/des IP publiques ? Bloque les littéraux IP
+	 * ([10.0.0.5], [::1]) et les DNS privés/réservés — anti-SSRF pour toute
+	 * requête sortante sur un hôte issu d'une saisie (plugins avatars,
+	 * carddav, wkd…). Fail-closed : échec DNS ou une seule IP
+	 * privée/réservée → false.
+	 */
+	public function isPublicHost(string $host): bool
+	{
+		$h = trim($host, '[]');
+		if ($h === '') {
+			return false;
+		}
+		if (filter_var($h, FILTER_VALIDATE_IP)) {
+			return (bool) filter_var($h, FILTER_VALIDATE_IP,
+				FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
+		}
+		// A + AAAA : gethostbyname (IPv4 seul) refuserait un hôte IPv6-only.
+		$ips = [];
+		foreach (dns_get_record($h, DNS_A + DNS_AAAA) ?: [] as $r) {
+			if (isset($r['ip'])) {
+				$ips[] = $r['ip'];
+			}
+			if (isset($r['ipv6'])) {
+				$ips[] = $r['ipv6'];
+			}
+		}
+		if (!$ips) {
+			return false;
+		}
+		foreach ($ips as $ip) {
+			if (!filter_var($ip, FILTER_VALIDATE_IP,
+				FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 	private bool $sessionUserLoaded = false;

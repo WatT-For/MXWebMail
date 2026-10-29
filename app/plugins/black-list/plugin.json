@@ -2,7 +2,7 @@
 	"name": "black-list",
 	"class": "BlackList",
 	"main": "BlackList.php",
-	"version": "0.12.0",
+	"version": "0.13.0",
 	"description": "plugin.black-list.description",
-	"hooks": ["auth.login.mapping"]
+	"hooks": ["auth.login.mapped"]
 }

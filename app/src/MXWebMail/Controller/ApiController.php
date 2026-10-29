@@ -1272,6 +1272,11 @@ final class ApiController
 			return JsonResponse::error(
 				$this->t('errors.file_too_big', ['mb' => (int) ($maxSize / 1048576)]), 'too_big', 400);
 		}
+		// Hook : scan AV (attachments-clamav) — le tmp_name est purgé par
+		// PHP en fin de requête, rien à nettoyer si le hook jette.
+		$this->app->hooks()->run('attachment.upload', (string) $f['tmp_name'],
+			basename(str_replace('\\', '/', (string) ($f['name'] ?? ''))),
+			(int) $_SESSION['user_id']);
 		if ($isMbox) {
 			return JsonResponse::ok($this->importMbox($mail, (string) $f['tmp_name'], $folder));
 		}
@@ -1550,6 +1555,15 @@ final class ApiController
 		$dest = $dir . '/attach_' . $token;
 		if (!move_uploaded_file($f['tmp_name'], $dest)) {
 			return JsonResponse::error($this->t('errors.bad_upload'), 'bad_upload');
+		}
+		// Hook : scan AV de la PJ (plugin attachments-clamav) — un listener
+		// qui jette annule l'upload et nettoie le fichier.
+		try {
+			$this->app->hooks()->run('attachment.upload',
+				$dest, $name, (int) $_SESSION['user_id']);
+		} catch (\Throwable $e) {
+			@unlink($dest);
+			throw $e;
 		}
 		// Associe au user pour le cleanup
 		file_put_contents($dest . '.meta', json_encode(['name' => $name, 'user' => $_SESSION['user_id']]));

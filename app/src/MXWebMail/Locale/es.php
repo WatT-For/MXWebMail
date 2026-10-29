@@ -82,6 +82,7 @@ return [
 	'app.page_prev'       => 'Página anterior',
 	'app.page_next'       => 'Página siguiente',
 	'app.select_message'  => 'Seleccionar un mensaje',
+	'app.selected_count'  => '{n} mensaje(s) seleccionado(s)',
 	'app.from'            => 'De:',
 	'app.to'              => 'Para:',
 	'app.cc'              => 'Cc:',

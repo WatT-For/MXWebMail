@@ -82,6 +82,7 @@ return [
 	'app.page_prev'       => 'Vorige pagina',
 	'app.page_next'       => 'Volgende pagina',
 	'app.select_message'  => 'Selecteer een bericht',
+	'app.selected_count'  => '{n} bericht(en) geselecteerd',
 	'app.from'            => 'Van:',
 	'app.to'              => 'Aan:',
 	'app.cc'              => 'Cc:',

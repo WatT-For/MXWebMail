@@ -60,7 +60,7 @@ final class LdapContacts extends PluginBase
 			}
 
 			$filter = str_replace('%q', ldap_escape($q, '', LDAP_ESCAPE_FILTER),
-				(string) ($c['filter'] ?? '(mail=*%q*)'));
+				(string) ($c['filter'] ?? '(|(mail=*%q*)(cn=*%q*)(sn=*%q*))'));
 			$nameAttr = (string) ($c['name_attr'] ?? 'cn');
 			$mailAttr = (string) ($c['mail_attr'] ?? 'mail');
 			$max = max(1, (int) ($c['max_results'] ?? 10));

@@ -99,7 +99,7 @@
 					<div class="row align-items-center mb-2">
 						<label class="col-md-4 col-form-label col-form-label-sm">
 							<?= $t('admin.favicon') ?>
-							<i class="fa-regular fa-circle-question help-icon ms-1" tabindex="0"
+							<i class="fa-regular fa-circle-question help-icon" tabindex="0"
 								data-bind="tooltip: 'admin.favicon_help'"></i>
 						</label>
 						<div class="col-md-8">
@@ -723,7 +723,7 @@
 						<div class="row align-items-center mb-2">
 							<label class="col-4 col-form-label col-form-label-sm">
 								<span data-bind="text: $root.t(label)"></span>
-								<i class="fa-regular fa-circle-question help-icon ms-1" tabindex="0"
+								<i class="fa-regular fa-circle-question help-icon" tabindex="0"
 									data-bind="visible: help, tooltip: help"></i>
 							</label>
 							<div class="col-8">
@@ -795,7 +795,7 @@
 						<div class="row align-items-center mb-2">
 							<label class="col-4 col-form-label col-form-label-sm">
 								<span data-bind="text: $root.t(label)"></span>
-								<i class="fa-regular fa-circle-question help-icon ms-1" tabindex="0"
+								<i class="fa-regular fa-circle-question help-icon" tabindex="0"
 									data-bind="visible: help, tooltip: help"></i>
 							</label>
 							<div class="col-8">
@@ -1135,7 +1135,7 @@
 		<div class="row align-items-center mb-2">
 			<label class="col-md-4 col-form-label col-form-label-sm">
 				<span data-bind="text: $root.t(label)"></span>
-				<i class="fa-regular fa-circle-question help-icon ms-1" tabindex="0"
+				<i class="fa-regular fa-circle-question help-icon" tabindex="0"
 					data-bind="visible: help, tooltip: help"></i>
 			</label>
 			<div class="col-md-8">

@@ -2,7 +2,7 @@
 	"name": "avatars",
 	"class": "Avatars",
 	"main": "Avatars.php",
-	"version": "0.12.0",
+	"version": "0.12.1",
 	"description": "plugin.avatars.description",
 	"hooks": ["app.data"]
 }

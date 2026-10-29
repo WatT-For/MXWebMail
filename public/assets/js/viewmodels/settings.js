@@ -211,7 +211,7 @@ export class SettingsVM {
 		if (this.tab() === 'folders') {
 			this.foldersTab(['notify', 'import'].includes(detail) ? detail : 'roles');
 			if (this.foldersTab() === 'roles') { this.loadFolderRoles(); }
-			else { this.loadNotifyFolders(); }
+			else if (this.foldersTab() === 'notify') { this.loadNotifyFolders(); }
 		}
 		if (this.tab() === 'filters') {
 			this.filtersTab(detail === 'vacation' ? 'vacation' : 'list');

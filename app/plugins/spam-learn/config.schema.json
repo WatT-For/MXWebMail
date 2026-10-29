@@ -1,0 +1,8 @@
+{
+	"driver":      { "label": "plugin.spam-learn.f.driver", "type": "enum", "options": { "none": "common.none", "exec": "plugin.spam-learn.f.driver.exec", "folder": "plugin.spam-learn.f.driver.folder" }, "default": "none", "help": "plugin.spam-learn.f.driver.help" },
+	"command_spam": { "label": "plugin.spam-learn.f.command_spam", "type": "string", "default": "rspamc learn_spam", "help": "plugin.spam-learn.f.command.help" },
+	"command_ham":  { "label": "plugin.spam-learn.f.command_ham", "type": "string", "default": "rspamc learn_ham", "help": "plugin.spam-learn.f.command.help" },
+	"folder_spam":  { "label": "plugin.spam-learn.f.folder_spam", "type": "string", "default": "Spam-learn", "help": "plugin.spam-learn.f.folder.help" },
+	"folder_ham":   { "label": "plugin.spam-learn.f.folder_ham", "type": "string", "default": "Ham-learn", "help": "plugin.spam-learn.f.folder.help" },
+	"max_bytes":    { "label": "plugin.spam-learn.f.max_bytes", "type": "integer", "default": 5120, "help": "plugin.spam-learn.f.max_bytes.help" }
+}

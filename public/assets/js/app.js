@@ -216,6 +216,7 @@ class AppVM {
 		}
 		this.view('mail');
 		this.settings.filterModal?.hide();
+		this.settings.identityModal?.hide();
 		const hash = safeDecode(raw);
 		if (hash !== this.messageList.folder()) {
 			this.messageList.selectFolder(hash); // hash complet : un dossier peut contenir '/'

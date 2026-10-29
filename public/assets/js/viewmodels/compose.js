@@ -42,6 +42,7 @@ export class ComposeVM {
 		this.showCc = ko.observable(false);   // champ Cc déplié (menu options du header)
 		this.showBcc = ko.observable(false);  // champ Cci déplié
 		this.suggestField = ko.observable(''); // 'to'|'cc'|'bcc' — champ sous lequel afficher les suggestions
+		this._suggestTimer = null; // debounce des suggestions (1 requête / frappe sinon)
 		// Garde de fermeture : _dirty suit les saisies utilisateur (suspendu
 		// pendant les remplissages programmatiques des open*/placeCaretAtMarker).
 		this._dirty = false;
@@ -178,6 +179,7 @@ export class ComposeVM {
 		this.suggestField('');
 		this.inReplyTo = ''; this.references = '';
 		this.draftUid = null; this.draftFolder = '';
+		clearTimeout(this._suggestTimer);
 		this._dirty = false;
 		this._closeConfirmed = false;
 		this.savedAt(null);
@@ -417,7 +419,13 @@ export class ComposeVM {
 			+ '" <' + email + '>';
 	}
 
-	async suggest(field) {
+	/** Debounce : une frappe = un timer, la requête ne part qu'au calme. */
+	suggest(field) {
+		clearTimeout(this._suggestTimer);
+		this._suggestTimer = setTimeout(() => this.fetchSuggestions(field), 250);
+	}
+
+	async fetchSuggestions(field) {
 		const value = this[field]();
 		const last = value.split(/[,;]/).pop().trim();
 		// Contacts désactivés : pas d'appel voué à un 403
@@ -434,8 +442,37 @@ export class ComposeVM {
 		const parts = this[field]().split(/[,;]/);
 		parts[parts.length - 1] = ' ' + this.formatAddr(contact.name, contact.email);
 		this[field](parts.join(','));
+		clearTimeout(this._suggestTimer);
 		this.suggestions([]);
 		this.suggestField('');
+		this.wkdLookup(contact.email); // recherche PGP en arrière-plan
+	}
+
+	/**
+	 * Recherche la clé PGP d'un destinataire (plugin wkd-keys : WKD +
+	 * Autocrypt récolté + keyserver optionnel). Silencieuse si absente ;
+	 * propose l'import si trouvée et pas déjà dans le trousseau.
+	 */
+	async wkdLookup(email) {
+		if (!this.app.features().wkd_keys
+			|| !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email || '')) {
+			return;
+		}
+		try {
+			const have = await api.get('/pgp/keys/lookup?emails='
+				+ encodeURIComponent(email)).catch(() => []);
+			if ((have || []).length) { return; }
+			const r = await api.get('/plugin/wkd-keys/lookup?email='
+				+ encodeURIComponent(email));
+			if (!r?.armored) { return; }
+			if (await dialog.confirm(
+				t('plugin.wkd-keys.import_confirm', { email }),
+				{ variant: 'info' })) {
+				await api.post('/pgp/keys', { email, armored: r.armored });
+				await dialog.alert(t('plugin.wkd-keys.imported'),
+					{ variant: 'success' });
+			}
+		} catch { /* lookup échouée : clé optionnelle → silencieux */ }
 	}
 
 	async upload(files) {
@@ -447,6 +484,7 @@ export class ComposeVM {
 		for (const file of files) {
 			if (gen !== this.uploadGen) { break; } // reset() pendant la boucle
 			if (maxFile > 0 && file.size > maxFile) {
+				if (await this.filelink(file)) { continue; }
 				this.error(t('errors.file_too_big',
 					{ mb: Math.round(maxFile / 1048576) }));
 				continue;
@@ -481,9 +519,36 @@ export class ComposeVM {
 				att.req = null;
 			} catch (e) {
 				this.attachments.remove(att);
+				if (e.code === 'too_big' && await this.filelink(file)) { continue; }
 				if (e.code !== 'aborted') { this.error(e.message); }
 				if (gen !== this.uploadGen) { break; }
 			}
+		}
+	}
+
+	/**
+	 * Pièce trop grosse pour le SMTP → envoi « par lien » (plugin
+	 * filelink) : upload sur storage/filelink + insertion du lien de
+	 * téléchargement expirable dans le corps du message.
+	 * Retourne true si le fichier a été pris en charge (succès ou erreur
+	 * déjà affichée), false si le plugin est absent → erreur too_big.
+	 */
+	async filelink(file) {
+		if (!this.app.features().filelink) { return false; }
+		try {
+			const fd = new FormData();
+			fd.append('file', file);
+			const r = await api.upload('/plugin/filelink/upload', fd);
+			const esc = s => String(s).replace(/[&<>"]/g,
+				c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+			const link = `<p>${esc(r.name)} : <a href="${esc(r.url)}">${esc(r.url)}</a></p>`;
+			const ed = window.tinymce?.get('compose-body');
+			if (ed) { ed.insertContent(link); }
+			else { this.html((this.html() || '') + link); }
+			return true;
+		} catch (e) {
+			if (e.code !== 'aborted') { this.error(e.message); }
+			return true;
 		}
 	}
 

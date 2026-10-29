@@ -80,6 +80,9 @@ export class MessageViewVM {
 		this.loading(true);
 		try {
 			const data = await api.get(`/messages/${uid}?folder=${encodeURIComponent(folder)}`);
+			// Changement de dossier (clear()) pendant le fetch : ne pas
+			// réafficher un mail qui n'appartient plus au dossier courant.
+			if (this.requestedUid !== uid || this.requestedFolder !== folder) { return; }
 			// Flags mutables en observables : les bindings se rafraîchissent
 			// sans re-rendre le bloc `with: message` (qui viderait #mail-body).
 			data.isFlagged = ko.observable(!!data.isFlagged);
@@ -101,7 +104,11 @@ export class MessageViewVM {
 			}
 			this.error(e.message);
 		} finally {
-			this.loading(false);
+			// Fetch « stale » (clear() ou show() plus récent entre-temps) : ne
+			// pas éteindre le spinner du fetch en cours — null = clear() → off.
+			if (this.requestedUid === uid || this.requestedUid === null) {
+				this.loading(false);
+			}
 		}
 	}
 
@@ -575,10 +582,16 @@ export class MessageViewVM {
 			const r = await api.get(`/plugin/ics-viewer/event?folder=${encodeURIComponent(m.folder)}` +
 				`&uid=${m.uid}&mime=${encodeURIComponent(att.mimeIndex)}`);
 			const lines = [];
+			// ev.start/end sont ISO 8601 depuis ics-viewer 0.13 → formatage localisé
+			const fmt = (s, allDay) => {
+				const d = new Date(s);
+				return isNaN(d) ? s
+					: allDay ? d.toLocaleDateString(this.app.lang) : d.toLocaleString(this.app.lang);
+			};
 			for (const ev of r.events || []) {
 				if (ev.summary) { lines.push(t('plugin.ics-viewer.event', { v: ev.summary })); }
-				if (ev.start) { lines.push(t('plugin.ics-viewer.start', { v: ev.start }) + (ev.allDay ? t('plugin.ics-viewer.allday') : '')); }
-				if (ev.end) { lines.push(t('plugin.ics-viewer.end', { v: ev.end })); }
+				if (ev.start) { lines.push(t('plugin.ics-viewer.start', { v: fmt(ev.start, ev.allDay) }) + (ev.allDay ? t('plugin.ics-viewer.allday') : '')); }
+				if (ev.end) { lines.push(t('plugin.ics-viewer.end', { v: fmt(ev.end, ev.allDay) })); }
 				if (ev.location) { lines.push(t('plugin.ics-viewer.location', { v: ev.location })); }
 				if (ev.organizer) { lines.push(t('plugin.ics-viewer.organizer', { v: ev.organizer })); }
 				if (ev.status) { lines.push(t('plugin.ics-viewer.status', { v: ev.status })); }
@@ -587,6 +600,21 @@ export class MessageViewVM {
 			}
 			await dialog.alert(lines.join('\n'),
 				{ title: t('plugin.ics-viewer.title'), variant: 'info' });
+			// Invitation (METHOD:REQUEST) → proposer la réponse iTIP.
+			if (r.method === 'REQUEST') {
+				const choice = await dialog.pick([
+					{ value: 'ACCEPTED',  label: t('plugin.ics-viewer.reply_accept'),    icon: 'fa-check' },
+					{ value: 'TENTATIVE', label: t('plugin.ics-viewer.reply_tentative'), icon: 'fa-question' },
+					{ value: 'DECLINED',  label: t('plugin.ics-viewer.reply_decline'),   icon: 'fa-xmark' },
+				], { title: t('plugin.ics-viewer.reply_title'), variant: 'info' });
+				if (choice) {
+					await api.post('/plugin/ics-viewer/reply', {
+						folder: m.folder, uid: m.uid,
+						mime: att.mimeIndex, partstat: choice });
+					await dialog.alert(t('plugin.ics-viewer.reply_sent'),
+						{ variant: 'success' });
+				}
+			}
 		} catch (e) {
 			await dialog.alert(e.message, { title: t('plugin.ics-viewer.attachment'), variant: 'danger' });
 		}
@@ -808,13 +836,13 @@ export class MessageViewVM {
 		if (!(await dialog.confirm(t(key, { n: 1 }),
 			{ variant: 'danger', okLabel: t('common.delete'), title: t('messages.delete_title') }))) { return; }
 		const ml = this.app.messageList;
-		const next = ml.peekAdvance(m.uid);
+		const next = ml.peekAdvance(m.uid, m.folder);
 		try {
 			await api.post(`/messages/${m.uid}/delete`, { folder: m.folder });
 		} catch (e) { this.error(e.message); return; }
-		const model = ml.messages().find(x => x.uid === m.uid);
+		const model = ml.messages().find(x => x.uid === m.uid && x.folder === m.folder);
 		if (model) {
-			if (!model.isSeen()) { ml.adjustUnread(-1); }
+			if (!model.isSeen()) { ml.adjustUnread(-1, m.folder); }
 			ml.messages.remove(model);
 		}
 		if (next && ml.messages().includes(next)) {
@@ -833,18 +861,18 @@ export class MessageViewVM {
 		m.isSeen(false);
 		this.app.messageList.messages()
 			.find(x => x.uid === m.uid && x.folder === m.folder)?.isSeen(false);
-		this.app.messageList.adjustUnread(1);
+		this.app.messageList.adjustUnread(1, m.folder);
 	}
 
 	async moveTo(target) {
 		const m = this.message();
 		if (!m || !target) { return; }
 		const ml = this.app.messageList;
-		const next = ml.peekAdvance(m.uid);
+		const next = ml.peekAdvance(m.uid, m.folder);
 		await api.post(`/messages/${m.uid}/move`, { folder: m.folder, to: target });
-		const model = ml.messages().find(x => x.uid === m.uid);
+		const model = ml.messages().find(x => x.uid === m.uid && x.folder === m.folder);
 		if (model) {
-			if (!model.isSeen()) { ml.adjustUnread(-1); }
+			if (!model.isSeen()) { ml.adjustUnread(-1, m.folder); }
 			ml.messages.remove(model);
 		}
 		if (next && ml.messages().includes(next)) {

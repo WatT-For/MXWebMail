@@ -291,6 +291,11 @@ final class MailService
 	 */
 	public function markSpam(string $folder, int $uid, bool $spam): array
 	{
+		// Hook : apprentissage antispam (plugin spam-learn) — émis avant le
+		// move : le nouvel UID n'est pas remonté, le FETCH doit viser la
+		// source. Tire aussi si l'action échoue ensuite (409) — accepté.
+		$this->app->hooks()->run('message.spam', $folder, $uid, $spam);
+
 		$junk = $this->junkFolder();
 
 		if ($spam) {

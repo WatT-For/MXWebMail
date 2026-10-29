@@ -16,6 +16,8 @@ use MXWebMail\Plugin\PluginBase;
  */
 final class Avatars extends PluginBase
 {
+	private const CACHE_TTL = 30 * 86400; // 30 jours
+
 	public function register(HookRegistry $hooks): void
 	{
 		$hooks->on('app.data', function (array $data) {
@@ -101,32 +103,10 @@ final class Avatars extends PluginBase
 		return (string) preg_replace('/^.+\.([^.]+\.[^.]+)$/D', '$1', $domain);
 	}
 
-	/**
-	 * L'hôte résout-il vers une IP publique ? Bloque les littéraux IP
-	 * ([10.0.0.5], [::1]) et les DNS privés/réservés — sinon le domaine
-	 * d'un email arbitraire (a@[10.0.0.5] passe FILTER_VALIDATE_EMAIL)
-	 * permettrait d'atteindre le réseau interne (SSRF).
-	 */
-	private function isPublicHost(string $host): bool
-	{
-		$h = trim($host, '[]');
-		if ($h === '') {
-			return false;
-		}
-		if (!filter_var($h, FILTER_VALIDATE_IP)) {
-			$h = gethostbyname($h);
-			if (!filter_var($h, FILTER_VALIDATE_IP)) {
-				return false; // échec DNS → fail-closed
-			}
-		}
-		return (bool) filter_var($h, FILTER_VALIDATE_IP,
-			FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
-	}
-
 	/** Fetch image distante. Retourne [mime, binaire, réponse JSON] ou null. */
 	private function fetchImage(string $url): ?array
 	{
-		if (!$this->isPublicHost((string) parse_url($url, PHP_URL_HOST))) {
+		if (!$this->app->isPublicHost((string) parse_url($url, PHP_URL_HOST))) {
 			\MXWebMailLib\Log::warning('AVATARS', 'fetch refusé (hôte non public) : ' . $url);
 			return null;
 		}
@@ -161,6 +141,13 @@ final class Avatars extends PluginBase
 	private function cached(string $email): ?array
 	{
 		foreach (glob($this->dir() . '/' . sha1($email) . '.*') ?: [] as $file) {
+			// TTL : un avatar en cache > N jours est refetché au prochain
+			// affichage — sinon les icônes n'évolueraient jamais et le
+			// dossier grossirait sans borne (auto-nettoyant, pas de GC).
+			if (filemtime($file) < time() - self::CACHE_TTL) {
+				@unlink($file);
+				return null;
+			}
 			$mime = \MXWebMailLib\File\MimeType::fromFilename(basename($file))
 				?? 'image/png';
 			return ['dataUrl' => "data:{$mime};base64,"

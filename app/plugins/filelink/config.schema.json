@@ -1,0 +1,4 @@
+{
+	"max_size": { "label": "plugin.filelink.f.max_size", "type": "integer", "default": 100, "help": "plugin.filelink.f.max_size.help" },
+	"ttl_days": { "label": "plugin.filelink.f.ttl_days", "type": "integer", "default": 30, "help": "plugin.filelink.f.ttl_days.help" }
+}

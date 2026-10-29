@@ -59,12 +59,17 @@ final class AuthService
 		}
 		$domain = $this->resolveDomain($domainName) ?? ['name' => $domainName];
 
-		// Hook : un plugin peut fournir/mapper les credentials (ldap-auth, login-*)
-		// ou refuser le login en levant une exception (white-list…).
+		// Hook : un plugin peut fournir/mapper les credentials (ldap-auth, login-*).
 		$mapped = $this->app->hooks()->first('auth.login.mapping', $email, $domain);
 		if (is_array($mapped)) {
 			[$email, $domain] = [$mapped['email'] ?? $email, $mapped['domain'] ?? $domain];
 		}
+
+		// Hook post-mapping : contrôles de login sur l'email résolu
+		// (black-list/white-list — émis aussi sans mapping : $email = saisi).
+		// Un « run » : tous les listeners s'exécutent, contrairement à « first »
+		// qui court-circuiterait un contrôle placé après un provider de mapping.
+		$this->app->hooks()->run('auth.login.mapped', $email, $domain);
 
 		// Compte bloqué par l'admin : refus avant toute requête IMAP.
 		// mb_strtolower : le hook peut retourner une casse non normalisée.

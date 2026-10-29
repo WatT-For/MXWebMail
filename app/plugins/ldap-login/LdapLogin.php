@@ -47,7 +47,7 @@ final class LdapLogin extends PluginBase
 
 			$mailAttr = (string) ($c['mail_attr'] ?? 'mail');
 			$filter = str_replace('%u', ldap_escape($login, '', LDAP_ESCAPE_FILTER),
-				(string) ($c['search_filter'] ?? '(mail=%u)'));
+				(string) ($c['search_filter'] ?? '(|(uid=%u)(mail=%u))'));
 			$sr = @ldap_search($link, (string) ($c['base_dn'] ?? ''), $filter, [$mailAttr], 0, 2);
 			if (!$sr) {
 				return null;

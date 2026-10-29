@@ -21,4 +21,10 @@ return [
 	'plugin.anti-spoofing.f.check_sender'           => 'Check Sender header',
 	'plugin.anti-spoofing.f.check_display'          => 'Detect display-name spoofing',
 	'plugin.anti-spoofing.f.check_lookalike'        => 'Detect lookalike domains',
+	'plugin.anti-spoofing.f.check_auth_results'   => 'Check SPF/DKIM/DMARC (Authentication-Results)',
+	'plugin.anti-spoofing.alert.auth_spf_fail'     => 'SPF check failed for this sender',
+	'plugin.anti-spoofing.alert.auth_dkim_fail'    => 'DKIM signature check failed',
+	'plugin.anti-spoofing.alert.auth_dmarc_fail'   => 'DMARC check failed',
+	'plugin.anti-spoofing.alert.auth_spf_softfail' => 'SPF softfail (sender not authorized)',
+	'plugin.anti-spoofing.alert.auth_pass_all'     => 'SPF, DKIM and DMARC verified (pass)',
 ];

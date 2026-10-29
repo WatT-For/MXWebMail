@@ -34,7 +34,7 @@
 			</div>
 			<div class="mb-3" data-bind="visible: showTotp" style="display:none">
 				<label class="form-label" for="totp"><?= $t('login.totp') ?></label>
-				<input id="totp" type="text" class="form-control" inputmode="numeric" maxlength="6"
+				<input id="totp" type="text" class="form-control" maxlength="9"
 					autocomplete="one-time-code" data-bind="value: totp, disable: loading">
 			</div>
 			<div class="mb-3 form-check">

@@ -16,7 +16,7 @@ final class BlackList extends PluginBase
 {
 	public function register(HookRegistry $hooks): void
 	{
-		$hooks->on('auth.login.mapping', function (string $email) {
+		$hooks->on('auth.login.mapped', function (string $email, array $domain) {
 			$blackList = \trim((string) ($this->config['black_list'] ?? ''));
 			if ($blackList !== '' && Wildcard::match($email, $blackList)) {
 				$exceptions = \trim((string) ($this->config['exceptions'] ?? ''));

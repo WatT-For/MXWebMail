@@ -44,10 +44,12 @@ app/src/bootstrap.php  autoloader maison
 ## 3. Hooks du cœur
 
 Les plugins s'enregistrent sur : `app.routes`, `app.head`, `app.data`,
-`auth.login.mapping`, `auth.provider`, `auth.post-login`, `contacts.provider`,
+`auth.login.mapping`, `auth.login.mapped`, `auth.provider`, `auth.post-login`,
+`contacts.provider`,
 `identities.provider`, `password.change`, `settings.allowed`, `imap.before-connect`,
 `imap.message-headers`, `sieve.before-connect`, `smtp.before-connect`, `message.meta`,
-`message.view`, `message.before-send`, `admin.mounts`, `admin.post-login`,
+`message.view`, `message.before-send`, `message.spam`, `attachment.upload`,
+`admin.mounts`, `admin.post-login`,
 `admin.totp-required`.
 
 Côté panneau admin : `admin.mounts` (collect) alimente `adminMounts` du bootstrap —

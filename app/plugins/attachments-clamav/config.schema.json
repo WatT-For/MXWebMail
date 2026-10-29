@@ -1,0 +1,5 @@
+{
+	"socket":   { "label": "plugin.attachments-clamav.f.socket", "type": "string", "default": "tcp://127.0.0.1:3310", "help": "plugin.attachments-clamav.f.socket.help" },
+	"timeout":  { "label": "plugin.attachments-clamav.f.timeout", "type": "integer", "default": 15 },
+	"on_error": { "label": "plugin.attachments-clamav.f.on_error", "type": "enum", "options": { "allow": "plugin.attachments-clamav.f.on_error.allow", "deny": "plugin.attachments-clamav.f.on_error.deny" }, "default": "allow", "help": "plugin.attachments-clamav.f.on_error.help" }
+}

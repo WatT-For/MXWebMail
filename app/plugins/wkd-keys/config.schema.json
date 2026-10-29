@@ -1,0 +1,4 @@
+{
+	"keyserver_fallback": { "label": "plugin.wkd-keys.f.keyserver_fallback", "type": "bool", "default": false, "help": "plugin.wkd-keys.f.keyserver_fallback.help" },
+	"autocrypt":          { "label": "plugin.wkd-keys.f.autocrypt", "type": "bool", "default": true, "help": "plugin.wkd-keys.f.autocrypt.help" }
+}

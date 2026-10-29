@@ -35,5 +35,10 @@
 		"label": "plugin.anti-spoofing.f.check_lookalike",
 		"type": "bool",
 		"default": true
+	},
+	"check_auth_results": {
+		"label": "plugin.anti-spoofing.f.check_auth_results",
+		"type": "bool",
+		"default": true
 	}
 }

@@ -21,4 +21,10 @@ return [
 	'plugin.anti-spoofing.f.check_sender'           => 'Vérifier le champ Sender',
 	'plugin.anti-spoofing.f.check_display'          => "Détecter l'usurpation de nom d'affichage",
 	'plugin.anti-spoofing.f.check_lookalike'        => 'Détecter les domaines leurres',
+	'plugin.anti-spoofing.f.check_auth_results'   => 'Vérifier SPF/DKIM/DMARC (Authentication-Results)',
+	'plugin.anti-spoofing.alert.auth_spf_fail'     => 'Échec de la vérification SPF pour cet expéditeur',
+	'plugin.anti-spoofing.alert.auth_dkim_fail'    => 'Échec de la vérification de la signature DKIM',
+	'plugin.anti-spoofing.alert.auth_dmarc_fail'   => 'Échec de la vérification DMARC',
+	'plugin.anti-spoofing.alert.auth_spf_softfail' => 'SPF softfail (expéditeur non autorisé)',
+	'plugin.anti-spoofing.alert.auth_pass_all'     => 'SPF, DKIM et DMARC vérifiés (pass)',
 ];

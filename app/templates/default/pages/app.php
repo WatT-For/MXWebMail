@@ -20,7 +20,7 @@
 		<span class="navbar-brand mb-0"><?= htmlspecialchars($app->config()->get('app_name')) ?></span>
 		<div class="d-flex align-items-center gap-3">
 			<div class="dropdown">
-				<a class="text-white-50 small text-decoration-none dropdown-toggle" role="button" data-bs-toggle="dropdown"
+				<a class="text-white-50 small text-decoration-none dropdown-toggle" role="button" href="#" data-bs-toggle="dropdown"
 					data-bind="text: user() && user().email"></a>
 				<ul class="dropdown-menu dropdown-menu-end">
 					<!-- ko foreach: accounts -->
@@ -76,11 +76,11 @@
 					<span class="d-flex align-items-center">
 						<span class="badge text-bg-primary" data-bind="visible: unread() > 0, text: unread" style="display:none"></span>
 						<span class="dropdown">
-							<span class="text-muted px-1 folder-menu-toggle" role="button" data-bs-toggle="dropdown"
+							<button type="button" class="btn btn-sm btn-icon border-0 p-0 text-muted px-1 folder-menu-toggle" data-bs-toggle="dropdown"
 								data-bs-popper-config='{"strategy":"fixed"}'
 								data-bind="visible: !isSystem || ($root.features().dangerous_actions !== false && !isInbox)">
 								<i class="fa-solid fa-ellipsis-vertical"></i>
-							</span>
+							</button>
 							<ul class="dropdown-menu dropdown-menu-end">
 								<!-- ko ifnot: isSystem -->
 								<li><a class="dropdown-item" href="#" data-bind="click: $parent.renameFolder"><i class="fa-solid fa-pen me-2"></i><?= $t('app.rename') ?></a></li>
@@ -265,16 +265,20 @@
 
 		<!-- Colonne lecture -->
 		<section class="reader-pane bg-white" data-bind="with: messageView">
-			<div class="text-center text-muted p-5" data-bind="visible: !message() && !loading()" style="display:none">
+			<div class="text-center text-muted p-5" data-bind="visible: !message() && !loading() && $root.messageList.checkedCount() <= 1" style="display:none">
 				<i class="fa-regular fa-envelope-open fa-3x mb-3"></i>
 				<p><?= $t('app.select_message') ?></p>
+			</div>
+			<div class="text-center text-muted p-5" data-bind="visible: $root.messageList.checkedCount() > 1 && !loading()" style="display:none">
+				<i class="fa-regular fa-square-check fa-3x mb-3"></i>
+				<p data-bind="text: $root.t('app.selected_count', { n: $root.messageList.checkedCount() })"></p>
 			</div>
 			<div class="text-center p-5" data-bind="visible: loading" style="display:none">
 				<span class="spinner-border"></span>
 			</div>
 			<!-- ko toast: { value: error, variant: 'danger' } --><!-- /ko -->
 
-			<div data-bind="visible: message() && !loading(), with: message" style="display:none">
+			<div data-bind="visible: message() && !loading() && $root.messageList.checkedCount() <= 1, with: message" style="display:none">
 				<div class="d-flex justify-content-between align-items-start mb-3">
 					<div>
 						<h5 class="mb-1" data-bind="text: subject"></h5>
@@ -554,15 +558,11 @@
 					</div>
 					<div class="col-12 col-xxl-6">
 						<div class="row align-items-center mb-2">
-							<label class="col-md-4 col-form-label col-form-label-sm" for="st-autosave"><?= $t('settings.contacts_autosave') ?></label>
-							<div class="col-md-8">
-								<div class="form-check d-flex align-items-center">
-									<input class="form-check-input" type="checkbox" id="st-autosave"
-										data-bind="checked: values().contacts_autosave">
-									<i class="fa-regular fa-circle-question help-icon ms-2" tabindex="0"
-										data-bind="tooltip: 'settings.contacts_autosave_help'"></i>
-								</div>
-							</div>
+							<label class="col-md-4 col-form-label col-form-label-sm" for="st-autosave"><?= $t('settings.contacts_autosave') ?> <i class="fa-regular fa-circle-question help-icon" tabindex="0"
+								data-bind="tooltip: 'settings.contacts_autosave_help'"></i></label>
+							<div class="col-md-8"><div class="form-check">
+								<input class="form-check-input" type="checkbox" id="st-autosave" data-bind="checked: values().contacts_autosave">
+							</div></div>
 						</div>
 					</div>
 					<div class="col-12 col-xxl-6">
@@ -596,7 +596,7 @@
 							<label class="col-md-4 col-form-label col-form-label-sm" for="st-notify"><?= $t('settings.notify_new_mail') ?> <i class="fa-regular fa-circle-question help-icon" tabindex="0"
 								data-bind="tooltip: 'settings.notify_new_mail_help'"></i></label>
 							<div class="col-md-8">
-								<div class="form-check d-flex align-items-center">
+								<div class="form-check">
 									<input class="form-check-input" type="checkbox" id="st-notify"
 										data-bind="checked: values().notify_new_mail, event: { change: toggleNotify }">
 								</div>

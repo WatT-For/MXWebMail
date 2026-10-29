@@ -50,12 +50,12 @@ utilisateurs `is_admin` non connectés au panneau. Les hooks de login admin
 | `add-x-originating-ip-header` | Ajoute `X-Originating-IP` (IP de l'expéditeur) aux envois. | `message.before-send` |
 | `anti-spoofing` | Détection d'usurpation dans le lecteur : Return-Path/Reply-To/Sender incohérents, display-name imitant une marque, domaine leurre (homoglyphes). | `imap.message-headers`, `message.view` |
 | `avatars` | Avatar de l'expéditeur : icônes de services connues, Gravatar, favicon du domaine, initiales. | `app.data` |
-| `black-list` | Liste noire de connexion (wildcards + exceptions). | `auth.login.mapping` |
-| `white-list` | Liste blanche de connexion (wildcards + exceptions). | `auth.login.mapping` |
+| `black-list` | Liste noire de connexion (wildcards + exceptions) — vérifiée sur l'email **résolu** (post-mapping). | `auth.login.mapped` |
+| `white-list` | Liste blanche de connexion (wildcards + exceptions) — vérifiée sur l'email **résolu** (post-mapping). | `auth.login.mapped` |
 | `carddav-contacts` | Synchronisation des contacts depuis un carnet CardDAV (Nextcloud, Radicale, iCloud…) — **HTTPS + hôte public exigés**. | `app.data` |
 | `change-password` | Changement de mot de passe (drivers poppassd, PDO, LDAP, Mailcow). | `password.change`, `app.data` |
 | `color-tags` | Étiquettes de couleur sur les messages (manuelles + règles automatiques). | `app.data`, `message.meta` |
-| `ics-viewer` | Aperçu des invitations/pièces jointes `.ics` dans le lecteur. | `app.data` |
+| `ics-viewer` | Aperçu des invitations/pièces jointes `.ics` dans le lecteur **+ réponse iTIP** (Accepter/Peut-être/Refuser sur `METHOD:REQUEST`, envoyée par SMTP à l'organisateur). | `app.data` |
 | `imap-contacts-suggestions` | Suggestions de contacts depuis les expéditeurs d'un dossier IMAP. | `contacts.provider` |
 | `ldap-contacts` | Suggestions de contacts depuis un annuaire LDAP (autocomplétion). | `contacts.provider` |
 | `ldap-login` | Résolution LDAP : uid/alias → adresse IMAP réelle avant le login. | `auth.login.mapping` |
@@ -63,6 +63,12 @@ utilisateurs `is_admin` non connectés au panneau. Les hooks de login admin
 | `pwa` | Rend le webmail installable (manifest + service worker minimal, icônes). | `app.head`, `app.routes` |
 | `webmail-migration` | Page admin d'import depuis un dossier `data` **RainLoop ou SnappyMail** (chemin serveur ou ZIP) : domaines, carnets `AddressBook.sqlite`/PDO, identités, réglages, dossiers système, clés PGP — scan dry-run puis import idempotent, comptes inconnus ignorés. | `admin.mounts` |
 | `two-factor-auth` | TOTP à deux facteurs (Google Authenticator, Aegis…) — comptes utilisateurs **et** compte admin local (provisioning QR dans un sous-onglet dédié de Admin → Sécurité ; exigé au login admin tant que le plugin est activé). | `auth.post-login`, `app.data`, `admin.mounts`, `admin.post-login`, `admin.totp-required` |
+| `admin-stats` | Page admin de reporting en lecture seule : taille de `storage/`, utilisateurs actifs/inactifs, compteurs des tables, enregistrements orphelins, plugins installés, environnement. | `admin.mounts` |
+| `announcement` | Bannière d'annonce administrateur (page app, optionnellement page de login — maintenance). Texte en clair uniquement. | `app.head` |
+| `attachments-clamav` | Scan ClamAV (`clamd`, `zINSTREAM`) des pièces jointes uploadées et des imports — rejet sur détection, politique `on_error` configurable. | `attachment.upload` |
+| `filelink` | Pièces jointes trop grosses pour le SMTP envoyées sous forme de **lien de téléchargement expirable** (`/filelink/<token>` — attachment forcé, `nosniff`, noindex). | `app.data`, `app.routes` |
+| `spam-learn` | Apprentissage spam/ham à chaque (dé)marquage : commande externe (`rspamc`, `sa-learn`) ou copie IMAP vers un dossier dovecot-antispam. | `message.spam` |
+| `wkd-keys` | Découverte automatique des clés PGP des destinataires : **WKD** (advanced + direct), récolte des en-têtes **Autocrypt**, secours `keys.openpgp.org` optionnel — import proposé au compose. | `app.data`, `message.view` |
 
 ## 2. Configuration d'un plugin
 
@@ -155,7 +161,8 @@ class MonPlugin extends PluginBase
 
 ### Hooks disponibles
 
-- **Cœur** : `app.routes`, `app.head`, `app.data`, `auth.login.mapping`, `auth.provider`,
+- **Cœur** : `app.routes`, `app.head`, `app.data`, `auth.login.mapping`, `auth.login.mapped`, `auth.provider`,
+  `attachment.upload`, `message.spam`,
   `auth.post-login`, `contacts.provider`, `identities.provider`, `password.change`,
   `settings.allowed`, `imap.before-connect`, `imap.message-headers`, `sieve.before-connect`,
   `smtp.before-connect`, `message.meta`, `message.view`, `message.before-send`.

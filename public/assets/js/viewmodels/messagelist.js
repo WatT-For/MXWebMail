@@ -75,6 +75,8 @@ export class MessageListVM {
 			const n = this.checkedMessages().length;
 			return n > 0 && n < this.messages().length;
 		});
+		// ≥ 2 → la zone de lecture affiche le compteur de multi-sélection
+		this.checkedCount = ko.pureComputed(() => this.checkedMessages().length);
 		// État agrégé de la sélection cochée : pilote les boutons toggle groupés.
 		// Sélection mixte (ou rien de flaggé/lu) → false → le clic applique « poser ».
 		this.checkedAllFlagged = ko.pureComputed(() => {
@@ -118,6 +120,10 @@ export class MessageListVM {
 
 	async selectFolder(folder) {
 		this.cancelReadTimer();
+		// Re-clic sur le dossier actif : reload sans fermer le mail ouvert.
+		if (folder !== this.folder()) {
+			this.app.messageView.clear();
+		}
 		this.folder(folder);
 		this.page(1);
 		await this.load();
@@ -142,8 +148,10 @@ export class MessageListVM {
 		// Dans le dossier Brouillons : ouvrir le message dans le compose
 		const role = (this.app.folderList.folders().find(f => f.fullName === message.folder)?.role || '').toLowerCase();
 		if (role.includes('draft') || /draft|brouillon/i.test(message.folder)) {
-			const full = await api.get(`/messages/${message.uid}?folder=${encodeURIComponent(message.folder)}`);
-			this.app.compose.openDraft(full);
+			try {
+				const full = await api.get(`/messages/${message.uid}?folder=${encodeURIComponent(message.folder)}`);
+				this.app.compose.openDraft(full);
+			} catch (e) { this.error(e.message); }
 			return;
 		}
 		await this.app.messageView.show(message.folder, message.uid);
@@ -170,7 +178,7 @@ export class MessageListVM {
 	markSeen(message) {
 		if (!message.isSeen()) {
 			message.isSeen(true);
-			this.adjustUnread(-1);
+			this.adjustUnread(-1, message.folder);
 		}
 	}
 
@@ -180,9 +188,9 @@ export class MessageListVM {
 		this._readTimer = null;
 	}
 
-	/** Ajuste localement le badge non-lus du dossier courant. */
-	adjustUnread(delta) {
-		const f = this.app.folderList.folders().find(f => f.fullName === this.folder());
+	/** Ajuste localement le badge non-lus d'un dossier (dossier courant par défaut). */
+	adjustUnread(delta, folder = this.folder()) {
+		const f = this.app.folderList.folders().find(f => f.fullName === folder);
 		if (f) { f.unread(Math.max(0, f.unread() + delta)); }
 	}
 
@@ -332,10 +340,12 @@ export class MessageListVM {
 	async bulkFlag(flag, set) {
 		for (const m of this.checkedMessages()) {
 			try {
-				await api.post(`/messages/${m.uid}/flags`, { folder: this.folder(), flag, set });
+				// m.folder (dossier réel du message) : en recherche multi-dossiers
+				// il diffère du dossier courant — les UID sont par dossier.
+				await api.post(`/messages/${m.uid}/flags`, { folder: m.folder, flag, set });
 				if (flag === '\\Seen' && m.isSeen() !== set) {
 					m.isSeen(set);
-					this.adjustUnread(set ? -1 : 1);
+					this.adjustUnread(set ? -1 : 1, m.folder);
 				}
 				if (flag === '\\Flagged') { m.isFlagged(set); }
 			} catch (e) { this.error(e.message); }
@@ -346,11 +356,13 @@ export class MessageListVM {
 	 *  (réglage auto_advance : next|prev|none). Non mutateur — à appeler
 	 *  AVANT le retrait, sur la liste encore complète ; le repli bascule
 	 *  sur l'autre côté (ex. dernier élément + mode next → précédent). */
-	peekAdvance(uid) {
+	peekAdvance(uid, folder) {
 		const mode = this.app.userSettings?.auto_advance || 'next';
 		if (mode === 'none' || uid == null) { return null; }
 		const list = this.messages();
-		const i = list.findIndex(m => m.uid === uid);
+		// En recherche multi-dossiers le même uid existe dans plusieurs dossiers :
+		// la correspondance porte aussi sur le dossier quand il est fourni.
+		const i = list.findIndex(m => m.uid === uid && (folder === undefined || m.folder === folder));
 		if (i < 0) { return null; }
 		const fwd = mode !== 'prev';
 		return list[fwd ? i + 1 : i - 1] ?? list[fwd ? i - 1 : i + 1] ?? null;
@@ -368,15 +380,18 @@ export class MessageListVM {
 
 	async bulkDelete() {
 		const list = this.checkedMessages();
-		const key = this.app.folderList.isTrashFolder(this.folder())
+		// Sélection multi-dossiers : suppression définitive dès qu'un message
+		// est dans la corbeille (le serveur expunge depuis Trash uniquement).
+		const key = list.some(m => this.app.folderList.isTrashFolder(m.folder))
 			? 'messages.delete_confirm_perm' : 'messages.delete_confirm';
 		if (!list.length || !(await dialog.confirm(t(key, { n: list.length }),
 			{ variant: 'danger', okLabel: t('common.delete'), title: t('messages.delete_title') }))) { return; }
-		const next = this.peekAdvance(this.app.messageView.requestedUid);
+		const mv = this.app.messageView;
+		const next = this.peekAdvance(mv.requestedUid, mv.requestedFolder);
 		for (const m of list) {
 			try {
-				await api.post(`/messages/${m.uid}/delete`, { folder: this.folder() });
-				if (!m.isSeen()) { this.adjustUnread(-1); }
+				await api.post(`/messages/${m.uid}/delete`, { folder: m.folder });
+				if (!m.isSeen()) { this.adjustUnread(-1, m.folder); }
 				this.messages.remove(m);
 			} catch (e) { this.error(e.message); }
 		}
@@ -384,11 +399,13 @@ export class MessageListVM {
 	}
 
 	async bulkMove(target) {
-		const next = this.peekAdvance(this.app.messageView.requestedUid);
+		const mv = this.app.messageView;
+		const next = this.peekAdvance(mv.requestedUid, mv.requestedFolder);
 		for (const m of this.checkedMessages()) {
+			if (m.folder === target) { continue; } // déjà dans le dossier cible
 			try {
-				await api.post(`/messages/${m.uid}/move`, { folder: this.folder(), to: target });
-				if (!m.isSeen()) { this.adjustUnread(-1); }
+				await api.post(`/messages/${m.uid}/move`, { folder: m.folder, to: target });
+				if (!m.isSeen()) { this.adjustUnread(-1, m.folder); }
 				this.messages.remove(m);
 			} catch (e) { this.error(e.message); }
 		}
@@ -406,21 +423,38 @@ export class MessageListVM {
 		if (target) { await this.bulkMove(target); }
 	}
 
-	/** Télécharge les messages cochés en .eml dans un zip (GET direct). */
+	/** Télécharge les messages cochés en .eml dans un zip par dossier source
+	 *  (GET direct — un zip par dossier en recherche multi-dossiers). */
 	downloadEmlZip() {
-		const uids = this.checkedMessages().map(m => m.uid);
-		if (!uids.length) { return; }
-		location.assign(`${base()}/api/folders/${b64url(this.folder())}/eml.zip?uids=${uids.join(',')}`);
+		const byFolder = new Map();
+		for (const m of this.checkedMessages()) {
+			const uids = byFolder.get(m.folder) || [];
+			uids.push(m.uid);
+			byFolder.set(m.folder, uids);
+		}
+		for (const [folder, uids] of byFolder) {
+			const a = document.createElement('a');
+			a.href = `${base()}/api/folders/${b64url(folder)}/eml.zip?uids=${uids.join(',')}`;
+			a.download = '';
+			document.body.append(a);
+			a.click();
+			a.remove();
+		}
 	}
 
 	async bulkSpam(spam) {
 		let moved = false;
-		const next = this.peekAdvance(this.app.messageView.requestedUid);
+		const mv = this.app.messageView;
+		const next = this.peekAdvance(mv.requestedUid, mv.requestedFolder);
 		for (const m of this.checkedMessages()) {
+			// Déjà dans l'état voulu : le serveur renverrait 'move' sans rien
+			// déplacer (ex. spam sur un message déjà dans Junk) — sautés.
+			const junk = this.app.folderList.isJunkFolder(m.folder) || !!m.isJunk();
+			if (junk === spam) { continue; }
 			try {
-				const r = await api.post(`/messages/${m.uid}/spam`, { folder: this.folder(), spam });
+				const r = await api.post(`/messages/${m.uid}/spam`, { folder: m.folder, spam });
 				if (r.strategy === 'move') {
-					if (!m.isSeen()) { this.adjustUnread(-1); }
+					if (!m.isSeen()) { this.adjustUnread(-1, m.folder); }
 					this.messages.remove(m);
 					moved = true;
 				} else {

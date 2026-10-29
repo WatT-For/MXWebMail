@@ -82,6 +82,7 @@ return [
 	'app.page_prev'       => 'Önceki sayfa',
 	'app.page_next'       => 'Sonraki sayfa',
 	'app.select_message'  => 'Bir ileti seçin',
+	'app.selected_count'  => '{n} ileti seçildi',
 	'app.from'            => 'Kimden:',
 	'app.to'              => 'Kime:',
 	'app.cc'              => 'Cc:',
