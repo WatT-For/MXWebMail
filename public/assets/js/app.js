@@ -169,20 +169,16 @@ class AppVM {
 			const def = ids.find(i => Number(i.is_default)) || ids[0];
 			if (def && !(def.name || '').trim()) { this.popupIdentityPending = true; }
 		}
-		await this.folderList.load();
-		// Dossiers surveillés + seed de l'état de détection : seules les hausses
-		// de non-lus postérieures au boot déclenchent une notification.
-		// Le catch est obligatoire : un échec IMAP ici ne doit pas tuer init().
-		this.notifyFolders(await api.get('/folders/notify').catch(() => ['INBOX']));
+		// Dossiers + liste initiale en parallèle : routeFromHash déclenche
+		// selectFolder→load() pendant que le LIST-STATUS est encore en vol
+		// (requêtes GET concurrentes libérées par la fermeture de session).
+		const foldersP = this.folderList.load();
+		// Dossiers surveillés (données du boot appdata, pas de RTT dédié) +
+		// seed de l'état de détection : seules les hausses de non-lus
+		// postérieures au boot déclenchent une notification.
+		this.notifyFolders(data.notify_folders || ['INBOX']);
 		this.notifyEnabled(!!data.settings?.notify_new_mail);
-		for (const f of this.folderList.folders()) {
-			if (f.isInbox || this.notifyFolders().includes(f.fullName)) {
-				this._watch[f.fullName] = { unread: f.unread(), lastUid: 0 };
-			}
-		}
-		// Réactualisation auto de la liste (réglage list_refresh, minutes, 0 = jamais)
 		const refresh = parseInt(data.settings?.list_refresh, 10) || 0;
-		if (refresh > 0) { this.armAutoRefresh(refresh); }
 		await this.compose.init();
 		this.loadQuota();
 		window.addEventListener('hashchange', () => this.routeFromHash());
@@ -191,6 +187,14 @@ class AppVM {
 			location.hash = '#/@settings/identities';
 		}
 		this.routeFromHash();
+		await foldersP;
+		for (const f of this.folderList.folders()) {
+			if (f.isInbox || this.notifyFolders().includes(f.fullName)) {
+				this._watch[f.fullName] = { unread: f.unread(), lastUid: 0 };
+			}
+		}
+		// Réactualisation auto de la liste (réglage list_refresh, minutes, 0 = jamais)
+		if (refresh > 0) { this.armAutoRefresh(refresh); }
 		if (this.view() === 'mail' && !this.messageList.messages().length) {
 			this.messageList.load();
 		}

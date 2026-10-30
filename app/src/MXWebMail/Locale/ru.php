@@ -481,6 +481,7 @@ return [
 	'admin.sieve_encryption_help' => 'Шифрование Sieve — «авто» определяется портом',
 	'admin.last_login'          => 'Последний вход',
 	'admin.search_users'        => 'Поиск пользователей…',
+	'admin.users_summary'       => 'Всего: {total} · активных за 30 дн.: {active} · отключено: {disabled}',
 	'admin.status'              => 'Статус',
 	'admin.user_edit'           => 'Изменить',
 	'admin.user_delete'         => 'Удалить пользователя',
@@ -594,6 +595,9 @@ return [
 	'admin.about.writable'        => 'доступен для записи',
 	'admin.about.readonly'        => 'только чтение',
 	'admin.about.tagline'         => 'Лёгкий самостоятельный вебмейл',
+	'admin.about.storage_usage'   => 'Использование хранилища',
+	'admin.about.dir'             => 'Каталог',
+	'admin.about.size'            => 'Размер',
 
 	// Schéma des réglages (clés résolues côté client via t())
 	'admin.f.app_name'                     => 'Название приложения',
@@ -738,8 +742,6 @@ return [
 
 	// ─── Installeur (/setup/) ───
 	'setup.installation'      => 'Установка',
-	'setup.installed_title'   => 'Уже установлено',
-	'setup.installed_body'    => 'MXWebMail уже установлен (файл блокировки app/storage/INSTALLED). Для переустановки удалите этот файл; app/config/config.php будет заархивирован и заменён.',
 	'setup.open_webmail'      => 'Открыть веб-почту',
 	'setup.open_admin'        => 'Открыть панель администрирования',
 	'setup.done_title'        => 'Установка завершена',
@@ -750,7 +752,7 @@ return [
 	'setup.done_domain_added' => 'Домен {domain} обнаружен и добавлен — виден в admin → Домены.',
 	'setup.done_providers'    => 'Предварительно авторизованные вторичные учётные записи: {domains} (OAuth2 — приложения регистрируются пользователем).',
 	'setup.done_webmail'      => 'Веб-почта: войдите с учётными данными IMAP.',
-	'setup.done_cleanup'      => 'Настройка сервера не требуется: корневой .htaccess направляет в public/. Желательно удалить каталог public/setup/.',
+	'setup.done_cleanup'      => 'Настройка сервера не требуется: корневой .htaccess направляет в public/. Установщик заблокирован: /setup теперь отвечает 404.',
 	'setup.err_token'         => 'Неверный токен сеанса — перезагрузите страницу.',
 	'setup.err_prereq'        => 'Блокирующие требования не выполнены.',
 	'setup.err_admin_user'    => 'Поле «Администратор» обязательно.',
@@ -887,5 +889,13 @@ return [
 	'settings.sessions_revoke_others'         => 'Отозвать другие сессии',
 	'settings.session_delete_confirm'         => 'Отозвать эту сессию?',
 	'settings.sessions_revoke_confirm'        => 'Отозвать все другие сессии?',
+	'settings.session_ip'                     => 'IP',
+	'settings.session_details'                => 'Сведения о сессии',
+	'settings.session_created_ip'             => 'IP создания',
+	'settings.session_last_ip'                => 'Последний IP',
+	'settings.session_expires'                => 'Истекает',
+	'settings.session_user_agent'             => 'User-Agent',
+	'settings.session_revoke'                 => 'Отозвать',
 	'app.import_failed'                       => 'Ошибок: {n}',
+	'app.import_skipped'                      => '{n} сообщений пропущено (лимит)',
 ];

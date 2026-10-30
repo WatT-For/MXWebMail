@@ -1,4 +1,6 @@
 import { t, lang } from '../i18n.js';
+import { loadTinyMce } from '../lazy.js';
+import { toast } from '../ui/toast.js';
 
 // Les UI auxiliaires TinyMCE (dialogue « code source », lien, image, menus)
 // vivent dans .tox-tinymce-aux, greffé sur <body> — hors des modales Bootstrap
@@ -83,7 +85,7 @@ function initTiny(element, accessor, extra = {}) {
 }
 
 function syncFromObservable(element, valueAccessor) {
-	const ed = tinymce.get(element.id);
+	const ed = window.tinymce?.get(element.id);
 	const value = ko.unwrap(valueAccessor()) || '';
 	// ed.initialized : getContent() lève une erreur avant la fin de l'init
 	if (ed?.initialized && ed.getContent() !== value) {
@@ -93,14 +95,23 @@ function syncFromObservable(element, valueAccessor) {
 
 function addDispose(element) {
 	ko.utils.domNodeDisposal.addDisposeCallback(element, () => {
-		const ed = tinymce.get(element.id);
+		const ed = window.tinymce?.get(element.id);
 		if (ed) { ed.remove(); }
 	});
 }
 
+// Échec de chargement de la lib (asset absent, réseau) : rendre visible,
+// sinon l'éditeur disparaît silencieusement.
+const tinyFailed = err => {
+	console.error(err);
+	toast.show(err.message, { variant: 'danger' });
+};
+
 ko.bindingHandlers.editor = {
 	init(element, valueAccessor) {
-		initTiny(element, valueAccessor());
+		// tinymce chargé à la demande (lazy.js) — ~500K hors du boot.
+		loadTinyMce().then(() => initTiny(element, valueAccessor()))
+			.catch(tinyFailed);
 		addDispose(element);
 	},
 	update: syncFromObservable,
@@ -108,7 +119,7 @@ ko.bindingHandlers.editor = {
 
 ko.bindingHandlers.signatureEditor = {
 	init(element, valueAccessor) {
-		initTiny(element, valueAccessor(), {
+		loadTinyMce().then(() => initTiny(element, valueAccessor(), {
 			height: 200,
 			plugins: 'autolink link lists code',
 			toolbar: 'undo redo | bold italic underline | forecolor | bullist numlist | link | sigcaret | removeformat | code',
@@ -125,7 +136,7 @@ ko.bindingHandlers.signatureEditor = {
 					},
 				});
 			},
-		});
+		})).catch(tinyFailed);
 		addDispose(element);
 	},
 	update: syncFromObservable,

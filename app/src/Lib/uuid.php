@@ -69,7 +69,8 @@ abstract class UUID
 */
 
 		/**
-		 * Else generate v4 UUID (pseudo-random)
+		 * Else generate v4 UUID (pseudo-random) — regardless of $mode:
+		 * TYPE_TIME also yields a v4 when no uuid extension is installed.
 		 */
 
 		$uuid = \bin2hex(\random_bytes(16));

@@ -538,6 +538,18 @@ final class UpdateService
 			throw new \RuntimeException('Aucune mise à jour à finaliser', 400);
 		}
 		$this->runMigrations();
+		// Reliquat des installs ≤ 0.44 : l'assistant /setup est intégré au
+		// cœur — le fichier standalone ne doit pas rester dans le webroot.
+		try {
+			$setupDir = $this->app->installDir() . '/public/setup';
+			if (is_dir($setupDir)) {
+				$this->rmrf($setupDir);
+				$this->app->log('info', 'update : reliquat public/setup supprimé');
+			}
+		} catch (\Throwable $e) {
+			$this->app->log('error',
+				'update : suppression de public/setup échouée — ' . $e->getMessage());
+		}
 		$state['migrations_pending'] = false;
 		$this->writeState($state);
 		$schema = null;
@@ -832,7 +844,11 @@ final class UpdateService
 		if ($rel === 'app/storage/.htaccess') {
 			return false;
 		}
-		foreach (['app/storage/', 'app/plugins/', '.git/', '.github/', 'dist/'] as $p) {
+		foreach (['app/storage/', 'app/plugins/', '.git/', '.github/', 'dist/',
+			// L'assistant /setup est intégré au cœur (SetupController) depuis
+			// 0.45 : un paquet ancien ou bricolé ne doit pas redéposer le
+			// fichier standalone public/setup/index.php.
+			'public/setup/'] as $p) {
 			if (str_starts_with($rel, $p)) {
 				return true;
 			}

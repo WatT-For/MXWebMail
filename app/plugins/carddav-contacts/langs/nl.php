@@ -23,4 +23,5 @@ return [
 	'plugin.carddav-contacts.not_configured' => 'CardDAV niet geconfigureerd',
 	'plugin.carddav-contacts.no_addressbook' => 'Geen CardDAV-adresboek gevonden op deze URL',
 	'plugin.carddav-contacts.bad_url'        => 'Ongeldige CardDAV-URL (HTTPS en een publieke host vereist)',
+	'plugin.carddav-contacts.pass_clear'  => 'Wachtwoord wissen',
 ];

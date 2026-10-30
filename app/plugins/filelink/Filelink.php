@@ -98,18 +98,21 @@ final class Filelink extends PluginBase
 		$meta = is_file($file . '.json')
 			? json_decode((string) file_get_contents($file . '.json'), true)
 			: null;
-		if (!is_file($file) || !is_array($meta)
+		// Ouverture avant en-têtes : un fichier disparu entre is_file et
+		// l'ouverture (GC concurrente, suppression) doit rendre 410, pas 500.
+		$in = is_file($file) ? @fopen($file, 'rb') : false;
+		if ($in === false || !is_array($meta)
 			|| (int) ($meta['ts'] ?? 0) < time() - $this->ttl()) {
+			is_resource($in) && fclose($in);
 			return $this->gone();
 		}
 		$name = str_replace(['"', "\r", "\n"], '', (string) $meta['name']);
 		header('Content-Type: application/octet-stream');
 		header('Content-Disposition: attachment; filename="' . $name . '"');
-		header('Content-Length: ' . filesize($file));
+		header('Content-Length: ' . (int) (fstat($in)['size'] ?? 0));
 		header('X-Content-Type-Options: nosniff');
 		header('X-Robots-Tag: noindex');
 		$out = fopen('php://output', 'wb');
-		$in = fopen($file, 'rb');
 		stream_copy_to_stream($in, $out);
 		fclose($in);
 		fclose($out);

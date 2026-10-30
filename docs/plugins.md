@@ -3,6 +3,12 @@
 Les plugins sont des extensions bornées dans `app/plugins/<name>/`, chargées si activées
 (depuis l'admin, onglet *Extensions*). Ils s'enregistrent sur des **hooks** du cœur.
 
+> **Session en lecture seule** : les endpoints GET ferment la session PHP tôt
+> (`session_write_close`) pour libérer le verrou. Les hooks appelés depuis un
+> GET (`app.data`, `contacts.provider`, `message.meta`, `message.view`,
+> `imap.before-connect`, `sieve.before-connect`…) **ne doivent jamais écrire
+> `$_SESSION`** — ces écritures seraient silencieusement perdues.
+
 ## 0. Distribution via le dépôt GitHub
 
 Les plugins ne sont **pas inclus** dans le zip de release `mxwebmail-<ver>.zip` : ils
@@ -36,12 +42,15 @@ Pour le dev/tests hors réseau, `update.plugins_local` (chemin absolu d'un dossi
 plugins dans `config.php`) sert de source : catalogue et installation par copie disque,
 sans vérification distante.
 
-Un plugin activé peut aussi être **réservé à la surface admin** (colonne *Utilisable* de
-l'onglet *Extensions*, flag `user_allowed` en table `plugins`) : il n'est alors chargé que
+Un plugin activé peut aussi être **réservé à la surface admin** (colonne *Accès utilisateurs* de
+l'onglet *Extensions*, flag `user_allowed` en table `plugins`, **décoché par défaut**) : il
+n'est alors chargé que
 sur la page `/{admin_path}`, les routes `/api/admin/*` et les sessions admin. Ailleurs il
 est totalement inerte (aucun hook, `/api/plugin/<name>/*` → 404) — y compris pour les
 utilisateurs `is_admin` non connectés au panneau. Les hooks de login admin
 (`admin.post-login`, `admin.totp-required`, `admin.mounts`) continuent de fonctionner.
+Un plugin dont tous les hooks déclarés au manifeste sont des hooks `admin.*` n'a aucune
+surface utilisateur : la colonne n'affiche alors pas de switch pour lui (`—`).
 
 ## 1. Plugins du catalogue officiel
 
@@ -63,12 +72,12 @@ utilisateurs `is_admin` non connectés au panneau. Les hooks de login admin
 | `pwa` | Rend le webmail installable (manifest + service worker minimal, icônes). | `app.head`, `app.routes` |
 | `webmail-migration` | Page admin d'import depuis un dossier `data` **RainLoop ou SnappyMail** (chemin serveur ou ZIP) : domaines, carnets `AddressBook.sqlite`/PDO, identités, réglages, dossiers système, clés PGP — scan dry-run puis import idempotent, comptes inconnus ignorés. | `admin.mounts` |
 | `two-factor-auth` | TOTP à deux facteurs (Google Authenticator, Aegis…) — comptes utilisateurs **et** compte admin local (provisioning QR dans un sous-onglet dédié de Admin → Sécurité ; exigé au login admin tant que le plugin est activé). | `auth.post-login`, `app.data`, `admin.mounts`, `admin.post-login`, `admin.totp-required` |
-| `admin-stats` | Page admin de reporting en lecture seule : taille de `storage/`, utilisateurs actifs/inactifs, compteurs des tables, enregistrements orphelins, plugins installés, environnement. | `admin.mounts` |
 | `announcement` | Bannière d'annonce administrateur (page app, optionnellement page de login — maintenance). Texte en clair uniquement. | `app.head` |
 | `attachments-clamav` | Scan ClamAV (`clamd`, `zINSTREAM`) des pièces jointes uploadées et des imports — rejet sur détection, politique `on_error` configurable. | `attachment.upload` |
 | `filelink` | Pièces jointes trop grosses pour le SMTP envoyées sous forme de **lien de téléchargement expirable** (`/filelink/<token>` — attachment forcé, `nosniff`, noindex). | `app.data`, `app.routes` |
 | `spam-learn` | Apprentissage spam/ham à chaque (dé)marquage : commande externe (`rspamc`, `sa-learn`) ou copie IMAP vers un dossier dovecot-antispam. | `message.spam` |
 | `wkd-keys` | Découverte automatique des clés PGP des destinataires : **WKD** (advanced + direct), récolte des en-têtes **Autocrypt**, secours `keys.openpgp.org` optionnel — import proposé au compose. | `app.data`, `message.view` |
+| `seasonal-decorations` | Paysage monochrome discret dans les bandeaux selon la date (Nouvel An, Pâques, 1er avril, Halloween, Noël) : bibliothèque d'objets SVG recomposée en couches `mask-image` via `scenes.json` ({svg, pos, size}), couleur contrastée automatique — fenêtres réglables, optionnel hors session, sans animation. | `app.head` |
 
 ## 2. Configuration d'un plugin
 
@@ -161,7 +170,9 @@ class MonPlugin extends PluginBase
 
 ### Hooks disponibles
 
-- **Cœur** : `app.routes`, `app.head`, `app.data`, `auth.login.mapping`, `auth.login.mapped`, `auth.provider`,
+- **Cœur** : `app.routes`, `app.head` (HTML injecté dans le `<head>` de
+  `app.php`, `login.php` et `maintenance.php` — les vues `admin*.php` ne
+  l'émettent pas), `app.data`, `auth.login.mapping`, `auth.login.mapped`, `auth.provider`,
   `attachment.upload`, `message.spam`,
   `auth.post-login`, `contacts.provider`, `identities.provider`, `password.change`,
   `settings.allowed`, `imap.before-connect`, `imap.message-headers`, `sieve.before-connect`,
@@ -174,7 +185,9 @@ class MonPlugin extends PluginBase
   `TotpRequiredException` exige un second facteur), `admin.totp-required`
   (`first` → booléen : affiche le champ TOTP sur la page de login admin).
 
-Chaque plugin déclare dans `hooks` les hooks qu'il écoute. Le cœur appelle
+Chaque plugin déclare dans `hooks` les hooks qu'il écoute. Un manifeste ne déclarant
+que des hooks `admin.*` marque le plugin comme purement admin — la colonne
+*Accès utilisateurs* de l'onglet Extensions n'affiche pas de switch pour lui. Le cœur appelle
 `HookRegistry::run('hook', …)` ; le plugin implémente une méthode du même nom (ou un
 `on<Hook>` selon la convention du cœur).
 

@@ -40,6 +40,9 @@ final class AdminController
 				// (admin.post-login — plugin désactivé = non exigé).
 				$this->app->hooks()->run('admin.post-login',
 					(string) $request->input('totp', ''));
+				// Régénère l'ID à l'élévation de privilèges (fixation de
+				// session) — le chemin IMAP le fait déjà via AuthService::login.
+				session_regenerate_id(true);
 				$_SESSION['admin'] = true;
 				$auth->resetRateLimit($rateKey);
 				$this->app->logAuth('admin:' . $user, 'AUTH OK');
@@ -233,7 +236,7 @@ final class AdminController
 			return JsonResponse::error(
 				$this->t('errors.invalid_value', ['key' => 'name']), 'validation', 400);
 		}
-		$this->app->pluginRepo()->setUserAllowed($name, (bool) $request->input('allowed', true));
+		$this->app->pluginRepo()->setUserAllowed($name, (bool) $request->input('allowed', false));
 		return JsonResponse::ok();
 	}
 
@@ -1079,8 +1082,26 @@ final class AdminController
 				'install' => $this->app->installDir(),
 				'storage' => $this->app->storageDir(),
 			],
+			'storage' => $this->storageBreakdown(),
 			'extensions' => $extensions,
 		];
+	}
+
+	/** Taille récursive par sous-dossier de storage/ (octets), tri décroissant. */
+	private function storageBreakdown(): array
+	{
+		$out = [];
+		foreach (glob($this->app->storageDir() . '/*', GLOB_ONLYDIR) ?: [] as $dir) {
+			$size = 0;
+			foreach (new \RecursiveIteratorIterator(
+					new \RecursiveDirectoryIterator($dir,
+						\FilesystemIterator::SKIP_DOTS)) as $f) {
+				$size += $f->getSize();
+			}
+			$out[] = ['name' => basename($dir), 'bytes' => $size];
+		}
+		usort($out, fn($a, $b) => $b['bytes'] <=> $a['bytes']);
+		return $out;
 	}
 
 	/** Taille d'une base SQLite : fichier principal + journal WAL non fusionné. */
@@ -1416,7 +1437,10 @@ final class AdminController
 			$entry = trim($entry);
 			[$ip, $bits] = array_pad(explode('/', $entry, 2), 2, null);
 			if (!filter_var($ip, FILTER_VALIDATE_IP)) return null;
-			if ($bits !== null && (!ctype_digit($bits) || (int) $bits > 128)) return null;
+			// Borne par famille : un /64 IPv4 serait validé mais jamais
+			// appliqué par IpMatch::inCidr (bits > 32 → false systématique).
+			$maxBits = str_contains($ip, ':') ? 128 : 32;
+			if ($bits !== null && (!ctype_digit($bits) || (int) $bits > $maxBits)) return null;
 		}
 		return $s;
 	}

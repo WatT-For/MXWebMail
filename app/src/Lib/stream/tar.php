@@ -166,7 +166,7 @@ class TAR
 			420,
 			$time
 		);
-		$l += $this->write($data);
+		$l = $this->write($data);
 		if ($l = $l % 512) {
 			$l = 512 - $l;
 			$this->write(\pack("a{$l}", ''));

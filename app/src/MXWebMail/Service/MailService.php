@@ -71,10 +71,18 @@ final class MailService
 		return $this->client;
 	}
 
+	/**
+	 * Coupe les connexions et vide les caches par compte. Requis avant un
+	 * changement de compte en cours de requête (switchAccount) : client(),
+	 * folderRows, specialMap et userFolderSet sont liés à l'identité de la
+	 * session au moment de leur construction.
+	 */
 	public function disconnect(): void
 	{
 		try { $this->client?->ImapClient()->Disconnect(); } catch (\Throwable) {}
-		$this->client = null;
+		try { $this->sieveClient?->Disconnect(); } catch (\Throwable) {}
+		$this->client = $this->sieveClient = null;
+		$this->specialMap = $this->userFolderSet = $this->folderRows = null;
 	}
 
 	// ─── Dossiers ───
@@ -147,6 +155,17 @@ final class MailService
 		return $this->folderRows = $out;
 	}
 
+	/**
+	 * Cache fichier MailSo (UIDs de listes indexés sur l'etag du dossier,
+	 * maps THREAD). Les clés embarquent déjà ImapClient::Hash()
+	 * (user@host:port) — l'index '_default_' partagé est sans collision.
+	 * cache.enabled=false → client sans driver (Get/Set no-op natifs).
+	 */
+	private function cacher(): \MailSo\Cache\CacheClient
+	{
+		return \MXWebMail\API::Actions()->Cacher();
+	}
+
 	// ─── Messages ───
 
 	public function messages(string $folder, int $offset, int $limit, string $search = '', string $sort = 'REVERSE DATE', bool $threads = false, int $threadUid = 0): array
@@ -160,6 +179,7 @@ final class MailService
 		$params->bUseSort = true;
 		$params->bUseThreads = $threads || $threadUid > 0;
 		$params->iThreadUid = $threadUid;
+		$params->oCacher = $this->cacher();
 
 		$collection = $this->client()->MessageList($params);
 		$out = [
@@ -196,6 +216,7 @@ final class MailService
 			$params->sSearch = $search;
 			$params->sSort = 'REVERSE DATE';
 			$params->bUseSort = true;
+			$params->oCacher = $this->cacher();
 			try {
 				$collection = $this->client()->MessageList($params);
 			} catch (\Throwable) {
@@ -219,13 +240,41 @@ final class MailService
 
 	public function message(string $folder, int $uid): ?array
 	{
+		// FolderExamine avant Message() : la re-sélection interne saute
+		// (bForceReselect=false) — l'UIDVALIDITY revient quasi gratuitement
+		// pour le paramètre &uv= des URLs de PJ (clé de cache P0-3).
+		$imap = $this->client()->ImapClient();
 		$msg = $this->client()->Message($folder, $uid, true);
 		if (!$msg) {
 			return null;
 		}
 		$data = self::messageFull($msg);
+		$data['uv'] = $imap->FolderExamine($folder)->UIDVALIDITY;
 		$this->app->hooks()->runArgs('message.view', [&$data, $msg]);
 		return $data;
+	}
+
+	/**
+	 * Métadonnées d'une pièce jointe : Fetch BODYSTRUCTURE seul.
+	 * Message() enchaînait un second FETCH de toutes les parties texte
+	 * (body_text_limit=0 → corps entier) pour ne lire que mimeIndex/mime/nom.
+	 */
+	/**
+	 * Métadonnées des pièces jointes d'un message : Fetch BODYSTRUCTURE
+	 * seul. Message() enchaînait un second FETCH de toutes les parties
+	 * texte (body_text_limit=0 → corps entier) pour ne lire que les PJ.
+	 */
+	public function attachmentList(string $folder, int $uid): ?array
+	{
+		$fetch = $this->client()->ImapClient()->Fetch(
+			[\MailSo\Imap\Enumerations\FetchType::BODYSTRUCTURE], $uid, true);
+		$resp = $fetch[0] ?? null;
+		$bs = $resp?->GetFetchBodyStructure();
+		if (!$resp || !$bs) {
+			return null;
+		}
+		return self::attachmentsOf(
+			\MailSo\Mail\Message::fromFetchResponse($folder, $resp, $bs));
 	}
 
 	public function flags(string $folder, int $uid, string $flag, bool $set): void
@@ -355,6 +404,7 @@ final class MailService
 	public function folderClear(string $name): void
 	{
 		$this->client()->FolderClear($name);
+		$this->folderRows = null; // compteurs total/unread périmés
 	}
 
 	/** Marque tous les messages du dossier comme lus (UID STORE 1:* +FLAGS \Seen). */
@@ -362,6 +412,7 @@ final class MailService
 	{
 		$this->client()->MessageSetFlag($name,
 			new \MailSo\Imap\SequenceSet('1:*'), '\\Seen', true);
+		$this->folderRows = null; // unread du dossier remis à zéro
 	}
 
 	public function quota(): ?array
@@ -1031,7 +1082,8 @@ final class MailService
 		];
 	}
 
-	private static function messageFull(\MailSo\Mail\Message $msg): array
+	/** Métadonnées PJ aplaties — partagé par messageFull et attachmentMeta. */
+	private static function attachmentsOf(\MailSo\Mail\Message $msg): array
 	{
 		$d = $msg->jsonSerialize();
 		$attachments = [];
@@ -1051,6 +1103,12 @@ final class MailService
 				'isInline'  => $att['isInline'] ?? false,
 			];
 		}
+		return $attachments;
+	}
+
+	private static function messageFull(\MailSo\Mail\Message $msg): array
+	{
+		$d = $msg->jsonSerialize();
 		return array_merge(self::messageMeta($msg), [
 			'to'          => $d['to'],
 			'cc'          => $d['cc'],
@@ -1058,7 +1116,7 @@ final class MailService
 			'replyTo'     => $d['replyTo'],
 			'bodyHtml'    => $d['html'] ?? '',
 			'bodyPlain'   => $d['plain'] ?? '',
-			'attachments' => $attachments,
+			'attachments' => self::attachmentsOf($msg),
 			'messageId'   => $d['messageId'] ?? '',
 			'inReplyTo'   => $d['inReplyTo'] ?? '',
 			'references'  => $d['references'] ?? '',

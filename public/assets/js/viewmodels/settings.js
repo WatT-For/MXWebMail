@@ -45,6 +45,7 @@ export class SettingsVM {
 		// Sessions « se souvenir de moi » (jetons persistants)
 		this.sessions = ko.observableArray([]);
 		this._sessionsLoaded = false;
+		this.sessionDetail = ko.observable(null); // session affichée dans la modale
 
 		// Dossiers système (assignation par compte : auto | none | fullName ;
 		// /folders/special renvoie {assigned, detected} par rôle)
@@ -110,6 +111,11 @@ export class SettingsVM {
 		const identityModalEl = document.getElementById('identity-modal');
 		this.identityModal = identityModalEl ? new bootstrap.Modal(identityModalEl) : null;
 		identityModalEl?.addEventListener('hidden.bs.modal', () => this.editingIdentity(null));
+
+		// Modale détails session : même pattern — reset à la fermeture.
+		const sessionModalEl = document.getElementById('session-modal');
+		this.sessionModal = sessionModalEl ? new bootstrap.Modal(sessionModalEl) : null;
+		sessionModalEl?.addEventListener('hidden.bs.modal', () => this.sessionDetail(null));
 		// Taille de la modale en px (0 = défaut Bootstrap, pas d'inline)
 		this.identW = ko.observable(0);
 		this.identH = ko.observable(0);
@@ -486,15 +492,16 @@ export class SettingsVM {
 		e.target.value = '';
 		if (!files.length || this.importBusy()) { return; }
 		this.importBusy(true);
-		let done = 0; let msgs = 0; let failed = 0;
+		let done = 0; let msgs = 0; let failed = 0; let skipped = 0;
 		for (const file of files) {
 			this.importProgress(t('settings.import_running', { n: done + 1, total: files.length }));
 			const fd = new FormData();
 			fd.append('file', file);
 			try {
 				const r = await api.upload(`/folders/${b64url(this.importFolder())}/import`, fd);
-				msgs += (r?.imported ?? 0) || 1; // .eml → {uid}, pas de compteur
+				msgs += r?.imported ?? 1; // .eml → {uid}, pas de compteur ; 0 réel = échec total mbox
 				failed += r?.failed ?? 0;
+				skipped += r?.skipped ?? 0; // plafonnés côté serveur (non importés, non échoués)
 				done++;
 			} catch (err) { this.error(err.message); break; }
 		}
@@ -502,7 +509,8 @@ export class SettingsVM {
 		this.importProgress(null);
 		if (done) {
 			toast.success(t('app.import_done', { n: msgs })
-				+ (failed ? ' — ' + t('app.import_failed', { n: failed }) : ''));
+				+ (failed ? ' — ' + t('app.import_failed', { n: failed }) : '')
+				+ (skipped ? ' — ' + t('app.import_skipped', { n: skipped }) : ''));
 			this.app.folderList.load();
 			if (this.app.messageList.folder() === this.importFolder()) {
 				this.app.messageList.load();
@@ -522,11 +530,39 @@ export class SettingsVM {
 		this._sessionsLoaded = true;
 	}
 
+	/** Résumé « Navigateur · OS » d'un User-Agent (parse léger, affichage). */
+	agentInfo(ua) {
+		ua = String(ua || '');
+		if (!ua) { return '—'; }
+		const has = (re) => re.test(ua);
+		// Ordre significatif : les UA Chrome/Edge/Opera contiennent aussi « Safari ».
+		const browser = has(/Edg(e|A|iOS)?\//) ? 'Edge'
+			: has(/OPR\/|Opera/) ? 'Opera'
+			: has(/Firefox\//) ? 'Firefox'
+			: has(/Chrom(e|ium)\//) ? 'Chrome'
+			: has(/Safari\//) ? 'Safari'
+			: has(/MSIE |Trident\//) ? 'IE' : '';
+		const os = has(/Windows NT/) ? 'Windows'
+			: has(/Android/) ? 'Android'
+			: has(/iPhone|iPad|CPU OS/) ? 'iOS'
+			: has(/Mac OS X/) ? 'macOS'
+			: has(/CrOS/) ? 'ChromeOS'
+			: has(/Linux/) ? 'Linux' : '';
+		const label = [browser, os].filter(Boolean).join(' · ');
+		return label || (ua.length > 60 ? ua.slice(0, 57) + '…' : ua);
+	}
+
+	showSession(s) {
+		this.sessionDetail(s);
+		this.sessionModal?.show();
+	}
+
 	async deleteSession(s) {
 		if (!(await dialog.confirm(t('settings.session_delete_confirm'),
 			{ variant: 'danger', okLabel: t('common.delete') }))) { return; }
 		await api.post(`/sessions/${s.id}/delete`);
 		this.sessions.remove(s);
+		if (this.sessionDetail() === s) { this.sessionModal?.hide(); }
 	}
 
 	async revokeOtherSessions() {

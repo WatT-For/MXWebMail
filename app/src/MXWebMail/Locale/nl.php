@@ -481,6 +481,7 @@ return [
 	'admin.sieve_encryption_help' => 'Sieve-versleuteling — „auto” wordt afgeleid van de poort',
 	'admin.last_login'          => 'Laatste login',
 	'admin.search_users'        => 'Gebruikers zoeken…',
+	'admin.users_summary'       => '{total} gebruiker(s) · {active} actief in 30 d · {disabled} uitgeschakeld',
 	'admin.status'              => 'Status',
 	'admin.user_edit'           => 'Bewerken',
 	'admin.user_delete'         => 'Gebruiker verwijderen',
@@ -594,6 +595,9 @@ return [
 	'admin.about.writable'        => 'beschrijfbaar',
 	'admin.about.readonly'        => 'alleen-lezen',
 	'admin.about.tagline'         => 'Lichtgewicht self-hosted webmail',
+	'admin.about.storage_usage'   => 'Opslaggebruik',
+	'admin.about.dir'             => 'Map',
+	'admin.about.size'            => 'Grootte',
 
 	// Schéma des réglages (clés résolues côté client via t())
 	'admin.f.app_name'                     => 'Applicatienaam',
@@ -738,8 +742,6 @@ return [
 
 	// ─── Installeur (/setup/) ───
 	'setup.installation'      => 'Installatie',
-	'setup.installed_title'   => 'Al geïnstalleerd',
-	'setup.installed_body'    => 'MXWebMail is al geïnstalleerd (vergrendelbestand app/storage/INSTALLED aanwezig). Om opnieuw te installeren, verwijdert u dat bestand; app/config/config.php wordt gearchiveerd en daarna vervangen.',
 	'setup.open_webmail'      => 'Webmail openen',
 	'setup.open_admin'        => 'Beheerpaneel openen',
 	'setup.done_title'        => 'Installatie voltooid',
@@ -750,7 +752,7 @@ return [
 	'setup.done_domain_added' => 'Domein {domain} gedetecteerd en toegevoegd — zichtbaar in admin → Domeinen.',
 	'setup.done_providers'    => 'Vooraf geautoriseerde secundaire accounts: {domains} (OAuth2 — apps per gebruiker geregistreerd).',
 	'setup.done_webmail'      => 'Webmail: log in met uw IMAP-gegevens.',
-	'setup.done_cleanup'      => 'Geen serverconfiguratie nodig: de root-.htaccess routeert naar public/. Verwijder idealiter de map public/setup/.',
+	'setup.done_cleanup'      => 'Geen serverconfiguratie nodig: de root-.htaccess routeert naar public/. Het installatieprogramma is vergrendeld: /setup antwoordt nu met 404.',
 	'setup.err_token'         => 'Ongeldig sessietoken — herlaad de pagina.',
 	'setup.err_prereq'        => 'Blokkerende vereisten zijn niet vervuld.',
 	'setup.err_admin_user'    => 'Het veld „Beheerder” is verplicht.',
@@ -887,5 +889,13 @@ return [
 	'settings.sessions_revoke_others'         => 'Andere sessies intrekken',
 	'settings.session_delete_confirm'         => 'Deze sessie intrekken?',
 	'settings.sessions_revoke_confirm'        => 'Alle andere sessies intrekken?',
+	'settings.session_ip'                     => 'IP',
+	'settings.session_details'                => 'Sessiedetails',
+	'settings.session_created_ip'             => 'Aanmaak-IP',
+	'settings.session_last_ip'                => 'Laatste IP',
+	'settings.session_expires'                => 'Verloopt op',
+	'settings.session_user_agent'             => 'User-Agent',
+	'settings.session_revoke'                 => 'Intrekken',
 	'app.import_failed'                       => '{n} bericht(en) mislukt',
+	'app.import_skipped'                      => '{n} bericht(en) overgeslagen (limiet)',
 ];

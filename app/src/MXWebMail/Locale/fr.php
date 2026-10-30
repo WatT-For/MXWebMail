@@ -421,7 +421,7 @@ return [
 	'admin.default_theme'       => 'Défaut',
 	'admin.theme_set_default'   => 'Définir par défaut',
 	'admin.theme_user_allowed'  => 'Utilisable',
-	'admin.plugin_user_allowed' => 'Utilisable',
+	'admin.plugin_user_allowed' => 'Accès utilisateurs',
 	'admin.theme_inherits'      => 'hérite de {name}',
 	'admin.about'               => 'À propos',
 	'admin.maintenance_active'  => 'Mode maintenance actif — les API utilisateur répondent 503.',
@@ -481,6 +481,7 @@ return [
 	'admin.sieve_encryption_help' => 'Chiffrement Sieve — « auto » se déduit du port',
 	'admin.last_login'          => 'Dernière connexion',
 	'admin.search_users'        => 'Rechercher un utilisateur…',
+	'admin.users_summary'       => '{total} utilisateur(s) · {active} actif(s) sur 30 j · {disabled} désactivé(s)',
 	'admin.status'              => 'Statut',
 	'admin.user_edit'           => 'Modifier',
 	'admin.user_delete'         => 'Supprimer l’utilisateur',
@@ -594,6 +595,9 @@ return [
 	'admin.about.writable'        => 'inscriptible',
 	'admin.about.readonly'        => 'lecture seule',
 	'admin.about.tagline'         => 'Webmail léger auto-hébergé',
+	'admin.about.storage_usage'   => 'Utilisation du stockage',
+	'admin.about.dir'             => 'Dossier',
+	'admin.about.size'            => 'Taille',
 
 	// Schéma des réglages (clés résolues côté client via t())
 	'admin.f.app_name'                     => 'Nom de l’application',
@@ -738,8 +742,6 @@ return [
 
 	// ─── Installeur (/setup/) ───
 	'setup.installation'      => 'Installation',
-	'setup.installed_title'   => 'Déjà installé',
-	'setup.installed_body'    => 'MXWebMail est déjà installé (verrou app/storage/INSTALLED présent). Pour réinstaller, supprimez ce fichier ; app/config/config.php sera archivé puis remplacé.',
 	'setup.open_webmail'      => 'Ouvrir le webmail',
 	'setup.open_admin'        => 'Ouvrir le panneau admin',
 	'setup.done_title'        => 'Installation terminée',
@@ -750,7 +752,7 @@ return [
 	'setup.done_domain_added' => 'Domaine {domain} détecté et ajouté — visible dans admin → Domaines.',
 	'setup.done_providers'    => 'Comptes secondaires pré-autorisés : {domains} (OAuth2 — apps enregistrées par utilisateur).',
 	'setup.done_webmail'      => 'Webmail : connectez-vous avec vos identifiants IMAP.',
-	'setup.done_cleanup'      => 'Aucune configuration serveur n’est requise : le .htaccess racine route automatiquement vers public/. Supprimez idéalement le dossier public/setup/.',
+	'setup.done_cleanup'      => 'Aucune configuration serveur n’est requise : le .htaccess racine route automatiquement vers public/. L’assistant est verrouillé : /setup répond désormais 404.',
 	'setup.err_token'         => 'Jeton de session invalide — rechargez la page.',
 	'setup.err_prereq'        => 'Des prérequis bloquants ne sont pas satisfaits.',
 	'setup.err_admin_user'    => 'Le champ « Utilisateur admin » est requis.',
@@ -887,5 +889,13 @@ return [
 	'settings.sessions_revoke_others'         => 'Révoquer les autres sessions',
 	'settings.session_delete_confirm'         => 'Révoquer cette session ?',
 	'settings.sessions_revoke_confirm'        => 'Révoquer toutes les autres sessions ?',
+	'settings.session_ip'                     => 'IP',
+	'settings.session_details'                => 'Détails de la session',
+	'settings.session_created_ip'             => 'IP de création',
+	'settings.session_last_ip'                => 'Dernière IP',
+	'settings.session_expires'                => 'Expire le',
+	'settings.session_user_agent'             => 'User-Agent',
+	'settings.session_revoke'                 => 'Révoquer',
 	'app.import_failed'                       => '{n} message(s) en échec',
+	'app.import_skipped'                      => '{n} message(s) non importé(s) (plafond)',
 ];

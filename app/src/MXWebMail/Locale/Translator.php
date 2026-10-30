@@ -19,18 +19,40 @@ final class Translator
 
 	private array $dict = [];
 
-	/** @param string[] $dirs dossiers contenant des fichiers <lang>.php */
-	public function __construct(private string $lang, array $dirs)
+	/**
+	 * @param string[] $dirs dossiers contenant des fichiers <lang>.php
+	 * @param ?string $cacheFile dict fusionné mis en cache (revalidé par
+	 *        filemtime de chaque source : 48 stats ≪ 48 require + fusion).
+	 */
+	public function __construct(private string $lang, array $dirs, ?string $cacheFile = null)
 	{
+		$files = [];
 		foreach (array_unique([self::FALLBACK, $lang]) as $l) {
 			foreach ($dirs as $dir) {
 				$file = rtrim($dir, '/') . "/{$l}.php";
 				if (is_file($file)) {
-					// array_replace : la langue active écrase le fallback,
-					// les plugins écrasent le cœur en dernier.
-					$this->dict = array_replace($this->dict, (array) require $file);
+					$files[$file] = (int) filemtime($file);
 				}
 			}
+		}
+		if ($cacheFile !== null && is_file($cacheFile)) {
+			$c = require $cacheFile;
+			if (is_array($c) && ($c['files'] ?? null) === $files
+				&& is_array($c['dict'] ?? null)) {
+				$this->dict = $c['dict'];
+				return;
+			}
+		}
+		foreach (array_keys($files) as $file) {
+			// array_replace : la langue active écrase le fallback,
+			// les plugins écrasent le cœur en dernier.
+			$this->dict = array_replace($this->dict, (array) require $file);
+		}
+		if ($cacheFile !== null) {
+			// Écriture atomique : un require concurrent ne doit jamais
+			// charger un cache tronqué ou périmé (opcache_invalidate inclus).
+			@mxwm_atomic_write($cacheFile, '<?php return '
+				. var_export(['files' => $files, 'dict' => $this->dict], true) . ";\n");
 		}
 	}
 

@@ -173,16 +173,17 @@ return [
 		'gzip'          => true,   // compresser les réponses compressibles (texte/json…)
 		'gzip_level'    => 6,      // niveau gzip 1-9
 		'gzip_min_size' => 1024,   // corps en dessous duquel on ne compresse pas (octets)
-		'etag'          => true,   // ETag + 304 sur les assets servis par PHP (thème/plugin/favicon)
-		'assets_ttl'    => 86400,  // max-age des assets thème/plugin (s ; 0 = revalidation systématique)
-		'favicon_ttl'   => 3600,   // max-age de /favicon.ico (s)
-		'proxy_ttl'     => 86400,  // max-age des images servies via /api/proxy (s)
+		'etag'          => false,  // ETag + 304 sur les assets servis par PHP (thème/plugin/favicon)
+		'assets_ttl'    => 0,      // max-age des assets thème/plugin (s ; 0 = revalidation systématique)
+		'favicon_ttl'   => 0,      // max-age de /favicon.ico (s)
+		'proxy_ttl'     => 0,      // max-age des images servies via /api/proxy (s ;
+		                           // 0 = pas de cache disque non plus)
 	],
 
 	// ─── Cache applicatif (fichiers dans app/storage/cache) ───
 	// Ne couvre ni classmap.php (autoloader) ni login_attempts.json (sécurité).
 	'cache' => [
-		'enabled'           => true,   // cache fichier (DNS, plugins, détection domaine, update)
+		'enabled'           => false,  // cache fichier (DNS, plugins, détection domaine, update)
 		'domain_detect_ttl' => 86400,  // TTL du cache négatif de détection de domaine (s)
 		'update_ttl'        => 3600,   // TTL du cache de vérification de mise à jour (s)
 		'gc_hours'          => 168,    // purge des entrées plus vieilles que N heures (0 = jamais)

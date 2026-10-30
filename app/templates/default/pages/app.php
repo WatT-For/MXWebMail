@@ -10,7 +10,7 @@
 	<link id="theme-css" rel="stylesheet" href="<?= $base ?>/assets/theme/<?= $theme ?>/app.css?v=<?= $themeVer ?>">
 	<?= $themeHead ?>
 	<?= $themeScript ?>
-	<script src="<?= $assets ?>/vendor/openpgp/openpgp.min.js" defer></script>
+	<!-- openpgp (~540K) et tinymce (~500K) chargés à la demande via js/lazy.js -->
 	<?= $pluginHead ?>
 </head>
 <body>
@@ -369,7 +369,7 @@
 						<a class="btn btn-sm btn-outline-secondary" data-bind="attr: { href: $parents[1].attachmentUrl($data) },
 							text: name + (size ? ' (' + $parents[1].formatSize(size) + ')' : '')"></a>
 						<!-- ko if: $root.features().ics_viewer
-							&& (mime === 'text/calendar' || /\\.ics$/i.test(name || '')) -->
+							&& (mime === 'text/calendar' || /\.ics$/i.test(name || '')) -->
 						<button class="btn btn-sm btn-icon btn-outline-primary"
 							data-bind="click: () => $parents[1].previewIcs($data)">
 							<i class="fa-solid fa-calendar-days"></i>
@@ -1018,6 +1018,7 @@
 			<table class="table table-hover table-sm align-middle" data-bind="visible: sessions().length" style="display:none">
 				<thead class="table-light"><tr>
 					<th><?= $t('settings.session_agent') ?></th>
+					<th><?= $t('settings.session_ip') ?></th>
 					<th><?= $t('settings.session_created') ?></th>
 					<th><?= $t('settings.session_last_used') ?></th>
 					<th></th>
@@ -1028,9 +1029,11 @@
 							<span data-bind="text: agent || '—'"></span>
 							<span class="badge text-bg-primary ms-1" style="display:none" data-bind="visible: current"><?= $t('settings.session_current') ?></span>
 						</td>
+						<td class="small text-nowrap" data-bind="text: last_ip || ip || '—'"></td>
 						<td class="small" data-bind="text: $parent.fmtTs(created_at)"></td>
 						<td class="small" data-bind="text: last_used_at ? $parent.fmtTs(last_used_at) : '—'"></td>
-						<td class="text-end">
+						<td class="text-end text-nowrap">
+							<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: $parent.showSession, tooltip: 'settings.session_details'"><i class="fa-solid fa-circle-info"></i></button>
 							<button class="btn btn-sm btn-icon btn-outline-danger" data-bind="click: $parent.deleteSession, tooltip: 'common.delete'"><i class="fa-solid fa-trash"></i></button>
 						</td>
 					</tr>
@@ -1381,6 +1384,42 @@
 		</div>
 	</div>
 
+	<!-- Modale détails d'une session « se souvenir de moi » -->
+	<div class="modal fade" id="session-modal" tabindex="-1" data-bind="with: settings">
+		<div class="modal-dialog modal-dialog-scrollable">
+			<div class="modal-content" data-bind="with: sessionDetail">
+				<div class="modal-header">
+					<h5 class="modal-title"><?= $t('settings.session_details') ?>
+						<span class="badge text-bg-primary ms-1" style="display:none" data-bind="visible: current"><?= $t('settings.session_current') ?></span></h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body">
+					<dl class="row mb-0">
+						<dt class="col-sm-4"><?= $t('settings.session_agent') ?></dt>
+						<dd class="col-sm-8" data-bind="text: $parent.agentInfo(agent)"></dd>
+						<dt class="col-sm-4"><?= $t('settings.session_user_agent') ?></dt>
+						<dd class="col-sm-8 small font-monospace text-break" data-bind="text: agent || '—'"></dd>
+						<dt class="col-sm-4"><?= $t('settings.session_created_ip') ?></dt>
+						<dd class="col-sm-8" data-bind="text: ip || '—'"></dd>
+						<dt class="col-sm-4"><?= $t('settings.session_last_ip') ?></dt>
+						<dd class="col-sm-8" data-bind="text: last_ip || ip || '—'"></dd>
+						<dt class="col-sm-4"><?= $t('settings.session_created') ?></dt>
+						<dd class="col-sm-8" data-bind="text: $parent.fmtTs(created_at)"></dd>
+						<dt class="col-sm-4"><?= $t('settings.session_last_used') ?></dt>
+						<dd class="col-sm-8" data-bind="text: last_used_at ? $parent.fmtTs(last_used_at) : '—'"></dd>
+						<dt class="col-sm-4"><?= $t('settings.session_expires') ?></dt>
+						<dd class="col-sm-8" data-bind="text: $parent.fmtTs(expires_at)"></dd>
+					</dl>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-sm btn-outline-danger me-auto"
+						data-bind="click: $parent.deleteSession"><?= $t('settings.session_revoke') ?></button>
+					<button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal"><?= $t('common.close') ?></button>
+				</div>
+			</div>
+		</div>
+	</div>
+
 	<!-- Modale identité (redimensionnable via la poignée bas-droite) -->
 	<div class="modal fade" id="identity-modal" tabindex="-1" data-bind="with: settings">
 		<div class="modal-dialog"
@@ -1422,7 +1461,6 @@
 </script>
 <script src="<?= $assets ?>/vendor/knockout/knockout.js"></script>
 <script src="<?= $assets ?>/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
-<script src="<?= $assets ?>/vendor/tinymce/tinymce.min.js"></script>
 <script type="module" src="<?= $assets ?>/js/app.js"></script>
 </body>
 </html>

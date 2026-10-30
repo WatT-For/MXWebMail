@@ -23,6 +23,8 @@ final class WebmailMigration extends PluginBase
 {
 	private const UPLOAD_MAX  = 64 * 1024 * 1024; // zip accepté max
 	private const TMP_TTL     = 7200;             // purge des extractions > 2 h
+	private const EXTRACT_MAX_FILES = 50000;              // zip bomb : bornes
+	private const EXTRACT_MAX_BYTES = 256 * 1024 * 1024;  // sur l'extraction
 	private const TMP_PREFIX  = 'webmail-migration-';
 	private const SOURCE      = 'rainloop';
 
@@ -67,10 +69,15 @@ final class WebmailMigration extends PluginBase
 		if ($zip->open((string) $f['tmp_name']) !== true) {
 			throw new \RuntimeException($this->t('plugin.webmail-migration.bad_zip'), 400);
 		}
+		if ($zip->numFiles > self::EXTRACT_MAX_FILES) {
+			$zip->close();
+			throw new \RuntimeException($this->t('plugin.webmail-migration.bad_zip'), 400);
+		}
 		$id = bin2hex(random_bytes(8));
 		$dest = $this->tmpDir() . '/' . self::TMP_PREFIX . $id;
 		mkdir($dest, 0700, true);
 		$count = 0;
+		$bytes = 0;
 		for ($i = 0; $i < $zip->numFiles; $i++) {
 			$name = str_replace('\\', '/', (string) $zip->getNameIndex($i));
 			// Anti zip-slip : chemins relatifs uniquement, jamais de « .. ».
@@ -89,9 +96,24 @@ final class WebmailMigration extends PluginBase
 				continue;
 			}
 			$out = fopen($target, 'wb');
-			$out && stream_copy_to_stream($in, $out) !== false && $count++;
-			$out && fclose($out);
+			if ($out) {
+				// +1 : un octet au-delà du reliquat de quota déclenche le
+				// dépassement (fichier unique > borne = écriture bornée aussi).
+				$w = stream_copy_to_stream($in, $out, self::EXTRACT_MAX_BYTES - $bytes + 1);
+				fclose($out);
+				if ($w !== false) {
+					$count++;
+					$bytes += $w;
+				}
+			}
 			fclose($in);
+			if ($bytes > self::EXTRACT_MAX_BYTES) {
+				$zip->close();
+				$this->rmTree($dest); // pas de reliquat partiel
+				throw new \RuntimeException(
+					$this->t('errors.file_too_big',
+						['mb' => self::EXTRACT_MAX_BYTES / 1048576]), 400);
+			}
 		}
 		$zip->close();
 		if (!$count) {
@@ -111,7 +133,7 @@ final class WebmailMigration extends PluginBase
 	public function apiAdminScan(Request $request): array
 	{
 		$this->requireAdmin();
-		$this->gcTmp();
+		// gcTmp() est dans dataDir() — appelé aussi par apiAdminRun.
 		$dir = $this->dataDir($request);
 		return $this->scan($dir);
 	}
@@ -160,8 +182,15 @@ final class WebmailMigration extends PluginBase
 			if (!preg_match('/^[a-f0-9]{16}$/', $upload)) {
 				throw new \RuntimeException($this->t('plugin.webmail-migration.bad_upload_id'), 400);
 			}
-			return $this->detectDataDir($this->tmpDir() . '/' . self::TMP_PREFIX . $upload);
+			$dir = $this->tmpDir() . '/' . self::TMP_PREFIX . $upload;
+			$root = $this->detectDataDir($dir);
+			// TTL = dernier usage (pas âge de l'extraction) : touch avant le GC,
+			// qui ne purge alors que les extractions réellement abandonnées.
+			@touch($dir);
+			$this->gcTmp();
+			return $root;
 		}
+		$this->gcTmp();
 		$path = trim((string) $request->input('path', ''));
 		if ($path === '') {
 			throw new \RuntimeException($this->t('plugin.webmail-migration.path_required'), 400);

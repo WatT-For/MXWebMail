@@ -51,7 +51,14 @@ final class AttachmentsClamav extends PluginBase
 		try {
 			fwrite($fp, "zINSTREAM\0");
 			$in = fopen($path, 'rb');
-			while ($in && ($chunk = fread($in, 8192)) !== false && $chunk !== '') {
+			if (!$in) {
+				// Un stream vide donnerait « stream: OK » — l'échec de lecture
+				// locale suit on_error comme toute erreur clamd (pas un pass).
+				throw new \RuntimeException(
+					$this->t('plugin.attachments-clamav.read_failed',
+						['name' => $name]), 502);
+			}
+			while (($chunk = fread($in, 8192)) !== false && $chunk !== '') {
 				fwrite($fp, pack('N', strlen($chunk)) . $chunk);
 			}
 			$in && fclose($in);

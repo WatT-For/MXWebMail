@@ -88,7 +88,7 @@ final class PluginPackageService
 					? $p['description'] : ($r['description'] ?? '')),
 				'has_schema'       => (bool) ($p['has_schema'] ?? false),
 				'enabled'          => (bool) ($p['enabled'] ?? false),
-				'user_allowed'     => (bool) ($p['user_allowed'] ?? true),
+				'user_allowed'     => (bool) ($p['user_allowed'] ?? false),
 				'in_catalog'       => $r !== null,
 				'compatible'       => $compat,
 				'size'             => (int) ($r['size'] ?? 0),

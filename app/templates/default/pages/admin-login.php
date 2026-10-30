@@ -68,7 +68,7 @@
 			this.error(''); this.loading(true);
 			try {
 				await api.post('/admin/login', { user: this.user(), password: this.password(), totp: this.totp() });
-				location.href = window.MXWM.base + '/<?= htmlspecialchars($app->config()->get('admin_path')) ?>';
+				location.href = window.MXWM.base + '/<?= rawurlencode((string) $app->config()->get('admin_path')) ?>';
 			} catch (e) {
 				// Code d'erreur stable — jamais de test sur le message localisé
 				if (e.code === 'totp_required') { this.showTotp(true); }

@@ -146,10 +146,10 @@ celles-ci + celles déclarées par les plugins (hook `settings.allowed`).
 | `http.gzip` | `true` | Compresse les réponses texte/JSON en PHP (gzip) — fonctionne aussi sans `mod_deflate`. Ignoré si `zlib.output_compression` est actif. |
 | `http.gzip_level` | `6` | Niveau de compression 1-9. |
 | `http.gzip_min_size` | `1024` | Taille minimale du corps (octets) pour compresser. |
-| `http.etag` | `true` | ETag/Last-Modified + réponses 304 sur les assets servis par PHP (thème, plugins, favicon). |
-| `http.assets_ttl` | `86400` | `max-age` des assets thème/plugin (`/assets/theme|plugin/*`). `0` = revalidation systématique. |
-| `http.favicon_ttl` | `3600` | `max-age` de `/favicon.ico`. |
-| `http.proxy_ttl` | `86400` | `max-age` (privé) des images via `/api/proxy`. |
+| `http.etag` | `false` | ETag/Last-Modified + réponses 304 sur les assets servis par PHP (thème, plugins, favicon). |
+| `http.assets_ttl` | `0` | `max-age` des assets thème/plugin (`/assets/theme|plugin/*`). `0` = revalidation systématique. |
+| `http.favicon_ttl` | `0` | `max-age` de `/favicon.ico`. |
+| `http.proxy_ttl` | `0` | `max-age` (privé) des images via `/api/proxy` — sert aussi de TTL au cache disque de ces images (`0` = désactivé). |
 
 Les réponses privées/API ne reçoivent jamais de cache public ; le HTML est `no-cache`.
 
@@ -159,7 +159,7 @@ Les réponses privées/API ne reçoivent jamais de cache public ; le HTML est `n
 
 | Clé | Défaut | Rôle |
 |---|---|---|
-| `cache.enabled` | `true` | Active le cache fichier `app/storage/cache` (DNS, détection de domaine, vérification de mise à jour). N'affecte ni l'autoloader (`classmap.php`) ni `login_attempts.json`. |
+| `cache.enabled` | `false` | Active le cache fichier `app/storage/cache` (DNS, détection de domaine, vérification de mise à jour). N'affecte ni l'autoloader (`classmap.php`) ni `login_attempts.json`. |
 | `cache.domain_detect_ttl` | `86400` | TTL du cache négatif de détection IMAP/SMTP (s). |
 | `cache.update_ttl` | `3600` | TTL du résultat de vérification de mise à jour (s). |
 | `cache.gc_hours` | `168` | Intervalle de purge des fichiers de cache expirés (h) ; `0` = jamais. |

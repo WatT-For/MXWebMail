@@ -5,6 +5,8 @@
 - **PHP ≥ 8.4** avec les extensions : `sodium`, `mbstring`, `intl`, `openssl`, `ctype`,
   `json`, `iconv`, `zlib`, `xml`, `dom`, et `pdo_sqlite` **ou** `pdo_mysql`.
   `ldap` est optionnel (plugins LDAP uniquement).
+  **`opcache` fortement recommandé en production** (`opcache.enable=1`) —
+  l'application charge des dizaines de fichiers PHP par requête.
 - Un serveur **IMAP** accessible (et SMTP, ManageSieve en option) pour le courrier.
 - **Aucune dépendance à installer** : le dépôt est autosuffisant (autoloader maison,
   MailSo, Sabre, assets et librairies JS vendorés).
@@ -13,7 +15,7 @@
 ## 2. Structure des dossiers
 
 ```
-public/            racine web — index.php, define.php, assets/, setup/, .htaccess
+public/            racine web — index.php, define.php, assets/, .htaccess
 app/               tout le non-public (peut être déplacé hors racine web)
 app/src/           code applicatif + bibliothèques vendorées
 app/config/        config.php (non versionné) + config.example.php
@@ -29,7 +31,8 @@ de la racine web, déplacez le dossier puis adaptez ce chemin (absolu ou relatif
 
 1. Pointez le vhost sur `public/`.
 2. Ouvrez `https://webmail.example.com/`. Tant que le verrou `app/storage/INSTALLED`
-   n'existe pas, toute URL est redirigée vers `/setup/`.
+   n'existe pas, toute URL est redirigée vers `/setup/` — l'assistant est servi
+   par l'application elle-même (aucun fichier d'installation dans le webroot).
 3. L'assistant se déroule en 5 étapes :
    - **Prérequis** : vérifie PHP, les extensions, la présence des fichiers vendorés et
      l'écriture de `app/storage/` (bloquant) et `app/config/` (non bloquant — le
@@ -54,8 +57,8 @@ de la racine web, déplacez le dossier puis adaptez ce chemin (absolu ou relatif
    Trois domaines publics sont aussi **pré-autorisés en comptes secondaires** —
    `gmail.com`, `outlook.com`, `yahoo.com` (OAuth2 requis, login primaire refusé ;
    voir [domaines.md](domaines.md) §8). Supprimables dans admin → *Domaines*.
-5. **Après l'installation** : supprimez `public/setup/` (facultatif — le verrou le
-   désactive déjà) et **sauvegardez `app/storage/app.key`** (voir §6).
+5. **Après l'installation** : `/setup` répond désormais 404 (rien à supprimer)
+   et **sauvegardez `app/storage/app.key`** (voir §6).
 
 > Si `app/config/` n'est pas inscriptible, l'assistant affiche le contenu de `config.php`
 > à créer manuellement. L'installation se poursuit une fois le fichier en place.
@@ -145,23 +148,22 @@ Remarques :
 
 ## 6. Étapes post-installation
 
-1. **Supprimez `public/setup/`** une fois installé (recommandé).
-2. **Sauvegardez `app/storage/app.key`** : il chiffre tous les credentials stockés
+1. **Sauvegardez `app/storage/app.key`** : il chiffre tous les credentials stockés
    (mots de passe IMAP, secrets de plugins). Sa perte oblige les utilisateurs à se
    reconnecter ; il ne doit jamais être servi ni versionné.
-3. **Créez au moins un domaine** dans l'admin (page *Domaines*) : avec
+2. **Créez au moins un domaine** dans l'admin (page *Domaines*) : avec
    `restrict_domains = true` (défaut), aucun login n'est possible sans domaine configuré.
    L'installeur tente de le détecter automatiquement.
-4. **Installez les plugins** depuis l'admin, onglet *Extensions* :
+3. **Installez les plugins** depuis l'admin, onglet *Extensions* :
    le zip de release n'embarque plus les plugins — ils se téléchargent, se mettent à
    jour et se désinstallent depuis ce catalogue (voir
    [administration.md](administration.md#extensions-plugins) et
    [plugins.md](plugins.md)). À la mise à jour du cœur, les plugins déjà installés
    sont préservés (`app/plugins/` est exclu de la copie).
-5. Vérifiez `force_https` / `hsts` si vous êtes derrière un reverse proxy (voir
+4. Vérifiez `force_https` / `hsts` si vous êtes derrière un reverse proxy (voir
    [securite.md](securite.md) pour `trusted_proxies`).
-6. Positionnez `admin_ip_allowlist` si le panneau admin doit être restreint à certaines IP.
-7. **Mises à jour** : elles se font depuis l'admin (*À propos*) via les GitHub
+5. Positionnez `admin_ip_allowlist` si le panneau admin doit être restreint à certaines IP.
+6. **Mises à jour** : elles se font depuis l'admin (*À propos*) via les GitHub
    Releases — vérification `files.sha256` par fichier, sauvegarde fichiers +
    base SQLite, rollback assisté et migrations de base orchestrées. Détail dans
    [administration.md](administration.md#à-propos) et procédures de secours dans

@@ -5,13 +5,15 @@ Documentation pour comprendre l'architecture et étendre le projet (cœur, plugi
 ## 1. Architecture
 
 ```
-public/                front controller (index.php) + assets + assistant /setup/
+public/                front controller (index.php) + assets
 app/src/MXWebMail/     code applicatif :
   Application/App.php  conteneur de services + dispatch + routes
   API.php, Utils.php   façades de compatibilité pour le code vendoré (MailSo/Lib)
   Compat/              ponts de compatibilité MailSo (Actions, Config, Plugins)
   Config/              chargement/écriture de la configuration
-  Controller/          PageController, ApiController, AdminController
+  Controller/          PageController, ApiController, AdminController,
+                       SetupController (assistant /setup, servi tant que
+                       storage/INSTALLED est absent — 404 ensuite)
   Http/                Router, Request, Response, JsonResponse
   Locale/              Translator + dictionnaires
   Plugin/              HookRegistry, PluginManager, PluginBase

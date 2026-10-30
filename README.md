@@ -35,8 +35,7 @@ Webmail auto-hébergé en **PHP 8.4**, inspiré de **SnappyMail**, **RainLoop** 
 1. Pointez le document root du vhost sur `public/`.
 2. Ouvrez `https://webmail.example.com/` : l'assistant `/setup/` se lance (tant que
    `app/storage/INSTALLED` n'existe pas), vérifie les prérequis, écrit la configuration,
-   crée le schéma de base et pose le verrou.
-3. Supprimez `public/setup/` (facultatif — le verrou le désactive).
+   crée le schéma de base et pose le verrou — `/setup` répond ensuite 404.
 
 Détails (Apache/Nginx, installation manuelle, sortie de `app/` hors racine web) :
 voir **[docs/installation.md](docs/installation.md)**.

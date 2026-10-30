@@ -400,7 +400,7 @@ class ZipEntry
 	{
 		// now add to central directory record
 		return "\x50\x4b\x01\x02"
-			. "\x00\x03"         // version made by UNIX
+			. "\x14\x03"         // version made by 2.0 UNIX
 			. $this->getEntry()
 			. "\x00\x00"         // file comment length
 			. "\x00\x00"         // disk number start

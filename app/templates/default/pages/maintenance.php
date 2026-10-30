@@ -10,6 +10,7 @@
 	<link id="theme-css" rel="stylesheet" href="<?= $base ?>/assets/theme/<?= $theme ?>/app.css?v=<?= $themeVer ?>">
 	<?= $themeHead ?>
 	<?= $themeScript ?>
+	<?= $pluginHead ?>
 </head>
 <body class="login-page">
 <div class="card login-card shadow-sm">

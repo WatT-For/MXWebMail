@@ -482,6 +482,7 @@ return [
 	'admin.sieve_encryption_help' => 'Sieve encryption — "auto" is derived from the port',
 	'admin.last_login'          => 'Last login',
 	'admin.search_users'        => 'Search users…',
+	'admin.users_summary'       => '{total} user(s) · {active} active in last 30 days · {disabled} disabled',
 	'admin.status'              => 'Status',
 	'admin.user_edit'           => 'Edit',
 	'admin.user_delete'         => 'Delete user',
@@ -595,6 +596,9 @@ return [
 	'admin.about.writable'        => 'writable',
 	'admin.about.readonly'        => 'read-only',
 	'admin.about.tagline'         => 'Lightweight self-hosted webmail',
+	'admin.about.storage_usage'   => 'Storage usage',
+	'admin.about.dir'             => 'Directory',
+	'admin.about.size'            => 'Size',
 
 	// Schéma des réglages (clés résolues côté client via t())
 	'admin.f.app_name'                     => 'Application name',
@@ -739,8 +743,6 @@ return [
 
 	// ─── Installeur (/setup/) ───
 	'setup.installation'      => 'Installation',
-	'setup.installed_title'   => 'Already installed',
-	'setup.installed_body'    => 'MXWebMail is already installed (app/storage/INSTALLED lock present). To reinstall, delete that file; app/config/config.php will be archived then replaced.',
 	'setup.open_webmail'      => 'Open the webmail',
 	'setup.open_admin'        => 'Open the admin panel',
 	'setup.done_title'        => 'Installation complete',
@@ -751,7 +753,7 @@ return [
 	'setup.done_domain_added' => 'Domain {domain} detected and added — visible in admin → Domains.',
 	'setup.done_providers'    => 'Secondary accounts pre-authorized: {domains} (OAuth2 — apps registered per user).',
 	'setup.done_webmail'      => 'Webmail: log in with your IMAP credentials.',
-	'setup.done_cleanup'      => 'No server configuration needed: the root .htaccess routes to public/. Ideally delete the public/setup/ directory.',
+	'setup.done_cleanup'      => 'No server configuration needed: the root .htaccess routes to public/. The installer is locked: /setup now answers 404.',
 	'setup.err_token'         => 'Invalid session token — reload the page.',
 	'setup.err_prereq'        => 'Blocking prerequisites are not met.',
 	'setup.err_admin_user'    => 'The “Admin user” field is required.',
@@ -888,5 +890,13 @@ return [
 	'settings.sessions_revoke_others'         => 'Revoke other sessions',
 	'settings.session_delete_confirm'         => 'Revoke this session?',
 	'settings.sessions_revoke_confirm'        => 'Revoke all other sessions?',
+	'settings.session_ip'                     => 'IP',
+	'settings.session_details'                => 'Session details',
+	'settings.session_created_ip'             => 'Creation IP',
+	'settings.session_last_ip'                => 'Last IP',
+	'settings.session_expires'                => 'Expires',
+	'settings.session_user_agent'             => 'User-Agent',
+	'settings.session_revoke'                 => 'Revoke',
 	'app.import_failed'                       => '{n} message(s) failed',
+	'app.import_skipped'                      => '{n} message(s) skipped (limit)',
 ];

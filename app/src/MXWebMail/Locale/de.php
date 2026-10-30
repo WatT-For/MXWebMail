@@ -481,6 +481,7 @@ return [
 	'admin.sieve_encryption_help' => 'Sieve-Verschlüsselung — „auto“ wird vom Port abgeleitet',
 	'admin.last_login'          => 'Letzte Anmeldung',
 	'admin.search_users'        => 'Benutzer suchen…',
+	'admin.users_summary'       => '{total} Benutzer · {active} aktiv in 30 Tagen · {disabled} deaktiviert',
 	'admin.status'              => 'Status',
 	'admin.user_edit'           => 'Bearbeiten',
 	'admin.user_delete'         => 'Benutzer löschen',
@@ -594,6 +595,9 @@ return [
 	'admin.about.writable'        => 'beschreibbar',
 	'admin.about.readonly'        => 'schreibgeschützt',
 	'admin.about.tagline'         => 'Leichtgewichtiger selbst-gehosteter Webmailer',
+	'admin.about.storage_usage'   => 'Speichernutzung',
+	'admin.about.dir'             => 'Verzeichnis',
+	'admin.about.size'            => 'Größe',
 
 	// Schéma des réglages (clés résolues côté client via t())
 	'admin.f.app_name'                     => 'Anwendungsname',
@@ -738,8 +742,6 @@ return [
 
 	// ─── Installeur (/setup/) ───
 	'setup.installation'      => 'Installation',
-	'setup.installed_title'   => 'Bereits installiert',
-	'setup.installed_body'    => 'MXWebMail ist bereits installiert (Sperrdatei app/storage/INSTALLED vorhanden). Zum Neuinstallieren diese Datei löschen; app/config/config.php wird archiviert und dann ersetzt.',
 	'setup.open_webmail'      => 'Webmail öffnen',
 	'setup.open_admin'        => 'Admin-Panel öffnen',
 	'setup.done_title'        => 'Installation abgeschlossen',
@@ -750,7 +752,7 @@ return [
 	'setup.done_domain_added' => 'Domain {domain} erkannt und hinzugefügt — sichtbar unter admin → Domains.',
 	'setup.done_providers'    => 'Vorautorisierte Zweitkonten: {domains} (OAuth2 — Apps pro Benutzer registriert).',
 	'setup.done_webmail'      => 'Webmail: Melden Sie sich mit Ihren IMAP-Anmeldedaten an.',
-	'setup.done_cleanup'      => 'Keine Serverkonfiguration nötig: die .htaccess im Stammverzeichnis leitet zu public/ weiter. Idealerweise das Verzeichnis public/setup/ löschen.',
+	'setup.done_cleanup'      => 'Keine Serverkonfiguration nötig: die .htaccess im Stammverzeichnis leitet zu public/ weiter. Der Installer ist gesperrt: /setup antwortet jetzt mit 404.',
 	'setup.err_token'         => 'Ungültiges Sitzungstoken — Seite neu laden.',
 	'setup.err_prereq'        => 'Blockierende Voraussetzungen sind nicht erfüllt.',
 	'setup.err_admin_user'    => 'Das Feld „Admin-Benutzer“ ist erforderlich.',
@@ -887,5 +889,13 @@ return [
 	'settings.sessions_revoke_others'         => 'Andere Sitzungen widerrufen',
 	'settings.session_delete_confirm'         => 'Diese Sitzung widerrufen?',
 	'settings.sessions_revoke_confirm'        => 'Alle anderen Sitzungen widerrufen?',
+	'settings.session_ip'                     => 'IP',
+	'settings.session_details'                => 'Sitzungsdetails',
+	'settings.session_created_ip'             => 'Erstellungs-IP',
+	'settings.session_last_ip'                => 'Letzte IP',
+	'settings.session_expires'                => 'Läuft ab am',
+	'settings.session_user_agent'             => 'User-Agent',
+	'settings.session_revoke'                 => 'Widerrufen',
 	'app.import_failed'                       => '{n} Nachricht(en) fehlgeschlagen',
+	'app.import_skipped'                      => '{n} Nachricht(en) übersprungen (Limit)',
 ];

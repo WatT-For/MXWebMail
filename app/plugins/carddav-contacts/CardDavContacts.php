@@ -66,8 +66,9 @@ final class CardDavContacts extends PluginBase
 
 		$s->set($uid, self::K_URL, $url !== '' ? $url : null);
 		$s->set($uid, self::K_USER, $login !== '' ? $login : null);
-		// Mot de passe vide = conserver l'existant ; "reset" = effacer
-		if ($pass === 'reset') {
+		// Effacement explicite via password_reset ; vide = conserver —
+		// pas de mot sentinelle (« reset » serait un mot de passe valide).
+		if ($request->input('password_reset')) {
 			$s->set($uid, self::K_PASS, null);
 		} elseif ($pass !== '') {
 			$s->set($uid, self::K_PASS,

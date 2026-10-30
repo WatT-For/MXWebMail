@@ -1,0 +1,8 @@
+{
+	"name": "seasonal-decorations",
+	"class": "SeasonalDecorations",
+	"main": "SeasonalDecorations.php",
+	"version": "0.4.0",
+	"description": "plugin.seasonal-decorations.description",
+	"hooks": ["app.head"]
+}

@@ -3,6 +3,7 @@
  * Réponse uniforme { ok, data | error }. CSRF en header X-CSRF-Token.
  */
 import { t } from './i18n.js';
+import { toast } from './ui/toast.js';
 
 const cfg = window.MXWM || { base: '', csrf: '' };
 
@@ -104,3 +105,15 @@ export function b64url(str) {
 
 export function base() { return cfg.base; }
 export function csrf() { return cfg.csrf; }
+
+// Rejets non gérés (méthode save*/delete* sans catch) : signaler plutôt
+// que silence. api.js est chargé partout — y compris login/admin-login
+// qui n'ont pas le bundle JS Bootstrap → console dans ce cas.
+// 'aborted' = annulation volontaire (api.upload abort), jamais une erreur.
+window.addEventListener('unhandledrejection', (e) => {
+	const reason = e.reason;
+	if (reason?.code === 'aborted') { return; }
+	const msg = reason?.message || String(reason || t('errors.generic'));
+	if (window.bootstrap?.Toast) { toast.error(msg); }
+	else { console.warn('Unhandled rejection:', reason); }
+});

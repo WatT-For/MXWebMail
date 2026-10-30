@@ -1,0 +1,19 @@
+{
+	"enabled":           { "label": "plugin.seasonal-decorations.f.enabled", "type": "bool", "default": false, "help": "plugin.seasonal-decorations.f.enabled.help" },
+	"show_on_login":     { "label": "plugin.seasonal-decorations.f.show_on_login", "type": "bool", "default": true, "help": "plugin.seasonal-decorations.f.show_on_login.help" },
+	"newyear":           { "label": "plugin.seasonal-decorations.f.newyear", "type": "bool", "default": true },
+	"newyear_from":      { "label": "plugin.seasonal-decorations.f.newyear_from", "type": "string", "default": "12-29" },
+	"newyear_to":        { "label": "plugin.seasonal-decorations.f.newyear_to", "type": "string", "default": "01-02" },
+	"easter":            { "label": "plugin.seasonal-decorations.f.easter", "type": "bool", "default": true },
+	"easter_days_before":{ "label": "plugin.seasonal-decorations.f.easter_days_before", "type": "integer", "default": 7 },
+	"easter_days_after": { "label": "plugin.seasonal-decorations.f.easter_days_after", "type": "integer", "default": 1 },
+	"aprilfools":        { "label": "plugin.seasonal-decorations.f.aprilfools", "type": "bool", "default": true },
+	"aprilfools_from":   { "label": "plugin.seasonal-decorations.f.aprilfools_from", "type": "string", "default": "04-01" },
+	"aprilfools_to":     { "label": "plugin.seasonal-decorations.f.aprilfools_to", "type": "string", "default": "04-01" },
+	"halloween":         { "label": "plugin.seasonal-decorations.f.halloween", "type": "bool", "default": true },
+	"halloween_from":    { "label": "plugin.seasonal-decorations.f.halloween_from", "type": "string", "default": "10-25" },
+	"halloween_to":      { "label": "plugin.seasonal-decorations.f.halloween_to", "type": "string", "default": "11-01" },
+	"christmas":         { "label": "plugin.seasonal-decorations.f.christmas", "type": "bool", "default": true },
+	"christmas_from":    { "label": "plugin.seasonal-decorations.f.christmas_from", "type": "string", "default": "12-01" },
+	"christmas_to":      { "label": "plugin.seasonal-decorations.f.christmas_to", "type": "string", "default": "12-26" }
+}

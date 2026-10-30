@@ -481,6 +481,7 @@ return [
 	'admin.sieve_encryption_help' => 'Sieve şifrelemesi — «otomatik» bağlantı noktasından türetilir',
 	'admin.last_login'          => 'Son giriş',
 	'admin.search_users'        => 'Kullanıcı ara…',
+	'admin.users_summary'       => '{total} kullanıcı · son 30 günde {active} etkin · {disabled} devre dışı',
 	'admin.status'              => 'Durum',
 	'admin.user_edit'           => 'Düzenle',
 	'admin.user_delete'         => 'Kullanıcıyı sil',
@@ -594,6 +595,9 @@ return [
 	'admin.about.writable'        => 'yazılabilir',
 	'admin.about.readonly'        => 'salt okunur',
 	'admin.about.tagline'         => 'Hafif, kendi sunucusunda webmail',
+	'admin.about.storage_usage'   => 'Depolama kullanımı',
+	'admin.about.dir'             => 'Dizin',
+	'admin.about.size'            => 'Boyut',
 
 	// Schéma des réglages (clés résolues côté client via t())
 	'admin.f.app_name'                     => 'Uygulama adı',
@@ -738,8 +742,6 @@ return [
 
 	// ─── Installeur (/setup/) ───
 	'setup.installation'      => 'Kurulum',
-	'setup.installed_title'   => 'Zaten kurulu',
-	'setup.installed_body'    => 'MXWebMail zaten kurulu (app/storage/INSTALLED kilit dosyası mevcut). Yeniden kurmak için bu dosyayı silin; app/config/config.php arşivlenip değiştirilecektir.',
 	'setup.open_webmail'      => 'Web postasını aç',
 	'setup.open_admin'        => 'Yönetim panelini aç',
 	'setup.done_title'        => 'Kurulum tamamlandı',
@@ -750,7 +752,7 @@ return [
 	'setup.done_domain_added' => '{domain} alan adı algılandı ve eklendi — admin → Alan Adları altında görünür.',
 	'setup.done_providers'    => 'Önceden yetkilendirilmiş ikincil hesaplar: {domains} (OAuth2 — uygulamalar kullanıcı tarafından kaydedilir).',
 	'setup.done_webmail'      => 'Web postası: IMAP kimlik bilgilerinizle giriş yapın.',
-	'setup.done_cleanup'      => 'Sunucu yapılandırması gerekmez: kök .htaccess public/ dizinine yönlendirir. İdeal olarak public/setup/ dizinini silin.',
+	'setup.done_cleanup'      => 'Sunucu yapılandırması gerekmez: kök .htaccess public/ dizinine yönlendirir. Yükleyici kilitli: /setup artık 404 yanıtı veriyor.',
 	'setup.err_token'         => 'Geçersiz oturum belirteci — sayfayı yeniden yükleyin.',
 	'setup.err_prereq'        => 'Engelleyen ön koşullar karşılanmadı.',
 	'setup.err_admin_user'    => '«Yönetici kullanıcı» alanı zorunludur.',
@@ -887,5 +889,13 @@ return [
 	'settings.sessions_revoke_others'         => 'Diğer oturumları iptal et',
 	'settings.session_delete_confirm'         => 'Bu oturum iptal edilsin mi?',
 	'settings.sessions_revoke_confirm'        => 'Diğer tüm oturumlar iptal edilsin mi?',
+	'settings.session_ip'                     => 'IP',
+	'settings.session_details'                => 'Oturum ayrıntıları',
+	'settings.session_created_ip'             => 'Oluşturma IP\'si',
+	'settings.session_last_ip'                => 'Son IP',
+	'settings.session_expires'                => 'Sona erme',
+	'settings.session_user_agent'             => 'User-Agent',
+	'settings.session_revoke'                 => 'İptal et',
 	'app.import_failed'                       => '{n} ileti başarısız',
+	'app.import_skipped'                      => '{n} ileti atlandı (sınır)',
 ];

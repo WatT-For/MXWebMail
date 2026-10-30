@@ -63,23 +63,38 @@ final class SpamLearn extends PluginBase
 			throw new \RuntimeException('spam-learn: commande invalide');
 		}
 		$max = max(1, (int) ($this->config['max_bytes'] ?? 5120)) * 1024;
-		$proc = proc_open($cmd, [['pipe', 'r'], ['pipe', 'w'], ['pipe', 'w']], $pipes);
+		// stdout/stderr → fichiers temporaires : des pipes non drainés pendant
+		// l'écriture de stdin (jusqu'à $max) interbloqueraient le processus dès
+		// que le fils produit plus que le buffer (~64 Ko).
+		$outFile = tempnam(sys_get_temp_dir(), 'slout');
+		$errFile = tempnam(sys_get_temp_dir(), 'slerr');
+		if (!$outFile || !$errFile) {
+			throw new \RuntimeException('spam-learn: tempnam échoué');
+		}
+		$proc = proc_open($cmd,
+			[['pipe', 'r'], ['file', $outFile, 'w'], ['file', $errFile, 'w']],
+			$pipes);
 		if (!is_resource($proc)) {
+			@unlink($outFile);
+			@unlink($errFile);
 			throw new \RuntimeException('spam-learn: proc_open échoué');
 		}
-		$this->app->mail()->mimeStream($folder, $uid, '',
+		$ok = $this->app->mail()->mimeStream($folder, $uid, '',
 			function ($r) use ($pipes, $max) {
 				stream_copy_to_stream($r, $pipes[0], $max);
 			});
 		fclose($pipes[0]);
-		$out = stream_get_contents($pipes[1]);
-		$err = stream_get_contents($pipes[2]);
-		fclose($pipes[1]);
-		fclose($pipes[2]);
 		$code = proc_close($proc);
+		$out = (string) @file_get_contents($outFile);
+		$err = (string) @file_get_contents($errFile);
+		@unlink($outFile);
+		@unlink($errFile);
+		if (!$ok) {
+			throw new \RuntimeException('spam-learn: lecture IMAP du message échouée');
+		}
 		if ($code !== 0) {
 			throw new \RuntimeException(
-				"spam-learn: sortie {$code} — " . trim((string) $err . (string) $out));
+				"spam-learn: sortie {$code} — " . trim($err . $out));
 		}
 	}
 }

@@ -9,8 +9,10 @@ HttpOnly, Secure, SameSite=Lax, 30 jours). La table `auth_tokens` ne stocke que 
 **hash SHA-256** du validator ; celui-ci est **tourné à chaque usage** (un cookie
 volé déjà présenté est détectable et invalidé). La restauration re-déchiffre le mot
 de passe IMAP (`CredentialCrypt`) et re-vérifie les identifiants — un échec supprime
-le jeton. Les jetons sont listés et révocables dans Paramètres → Sessions, et le
-jeton courant est révoqué à la déconnexion.
+le jeton. Chaque jeton enregistre l'**IP à l'émission** (`ip`), la **dernière IP**
+connue (`last_ip`, à chaque restauration) et le User-Agent — visibles dans
+Paramètres → Sessions pour repérer une session inconnue. Les jetons y sont listés
+et révocables, et le jeton courant est révoqué à la déconnexion.
 
 ### CSRF
 
@@ -133,7 +135,9 @@ dans `trusted_proxies` (CIDR). La détection HTTPS (`isHttps`) suit la même rè
   fort) plutôt que le fallback IMAP pour l'administration.
 - **Sauvegardez `app.key`** hors du webroot ; ne le versionnez jamais.
 - **`debug = false`** en production (ne pas exposer les erreurs internes).
-- **Supprimez `public/setup/`** après installation.
+- **L'assistant `/setup`** est intégré au cœur : il répond 404 une fois le
+  verrou `app/storage/INSTALLED` posé — plus aucun fichier d'installation à
+  supprimer dans le webroot.
 - Vérifiez `ssl.verify_certificate` : `false` n'est acceptable que pour des certificats
   auto-signés maîtrisés.
 - En mode maintenance, `maintenance = true` sert une page maintenance dédiée en 503

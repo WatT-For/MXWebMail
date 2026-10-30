@@ -13,9 +13,12 @@ final class Router
 
 	public function add(string $method, string $pattern, callable $handler): void
 	{
+		// Regex précompilée à l'enregistrement : match() la réévaluait sinon
+		// pour chaque route testée (~136 routes × N essais par requête).
 		$this->routes[] = [
 			'method'  => strtoupper($method),
 			'pattern' => $pattern,
+			'regex'   => self::compile($pattern),
 			'handler' => $handler,
 		];
 	}
@@ -36,7 +39,7 @@ final class Router
 			if ($route['method'] !== $request->method) {
 				continue;
 			}
-			$params = self::match($route['pattern'], $request->path);
+			$params = self::match($route['regex'], $request->path);
 			if ($params === null) {
 				continue;
 			}
@@ -46,16 +49,19 @@ final class Router
 		return null;
 	}
 
-	private static function match(string $pattern, string $path): ?array
+	/** Compile le motif en regex : {param} → groupe nommé, reste échappé. */
+	private static function compile(string $pattern): string
 	{
-		// Échappe tout sauf les {param} convertis en groupes nommés
-		$regex = preg_replace_callback(
+		return '#^' . preg_replace_callback(
 			'#\{([a-zA-Z_][a-zA-Z0-9_]*)\}|(.)#s',
 			fn($m) => isset($m[1]) && $m[1] !== '' ? '(?P<' . $m[1] . '>[^/]+)' : preg_quote($m[2], '#'),
 			$pattern
-		);
+		) . '$#';
+	}
 
-		if (!preg_match('#^' . $regex . '$#', $path, $m)) {
+	private static function match(string $regex, string $path): ?array
+	{
+		if (!preg_match($regex, $path, $m)) {
 			return null;
 		}
 		return array_filter($m, 'is_string', ARRAY_FILTER_USE_KEY);

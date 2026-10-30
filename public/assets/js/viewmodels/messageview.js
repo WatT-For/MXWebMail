@@ -2,6 +2,7 @@ import { api, base } from '../api.js';
 import { dialog } from '../ui/dialog.js';
 import { toast } from '../ui/toast.js';
 import { t } from '../i18n.js';
+import { loadOpenPgp } from '../lazy.js';
 
 /**
  * ViewModel : lecture d'un message.
@@ -184,6 +185,8 @@ export class MessageViewVM {
 		try {
 			const keys = await api.get('/pgp/keys');
 			const priv = keys.find(k => Number(k.is_private) === 1);
+			// openpgp chargé à la demande (lazy.js) — ~540K hors du boot.
+			const openpgp = await loadOpenPgp();
 			if (!priv) {
 				await dialog.alert(t('pgp.no_private_key'),
 					{ variant: 'warning', title: 'OpenPGP' });
@@ -665,8 +668,12 @@ export class MessageViewVM {
 	}
 
 	attachmentUrl(att) {
-		return base() + `/api/messages/${this.message().uid}/attachment/${att.mimeIndex}` +
-			`?folder=${encodeURIComponent(this.message().folder)}`;
+		const m = this.message();
+		// &uv= (UIDVALIDITY) : active le cache disque/immutable côté serveur —
+		// le contenu d'une PJ est figé par (dossier,uidvalidity,uid,mimeIndex).
+		return base() + `/api/messages/${m.uid}/attachment/${att.mimeIndex}` +
+			`?folder=${encodeURIComponent(m.folder)}` +
+			(m.uv ? `&uv=${m.uv}` : '');
 	}
 
 	rawUrl() {

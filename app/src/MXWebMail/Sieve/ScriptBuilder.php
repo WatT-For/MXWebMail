@@ -70,7 +70,7 @@ final class ScriptBuilder
 
 		foreach ($rules as $rule) {
 			$rule = (array) $rule;
-			[$test, $conds] = self::conditions($rule);
+			[$test, $conds] = self::conditions($rule, $require);
 			[$cmds, $actions] = self::actions($rule, $require);
 			$blocks[] = 'if ' . $test . " {\n" . implode("\n", $cmds) . "\n}";
 			$normalized['rules'][] = [
@@ -195,7 +195,7 @@ final class ScriptBuilder
 	}
 
 	/** @return array{0:string,1:array} test Sieve + conditions normalisées */
-	private static function conditions(array $rule): array
+	private static function conditions(array $rule, array &$require): array
 	{
 		$conds = $rule['conditions'] ?? null;
 		if (!is_array($conds) || !count($conds) || count($conds) > 20) {
@@ -204,7 +204,7 @@ final class ScriptBuilder
 		$tests = [];
 		$out = [];
 		foreach ($conds as $c) {
-			$tests[] = self::test((array) $c, $n);
+			$tests[] = self::test((array) $c, $n, $require);
 			$out[] = $n;
 		}
 		if (count($tests) === 1) {
@@ -231,7 +231,7 @@ final class ScriptBuilder
 		return [$cmds, $out];
 	}
 
-	private static function test(array $c, ?array &$normalized): string
+	private static function test(array $c, ?array &$normalized, array &$require): string
 	{
 		$field = (string) ($c['field'] ?? '');
 		$op = (string) ($c['op'] ?? '');
@@ -251,6 +251,11 @@ final class ScriptBuilder
 		}
 		if (!in_array($op, self::OPS, true)) {
 			throw new \InvalidArgumentException("opérateur inconnu : {$op}");
+		}
+		// :regex appartient à l'extension « regex » — la déclarer, sinon un
+		// serveur strict (Dovecot) rejette le script au CHECKSCRIPT.
+		if ($op === 'regex') {
+			$require[] = 'regex';
 		}
 
 		$normalized = ['field' => $field, 'op' => $op, 'value' => $value];

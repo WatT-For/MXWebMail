@@ -9,7 +9,7 @@ final class SettingRepository
 
 	public function get(int $userId, string $key, mixed $default = null): mixed
 	{
-		$stmt = $this->db->pdo()->prepare('SELECT value FROM user_settings WHERE user_id = :u AND key = :k');
+		$stmt = $this->db->pdo()->prepare('SELECT value FROM user_settings WHERE user_id = :u AND `key` = :k');
 		$stmt->execute(['u' => $userId, 'k' => $key]);
 		$v = $stmt->fetchColumn();
 		if ($v === false) {
@@ -27,14 +27,14 @@ final class SettingRepository
 	public function set(int $userId, string $key, mixed $value): void
 	{
 		if ($value === null) {
-			$this->db->pdo()->prepare('DELETE FROM user_settings WHERE user_id = :u AND key = :k')
+			$this->db->pdo()->prepare('DELETE FROM user_settings WHERE user_id = :u AND `key` = :k')
 				->execute(['u' => $userId, 'k' => $key]);
 			return;
 		}
 		$driver = $this->db->pdo()->getAttribute(\PDO::ATTR_DRIVER_NAME);
 		$sql = $driver === 'sqlite'
-			? 'INSERT INTO user_settings (user_id, key, value) VALUES (:u, :k, :v)
-			   ON CONFLICT(user_id, key) DO UPDATE SET value = excluded.value'
+			? 'INSERT INTO user_settings (user_id, `key`, value) VALUES (:u, :k, :v)
+			   ON CONFLICT(user_id, `key`) DO UPDATE SET value = excluded.value'
 			: 'INSERT INTO user_settings (user_id, `key`, `value`) VALUES (:u, :k, :v)
 			   ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)';
 		$this->db->pdo()->prepare($sql)->execute([
@@ -64,7 +64,7 @@ final class SettingRepository
 
 	public function allFor(int $userId): array
 	{
-		$stmt = $this->db->pdo()->prepare('SELECT key, value FROM user_settings WHERE user_id = :u');
+		$stmt = $this->db->pdo()->prepare('SELECT `key`, value FROM user_settings WHERE user_id = :u');
 		$stmt->execute(['u' => $userId]);
 		$out = [];
 		foreach ($stmt->fetchAll() as $row) {

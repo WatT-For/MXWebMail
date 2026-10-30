@@ -54,6 +54,14 @@ class AdminVM {
 					|| (u.display_name || '').toLowerCase().includes(q))
 				: this.users();
 		});
+		this.userStats = ko.pureComputed(() => {
+			const cut = Date.now() / 1000 - 30 * 86400, list = this.users();
+			return {
+				total: list.length,
+				active: list.filter(u => u.last_login_at && u.last_login_at > cut).length,
+				disabled: list.filter(u => Number(u.disabled)).length,
+			};
+		});
 		this.themes = ko.observableArray([]);
 		this.themeDefault = ko.observable('default');
 		this.settings = ko.observable(null);
@@ -679,7 +687,8 @@ class AdminVM {
 	mapPlugin(p) {
 		return { ...p,
 			enabled: ko.observable(!!p.enabled),
-			user_allowed: ko.observable(p.user_allowed !== false) };
+			user_allowed: ko.observable(!!p.user_allowed),
+			admin_only: !!p.admin_only };
 	}
 	// Entrée catalogue d'un plugin installé (latest/update_available/compatible)
 	catalogFor(name) {

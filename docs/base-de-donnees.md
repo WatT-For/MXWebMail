@@ -36,10 +36,10 @@ est posé et signalé dans *À propos* — les migrations sont alors suspendues.
 | `user_settings` | réglages utilisateur (clé/valeur), PK `(user_id, key)`. |
 | `identities` | identités d'envoi : `name`, `email`, `reply_to`, `bcc`, `signature`, `is_default`. |
 | `domains` | serveurs mail par domaine (voir [domaines.md](domaines.md)) + `options` JSON. |
-| `plugins` | `enabled`, `user_allowed` (réservé admin si 0), `config` (JSON) par plugin. |
+| `plugins` | `enabled`, `user_allowed` (réservé admin si 0 — défaut), `config` (JSON) par plugin. |
 | `themes` | `config` (JSON) et `allowed` par thème. |
 | `pgp_keys` | keyring OpenPGP (`key_data` armored, `is_private`). |
-| `auth_tokens` | (héritage) jetons d'authentification. |
+| `auth_tokens` | jetons « Rester connecté » : `selector` (unique), `token` (SHA-256 du validator, tourné à chaque usage), `agent` (User-Agent), `ip` (à l'émission), `last_ip` (dernière restauration), `created_at`, `last_used_at`, `expires_at`. |
 
 Les anciennes tables `contacts` / `contact_emails` ont été déplacées hors de la base
 globale (voir §5).

@@ -2,7 +2,7 @@
 	"name": "spam-learn",
 	"class": "SpamLearn",
 	"main": "SpamLearn.php",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "plugin.spam-learn.description",
 	"hooks": ["message.spam"]
 }

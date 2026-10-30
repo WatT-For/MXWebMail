@@ -28,6 +28,7 @@ export default function mount(el, ctx) {
 					<button id="cd-save" class="btn btn-sm btn-primary">${t('common.save')}</button>
 					<button id="cd-test" class="btn btn-sm btn-outline-secondary">${t('common.test')}</button>
 					<button id="cd-sync" class="btn btn-sm btn-outline-success">${t(K + 'sync')}</button>
+					<button id="cd-clear" class="btn btn-sm btn-outline-danger ms-auto" style="display:none">${t(K + 'pass_clear')}</button>
 				</div>
 				<div id="cd-status" class="text-muted small mt-2"></div>
 				<div id="cd-error" class="text-danger small mt-1"></div>
@@ -44,6 +45,7 @@ export default function mount(el, ctx) {
 		if (!c) { return; }
 		$('cd-url').value = c.url || '';
 		$('cd-user').value = c.user || '';
+		$('cd-clear').style.display = c.hasPass ? '' : 'none';
 		status(c.lastSync
 			? t(K + 'last_sync', { date: new Date(c.lastSync * 1000).toLocaleString() })
 			: t(K + 'never_synced'));
@@ -54,6 +56,14 @@ export default function mount(el, ctx) {
 		await call('save', {
 			url: $('cd-url').value, user: $('cd-user').value, password: $('cd-pass').value,
 		}).then(() => status(t(K + 'saved'))).catch(e => err(e.message));
+	};
+
+	$('cd-clear').onclick = async () => {
+		err('');
+		const r = await call('save', {
+			url: $('cd-url').value, user: $('cd-user').value, password_reset: true,
+		}).then(() => true).catch(e => { err(e.message); return false; });
+		if (r) { $('cd-clear').style.display = 'none'; status(t(K + 'saved')); }
 	};
 
 	$('cd-test').onclick = async () => {

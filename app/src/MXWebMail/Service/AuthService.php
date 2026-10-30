@@ -129,7 +129,9 @@ final class AuthService
 		$_SESSION['account_id'] = $accountId;
 		$_SESSION['email']      = $email;
 		$_SESSION['imap_pass']  = CredentialCrypt::encrypt($password, $this->app->storageDir());
-		$_SESSION['domain']     = $domainName;
+		// Post-mapping : auth.login.mapping peut substituer le domaine — la
+		// session doit porter le domaine résolu, pas la forme pré-mapping.
+		$_SESSION['domain']     = (string) ($domain['name'] ?? $domainName);
 		$_SESSION['acct_auth']      = 'password';
 		$_SESSION['acct_secondary'] = false;
 		unset($_SESSION['oauth_pending']);
@@ -148,12 +150,13 @@ final class AuthService
 		$selector = bin2hex(random_bytes(9));
 		$validator = bin2hex(random_bytes(32));
 		$this->app->db()->pdo()->prepare(
-			'INSERT INTO auth_tokens (user_id, selector, token, agent, created_at, expires_at)
-			 VALUES (:u,:s,:t,:a,:c,:e)')
+			'INSERT INTO auth_tokens (user_id, selector, token, agent, ip, created_at, expires_at)
+			 VALUES (:u,:s,:t,:a,:i,:c,:e)')
 			->execute([
 				'u' => $userId, 's' => $selector,
 				't' => hash('sha256', $validator),
 				'a' => mb_substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255),
+				'i' => $this->app->clientIp() ?: null,
 				'c' => time(), 'e' => time() + self::REMEMBER_DAYS * 86400,
 			]);
 		$this->setRememberCookie($selector . ':' . $validator);
@@ -237,8 +240,9 @@ final class AuthService
 		}
 		// Rotation : nouveau validator, cookie réémis, last_used_at à jour.
 		$newVal = bin2hex(random_bytes(32));
-		$pdo->prepare('UPDATE auth_tokens SET token = :t, last_used_at = :n WHERE id = :id')
-			->execute(['t' => hash('sha256', $newVal), 'n' => time(), 'id' => $row['id']]);
+		$pdo->prepare('UPDATE auth_tokens SET token = :t, last_used_at = :n, last_ip = :i WHERE id = :id')
+			->execute(['t' => hash('sha256', $newVal), 'n' => time(),
+				'i' => $this->app->clientIp() ?: null, 'id' => $row['id']]);
 		$this->setRememberCookie($m[1] . ':' . $newVal);
 
 		session_regenerate_id(true);
@@ -257,7 +261,7 @@ final class AuthService
 	public function rememberSessions(int $userId): array
 	{
 		$stmt = $this->app->db()->pdo()->prepare(
-			'SELECT id, selector, agent, created_at, last_used_at, expires_at
+			'SELECT id, selector, agent, ip, last_ip, created_at, last_used_at, expires_at
 			 FROM auth_tokens WHERE user_id = :u ORDER BY last_used_at DESC, created_at DESC');
 		$stmt->execute(['u' => $userId]);
 		$current = $this->currentTokenSelector();
@@ -554,6 +558,9 @@ final class AuthService
 		$_SESSION['domain']     = substr($account['email'], strrpos($account['email'], '@') + 1);
 		$_SESSION['acct_auth']      = (string) ($account['auth'] ?? 'password');
 		$_SESSION['acct_secondary'] = !(int) $account['is_default'];
+		// Le MailService mémoïsé (App::mail) transporte les credentials/caches
+		// de l'ancien compte : reconnexion forcée au prochain client().
+		$this->app->mail()->disconnect();
 		return ['email' => $account['email']];
 	}
 
@@ -686,7 +693,29 @@ final class AuthService
 
 	private function attemptKey(string $email): string
 	{
-		return hash('sha256', ($this->app->clientIp() ?: 'cli') . '|' . $email);
+		// Normalisation identique à login() : sinon une saisie « User@x » ou
+		// « user » (espace) est comptée sous une clé différente de celle
+		// vérifiée — le verrou n'était jamais atteint (tentatives illimitées).
+		$e = mb_strtolower(trim($email));
+		// Le suffixe default_domain est reproduit : « user » et
+		// « user@domaine » résolvent le même compte et doivent partager le
+		// compteur — sinon chaque variante dispose de son propre quota.
+		if (!str_contains($e, '@')) {
+			$dd = strtolower(trim(
+				(string) $this->app->config()->get('default_domain', '')));
+			if ($dd === 'auto') {
+				$dd = preg_replace('/:\d+$/', '',
+					strtolower((string) ($_SERVER['HTTP_HOST'] ?? '')));
+				$dd = preg_replace('/^www\./', '', $dd);
+				if (!preg_match('/^[a-z0-9]([a-z0-9.\-]{0,251}[a-z0-9])?$/', $dd)) {
+					$dd = '';
+				}
+			}
+			if ($dd !== '') {
+				$e .= '@' . $dd;
+			}
+		}
+		return hash('sha256', ($this->app->clientIp() ?: 'cli') . '|' . $e);
 	}
 
 	private function loadAttempts(): array

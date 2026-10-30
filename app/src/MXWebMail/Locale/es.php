@@ -481,6 +481,7 @@ return [
 	'admin.sieve_encryption_help' => 'Cifrado Sieve — «auto» se deriva del puerto',
 	'admin.last_login'          => 'Último acceso',
 	'admin.search_users'        => 'Buscar usuarios…',
+	'admin.users_summary'       => '{total} usuario(s) · {active} activo(s) en 30 d · {disabled} desactivado(s)',
 	'admin.status'              => 'Estado',
 	'admin.user_edit'           => 'Editar',
 	'admin.user_delete'         => 'Eliminar usuario',
@@ -594,6 +595,9 @@ return [
 	'admin.about.writable'        => 'escribible',
 	'admin.about.readonly'        => 'solo lectura',
 	'admin.about.tagline'         => 'Webmail ligero autoalojado',
+	'admin.about.storage_usage'   => 'Uso de almacenamiento',
+	'admin.about.dir'             => 'Directorio',
+	'admin.about.size'            => 'Tamaño',
 
 	// Schéma des réglages (clés résolues côté client via t())
 	'admin.f.app_name'                     => 'Nombre de la aplicación',
@@ -738,8 +742,6 @@ return [
 
 	// ─── Installeur (/setup/) ───
 	'setup.installation'      => 'Instalación',
-	'setup.installed_title'   => 'Ya instalado',
-	'setup.installed_body'    => 'MXWebMail ya está instalado (archivo de bloqueo app/storage/INSTALLED presente). Para reinstalar, elimina ese archivo; app/config/config.php se archivará y luego se reemplazará.',
 	'setup.open_webmail'      => 'Abrir el correo web',
 	'setup.open_admin'        => 'Abrir el panel de administración',
 	'setup.done_title'        => 'Instalación completada',
@@ -750,7 +752,7 @@ return [
 	'setup.done_domain_added' => 'Dominio {domain} detectado y añadido — visible en admin → Dominios.',
 	'setup.done_providers'    => 'Cuentas secundarias autorizadas previamente: {domains} (OAuth2 — apps registradas por usuario).',
 	'setup.done_webmail'      => 'Correo web: inicia sesión con tus credenciales IMAP.',
-	'setup.done_cleanup'      => 'No se necesita configuración de servidor: el .htaccess raíz enruta a public/. Idealmente elimina el directorio public/setup/.',
+	'setup.done_cleanup'      => 'No se necesita configuración de servidor: el .htaccess raíz enruta a public/. El instalador está bloqueado: /setup ahora responde 404.',
 	'setup.err_token'         => 'Token de sesión no válido — recarga la página.',
 	'setup.err_prereq'        => 'No se cumplen los requisitos previos que bloquean.',
 	'setup.err_admin_user'    => 'El campo «Usuario administrador» es obligatorio.',
@@ -887,5 +889,13 @@ return [
 	'settings.sessions_revoke_others'         => 'Revocar otras sesiones',
 	'settings.session_delete_confirm'         => '¿Revocar esta sesión?',
 	'settings.sessions_revoke_confirm'        => '¿Revocar todas las demás sesiones?',
+	'settings.session_ip'                     => 'IP',
+	'settings.session_details'                => 'Detalles de la sesión',
+	'settings.session_created_ip'             => 'IP de creación',
+	'settings.session_last_ip'                => 'Última IP',
+	'settings.session_expires'                => 'Expira el',
+	'settings.session_user_agent'             => 'User-Agent',
+	'settings.session_revoke'                 => 'Revocar',
 	'app.import_failed'                       => '{n} mensaje(s) fallidos',
+	'app.import_skipped'                      => '{n} mensaje(s) omitido(s) (límite)',
 ];

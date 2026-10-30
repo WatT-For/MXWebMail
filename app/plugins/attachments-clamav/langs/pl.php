@@ -13,4 +13,5 @@ return [
 	'plugin.attachments-clamav.virus_found'        => 'Virus detected in “{name}”',
 	'plugin.attachments-clamav.unavailable'        => 'Virus scanner unreachable',
 	'plugin.attachments-clamav.bad_response'       => 'Unexpected scanner response: {msg}',
+	'plugin.attachments-clamav.read_failed'         => 'Nie można odczytać pliku „{name}”',
 ];

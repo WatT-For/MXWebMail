@@ -481,6 +481,7 @@ return [
 	'admin.sieve_encryption_help' => 'Szyfrowanie Sieve — „auto” wynika z portu',
 	'admin.last_login'          => 'Ostatnie logowanie',
 	'admin.search_users'        => 'Szukaj użytkowników…',
+	'admin.users_summary'       => '{total} użytkownik(ów) · {active} aktywnych (30 dni) · {disabled} wyłączonych',
 	'admin.status'              => 'Status',
 	'admin.user_edit'           => 'Edytuj',
 	'admin.user_delete'         => 'Usuń użytkownika',
@@ -594,6 +595,9 @@ return [
 	'admin.about.writable'        => 'zapisywalny',
 	'admin.about.readonly'        => 'tylko do odczytu',
 	'admin.about.tagline'         => 'Lekki webmail self-hosted',
+	'admin.about.storage_usage'   => 'Użycie pamięci',
+	'admin.about.dir'             => 'Katalog',
+	'admin.about.size'            => 'Rozmiar',
 
 	// Schéma des réglages (clés résolues côté client via t())
 	'admin.f.app_name'                     => 'Nazwa aplikacji',
@@ -738,8 +742,6 @@ return [
 
 	// ─── Installeur (/setup/) ───
 	'setup.installation'      => 'Instalacja',
-	'setup.installed_title'   => 'Już zainstalowano',
-	'setup.installed_body'    => 'MXWebMail jest już zainstalowany (plik blokady app/storage/INSTALLED). Aby zainstalować ponownie, usuń ten plik; app/config/config.php zostanie zarchiwizowany i zastąpiony.',
 	'setup.open_webmail'      => 'Otwórz pocztę',
 	'setup.open_admin'        => 'Otwórz panel administracyjny',
 	'setup.done_title'        => 'Instalacja zakończona',
@@ -750,7 +752,7 @@ return [
 	'setup.done_domain_added' => 'Domena {domain} wykryta i dodana — widoczna w admin → Domeny.',
 	'setup.done_providers'    => 'Wstępnie autoryzowane konta dodatkowe: {domains} (OAuth2 — aplikacje rejestrowane per użytkownik).',
 	'setup.done_webmail'      => 'Poczta: zaloguj się danymi IMAP.',
-	'setup.done_cleanup'      => 'Konfiguracja serwera nie jest wymagana: główny .htaccess kieruje do public/. Najlepiej usuń katalog public/setup/.',
+	'setup.done_cleanup'      => 'Konfiguracja serwera nie jest wymagana: główny .htaccess kieruje do public/. Instalator jest zablokowany: /setup odpowiada teraz 404.',
 	'setup.err_token'         => 'Nieprawidłowy token sesji — przeładuj stronę.',
 	'setup.err_prereq'        => 'Wymagania blokujące nie są spełnione.',
 	'setup.err_admin_user'    => 'Pole „Administrator” jest wymagane.',
@@ -887,5 +889,13 @@ return [
 	'settings.sessions_revoke_others'         => 'Odwołaj pozostałe sesje',
 	'settings.session_delete_confirm'         => 'Odwołać tę sesję?',
 	'settings.sessions_revoke_confirm'        => 'Odwołać wszystkie pozostałe sesje?',
+	'settings.session_ip'                     => 'IP',
+	'settings.session_details'                => 'Szczegóły sesji',
+	'settings.session_created_ip'             => 'IP utworzenia',
+	'settings.session_last_ip'                => 'Ostatnie IP',
+	'settings.session_expires'                => 'Wygasa',
+	'settings.session_user_agent'             => 'User-Agent',
+	'settings.session_revoke'                 => 'Odwołaj',
 	'app.import_failed'                       => '{n} wiadomości nieudanych',
+	'app.import_skipped'                      => '{n} wiadomości pominięto (limit)',
 ];

@@ -88,12 +88,31 @@ function mxwm_build_classmap(string $root): array
 	// Écriture atomique (tmp + rename) : un require pendant la régénération
 	// ne doit jamais charger un classmap tronqué.
 	if (is_writable($cacheDir)) {
-		$tmp = "$cacheDir/classmap." . getmypid() . '.tmp';
-		if (file_put_contents($tmp, "<?php return " . var_export($map, true) . ";\n") !== false) {
-			@rename($tmp, "$cacheDir/classmap.php") || @unlink($tmp);
-		}
+		mxwm_atomic_write("$cacheDir/classmap.php",
+			"<?php return " . var_export($map, true) . ";\n");
 	}
 	return $map;
+}
+
+/**
+ * Écriture atomique tmp + rename : un lecteur pendant l'écriture ne doit
+ * jamais voir de contenu tronqué (classmap, caches « <?php return »,
+ * PJ/images cachées). opcache_invalidate : un fichier PHP dont le contenu
+ * change peut rester périmé sous opcache.validate_timestamps=0.
+ */
+function mxwm_atomic_write(string $path, string $content): bool
+{
+	$dir = dirname($path);
+	is_dir($dir) || @mkdir($dir, 0755, true);
+	$tmp = $path . '.' . getmypid() . '.tmp';
+	if (file_put_contents($tmp, $content) === false || !@rename($tmp, $path)) {
+		@unlink($tmp);
+		return false;
+	}
+	if (str_ends_with($path, '.php') && function_exists('opcache_invalidate')) {
+		@opcache_invalidate($path, true);
+	}
+	return true;
 }
 
 /** Types (FQCN) déclarés dans un fichier : class/interface/trait/enum. */

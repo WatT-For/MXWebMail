@@ -44,7 +44,10 @@ abstract class IDN
 	{
 //		if ($toAscii && \preg_match('/[^\x20-\x7E]/', $domain)) {
 //		if (!$toAscii && \preg_match('/(^|\\.)xn--/i', $domain)) {
-		return $toAscii ? \strtolower(\idn_to_ascii($domain)) : \idn_to_utf8($domain);
+		// idn_to_* retournent false sur un domaine invalide (A-label xn--
+		// malformé) : la forme brute fait foi plutôt qu'un TypeError.
+		$r = $toAscii ? \idn_to_ascii($domain) : \idn_to_utf8($domain);
+		return false === $r ? $domain : ($toAscii ? \strtolower($r) : $r);
 /*
 		$domain = \explode('.', $domain);
 		foreach ($domain as $k => $v) {

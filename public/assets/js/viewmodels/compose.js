@@ -1,6 +1,7 @@
 import { api } from '../api.js';
 import { t } from '../i18n.js';
 import { dialog } from '../ui/dialog.js';
+import { loadOpenPgp } from '../lazy.js';
 
 /**
  * ViewModel : composition d'un message (nouveau, réponse, transfert, brouillon).
@@ -77,7 +78,9 @@ export class ComposeVM {
 	}
 
 	async init() {
-		this.setIdentities(await api.get('/identities').catch(() => []));
+		// Loader mémoïsé du SettingsVM : pas de doublon /identities au boot
+		// quand popup_identity l'a déjà déclenché.
+		this.setIdentities(await this.app.settings.loadIdentities());
 		// Taille de la modale persistée dans les réglages utilisateur
 		const w = parseInt(this.app.userSettings.compose_modal_width, 10) || 0;
 		const h = parseInt(this.app.userSettings.compose_modal_height, 10) || 0;
@@ -263,8 +266,11 @@ export class ComposeVM {
 
 	/** Place le caret sur le marqueur .mxwm-sig-caret puis le retire. */
 	placeCaretAtMarker() {
-		const ed = tinymce.get('compose-body');
-		if (!ed?.initialized) { return; }
+		const ed = window.tinymce?.get('compose-body');
+		if (!ed) { return; }
+		// tinymce chargé en lazy (applyBindings) : l'éditeur peut exister sans
+		// être initialisé au shown.bs.modal → retry borné au init (idempotent).
+		if (!ed.initialized) { ed.once('init', () => this.placeCaretAtMarker()); return; }
 		const marker = ed.getBody().querySelector('span.mxwm-sig-caret');
 		if (!marker) { return; }
 		const parent = marker.parentNode;
@@ -346,7 +352,8 @@ export class ComposeVM {
 		if (asAttachment) {
 			const sig = this.signatureBlock();
 			this.html(`${this.sigLead(sig)}${sig}<p><i>${t('compose.forwarded_attach')}</i></p>`);
-			const name = (subject || 'message').replace(/[\\/:*?"<>|\x00-\x1F]/g, '').trim() + '.eml';
+			const base = (subject || 'message').replace(/[\\/:*?"<>|\x00-\x1F]/g, '').trim();
+			const name = (base || 'message') + '.eml'; // sujet entièrement filtré → « message.eml »
 			this.attachments.push({ token: null,
 				msgref: { folder: msg.folder, uid: msg.uid, eml: true },
 				name, size: msg.size || 0,
@@ -364,7 +371,7 @@ export class ComposeVM {
 	/** Insère la réponse type `r` à la position du curseur (TinyMCE
 	 *  insertContent), puis ferme le menu options (auto-close « outside »). */
 	applyResponse(r) {
-		const ed = tinymce.get('compose-body');
+		const ed = window.tinymce?.get('compose-body');
 		if (ed?.initialized) {
 			ed.insertContent(r.body);
 			this._suspendDirty = true;
@@ -575,7 +582,7 @@ export class ComposeVM {
 	/** Contenu live de l'éditeur : l'observable html peut être périmée
 	 *  (sync seulement sur change/keyup/undo/redo). */
 	bodyHtml() {
-		const ed = tinymce.get('compose-body');
+		const ed = window.tinymce?.get('compose-body');
 		return ed?.initialized ? ed.getContent() : (this.html() || '');
 	}
 
@@ -618,6 +625,8 @@ export class ComposeVM {
 			.join(',').split(/[,;]/).map(s => s.trim()).filter(Boolean).map(extract);
 		const keys = await api.get('/pgp/keys/lookup?emails=' + encodeURIComponent(rcpts.join(',')));
 		const missing = [...new Set(rcpts)].filter(r => !keys.find(k => k.email === r));
+		// openpgp chargé à la demande (lazy.js) — ~540K hors du boot.
+		const openpgp = await loadOpenPgp();
 		// La clé publique de l'expéditeur est exigée (le message lui est aussi
 		// chiffré) : si seule sa clé privée est importée, la partie publique
 		// s'en déduit côté client — sinon no_pubkey pointerait son propre From.

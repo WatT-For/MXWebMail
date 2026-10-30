@@ -30,12 +30,8 @@ final class PluginManager
 	public function loadEnabled(bool $adminSurface = false): void
 	{
 		$admin = $adminSurface || !empty($_SESSION['admin']);
-		$dir = $this->app->rootDir() . '/plugins';
-		if (!is_dir($dir)) {
-			return;
-		}
-		foreach (glob($dir . '/*/plugin.json') ?: [] as $manifestFile) {
-			$manifest = json_decode((string) file_get_contents($manifestFile), true);
+		foreach ($this->manifests() as $manifestFile => $manifest) {
+			$manifest = is_array($manifest) ? $manifest : null;
 			$name = $manifest['name'] ?? basename(dirname($manifestFile));
 			if (!$manifest || !$this->repo->isEnabled($name) || isset($this->loaded[$name])
 				|| (!$admin && !$this->repo->isUserAllowed($name))) {
@@ -61,6 +57,43 @@ final class PluginManager
 				$this->app->log('error', "plugin {$name}: " . $e->getMessage());
 			}
 		}
+	}
+
+	/**
+	 * Manifestes plugins présents (path => manifest décodé) — cache
+	 * storage/cache/plugins.php revalidé par filemtime de chaque
+	 * plugin.json : 22 stats ≪ 22 lectures + décodages à chaque requête.
+	 * Un manifeste modifié (install/update) change son mtime ; un plugin
+	 * ajouté/supprimé change la liste des fichiers → revalidation naturelle,
+	 * aucune invalidation explicite requise.
+	 */
+	private function manifests(): array
+	{
+		$dir = $this->app->rootDir() . '/plugins';
+		if (!is_dir($dir)) {
+			return [];
+		}
+		$mtimes = [];
+		foreach (glob($dir . '/*/plugin.json') ?: [] as $f) {
+			$mtimes[$f] = (int) @filemtime($f);
+		}
+		$cacheFile = $this->app->storageDir() . '/cache/plugins.php';
+		if (is_file($cacheFile)) {
+			$c = require $cacheFile;
+			if (is_array($c) && ($c['mtimes'] ?? null) === $mtimes
+				&& is_array($c['manifests'] ?? null)) {
+				return $c['manifests'];
+			}
+		}
+		$manifests = [];
+		foreach ($mtimes as $f => $_) {
+			$manifests[$f] = json_decode((string) file_get_contents($f), true);
+		}
+		// Écriture atomique (tmp+rename+opcache_invalidate) : un require
+		// concurrent ne doit jamais charger un cache tronqué ou périmé.
+		@mxwm_atomic_write($cacheFile, '<?php return '
+			. var_export(['mtimes' => $mtimes, 'manifests' => $manifests], true) . ";\n");
+		return $manifests;
 	}
 
 	public function hooks(): HookRegistry
@@ -141,9 +174,22 @@ final class PluginManager
 				'version'      => $m['version'] ?? '',
 				'enabled'      => $this->repo->isEnabled($name),
 				'user_allowed' => $this->repo->isUserAllowed($name),
+				'admin_only'   => self::isAdminOnly($m),
 				'has_schema'   => is_file(dirname($file) . '/config.schema.json'),
 			];
 		}
 		return $out;
+	}
+
+	/**
+	 * Plugin sans surface utilisateur : tous les hooks déclarés au manifeste
+	 * sont des hooks admin.* (ex. admin.mounts) — le switch « Accès
+	 * utilisateurs » de l'onglet Extensions est alors sans objet (masqué).
+	 */
+	private static function isAdminOnly(array $manifest): bool
+	{
+		$hooks = array_filter((array) ($manifest['hooks'] ?? []), 'is_string');
+		return $hooks !== [] && [] === array_filter(
+			$hooks, fn(string $h) => !str_starts_with($h, 'admin.'));
 	}
 }

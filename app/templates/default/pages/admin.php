@@ -213,6 +213,7 @@
 				</button>
 			</div>
 		</div>
+		<div class="small text-muted mb-2" data-bind="text: $root.t('admin.users_summary', userStats())"></div>
 		<table class="table table-hover table-sm align-middle">
 			<thead class="table-light"><tr>
 				<th>Email</th><th><?= $t('common.name') ?></th>
@@ -249,12 +250,14 @@
 		</div>
 		<!-- ko toast: { value: pluginsErr, variant: 'danger' } --><!-- /ko -->
 		<table class="table table-hover table-sm align-middle">
-			<thead class="table-light"><tr><th><?= $t('common.name') ?></th><th><?= $t('admin.description') ?></th><th>Version</th><th><?= $t('admin.enabled') ?></th><th><?= $t('admin.plugin_user_allowed') ?></th><th></th></tr></thead>
+			<thead class="table-light"><tr><th><?= $t('common.name') ?></th><th>Version</th><th><?= $t('admin.enabled') ?></th><th><?= $t('admin.plugin_user_allowed') ?></th><th></th></tr></thead>
 			<tbody>
 				<!-- ko foreach: plugins -->
 				<tr>
-					<td data-bind="text: name"></td>
-					<td data-bind="text: $root.t(description)"></td>
+					<td>
+						<span data-bind="text: name"></span>
+						<div class="text-muted small" data-bind="text: $root.t(description)"></div>
+					</td>
 					<td>
 						<span data-bind="text: version"></span>
 						<!-- ko if: $root.catalogFor(name)?.compatible === false -->
@@ -267,10 +270,13 @@
 						</div>
 					</td>
 					<td>
+						<!-- ko ifnot: admin_only -->
 						<div class="form-check form-switch">
 							<input class="form-check-input" type="checkbox"
 								data-bind="checked: user_allowed, event: { change: $parent.togglePluginAllowed }, enable: enabled()">
 						</div>
+						<!-- /ko -->
+						<!-- ko if: admin_only --><span class="text-muted">—</span><!-- /ko -->
 					</td>
 					<td class="text-end text-nowrap">
 						<!-- ko if: $root.catalogFor(name)?.update_available -->
@@ -292,8 +298,10 @@
 				<!-- Catalogue GitHub (PluginPackageService) : entrées non installées -->
 				<!-- ko foreach: catalogAvailable -->
 				<tr>
-					<td data-bind="text: name"></td>
-					<td data-bind="text: $root.t(description)"></td>
+					<td>
+						<span data-bind="text: name"></span>
+						<div class="text-muted small" data-bind="text: $root.t(description)"></div>
+					</td>
 					<td>
 						<span class="badge text-bg-secondary" data-bind="text: 'v' + latest"></span>
 						<!-- ko if: compatible === false -->
@@ -690,6 +698,17 @@
 				<div class="col-md-3 text-muted small"><?= $t('admin.about.storage_dir') ?></div>
 				<div class="col"><code class="small text-break" data-bind="text: paths.storage"></code></div>
 			</div>
+		</div></div>
+		<div class="card mt-3"><div class="card-body">
+			<h6 class="card-title mb-3"><i class="fa-solid fa-hard-drive me-1"></i><?= $t('admin.about.storage_usage') ?></h6>
+			<table class="table table-sm table-borderless mb-0">
+				<thead><tr><th class="text-muted fw-normal"><?= $t('admin.about.dir') ?></th>
+					<th class="text-muted fw-normal text-end"><?= $t('admin.about.size') ?></th></tr></thead>
+				<tbody data-bind="foreach: storage">
+					<tr><td><code data-bind="text: name"></code></td>
+						<td class="text-end" data-bind="text: $root.formatSize(bytes)"></td></tr>
+				</tbody>
+			</table>
 		</div></div>
 		<!-- /ko -->
 	</div>
@@ -1129,7 +1148,7 @@
 	</div>
 </div>
 
-<!-- Template générique de champ de réglage (piloté par settings-schema.php) -->
+<!-- Template générique de champ de réglage (piloté par AdminController::settingsSchema()) -->
 <script type="text/html" id="fields-tpl">
 	<div class="col-12 col-xxl-6">
 		<div class="row align-items-center mb-2">

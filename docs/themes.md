@@ -72,6 +72,10 @@ La chaîne de résolution est `name → extends → … → default` (implicite 
 - `theme.json` et `langs/` ne sont **pas** hérités (chaque thème a les siens).
 - Vues rendues par l'application : `app`, `login`, `admin`, `admin-login`,
   `maintenance` (toutes fournies par `default`, donc héritables).
+- Une vue personnalisée doit échapper `<?= $pluginHead ?>` dans son `<head>`
+  (après `$themeScript`) pour que les injections `app.head` des plugins y
+  fonctionnent — cf. `default/pages/app.php`. Sans lui, le HTML des plugins
+  écoutant `app.head` est collecté puis silencieusement ignoré sur cette page.
 
 Exemple : `dark` ne fournit que `assets/app.css` et son `theme.json`/schéma ; tout le reste
 est repris de `default`.

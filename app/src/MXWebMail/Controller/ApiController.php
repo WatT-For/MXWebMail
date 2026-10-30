@@ -148,7 +148,7 @@ final class ApiController
 
 	public function appdata(Request $request): JsonResponse
 	{
-		$this->requireAuth();
+		$this->requireReadOnly();
 		$user = $this->app->currentUser();
 		// Capacité Sieve du domaine courant : même ordre que
 		// AuthService::resolveDomain mais sans autodetect (pas de réseau ici).
@@ -185,6 +185,9 @@ final class ApiController
 				fn($a) => $a + ['active' => (int) $a['id'] === (int) ($_SESSION['account_id'] ?? 0)],
 				$this->app->auth()->accounts((int) $user['id'])
 			),
+			// Dossiers surveillés pour la détection de nouveaux mails —
+			// lecture de réglage sans IMAP (évite un RTT /folders/notify au boot).
+			'notify_folders' => $this->app->mail()->notifyFolderList(),
 		];
 		// Hook : les plugins injectent leurs données de boot
 		$data = $this->app->hooks()->filter('app.data', $data, $user);
@@ -195,13 +198,27 @@ final class ApiController
 
 	public function proxy(Request $request): Response
 	{
-		$this->requireAuth();
+		$this->requireReadOnly();
 		if (!$this->app->config()->get('image_proxy', true)) {
 			return Response::notFound();
 		}
 		$url = (string) $request->input('url', '');
 		if (!$url || !preg_match('#^https?://#i', $url)) {
 			return JsonResponse::error($this->t('errors.bad_url'), 'bad_url');
+		}
+		$http = (array) $this->app->config()->get('http', []);
+		$ttl = max(0, (int) ($http['proxy_ttl'] ?? 86400));
+		// Cache disque : l'image distante était refetchée (+ DNS anti-SSRF) à
+		// chaque affichage d'un même mail. Clé = URL complète (les URLs
+		// tokenisées restent distinctes ; le contenu est adressé par URL).
+		$cacheBase = $this->app->storageDir() . '/cache/proxy/' . hash('sha256', $url);
+		if ($ttl > 0 && is_file($cacheBase) && is_file($cacheBase . '.mime')
+			&& (int) filemtime($cacheBase) > time() - $ttl) {
+			$mime = trim((string) file_get_contents($cacheBase . '.mime'));
+			$body = file_get_contents($cacheBase);
+			if (in_array($mime, self::PROXY_IMAGE_TYPES, true) && is_string($body)) {
+				return $this->proxyResponse($mime, $body, $ttl);
+			}
 		}
 		$allow = array_filter(array_map('trim',
 			explode(',', (string) $this->app->config()->get('image_proxy_allowlist', ''))));
@@ -252,11 +269,18 @@ final class ApiController
 				"Proxy image non-image url=" . self::proxyLogUrl($url) . " mime={$mime}");
 			return JsonResponse::error($this->t('errors.not_image'), 'not_image', 403);
 		}
-		$http = (array) $this->app->config()->get('http', []);
+		if ($ttl > 0) {
+			mxwm_atomic_write($cacheBase, $body);
+			mxwm_atomic_write($cacheBase . '.mime', $mime);
+		}
+		return $this->proxyResponse($mime, $body, $ttl);
+	}
+
+	private function proxyResponse(string $mime, string $body, int $ttl): Response
+	{
 		return new Response($body, 200, [
 			'Content-Type'              => $mime,
-			'Cache-Control'             => 'private, max-age='
-				. max(0, (int) ($http['proxy_ttl'] ?? 86400)),
+			'Cache-Control'             => 'private, max-age=' . $ttl,
 			'X-Content-Type-Options'    => 'nosniff',
 			// Défense en profondeur : jamais de script si le corps est ouvert en direct.
 			'Content-Security-Policy'   => 'sandbox',
@@ -347,7 +371,7 @@ final class ApiController
 
 	public function folders(Request $request): JsonResponse
 	{
-		$this->requireAuth();
+		$this->requireReadOnly();
 		return JsonResponse::ok($this->app->mail()->folders());
 	}
 
@@ -422,7 +446,7 @@ final class ApiController
 
 	public function folderAcl(Request $request): JsonResponse
 	{
-		$this->requireAuth();
+		$this->requireReadOnly();
 		return JsonResponse::ok($this->app->mail()->folderAcl($this->folderParam($request)));
 	}
 
@@ -452,7 +476,7 @@ final class ApiController
 	/** Assignations des dossiers système du compte actif (auto par défaut). */
 	public function foldersSpecialGet(Request $request): JsonResponse
 	{
-		$this->requireAuth();
+		$this->requireReadOnly();
 		// Une seule instance : App::mail() retourne un MailService neuf à
 		// chaque appel — deux appels = deux connexions IMAP.
 		$mail = $this->app->mail();
@@ -495,7 +519,7 @@ final class ApiController
 	/** Dossiers surveillés pour les notifications (INBOX toujours incluse). */
 	public function foldersNotifyGet(Request $request): JsonResponse
 	{
-		$this->requireAuth();
+		$this->requireReadOnly();
 		return JsonResponse::ok($this->app->mail()->notifyFolderList());
 	}
 
@@ -512,7 +536,7 @@ final class ApiController
 
 	public function accounts(Request $request): JsonResponse
 	{
-		$this->requireAuth();
+		$this->requireReadOnly();
 		$uid = (int) $_SESSION['user_id'];
 		return JsonResponse::ok(array_map(
 			fn($a) => $a + ['active' => (int) $a['id'] === (int) ($_SESSION['account_id'] ?? 0)],
@@ -641,7 +665,7 @@ final class ApiController
 	 */
 	public function oauthApps(Request $request): JsonResponse
 	{
-		$this->requireAuth();
+		$this->requireReadOnly();
 		$repo = $this->app->oauthApps();
 		return JsonResponse::ok([
 			'apps'         => $repo->allFor((int) $_SESSION['user_id']),
@@ -724,13 +748,13 @@ final class ApiController
 
 	public function filters(Request $request): JsonResponse
 	{
-		$this->requireAuth();
+		$this->requireReadOnly();
 		return JsonResponse::ok($this->app->mail()->filtersList());
 	}
 
 	public function filterGet(Request $request): JsonResponse
 	{
-		$this->requireAuth();
+		$this->requireReadOnly();
 		$name = $this->noCrlf((string) $request->input('name'), 'name');
 		return JsonResponse::ok([
 			'name'   => $name,
@@ -830,7 +854,7 @@ final class ApiController
 
 	public function vacationGet(Request $request): JsonResponse
 	{
-		$this->requireAuth();
+		$this->requireReadOnly();
 		return JsonResponse::ok($this->app->mail()->vacationGet());
 	}
 
@@ -891,7 +915,7 @@ final class ApiController
 
 	public function responses(Request $request): JsonResponse
 	{
-		$this->requireAuth();
+		$this->requireReadOnly();
 		return JsonResponse::ok($this->cannedResponses((int) $_SESSION['user_id']));
 	}
 
@@ -954,7 +978,7 @@ final class ApiController
 
 	public function messages(Request $request): JsonResponse
 	{
-		$this->requireAuth();
+		$this->requireReadOnly();
 		$folder = $this->noCrlf((string) $request->input('folder', 'INBOX'), 'folder');
 		$page = max(1, (int) $request->input('page', 1));
 		$limit = min(200, max(1, (int) $request->input('limit', 50)));
@@ -978,7 +1002,7 @@ final class ApiController
 
 	public function message(Request $request): JsonResponse
 	{
-		$this->requireAuth();
+		$this->requireReadOnly();
 		$folder = $this->noCrlf((string) $request->input('folder', 'INBOX'), 'folder');
 		$msg = $this->app->mail()->message($folder, (int) $request->params['uid']);
 		if (!$msg) {
@@ -989,7 +1013,10 @@ final class ApiController
 		// (mark_read_delay) : le client pose alors le flag via /flags.
 		$delay = (int) ($this->userSettings((int) $_SESSION['user_id'])['mark_read_delay'] ?? 0);
 		if (!$msg['isSeen'] && $delay <= 0) {
-			try { $this->app->mail()->flags($folder, (int) $request->params['uid'], '\Seen', true); } catch (\Throwable) {}
+			try {
+				$this->app->mail()->flags($folder, (int) $request->params['uid'], '\Seen', true);
+				$msg['isSeen'] = true; // flag posé : la réponse ne doit pas annoncer « non lu »
+			} catch (\Throwable) {}
 		}
 		return JsonResponse::ok($msg);
 	}
@@ -1116,7 +1143,7 @@ final class ApiController
 
 	public function messageRaw(Request $request): Response
 	{
-		$this->requireAuth();
+		$this->requireReadOnly();
 		$folder = $this->noCrlf((string) $request->input('folder', 'INBOX'), 'folder');
 		$uid = (int) $request->params['uid'];
 		header('Content-Type: message/rfc822');
@@ -1125,6 +1152,12 @@ final class ApiController
 			\MailSo\Base\Utils::FpassthruWithTimeLimitReset($r);
 		});
 		if (!$ok) {
+			// Purge les en-têtes attachment posés plus haut : sinon la 404
+			// partirait avec Content-Disposition → téléchargement d'un .eml
+			// contenant le texte d'erreur. Ciblés pour préserver les
+			// en-têtes de sécurité posés en amont par Headers::send().
+			header_remove('Content-Type');
+			header_remove('Content-Disposition');
 			return Response::notFound();
 		}
 		return new Response('', 200); // body déjà streamé
@@ -1132,44 +1165,89 @@ final class ApiController
 
 	public function attachment(Request $request): Response
 	{
-		$this->requireAuth();
+		$this->requireReadOnly();
 		$folder = $this->noCrlf((string) $request->input('folder', 'INBOX'), 'folder');
 		$uid = (int) $request->params['uid'];
 		$mimeIndex = (string) $request->params['id'];
 		$download = (bool) $request->input('download', true);
 
-		$msg = $this->app->mail()->message($folder, $uid);
+		// uv = UIDVALIDITY exposée par message() : le contenu d'une PJ d'un
+		// (dossier,uidvalidity,uid,mimeIndex) donné est immuable — cache
+		// disque + immutable navigateur sûrs tant que l'URL porte uv.
+		// Sans uv (liens anciens/clients externes) : chemin historique.
+		$uv = (string) $request->input('uv', '');
+		$cacheKey = null;
+		if ($uv !== '') {
+			$cacheKey = sha1(implode('|', [
+				(string) ($_SESSION['account_id'] ?? 0),
+				(string) ($_SESSION['email'] ?? ''),
+				$folder, $uv, $uid, $mimeIndex]));
+			$dir = $this->app->storageDir() . '/cache/att';
+			if (is_file($dir . '/' . $cacheKey . '.json') && is_file($dir . '/' . $cacheKey)) {
+				$meta = json_decode((string) file_get_contents($dir . '/' . $cacheKey . '.json'), true);
+				$body = file_get_contents($dir . '/' . $cacheKey);
+				if (is_array($meta) && isset($meta['mime'], $meta['name']) && is_string($body)) {
+					return $this->attachmentResponse($meta, $body, $download, true);
+				}
+			}
+		}
+
+		// BODYSTRUCTURE seul : message() fetchait aussi toutes les parties
+		// texte (body_text_limit=0 → corps entier) pour lire mimeIndex/mime/nom.
+		$atts = $this->app->mail()->attachmentList($folder, $uid);
 		$meta = null;
-		foreach ($msg['attachments'] ?? [] as $att) {
+		foreach ($atts ?? [] as $att) {
 			if ($att['mimeIndex'] === $mimeIndex) { $meta = $att; break; }
 		}
 		if (!$meta) {
 			$this->app->log('warning', "Attachment 404 uid={$uid} folder={$folder} "
 				. "mimeIndex={$mimeIndex} dispo=["
-				. implode(',', array_column($msg['attachments'] ?? [], 'mimeIndex')) . ']');
+				. implode(',', array_column($atts ?? [], 'mimeIndex')) . ']');
 			return Response::notFound();
 		}
-		$disposition = $download ? 'attachment' : 'inline';
-		header('Content-Type: ' . $meta['mime']);
-		$filename = (string) preg_replace('/[\x00-\x1F\x7F]/', '', (string) $meta['name']);
-		header('Content-Disposition: ' . $disposition . '; filename="' . addslashes($filename) . '"');
-		// Contenu utilisateur servi sous notre origine (images cid inline) :
-		// sandbox CSP = jamais de script même si la PJ est du HTML ouvert en direct.
-		// Exception PDF : les viewers natifs (pdfium) n'exécutent pas le JS
-		// embarqué mais sont neutralisés par la sandbox — sans elle, l'aperçu
-		// en iframe fonctionne (le type bitmap applicatif reste inerte).
-		if (strtolower((string) $meta['mime']) !== 'application/pdf') {
-			header('Content-Security-Policy: sandbox');
-		}
-		header('X-Content-Type-Options: nosniff');
-		$ok = $this->app->mail()->mimeStream($folder, $uid, $mimeIndex, function ($r) {
-			\MailSo\Base\Utils::FpassthruWithTimeLimitReset($r);
-		});
-		if (!$ok) {
+		$body = null;
+		$ok = $this->app->mail()->mimeStream($folder, $uid, $mimeIndex,
+			function ($r) use (&$body) { $body = stream_get_contents($r); });
+		if (!$ok || !is_string($body)) {
 			$this->app->log('warning',
 				"Attachment mimeStream échoué uid={$uid} folder={$folder} mimeIndex={$mimeIndex}");
+			return Response::notFound();
 		}
-		return new Response('', $ok ? 200 : 404);
+		if ($cacheKey !== null) {
+			// tmp+rename : un hit concurrent ne lit jamais un corps tronqué.
+			mxwm_atomic_write($dir . '/' . $cacheKey, $body);
+			mxwm_atomic_write($dir . '/' . $cacheKey . '.json',
+				json_encode(['mime' => $meta['mime'], 'name' => $meta['name']]));
+		}
+		return $this->attachmentResponse($meta, $body, $download, $cacheKey !== null);
+	}
+
+	/**
+	 * Réponse PJ — mêmes en-têtes que le stream historique.
+	 * Contenu utilisateur servi sous notre origine (images cid inline) :
+	 * sandbox CSP = jamais de script même si la PJ est du HTML ouvert en direct.
+	 * Exception PDF : les viewers natifs (pdfium) n'exécutent pas le JS
+	 * embarqué mais sont neutralisés par la sandbox — sans elle, l'aperçu
+	 * en iframe fonctionne (le type bitmap applicatif reste inerte).
+	 */
+	private function attachmentResponse(array $meta, string $body, bool $download, bool $immutable): Response
+	{
+		$filename = (string) preg_replace('/[\x00-\x1F\x7F]/', '', (string) $meta['name']);
+		$headers = [
+			'Content-Type'           => (string) $meta['mime'],
+			'Content-Disposition'    => ($download ? 'attachment' : 'inline')
+				. '; filename="' . addslashes($filename) . '"',
+			'X-Content-Type-Options' => 'nosniff',
+			// immutable n'est émis que si l'URL portait uv (contenu figé) —
+			// sinon pas de cache navigateur : le même uid peut changer de
+			// contenu si le dossier est recréé (uidvalidity roulé).
+			'Cache-Control'          => $immutable
+				? 'private, max-age=31536000, immutable' : 'private, max-age=0',
+		];
+		if (strtolower((string) $meta['mime']) !== 'application/pdf') {
+			$headers['Content-Security-Policy'] = 'sandbox';
+		}
+		return new Response($body, 200, $headers);
 	}
 
 	public function messageFlags(Request $request): JsonResponse
@@ -1300,24 +1378,26 @@ final class ApiController
 		if (!is_resource($handle)) {
 			throw new \RuntimeException($this->t('errors.bad_upload'), 400);
 		}
-		$imported = 0; $failed = 0;
-		$msg = ''; $date = 0;
-		$flush = function () use (&$msg, &$date, &$imported, &$failed, $mail, $folder) {
-			if (trim($msg) !== '') {
-				try {
-					$mail->appendMessage($msg, $folder, ['\\Seen'], $date);
-					$imported++;
-				} catch (\Throwable) { $failed++; }
+		$imported = 0; $failed = 0; $skipped = 0;
+		$msg = ''; $date = 0; $hasMsg = false;
+		$atCap = fn() => ($imported + $failed + $skipped) >= 2000;
+		$flush = function () use (&$msg, &$date, &$hasMsg, &$imported, &$failed, &$skipped, $atCap, $mail, $folder) {
+			if ($hasMsg) {
+				if ($atCap()) {
+					$skipped++; // plafond de sécurité : compté, non importé
+				} elseif (trim($msg) !== '') {
+					try {
+						$mail->appendMessage($msg, $folder, ['\\Seen'], $date);
+						$imported++;
+					} catch (\Throwable) { $failed++; }
+				}
 			}
-			$msg = ''; $date = 0;
+			$msg = ''; $date = 0; $hasMsg = false;
 		};
 		while (($line = fgets($handle)) !== false) {
-			if ($imported + $failed >= 2000) {
-				$failed++; // plafond de sécurité
-				break;
-			}
 			if (str_starts_with($line, 'From ')) {
 				$flush();
+				$hasMsg = true;
 				$ts = strtotime(substr($line, 5));
 				$date = $ts !== false ? $ts : 0;
 				continue;
@@ -1326,18 +1406,22 @@ final class ApiController
 			if (preg_match('/^>+From /', $line)) {
 				$line = substr($line, 1);
 			}
-			$msg .= $line;
+			// Au-delà du plafond le corps n'est plus accumulé (mémoire
+			// bornée) — le message reste compté via $hasMsg.
+			if (!$atCap()) {
+				$msg .= $line;
+			}
 		}
 		$flush();
 		fclose($handle);
-		return ['imported' => $imported, 'failed' => $failed];
+		return ['imported' => $imported, 'failed' => $failed, 'skipped' => $skipped];
 	}
 
 	/** Toutes les PJ d'un message en un zip streamé (MXWebMailLib\Stream\ZIP). */
 	/** Zip des .eml des messages cochés : GET ?uids=1,2,3 (cap 100, streamé). */
 	public function emlZip(Request $request): Response
 	{
-		$this->requireAuth();
+		$this->requireReadOnly();
 		$folder = $this->folderParam($request);
 		$uids = array_values(array_unique(array_filter(array_map('intval',
 			explode(',', (string) $request->input('uids', ''))))));
@@ -1349,12 +1433,27 @@ final class ApiController
 				$this->t('errors.too_many', ['max' => 100]), 'too_many', 413);
 		}
 		$mail = $this->app->mail();
+		// Valide le dossier AVANT les en-têtes : MessageMimeStream fait le même
+		// FolderExamine en interne, mais après émission du Content-Disposition —
+		// un dossier invalide produirait un zip vide/tronqué téléchargé.
+		try {
+			$mail->client()->ImapClient()->FolderExamine($folder);
+		} catch (\Throwable) {
+			return Response::notFound();
+		}
 		$zip = new \MXWebMailLib\Stream\ZIP();
 		$zip->pushHttpHeaders('messages');
+		$failed = [];
 		foreach ($uids as $uid) {
-			// uid disparu entre la coche et le téléchargement : ignoré.
-			$mail->mimeStream($folder, $uid, '',
-				function ($r) use ($zip, $uid) { $zip->addFromStream($r, "message-{$uid}.eml"); });
+			// uid disparu ou illisible : entrée signalée dans ERREURS.txt.
+			if (!$mail->mimeStream($folder, $uid, '',
+				function ($r) use ($zip, $uid) { $zip->addFromStream($r, "message-{$uid}.eml"); })) {
+				$failed[] = $uid;
+			}
+		}
+		if ($failed) {
+			$zip->addFromString('ERREURS.txt',
+				"Messages introuvables ou illisibles : " . implode(', ', $failed) . "\n");
 		}
 		$zip->close();
 		return new Response('', 200);
@@ -1362,13 +1461,12 @@ final class ApiController
 
 	public function attachmentsZip(Request $request): Response
 	{
-		$this->requireAuth();
+		$this->requireReadOnly();
 		$folder = $this->noCrlf((string) $request->input('folder', 'INBOX'), 'folder');
 		$uid = (int) $request->params['uid'];
-		$mail = $this->app->mail();
-		$msg = $mail->message($folder, $uid);
-		$atts = $msg['attachments'] ?? [];
-		if (!$msg || !$atts) {
+		// BODYSTRUCTURE seul : pas de fetch des corps texte pour les métas PJ.
+		$atts = $this->app->mail()->attachmentList($folder, $uid);
+		if (!$atts) {
 			return Response::notFound();
 		}
 		$maxTotal = 4 * (int) $this->app->config()->get('attachments_max_total', 25) * 1024 * 1024;
@@ -1376,27 +1474,41 @@ final class ApiController
 		$total = 0;
 		foreach ($atts as $att) {
 			$total += (int) ($att['size'] ?? 0);
-			$names[] = (string) preg_replace('/[\x00-\x1F\x7F\/\\\\]/', '_', (string) $att['name']);
+			$n = (string) preg_replace('/[\x00-\x1F\x7F\/\\\\]/', '_', (string) $att['name']);
+			$names[] = $n !== '' ? $n : 'piece-jointe'; // jamais d'entrée zip au nom vide
 		}
 		if ($total > $maxTotal) {
 			return JsonResponse::error(
 				$this->t('errors.attachments_too_big', ['mb' => (int) ($maxTotal / 1048576)]), 'too_big', 413);
 		}
-		// Déduplique les noms : « name (2).ext »
+		// Déduplique les noms : « name (2).ext » — le nom produit est aussi
+		// enregistré : une PJ déjà nommée « a (2).txt » n'entre pas en
+		// collision avec le doublon généré.
 		$seen = [];
 		$names = array_map(function ($n) use (&$seen) {
 			if (!isset($seen[$n])) { $seen[$n] = 1; return $n; }
-			$i = ++$seen[$n];
 			$dot = strrpos($n, '.');
-			return $dot === false ? "{$n} ({$i})"
-				: substr($n, 0, $dot) . " ({$i})" . substr($n, $dot);
+			$base = $dot === false ? $n : substr($n, 0, $dot);
+			$ext  = $dot === false ? '' : substr($n, $dot);
+			do {
+				$c = "{$base} (" . ++$seen[$n] . "){$ext}";
+			} while (isset($seen[$c]));
+			$seen[$c] = 1;
+			return $c;
 		}, $names);
 		$zip = new \MXWebMailLib\Stream\ZIP();
 		$zip->pushHttpHeaders("attachments-{$uid}");
+		$failed = [];
 		foreach ($atts as $i => $att) {
 			$name = $names[$i];
-			$mail->mimeStream($folder, $uid, (string) $att['mimeIndex'],
-				function ($r) use ($zip, $name) { $zip->addFromStream($r, $name); });
+			if (!$mail->mimeStream($folder, $uid, (string) $att['mimeIndex'],
+				function ($r) use ($zip, $name) { $zip->addFromStream($r, $name); })) {
+				$failed[] = $name;
+			}
+		}
+		if ($failed) {
+			$zip->addFromString('ERREURS.txt',
+				"Pièces jointes introuvables ou illisibles :\n" . implode("\n", $failed) . "\n");
 		}
 		$zip->close();
 		return new Response('', 200);
@@ -1889,7 +2001,7 @@ final class ApiController
 
 	public function sessions(Request $request): JsonResponse
 	{
-		$this->requireAuth();
+		$this->requireReadOnly();
 		return JsonResponse::ok(
 			$this->app->auth()->rememberSessions((int) $_SESSION['user_id']));
 	}
@@ -1915,7 +2027,7 @@ final class ApiController
 
 	public function contacts(Request $request): JsonResponse
 	{
-		$this->requireAuth();
+		$this->requireReadOnly();
 		$this->requireContacts();
 		$q = $this->noCrlf((string) $request->input('q', ''), 'q');
 		$userId = (int) $_SESSION['user_id'];
@@ -1985,7 +2097,7 @@ final class ApiController
 	/** Export du carnet complet en .vcf (vCard 3.0). */
 	public function contactsExport(Request $request): Response
 	{
-		$this->requireAuth();
+		$this->requireReadOnly();
 		$this->requireContacts();
 		$vcf = \MXWebMail\Service\VCardContacts::export(
 			$this->app->contacts()->exportRows((int) $_SESSION['user_id']));
@@ -2019,7 +2131,7 @@ final class ApiController
 
 	public function settingsGet(Request $request): JsonResponse
 	{
-		$this->requireAuth();
+		$this->requireReadOnly();
 		return JsonResponse::ok($this->userSettings((int) $_SESSION['user_id']));
 	}
 
@@ -2047,7 +2159,7 @@ final class ApiController
 
 	public function identities(Request $request): JsonResponse
 	{
-		$this->requireAuth();
+		$this->requireReadOnly();
 		$uid = (int) $_SESSION['user_id'];
 		$data = $this->app->identities()->allForUser($uid);
 		// Hook : un plugin peut fournir des identités externes (ldap-identities…)
@@ -2101,7 +2213,7 @@ final class ApiController
 
 	public function pgpKeys(Request $request): JsonResponse
 	{
-		$this->requireAuth();
+		$this->requireReadOnly();
 		return JsonResponse::ok($this->app->pgp()->all((int) $_SESSION['user_id']));
 	}
 
@@ -2129,14 +2241,14 @@ final class ApiController
 	/** Clés publiques connues pour une liste de destinataires (?emails=a,b,c). */
 	public function pgpKeysLookup(Request $request): JsonResponse
 	{
-		$this->requireAuth();
+		$this->requireReadOnly();
 		$emails = preg_split('/[,;]/', (string) $request->input('emails', ''));
 		return JsonResponse::ok($this->app->pgp()->publicKeysFor((int) $_SESSION['user_id'], $emails));
 	}
 
 	public function quota(Request $request): JsonResponse
 	{
-		$this->requireAuth();
+		$this->requireReadOnly();
 		return JsonResponse::ok($this->app->mail()->quota() ?? []);
 	}
 
@@ -2189,6 +2301,25 @@ final class ApiController
 		return array_filter($settings,
 			fn(string $k) => !str_starts_with($k, 'plugin.'),
 			ARRAY_FILTER_USE_KEY);
+	}
+
+	/**
+	 * requireAuth + session_write_close : pour les endpoints en lecture
+	 * seule (GET). Le fichier de session resterait sinon verrouillé durant
+	 * les appels IMAP/Sieve/HTTP — poll, images cid:, quota et actions de
+	 * l'onglet se sérialiseraient les uns derrière les autres.
+	 * Csrf::token() avant la fermeture : créé normalement au rendu de page,
+	 * mais garanti ici — sinon il régénèrerait à chaque requête et tous les
+	 * POST échoueraient en 403. $_SESSION reste lisible après fermeture ;
+	 * seule la persistance s'arrête.
+	 */
+	private function requireReadOnly(): void
+	{
+		$this->requireAuth();
+		if (session_status() === PHP_SESSION_ACTIVE) {
+			Csrf::token();
+			session_write_close();
+		}
 	}
 
 	private function requireAuth(): void
@@ -2258,7 +2389,13 @@ final class ApiController
 	{
 		$raw = (string) ($request->params['name'] ?? '');
 		if ($raw !== '') {
-			return $this->noCrlf(base64_decode(strtr($raw, '-_', '+/'), true) ?: $raw, 'folder');
+			// Round-trip strict : un nom composé de caractères base64 (« INBOX »)
+			// envoyé brut ne doit pas être décodé en binaire — il reste tel quel.
+			$dec = base64_decode(strtr($raw, '-_', '+/'), true);
+			if (is_string($dec) && rtrim(base64_encode($dec), '=') === strtr($raw, '-_', '+/')) {
+				return $this->noCrlf($dec, 'folder');
+			}
+			return $this->noCrlf($raw, 'folder');
 		}
 		return $this->noCrlf((string) $request->input('name'), 'folder');
 	}

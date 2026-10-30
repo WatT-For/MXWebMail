@@ -38,9 +38,14 @@ final class ThemeManager
 		return $this->app->rootDir() . '/templates';
 	}
 
-	/** Noms des templates installés (dossiers avec theme.json valide). */
+	private ?array $installedCache = null;
+
+	/** Noms des templates installés (dossiers avec theme.json valide) — mémoïsé par requête. */
 	public function installed(): array
 	{
+		if ($this->installedCache !== null) {
+			return $this->installedCache;
+		}
 		$out = [];
 		foreach (glob($this->templatesDir() . '/*/theme.json') ?: [] as $file) {
 			$name = basename(dirname($file));
@@ -49,7 +54,7 @@ final class ThemeManager
 			}
 		}
 		sort($out);
-		return $out;
+		return $this->installedCache = $out;
 	}
 
 	/** Version du template (manifeste, repli APP_VERSION) — pour le ?v= des assets. */
@@ -188,12 +193,18 @@ final class ThemeManager
 
 	// ─── Config par template ───
 
+	private array $schemas = [];
+	private array $configs = [];
+
 	/** Schéma plat des champs configurables — hérité du parent si absent (ou [] si invalide). */
 	public function schema(string $name): array
 	{
+		if (isset($this->schemas[$name])) {
+			return $this->schemas[$name];
+		}
 		$file = $this->resolve($name, 'config.schema.json');
 		$s = is_file($file) ? json_decode((string) file_get_contents($file), true) : null;
-		return is_array($s) ? $s : [];
+		return $this->schemas[$name] = is_array($s) ? $s : [];
 	}
 
 	/**
@@ -202,6 +213,13 @@ final class ThemeManager
 	 */
 	public function config(string $name): array
 	{
+		// Mémoïsé par requête : darkMode/iconStyle/varsCss/themeData lisaient
+		// chacun getConfig + schema (4 requêtes + 4 lectures par template).
+		// Périmé après un setConfig dans la même requête — aucun endpoint ne
+		// fait ce read-after-write (themeConfigSet ne relit pas).
+		if (isset($this->configs[$name])) {
+			return $this->configs[$name];
+		}
 		$out = [];
 		$saved = $this->app->themeRepo()->getConfig($name);
 		foreach ($this->schema($name) as $key => $f) {

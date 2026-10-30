@@ -28,6 +28,19 @@ final class ImapContactsSuggestions extends PluginBase
 		if (mb_strlen($q) < 2) {
 			return [];
 		}
+		// TTL 5 min : l'endpoint est frappé à chaque frappe (debounce 250 ms)
+		// — sans cache chaque saisie ouvrirait une connexion IMAP + SEARCH.
+		$cache = \MXWebMail\API::Actions()->Cacher();
+		// L'identité du compte fait partie de la clé : l'index de cache est
+		// partagé — sans elle deux comptes se serviraient leurs suggestions.
+		$ckey = 'contacts.imap/' . md5(
+			($_SESSION['account_id'] ?? 0) . '|' . ($_SESSION['email'] ?? '')
+			. '|' . ($this->config['folder'] ?? 'INBOX') . '|' . $q . '|' . $max);
+		$hit = $cache->Get($ckey);
+		if (is_string($hit) && is_array($hit = json_decode($hit, true))
+			&& ($hit['t'] ?? 0) > time() - 300) {
+			return $hit['d'] ?? [];
+		}
 		try {
 			$imap = $this->app->mail()->client()->ImapClient();
 			$imap->FolderSelect((string) ($this->config['folder'] ?? 'INBOX'));
@@ -56,7 +69,9 @@ final class ImapContactsSuggestions extends PluginBase
 					}
 				}
 			}
-			return array_slice($out, 0, $max);
+			$out = array_slice($out, 0, $max);
+			$cache->Set($ckey, json_encode(['t' => time(), 'd' => $out]));
+			return $out;
 		} catch (\Throwable $e) {
 			$this->app->log('warning', 'imap-contacts-suggestions: ' . $e->getMessage());
 			return [];

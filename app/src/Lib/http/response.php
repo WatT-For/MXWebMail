@@ -45,7 +45,24 @@ class Response
 		}
 		if (\function_exists('gzinflate') && '' !== $encoding
 		 && (false !== \stripos($encoding, 'gzip'))) {
-			$this->body = \gzinflate(\substr($body, 10, -4));
+			// En-tête réel : 10 octets fixes puis champs optionnels selon FLG
+			// (FEXTRA u16+données, FNAME/FCOMMENT chaînes \0, FHCRC 2 octets).
+			// Trailer = 8 octets (CRC32 + ISIZE) — un décalage fixe casserait
+			// un membre à en-tête étendu.
+			$off = 10;
+			$flg = \ord($body[3] ?? "\0");
+			if ($flg & 4) {
+				$len = ($u = \unpack('v', $body, $off)) ? $u[1] : 0;
+				$off += 2 + $len;
+			}
+			for ($mask = 8; $mask <= 16; $mask <<= 1) {
+				if ($flg & $mask) {
+					$end = \strpos($body, "\0", $off);
+					$off = false === $end ? \strlen($body) : $end + 1;
+				}
+			}
+			if ($flg & 2) { $off += 2; }
+			$this->body = \gzinflate(\substr($body, $off, -8));
 			if (false === $this->body) {
 				$err = \error_get_last() ?: ['message' => 'gzinflate failed'];
 				throw new \RuntimeException("{$err['message']} for {$request_uri}");

@@ -41,7 +41,10 @@ final class Database
 		);
 
 		if (str_starts_with($dsn, 'sqlite:')) {
-			$pdo->exec('PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;');
+			// busy_timeout : évite SQLITE_BUSY si deux requêtes écrivent en
+			// concurrence (le verrou de session PHP n'est plus garant de la
+			// sérialisation depuis la fermeture anticipée des GET read-only).
+			$pdo->exec('PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;');
 		}
 		return new self($pdo, self::globalMigrations($pdo));
 	}
@@ -51,7 +54,7 @@ final class Database
 	{
 		$pdo = new PDO('sqlite:' . $path, null, null, self::PDO_OPTIONS);
 		// auto_vacuum avant toute table : les réécritures de sync rendent les pages au FS
-		$pdo->exec('PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA auto_vacuum=INCREMENTAL;');
+		$pdo->exec('PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON; PRAGMA auto_vacuum=INCREMENTAL; PRAGMA busy_timeout=5000;');
 		return new self($pdo, self::userMigrations());
 	}
 
@@ -90,8 +93,10 @@ final class Database
 		}
 
 		$this->pdo->exec(
+			// `key` est cité : mot réservé MariaDB/MySQL (erreur 1064 non
+			// échappé), accepté aussi par SQLite.
 			'CREATE TABLE IF NOT EXISTS meta (
-				key   VARCHAR(64) PRIMARY KEY,
+				`key` VARCHAR(64) PRIMARY KEY,
 				value TEXT
 			)'
 		);
@@ -122,7 +127,7 @@ final class Database
 
 	public function meta(string $key): ?string
 	{
-		$stmt = $this->pdo->prepare('SELECT value FROM meta WHERE key = :k');
+		$stmt = $this->pdo->prepare('SELECT value FROM meta WHERE `key` = :k');
 		$stmt->execute(['k' => $key]);
 		$v = $stmt->fetchColumn();
 		return $v === false ? null : (string) $v;
@@ -131,11 +136,11 @@ final class Database
 	public function setMeta(string $key, string $value): void
 	{
 		if (str_starts_with($this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME), 'sqlite')) {
-			$this->pdo->prepare('INSERT INTO meta (key, value) VALUES (:k, :v)
-				ON CONFLICT(key) DO UPDATE SET value = excluded.value')
+			$this->pdo->prepare('INSERT INTO meta (`key`, value) VALUES (:k, :v)
+				ON CONFLICT(`key`) DO UPDATE SET value = excluded.value')
 				->execute(['k' => $key, 'v' => $value]);
 		} else {
-			$this->pdo->prepare('INSERT INTO meta (key, value) VALUES (:k, :v)
+			$this->pdo->prepare('INSERT INTO meta (`key`, value) VALUES (:k, :v)
 				ON DUPLICATE KEY UPDATE value = VALUES(value)')
 				->execute(['k' => $key, 'v' => $value]);
 		}
@@ -175,9 +180,9 @@ final class Database
 
 			"CREATE TABLE IF NOT EXISTS user_settings (
 				user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-				key     VARCHAR(128) NOT NULL,
+				`key`   VARCHAR(128) NOT NULL,
 				value   TEXT,
-				PRIMARY KEY (user_id, key)
+				PRIMARY KEY (user_id, `key`)
 			)",
 
 			"CREATE TABLE IF NOT EXISTS identities (
@@ -302,9 +307,24 @@ final class Database
 		],
 
 		// « Utilisable par les utilisateurs » : plugin activé mais non chargé hors
-		// contexte admin (miroir de themes.allowed)
+		// contexte admin — refusé par défaut, à autoriser dans l'onglet Extensions
 		9 => [
-			"ALTER TABLE plugins $addCol user_allowed INTEGER NOT NULL DEFAULT 1",
+			"ALTER TABLE plugins $addCol user_allowed INTEGER NOT NULL DEFAULT 0",
+		],
+
+		// IP à l'émission et à la dernière utilisation des jetons
+		// « se souvenir de moi » (45 = IPv6) — affichées dans
+		// Paramètres → Sessions.
+		10 => [
+			"ALTER TABLE auth_tokens $addCol ip VARCHAR(45) DEFAULT NULL",
+			"ALTER TABLE auth_tokens $addCol last_ip VARCHAR(45) DEFAULT NULL",
+		],
+
+		// Plugin « admin-stats » retiré du cœur : purge de sa ligne d'état
+		// (enabled/user_allowed/config) sur les instances où il était activé —
+		// équivalent de PluginPackageService::remove().
+		11 => [
+			"DELETE FROM plugins WHERE name = 'admin-stats'",
 		],
 		];
 	}

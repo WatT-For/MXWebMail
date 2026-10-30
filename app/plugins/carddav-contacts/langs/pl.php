@@ -23,4 +23,5 @@ return [
 	'plugin.carddav-contacts.not_configured' => 'CardDAV nieskonfigurowane',
 	'plugin.carddav-contacts.no_addressbook' => 'Nie znaleziono książki CardDAV pod tym adresem URL',
 	'plugin.carddav-contacts.bad_url'        => 'Nieprawidłowy adres URL CardDAV (wymagane HTTPS i publiczny host)',
+	'plugin.carddav-contacts.pass_clear'  => 'Wyczyść hasło',
 ];

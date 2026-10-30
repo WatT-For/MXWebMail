@@ -60,6 +60,28 @@ foreach (glob($storage . '/db/users/*.sqlite') ?: [] as $f) {
 
 @unlink($storage . '/cache/classmap.php');
 
+// Reliquat des installs ≤ 0.44 : l'assistant /setup est intégré au cœur —
+// le fichier standalone ne doit pas rester dans le webroot. installDir()
+// peut être deviné faux si app/ est relocalisé : non bloquant.
+try {
+	$setupDir = $app->installDir() . '/public/setup';
+	if (is_dir($setupDir)) {
+		$ok = true;
+		// Récursif (même motif qu'UpdateService::rmrf) : glob('*') raterait
+		// les fichiers cachés (.htaccess) et les sous-dossiers → rmdir échoue.
+		foreach (new \RecursiveIteratorIterator(
+				new \RecursiveDirectoryIterator($setupDir,
+					\FilesystemIterator::SKIP_DOTS),
+				\RecursiveIteratorIterator::CHILD_FIRST) as $f) {
+			$r = $f->isDir() && !$f->isLink()
+				? @rmdir($f->getPathname()) : @unlink($f->getPathname());
+			$r || ($ok = false);
+		}
+		$ok = $ok && @rmdir($setupDir);
+		$result['setup_removed'] = $ok;
+	}
+} catch (\Throwable) {}
+
 file_put_contents("$dir/post-update.json",
 	json_encode($result, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . "\n");
 

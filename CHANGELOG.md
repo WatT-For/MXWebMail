@@ -6,7 +6,72 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) —
 semver `0.MINOR.PATCH` en développement.
 Catégories, dans l'ordre : `Sécurité`, `Ajouté`, `Modifié`, `Corrigé`, `Obsolète`, `Supprimé`.
 
-## [Unreleased]
+## [0.47.0] — 2026-10-30
+
+### Sécurité
+
+- Le verrouillage anti-force-brute du login pouvait être contourné en variant la casse ou les espaces de l'email saisi : la clé de comptage est désormais normalisée (minuscules, sans espaces) au point unique de hachage.
+- La connexion au panneau admin via le compte local (`admin_user`/`admin_password_hash`) régénère désormais l'identifiant de session à l'élévation de privilèges (fixation de session possible auparavant).
+- Le compteur anti-force-brute était multiplié par les variantes de saisie du même compte (`user` vs `user@domaine` quand `default_domain` est défini) : le suffixe de domaine est désormais reproduit dans la clé de hachage.
+
+### Ajouté
+
+- Paramètres → Sessions : nouvelle colonne « IP » et bouton d'information ouvrant une modale de détails par session — appareil (navigateur/OS), User-Agent complet, IP de création et dernière IP connue, dates de création / dernière utilisation / expiration, révocation.
+- Panneau admin, onglet « À propos » : carte « Utilisation du stockage » — taille occupée par chaque sous-dossier de `storage/` (logs, cache, base…).
+- Panneau admin, onglet « Utilisateurs » : ligne de synthèse en en-tête — nombre total de comptes, actifs sur les 30 derniers jours, désactivés.
+- Nouveau plugin `seasonal-decorations` : paysage monochrome discret affiché selon la date (Nouvel An, Pâques, 1er avril, Halloween, Noël) — silhouettes SVG détaillées appliquées en couches `mask-image` dans le bandeau de l'app et en haut des pages de connexion/maintenance, bibliothèque d'objets recomposable via `scenes.json`, couleur contrastée avec le fond automatique, sans animation ; événements et fenêtres réglables.
+
+### Modifié
+
+- L'assistant d'installation est intégré au cœur (`SetupController`) : `/setup` répond 404 une fois le verrou posé — la page « déjà installé » qui exposait le chemin du panneau admin disparaît, et il n'y a plus de fichier `public/setup/` à supprimer ni à redéployer par les mises à jour.
+- Panneau admin, onglet Extensions : la description s'affiche sous le nom du plugin (police réduite) et la colonne « Utilisable » devient « Accès utilisateurs ».
+- Panneau admin, onglet Extensions : l'accès utilisateurs d'un plugin est désormais refusé par défaut (à autoriser explicitement) et le switch disparaît pour les plugins purement admin (hooks `admin.*` uniquement — admin-stats, webmail-migration). Les valeurs déjà en base sont conservées.
+- Performance : une seule connexion IMAP par requête (auparavant jusqu'à 3-4, ×2 par image inline dans un message), listes de messages et threads mis en cache sur disque (listes d'UIDs indexées sur l'état du dossier — SORT/SEARCH/THREAD serveur évités tant qu'il n'a pas changé), pièces jointes mises en cache disque avec `Cache-Control: immutable` (plus de re-téléchargement à la réouverture d'un message), manifestes des plugins et dictionnaires de langue en cache, requêtes SQL et fichiers de configuration des thèmes mémoïsées par requête.
+- Performance : les requêtes API en lecture seule libèrent le verrou de session PHP au lieu de le garder pendant les appels IMAP — le rafraîchissement automatique, les images inline et les actions ne se bloquent plus mutuellement.
+- Performance : `openpgp.js` (~540 K) et `tinymce` (~500 K) ne sont plus chargés au démarrage mais à la première utilisation ; les dossiers surveillés sont désormais inclus dans `/api/appdata` et la liste des identités est mutualisée (jusqu'à 2 allers-retours en moins au boot).
+- Proxy d'images externes : mise en cache disque des images téléchargées (TTL `http.proxy_ttl`, défaut 24 h).
+- Plugin imap-contacts-suggestions : les suggestions sont mises en cache 5 minutes (auparavant une connexion IMAP + recherche à chaque frappe).
+- SQLite : `PRAGMA busy_timeout=5000` ajouté aux connexions (tolérance aux écritures concurrentes).
+- Les caches configurables sont désormais désactivés par défaut : cache fichier `cache.enabled` (DNS, détection de domaine, vérification de mise à jour, listes de messages) et cache navigateur `http.etag` avec TTL `assets_ttl`/`favicon_ttl`/`proxy_ttl` à 0 (le cache disque du proxy d'images est coupé par la même clé) — réactivables dans admin → Performance.
+
+### Corrigé
+
+- Compatibilité MariaDB/MySQL : la colonne `key` (mot réservé) des tables `meta` et `user_settings` est désormais citée partout — l'installation échouait dès les migrations sur ces drivers.
+- Le domaine stocké en session au login est désormais celui résolu après le hook `auth.login.mapping` (auparavant la forme pré-mapping, divergente pour les plugins de mapping).
+- Une erreur de lecture IMAP en téléchargement de pièce jointe ou de source .eml ne produit plus un fichier téléchargé contenant la page d'erreur (en-têtes d'attachment purgés avant la 404).
+- `/api/messages/{uid}` renvoie désormais `isSeen:true` quand le flag `\Seen` vient d'être posé (la réponse annonçait toujours « non lu »).
+- Un nom de dossier passé brut (non encodé base64url, ex. `INBOX`) dans les routes `/api/folders/{name}/…` n'est plus décodé en binaire : vérification round-trip stricte avec repli sur le nom brut.
+- Un filtre Sieve utilisant l'opérateur « regex » ne pouvait pas être enregistré sur les serveurs stricts (Dovecot) : la directive `require ["regex"]` manquait dans le script généré.
+- Une session laissée inactive plus de 24 minutes pouvait être détruite par le ramasse-miettes PHP (gc_maxlifetime par défaut à 1440 s quand `session_lifetime = 0`) : plancher de 8 h désormais appliqué.
+- Les réponses 404 des téléchargements de pièces jointes et de sources .eml ne perdaient plus les en-têtes de sécurité globaux (purge limitée aux en-têtes posés localement).
+- L'import mbox au-delà de 2000 messages comptait un seul échec : les messages non importés sont désormais comptés et rapportés (`skipped`).
+- Les plages CIDR IPv4 supérieures à /32 saisies dans les listes d'IP admin (`admin_ip_allowlist`, `trusted_proxies`) étaient acceptées mais jamais appliquées : elles sont désormais rejetées en validation.
+- Une pièce jointe sans nom ne produit plus une entrée au nom vide dans le zip « télécharger toutes les pièces jointes ».
+- Paramètres → Étiquettes (plugin color-tags) : le sélecteur de champ des règles automatiques affichait des clés de traduction brutes au lieu des libellés localisés.
+- L'aperçu calendrier (ics-viewer) ne s'affichait plus pour les pièces jointes `*.ics` servies avec un type MIME générique (`application/octet-stream`, cas Outlook) : le test d'extension était un regex sur-échappé qui ne pouvait jamais correspondre.
+- Le téléchargement « .eml en zip » d'un dossier devenu invalide produisait une archive vide ou tronquée au lieu d'une erreur propre ; les messages ou pièces jointes illisibles pendant le téléchargement zip sont désormais listés dans une entrée `ERREURS.txt` de l'archive (au lieu de manquer en silence).
+- Le zip « toutes les pièces jointes » pouvait contenir deux entrées au même nom quand une pièce portait déjà un nom du type « a (2).txt » : la déduplication tient désormais compte des noms qu'elle génère.
+- Corrections internes : variable non initialisée dans l'archiveur TAR (code mort, warning PHP), champ « version made by » non conforme dans l'en-tête des zips générés, encodage du chemin admin dans la page de connexion admin, documentation du repli UUID v4.
+- Plugin `spam-learn` : la commande d'apprentissage ne risque plus d'interblocage quand elle produit une sortie volumineuse (stdout/stderr redirigés vers des fichiers temporaires au lieu de pipes non drainés) ; un échec de lecture IMAP du message est désormais signalé au lieu de piper un flux vide.
+- Plugin `attachments-clamav` : un fichier temporaire illisible n'est plus accepté comme un scan propre (`stream: OK` factice) — l'échec de lecture suit désormais la politique `on_error` (allow/deny).
+- Plugin `filelink` : un fichier disparu entre la vérification et l'ouverture (GC concurrente, suppression manuelle) renvoie désormais 410 au lieu d'une erreur 500.
+- Plugin `webmail-migration` : l'extraction du zip téléversé est désormais bornée (nombre de fichiers et taille totale — protection zip bomb) et le TTL des extractions mesure le dernier usage au lieu de la date d'upload.
+- Plugin `carddav-contacts` : l'effacement du mot de passe CardDAV utilise un paramètre dédié (un mot de passe littéral « reset » ne peut plus être confondu avec une demande d'effacement) ; bouton « Effacer le mot de passe » ajouté à l'onglet du plugin.
+- Mise à jour manuelle (`post-update.php`) : la suppression du reliquat `public/setup/` est désormais récursive (fichiers cachés et sous-dossiers pris en compte).
+- Assistant d'installation : la session `mxwm_setup` pose désormais les mêmes attributs de cookie que la session applicative (HttpOnly, SameSite=Lax, Secure en HTTPS).
+- Le HTML des plugins écoutant `app.head` était collecté puis ignoré sur les pages de connexion et de maintenance (`$pluginHead` jamais échappé dans leurs vues) : il est désormais émis — le réglage `show_on_login` du plugin `announcement` devient effectif.
+- Une adresse portant un domaine punycode invalide (`xn--` malformé) ne provoque plus d'erreur 500 : la forme brute est conservée lorsque la conversion IDN échoue.
+- Le toast de fin d'import .eml/.mbox annonce désormais aussi les messages ignorés par le plafond serveur (`skipped`) et ne compte plus un message fantôme quand un .mbox importe 0 message.
+- Les erreurs d'enregistrement dans les paramètres n'étaient pas affichées (rejet silencieux) : un gestionnaire global affiche désormais un toast pour toute promesse API non traitée.
+- Le décodage d'une réponse HTTP compressée gzip tient compte des en-têtes étendus (FEXTRA/FNAME/FCOMMENT/FHCRC) au lieu d'un décalage fixe, et du trailer complet (8 octets).
+- Le transfert « en pièce jointe » d'un message dont le sujet ne contient que des caractères filtrés produit désormais un fichier `message.eml` au lieu de `.eml`.
+- Plugin `webmail-migration` : la borne de taille d'extraction limite désormais l'écriture elle-même (un fichier unique dépassant la borne n'est plus extrait intégralement avant abandon).
+- Traductions manquantes complétées (`Effacer le mot de passe` CardDAV, échec de lecture ClamAV) dans de/es/it/nl/pl/pt/ru/tr.
+
+### Supprimé
+
+- `public/setup/` n'est plus livré (assistant intégré au cœur) : les reliquats des installations existantes sont effacés par la mise à jour, et exclu de la copie si un ancien paquet le contient.
+- Plugin `admin-stats` : sa page « Statistiques » doublait les onglets « À propos », « Extensions » et « Utilisateurs », et sa détection d'orphelins était rendue inutile par les clés étrangères `ON DELETE CASCADE` — ses deux informations utiles (répartition de `storage/`, compteurs utilisateurs) sont reportées dans le cœur. Toute ligne d'état résiduelle est purgée en base (migration).
 
 ## [0.44.0] — 2026-10-29
 

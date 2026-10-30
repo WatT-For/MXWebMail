@@ -7,6 +7,7 @@ use MXWebMail\Config\Config;
 use MXWebMail\Controller\AdminController;
 use MXWebMail\Controller\ApiController;
 use MXWebMail\Controller\PageController;
+use MXWebMail\Controller\SetupController;
 use MXWebMail\Http\Request;
 use MXWebMail\Http\Response;
 use MXWebMail\Http\Router;
@@ -46,7 +47,7 @@ final class App
 
 	public function __construct(?string $rootDir = null, ?string $installDir = null)
 	{
-		defined('APP_VERSION') || define('APP_VERSION', '0.44.0'); // X-Mailer MailSo
+		defined('APP_VERSION') || define('APP_VERSION', '0.47.0'); // X-Mailer MailSo
 		// Prérequis du paquet de mise à jour — lus par regex dans le App.php du
 		// paquet extrait (UpdateService::checkRequirements) avant application.
 		defined('APP_REQ_PHP') || define('APP_REQ_PHP', '>=8.4');
@@ -98,6 +99,9 @@ final class App
 	public function closeDb(): void
 	{
 		$this->db = null;
+		// Repositories mémoïsés : ils référencent l'ancien PDO — à recréer.
+		$this->users = $this->domains = $this->settings = $this->pluginRepo
+			= $this->themeRepo = $this->pgp = $this->oauthApps = $this->identities = null;
 	}
 
 	/**
@@ -194,29 +198,38 @@ final class App
 		$db->setMeta('contacts_moved', '1');
 	}
 
+	private ?UserRepository $users = null;
+	private ?DomainRepository $domains = null;
+	private ?SettingRepository $settings = null;
+	private ?PluginRepository $pluginRepo = null;
+	private ?\MXWebMail\Repository\ThemeRepository $themeRepo = null;
+	private ?\MXWebMail\Repository\PgpRepository $pgp = null;
+	private ?\MXWebMail\Repository\OAuthAppRepository $oauthApps = null;
+	private ?\MXWebMail\Repository\IdentityRepository $identities = null;
+
 	public function users(): UserRepository
 	{
-		return new UserRepository($this->db());
+		return $this->users ??= new UserRepository($this->db());
 	}
 
 	public function domains(): DomainRepository
 	{
-		return new DomainRepository($this->db());
+		return $this->domains ??= new DomainRepository($this->db());
 	}
 
 	public function settings(): SettingRepository
 	{
-		return new SettingRepository($this->db());
+		return $this->settings ??= new SettingRepository($this->db());
 	}
 
 	public function pluginRepo(): PluginRepository
 	{
-		return new PluginRepository($this->db());
+		return $this->pluginRepo ??= new PluginRepository($this->db());
 	}
 
 	public function themeRepo(): \MXWebMail\Repository\ThemeRepository
 	{
-		return new \MXWebMail\Repository\ThemeRepository($this->db());
+		return $this->themeRepo ??= new \MXWebMail\Repository\ThemeRepository($this->db());
 	}
 
 	public function contacts(): \MXWebMail\Repository\ContactRepository
@@ -226,17 +239,17 @@ final class App
 
 	public function pgp(): \MXWebMail\Repository\PgpRepository
 	{
-		return new \MXWebMail\Repository\PgpRepository($this->db());
+		return $this->pgp ??= new \MXWebMail\Repository\PgpRepository($this->db());
 	}
 
 	public function oauthApps(): \MXWebMail\Repository\OAuthAppRepository
 	{
-		return new \MXWebMail\Repository\OAuthAppRepository($this->db(), $this->storageDir());
+		return $this->oauthApps ??= new \MXWebMail\Repository\OAuthAppRepository($this->db(), $this->storageDir());
 	}
 
 	public function identities(): \MXWebMail\Repository\IdentityRepository
 	{
-		return new \MXWebMail\Repository\IdentityRepository($this->db());
+		return $this->identities ??= new \MXWebMail\Repository\IdentityRepository($this->db());
 	}
 
 	public function hooks(): HookRegistry
@@ -277,7 +290,7 @@ final class App
 				[$this->localeDir()],
 				glob($this->rootDir . '/plugins/*/langs', GLOB_ONLYDIR) ?: [],
 				glob($this->rootDir . '/templates/*/langs', GLOB_ONLYDIR) ?: []
-			));
+			), $this->storageDir() . '/cache/i18n_' . $lang . '.php');
 		}
 		return $this->locale;
 	}
@@ -316,9 +329,18 @@ final class App
 		return $this->domainDetector ??= new \MXWebMail\Service\DomainDetector($this);
 	}
 
+	private ?MailService $mail = null;
+
+	/**
+	 * MailService mémoïsé : une seule connexion IMAP/Sieve par requête.
+	 * Avant : chaque appel instanciait un service neuf → Connect+Login par
+	 * appel (jusqu'à 3-4 connexions par endpoint, ×2 par image cid:).
+	 * Mutateurs de session mail (AuthService::switchAccount) doivent appeler
+	 * mail()->disconnect() pour forcer la reconnexion au prochain accès.
+	 */
 	public function mail(): MailService
 	{
-		return new MailService($this);
+		return $this->mail ??= new MailService($this);
 	}
 
 	public function updater(): \MXWebMail\Service\UpdateService
@@ -333,7 +355,9 @@ final class App
 	public function isUpdating(): bool
 	{
 		$f = $this->storageDir() . '/update/applying';
-		return is_file($f) && (int) @file_get_contents($f) > time() - 900;
+		// filemtime suffit : le contenu posé par UpdateService == l'instant
+		// d'écriture — évite une lecture de fichier par requête API.
+		return is_file($f) && (int) @filemtime($f) > time() - 900;
 	}
 
 	public function github(): \MXWebMail\Service\GitHubClient
@@ -355,9 +379,10 @@ final class App
 		}
 		session_name('mxwm_session');
 		$lifetime = (int) $this->config->get('session_lifetime', 0) * 3600;
-		if ($lifetime > 0) {
-			ini_set('session.gc_maxlifetime', (string) $lifetime);
-		}
+		// Plancher 8 h même à 0 (« cookie de session ») : sinon le GC PHP
+		// (défaut 1440 s) collecte une session idle > 24 min et l'utilisateur
+		// est déconnecté alors que l'onglet est encore ouvert.
+		ini_set('session.gc_maxlifetime', (string) max($lifetime, 28800));
 		// Lax par défaut : le retour OAuth2 (navigation GET cross-site) doit
 		// transporter le cookie de session. Strict le bloquerait ; None est
 		// réservé aux intégrations cross-site explicites (exige HTTPS).
@@ -622,21 +647,24 @@ final class App
 		$request = Request::fromGlobals();
 		$isApi = str_starts_with($request->path, '/api/');
 
-		// Verrou d'installation absent → assistant /setup/ (l'API répond 503).
-		// /setup lui-même est exclu : s'il atteint le front controller (serveur
-		// mal configuré), on laisse filer vers un 404 plutôt que boucler.
+		// Verrou d'installation absent → assistant d'installation (l'API répond
+		// 503). /setup est servi par le SetupController intégré ; une fois le
+		// verrou posé, /setup suit le routing normal et tombe sur un 404.
 		$isSetup = $request->path === '/setup'
 			|| str_starts_with($request->path, '/setup/');
-		if (!$isSetup && !is_file($this->storageDir() . '/INSTALLED')) {
-			$setupIndex = $this->installDir . '/public/setup/index.php';
+		if (!is_file($this->storageDir() . '/INSTALLED')) {
 			$response = match (true) {
-				$isApi => \MXWebMail\Http\JsonResponse::error(
-					$this->locale()->t('errors.not_installed'), 'not_installed', 503),
-				is_file($setupIndex) => Response::redirect(
-					Request::basePath() . '/setup/'),
-				default => Response::html('<h1>503 — '
+				$isSetup && class_exists(SetupController::class)
+					=> (new SetupController($this))->handle($request),
+				// Classe absente (upload incomplet) : 503 — le bras « default »
+				// redirigerait vers /setup/ en boucle.
+				$isSetup => Response::html('<h1>503 — '
 					. htmlspecialchars($this->locale()->t('errors.not_installed'), ENT_QUOTES, 'UTF-8')
 					. '</h1>', 503),
+				$isApi => \MXWebMail\Http\JsonResponse::error(
+					$this->locale()->t('errors.not_installed'), 'not_installed', 503),
+				default => Response::redirect(
+					Request::basePath() . '/setup/'),
 			};
 			$this->sendResponse($response, $request);
 			return;
@@ -719,6 +747,13 @@ final class App
 				$this->log('warning', 'Remember-token: ' . $e->getMessage());
 			}
 		}
+		// Sonde maintenance/update : réponse sans charger les plugins ni le
+		// routeur — la page maintenance la frappe en boucle pendant la copie.
+		if ($request->path === '/api/ping') {
+			$this->sendResponse((new ApiController($this))->ping($request), $request);
+			return;
+		}
+
 		// Charge les plugins activés : enregistre leurs hooks dans HookRegistry.
 		// Surface admin = page /{admin_path} + /api/admin/* (cf. doc de plugins()).
 		$this->plugins(

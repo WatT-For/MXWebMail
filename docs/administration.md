@@ -102,9 +102,11 @@ La suppression d'un utilisateur est en cascade et supprime aussi sa base contact
 
 Activation/désactivation de chaque plugin + modale de **configuration** générée depuis
 `config.schema.json` (types `string`, `text`, `integer`, `number`, `password`, `bool`,
-`enum`, `list`). La colonne **Utilisable** restreint un plugin activé à la surface admin
+`enum`, `list`). La colonne **Accès utilisateurs** restreint un plugin activé à la surface admin
 (page `/{admin_path}`, `/api/admin/*`, sessions admin) : il devient inerte pour les
-utilisateurs — voir [plugins.md](plugins.md).
+utilisateurs — voir [plugins.md](plugins.md). Décochée par défaut (à autoriser
+explicitement) ; elle est absente pour les plugins ne déclarant que des hooks `admin.*`
+(aucune surface utilisateur).
 
 **Installation / mise à jour depuis GitHub** : les plugins sont lus directement dans
 le dépôt verrouillé (`GitHubClient::REPO`, même que l'updater cœur) au ref

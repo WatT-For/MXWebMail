@@ -34,6 +34,12 @@ Le champ `options` accepte un objet JSON avec des réglages fins par domaine :
 - `imap.lowerLogin` — forcer le login en minuscules ;
 - `imap.timeout` — délai de connexion IMAP ;
 - `imap.disabled_capabilities` — capacités IMAP à désactiver ;
+- `imap.body_text_limit` — taille max (octets) des corps texte récupérés à
+  l'ouverture d'un message (défaut `0` = illimité ; un plafond ~256 K
+  économise le fetch des très longues newsletters) ;
+- `imap.message_list_limit` — au-delà (défaut `10000` messages dans le
+  dossier), MailSo évite le SORT serveur et met en cache la liste des UIDs
+  en tâche de fond ;
 - `smtp.useAuth` — forcer/désactiver l'authentification SMTP ;
 - `smtp.timeout` — délai de connexion SMTP ;
 - `sieve.encryption` — chiffrement de la connexion Sieve.
