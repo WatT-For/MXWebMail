@@ -327,6 +327,17 @@ final class AuthService
 			$client->Settings = $settings;
 			$client->Connect($settings);
 			$client->Login($settings);
+		} catch (\MailSo\Imap\Exceptions\LoginBadCredentialsException $e) {
+			// NO/BAD du serveur sur les credentials → 401 métier.
+			// En OAuth (XOAUTH2), « bad_credentials » serait trompeur.
+			throw new \RuntimeException($this->t(
+				$oauth ? 'errors.oauth_failed' : 'errors.bad_credentials'), 401, $e);
+		} catch (\Throwable $e) {
+			// Réseau, TLS, méthode de login refusée, SASL, protocole : injoignable
+			// ou mal configuré — détail déjà dans app.log (écrit par MailSo).
+			// Code 4xx obligatoire : tout status ≥ 500 est masqué en errors.internal.
+			throw new \RuntimeException($this->t('errors.imap_unreachable',
+				['host' => $settings->host]), 400, $e);
 		} finally {
 			try { $client->Disconnect(); } catch (\Throwable) {}
 		}
@@ -461,7 +472,7 @@ final class AuthService
 	public function accounts(int $userId): array
 	{
 		$stmt = $this->app->db()->pdo()->prepare(
-			'SELECT id, email, is_default, auth FROM accounts WHERE user_id = :u ORDER BY is_default DESC, email'
+			'SELECT id, email, is_default, auth FROM accounts WHERE user_id = :u ORDER BY is_default DESC, position, email'
 		);
 		$stmt->execute(['u' => $userId]);
 		return $stmt->fetchAll();
@@ -472,7 +483,7 @@ final class AuthService
 	{
 		$email = trim(mb_strtolower($email));
 		if (!str_contains($email, '@') || $password === '') {
-			throw new \InvalidArgumentException($this->t('errors.email_pass_required'));
+			throw new \InvalidArgumentException($this->t('errors.email_pass_required'), 400);
 		}
 		$domainName = substr($email, strrpos($email, '@') + 1);
 		$domain = $this->domainFor($domainName, true);
@@ -512,7 +523,7 @@ final class AuthService
 	{
 		$email = trim(mb_strtolower($email));
 		if (!str_contains($email, '@')) {
-			throw new \InvalidArgumentException($this->t('errors.email_pass_required'));
+			throw new \InvalidArgumentException($this->t('errors.email_pass_required'), 400);
 		}
 		$domainName = substr($email, strrpos($email, '@') + 1);
 		$domain = $this->domainFor($domainName, true);
@@ -605,6 +616,39 @@ final class AuthService
 			(int) ($_SESSION['account_id'] ?? 0) !== $accountId;
 	}
 
+	/**
+	 * Réordonne les comptes secondaires (glisser-déposer de Réglages →
+	 * Comptes) : $ids doit être exactement l'ensemble des secondaires.
+	 */
+	public function reorderAccounts(int $userId, array $ids): void
+	{
+		$pdo = $this->app->db()->pdo();
+		$stmt = $pdo->prepare('SELECT id FROM accounts WHERE user_id = :u AND is_default = 0');
+		$stmt->execute(['u' => $userId]);
+		$secIds = array_map('intval', array_column($stmt->fetchAll(), 'id'));
+		// Validation sur copies triées : $ids garde l'ordre demandé par le client
+		$check = array_map('intval', $ids);
+		sort($secIds);
+		sort($check);
+		if ($check !== $secIds) {
+			throw new \RuntimeException($this->t('errors.account_not_found'), 404);
+		}
+		$ids = array_map('intval', $ids);
+		// Réécrit position = 1..n dans l'ordre reçu (compte principal épingle
+		// en tête par is_default, hors de ce périmètre)
+		$pdo->beginTransaction();
+		try {
+			$up = $pdo->prepare('UPDATE accounts SET position = :p WHERE id = :id');
+			foreach ($ids as $i => $id) {
+				$up->execute(['p' => $i + 1, 'id' => $id]);
+			}
+			$pdo->commit();
+		} catch (\Throwable $e) {
+			$pdo->rollBack();
+			throw $e;
+		}
+	}
+
 	// ─── Provisioning ───
 
 	private function provisionAccount(int $userId, string $email, string $password,
@@ -623,9 +667,13 @@ final class AuthService
 			$d->execute(['u' => $userId]);
 			$isDefault = !$d->fetchColumn();
 		}
+		// Nouveau compte en fin de liste (ordre réordonnable par l'utilisateur)
+		$p = $pdo->prepare('SELECT COALESCE(MAX(position), 0) + 1 FROM accounts WHERE user_id = :u');
+		$p->execute(['u' => $userId]);
+		$position = (int) $p->fetchColumn();
 		$pdo->prepare(
-			'INSERT INTO accounts (user_id, email, imap_user, imap_pass, is_default, auth)
-			 VALUES (:u, :e, :iu, :ip, :d, :a)'
+			'INSERT INTO accounts (user_id, email, imap_user, imap_pass, is_default, auth, position)
+			 VALUES (:u, :e, :iu, :ip, :d, :a, :pos)'
 		)->execute([
 			'u'  => $userId,
 			'e'  => $email,
@@ -633,6 +681,7 @@ final class AuthService
 			'ip' => CredentialCrypt::encrypt($password, $this->app->storageDir()),
 			'd'  => $isDefault ? 1 : 0,
 			'a'  => $auth,
+			'pos' => $position,
 		]);
 		$accountId = (int) $pdo->lastInsertId();
 		$pdo->prepare(

@@ -17,6 +17,7 @@ use MXWebMail\Plugin\PluginBase;
 final class Avatars extends PluginBase
 {
 	private const CACHE_TTL = 30 * 86400; // 30 jours
+	private const MISS_TTL = 7 * 86400;   // 7 jours (cache négatif)
 
 	public function register(HookRegistry $hooks): void
 	{
@@ -47,27 +48,35 @@ final class Avatars extends PluginBase
 			return $icon;
 		}
 
-		// 3. Gravatar (404 = pas d'avatar)
-		if (!empty($this->config['gravatar'])) {
-			$found = $this->fetchImage(
-				'https://gravatar.com/avatar/' . md5($email) . '?s=80&d=404');
-			if ($found) {
-				$this->cache($email, $found[0], $found[1]);
-				return $found[2];
-			}
-		}
-
-		// 4. Favicon du domaine
-		if (!empty($this->config['favicon']) && $domain !== '') {
-			foreach ([
-				"https://{$domain}/favicon.ico",
-				'https://www.' . self::serviceDomain($domain) . '/favicon.ico',
-			] as $url) {
-				$found = $this->fetchImage($url);
+		// 3-4. Sources distantes — sautées si échec récent (cache négatif
+		// .none) : sinon chaque affichage rejouerait DNS + HTTP + log.
+		if (!$this->missed($email)) {
+			// 3. Gravatar (404 = pas d'avatar)
+			if (!empty($this->config['gravatar'])) {
+				$found = $this->fetchImage(
+					'https://gravatar.com/avatar/' . md5($email) . '?s=80&d=404');
 				if ($found) {
 					$this->cache($email, $found[0], $found[1]);
 					return $found[2];
 				}
+			}
+
+			// 4. Favicon du domaine
+			if (!empty($this->config['favicon']) && $domain !== '') {
+				foreach ([
+					"https://{$domain}/favicon.ico",
+					'https://www.' . self::serviceDomain($domain) . '/favicon.ico',
+				] as $url) {
+					$found = $this->fetchImage($url);
+					if ($found) {
+						$this->cache($email, $found[0], $found[1]);
+						return $found[2];
+					}
+				}
+			}
+
+			if (!empty($this->config['gravatar']) || !empty($this->config['favicon'])) {
+				@touch($this->dir() . '/' . sha1($email) . '.none');
 			}
 		}
 
@@ -106,8 +115,23 @@ final class Avatars extends PluginBase
 	/** Fetch image distante. Retourne [mime, binaire, réponse JSON] ou null. */
 	private function fetchImage(string $url): ?array
 	{
-		if (!$this->app->isPublicHost((string) parse_url($url, PHP_URL_HOST))) {
-			\MXWebMailLib\Log::warning('AVATARS', 'fetch refusé (hôte non public) : ' . $url);
+		$reason = $this->app->publicHostBlockReason(
+			(string) parse_url($url, PHP_URL_HOST));
+		if ($reason !== null) {
+			$label = match ($reason) {
+				'dns' => 'dns-introuvable',
+				'literal' => 'ip-littérale',
+				default => 'ip-non-publique',
+			};
+			// NXDOMAIN = cas banal (expéditeur sans domaine web) → info ;
+			// IP privée/réservée = vrai signal anti-SSRF → warning.
+			if ($reason === 'dns') {
+				\MXWebMailLib\Log::info('AVATARS',
+					"fetch refusé (hôte non public : {$label}) : {$url}");
+			} else {
+				\MXWebMailLib\Log::warning('AVATARS',
+					"fetch refusé (hôte non public : {$label}) : {$url}");
+			}
 			return null;
 		}
 		try {
@@ -141,6 +165,9 @@ final class Avatars extends PluginBase
 	private function cached(string $email): ?array
 	{
 		foreach (glob($this->dir() . '/' . sha1($email) . '.*') ?: [] as $file) {
+			if (str_ends_with($file, '.none')) {
+				continue; // marker de cache négatif, pas une image
+			}
 			// TTL : un avatar en cache > N jours est refetché au prochain
 			// affichage — sinon les icônes n'évolueraient jamais et le
 			// dossier grossirait sans borne (auto-nettoyant, pas de GC).
@@ -154,6 +181,20 @@ final class Avatars extends PluginBase
 				. base64_encode((string) file_get_contents($file))];
 		}
 		return null;
+	}
+
+	/** Échec distant récent mémorisé ? (marker <sha1>.none, auto-nettoyant) */
+	private function missed(string $email): bool
+	{
+		$file = $this->dir() . '/' . sha1($email) . '.none';
+		if (!is_file($file)) {
+			return false;
+		}
+		if (filemtime($file) < time() - self::MISS_TTL) {
+			@unlink($file);
+			return false;
+		}
+		return true;
 	}
 
 	private function cache(string $email, string $mime, string $body): void

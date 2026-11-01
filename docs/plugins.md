@@ -78,6 +78,7 @@ surface utilisateur : la colonne n'affiche alors pas de switch pour lui (`—`).
 | `spam-learn` | Apprentissage spam/ham à chaque (dé)marquage : commande externe (`rspamc`, `sa-learn`) ou copie IMAP vers un dossier dovecot-antispam. | `message.spam` |
 | `wkd-keys` | Découverte automatique des clés PGP des destinataires : **WKD** (advanced + direct), récolte des en-têtes **Autocrypt**, secours `keys.openpgp.org` optionnel — import proposé au compose. | `app.data`, `message.view` |
 | `seasonal-decorations` | Paysage monochrome discret dans les bandeaux selon la date (Nouvel An, Pâques, 1er avril, Halloween, Noël) : bibliothèque d'objets SVG recomposée en couches `mask-image` via `scenes.json` ({svg, pos, size}), couleur contrastée automatique — fenêtres réglables, optionnel hors session, sans animation. | `app.head` |
+| `link-confirmation` | Modale de confirmation avant l'ouverture d'un lien du corps d'un mail (anti-hameçonnage) : destination réelle affichée, signalement des liens suspects (texte ≠ URL, IP littérale, punycode, identifiants dans l'URL), domaines de confiance et « ne plus demander pour ce domaine ». | `app.head` |
 
 ## 2. Configuration d'un plugin
 
@@ -98,7 +99,7 @@ Détails de configuration notables :
 - **`ldap-contacts`** — `host`, `port`, `use_tls`, `bind_dn`/`bind_pass`, `base_dn`,
   `filter` (placeholder `%q`), `name_attr`, `mail_attr`, `max_results`.
 - **`anti-spoofing`** — `protected_domains`, `brands`, et les commutateurs
-  `check_envelope`/`check_reply_to`/`check_sender`/`check_display`/`check_lookalike`.
+  `check_envelope`/`check_reply_to`/`check_sender`/`check_display`/`check_lookalike`/`check_auth_results`.
 - **`two-factor-auth`** — `issuer` (défaut `app_name`), `label` (`email` = adresse
   complète, `local` = partie avant `@` ; `local` évite que les applis TOTP déduisent
   une icône de marque du domaine, ex. Yahoo) et `icon_url` (paramètre `image=` non
@@ -116,6 +117,13 @@ Détails de configuration notables :
   si elle est renseignée **seuls les emails des exceptions sont rejetés**
   et tout le reste passe — ne pas y mettre des adresses « autorisées en
   plus » (effet inverse attendu).
+
+- **`link-confirmation`** — `mode` (`all` = tout lien externe, `suspicious` =
+  uniquement les liens suspects), `whitelist` (domaines de confiance, un par
+  ligne ou séparés par espace/virgule/point-virgule — sous-domaines inclus),
+  `warn_mailto` (confirmer aussi `mailto:`/`tel:`, désactivé par défaut) et
+  `remember` (case « ne plus demander pour ce domaine » — mémorisé dans le
+  navigateur via localStorage, pas côté serveur).
 
 Certains plugins n'ont pas de schéma admin : leur configuration est **par utilisateur**
 (ex. `carddav-contacts`, `color-tags`, `two-factor-auth` pour l'état du compte).

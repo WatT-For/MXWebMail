@@ -40,17 +40,39 @@ const SYS_ORDER = {
 
 const isInbox = f => f.fullName.toUpperCase() === 'INBOX' || f.special === 'inbox';
 
+/** Taille lisible (octets → o/Ko/Mo/Go, unités binaires) ; '—' si inconnue. */
+const fmtSize = b => {
+	if (b === null || b === undefined) { return '—'; }
+	b = Number(b);
+	if (!Number.isFinite(b) || b < 0) { return '—'; }
+	if (b >= 1073741824) { return (b / 1073741824).toFixed(1) + ' ' + t('unit.gb'); }
+	if (b >= 1048576) { return (b / 1048576).toFixed(1) + ' ' + t('unit.mb'); }
+	if (b >= 1024) { return Math.round(b / 1024) + ' ' + t('unit.kb'); }
+	return b + ' ' + t('unit.b');
+};
+
 export class FolderListVM {
 	constructor(app) {
 		this.app = app;
 		this.folders = ko.observableArray([]);
-		this.current = ko.observable('INBOX');
+		// Dossier affiché = dossier actif : source de vérité unique
+		// (messageList.folder), synchro impossible à perdre (hash, F5,
+		// navigation, notification).
+		this.current = ko.pureComputed(() => this.app.messageList.folder());
 		this.loading = ko.observable(false);
 		this.error = ko.observable('');
 		// Dossier de rôle « archive » (assignation > special-use > nom usuel,
 		// déjà résolu serveur en f.special) — null si absent.
 		this.archiveFolder = ko.pureComputed(() =>
 			this.folders().find(f => f.special === 'archive') || null);
+		// Dossier de rôle « junk » — null si absent. f.special est résolu
+		// serveur : même cible que MailService::junkFolder() (prédiction de
+		// stratégie pour l'UI optimiste de markSpam).
+		this.junkFolder = ko.pureComputed(() =>
+			this.folders().find(f => f.special === 'junk') || null);
+		// Objet dossier actuellement affiché (null avant le 1er chargement)
+		this.currentFolder = ko.pureComputed(() =>
+			this.folders().find(f => f.fullName === this.current()) || null);
 
 		// Knockout invoque les handlers avec this = $data du contexte courant
 		// (item dans un foreach / objet dans un with) : on force le binding sur le VM.
@@ -80,6 +102,8 @@ export class FolderListVM {
 						label: key && t(key) !== key ? t(key) : name,
 						depth: f.delimiter ? (f.fullName.split(f.delimiter).length - 1) : 0,
 						unread: ko.observable(f.unread || 0),
+						size: f.size ?? null,
+						sizeLabel: fmtSize(f.size),
 						role: f.role || '',
 						special: f.special || '',
 						// Dossier « par défaut » : rôle effectif ou assigné — pas de renommage/ACL/suppression
@@ -137,7 +161,6 @@ export class FolderListVM {
 	}
 
 	async select(folder) {
-		this.current(folder.fullName);
 		await this.app.messageList.selectFolder(folder.fullName);
 	}
 
@@ -188,6 +211,18 @@ export class FolderListVM {
 		if (!(await dialog.confirm(t('folders.clear_confirm', { name: f.fullName }),
 			{ variant: 'danger', okLabel: t('common.delete') }))) { return; }
 		await api.post(`/folders/${b64url(f.fullName)}/clear`);
+		// Le message affiché dans le lecteur venait du dossier vidé → fermer.
+		if (this.app.messageView.requestedFolder === f.fullName) {
+			this.app.messageView.clear();
+		}
+		// Dossier affiché (cas du bouton d'en-tête) ou lignes du dossier encore
+		// visibles (recherche multi-dossiers) → reload serveur (total, pagination).
+		const ml = this.app.messageList;
+		if (ml.folder() === f.fullName || ml.messages().some(m => m.folder === f.fullName)) {
+			ml.cancelReadTimer();
+			ml.page(1);
+			await ml.load();
+		}
 		await this.load();
 	}
 
@@ -200,6 +235,17 @@ export class FolderListVM {
 			const open = this.app.messageView.message();
 			if (open && open.folder === f.fullName) { open.isSeen(true); }
 		}
+	}
+
+	/** Boutons d'en-tête de la colonne : actions sur le dossier affiché. */
+	async markAllReadCurrent() {
+		const f = this.currentFolder();
+		if (f) { await this.markAllRead(f); }
+	}
+
+	async clearCurrent() {
+		const f = this.currentFolder();
+		if (f && !f.isInbox) { await this.clearFolder(f); }
 	}
 
 	async editAcl(f) {

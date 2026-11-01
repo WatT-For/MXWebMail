@@ -54,13 +54,15 @@ final class UserRepository
 	/** Liste admin : utilisateurs + compteurs (comptes liés, identités). */
 	public function all(): array
 	{
+		// JOIN + GROUP BY plutôt que 2 sous-requêtes corrélées par ligne.
 		return $this->db->pdo()->query(
 			'SELECT u.*,
-				(SELECT COUNT(*) FROM accounts a WHERE a.user_id = u.id) AS accounts_count,
-				(SELECT COUNT(*) FROM identities i
-					JOIN accounts a2 ON a2.id = i.account_id
-					WHERE a2.user_id = u.id) AS identities_count
-			 FROM users u ORDER BY username'
+				COUNT(DISTINCT a.id) AS accounts_count,
+				COUNT(DISTINCT i.id) AS identities_count
+			 FROM users u
+			 LEFT JOIN accounts  a ON a.user_id     = u.id
+			 LEFT JOIN identities i ON i.account_id = a.id
+			 GROUP BY u.id ORDER BY u.username'
 		)->fetchAll();
 	}
 

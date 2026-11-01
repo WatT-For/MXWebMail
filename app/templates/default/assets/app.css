@@ -179,9 +179,27 @@ body.pane-resizing-v iframe { pointer-events: none; }
 }
 
 .message-pane {
+	position: relative;
 	overflow-y: auto;
 	display: flex;
 	flex-direction: column;
+}
+/* Voile de chargement : recouvre toute la colonne, liste estompée dessous.
+   Apparition retardée : un load < ~150 ms ne produit aucun flash. */
+.msglist-loading {
+	position: absolute;
+	inset: 0;
+	z-index: 10;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: rgb(var(--bs-body-bg-rgb) / .55);
+	opacity: 0;
+	animation: msglist-loading-in .15s ease-out .15s forwards;
+}
+@keyframes msglist-loading-in { to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+	.msglist-loading { animation: none; opacity: 1; }
 }
 .message-pane table { font-size: .875rem; table-layout: fixed; }
 .message-pane tbody tr { cursor: pointer; }
@@ -214,10 +232,19 @@ body.pane-resizing-v iframe { pointer-events: none; }
    largeur du glyphe Font Awesome. */
 .btn-icon { aspect-ratio: 1; flex-shrink: 0; }
 
+/* Réglages → Dossiers : hauteur de ligne uniforme avec ou sans boutons
+   d'action (height = min-height en contexte table). */
+.settings-folders tbody tr { height: 2.5rem; }
+
 /* Icône d'aide (tooltip Bootstrap) accolée aux labels de champ */
 .help-icon { cursor: help; color: var(--bs-secondary-color); }
 .help-icon:hover, .help-icon:focus-visible { color: var(--bs-primary); }
 .col-form-label:has(> .help-icon) { display: flex; align-items: center; justify-content: space-between; gap: .25rem; }
+
+/* Tooltip multi-lignes (verdict anti-spoofing) : les '\n' du title cassent
+   les lignes ; titre texte brut (pas de html:true) → aucun risque XSS avec
+   les adresses/domaines injectés dans les alertes. */
+.mxwm-tooltip-pre .tooltip-inner { white-space: pre-line; text-align: left; max-width: 26rem; }
 
 .reader-pane .mail-body img { max-width: 100%; }
 
@@ -369,3 +396,12 @@ body.modal-resizing { cursor: nwse-resize; user-select: none; }
 body.modal-resizing iframe { pointer-events: none; }
 
 @media (max-width: 575.98px) { .modal-resize-grip { display: none; } }
+
+/* Réglages → Comptes : glisser-déposer des comptes secondaires */
+tr.mx-drag { cursor: grab; }
+tr.mx-drag:active { cursor: grabbing; }
+tr.mx-dragging { opacity: .5; }
+/* box-shadow sur les <td>, pas le <tr> : border-collapse l'effacerait */
+tr.mx-dragover > td { box-shadow: inset 0 2px 0 var(--bs-primary); }
+tr.mx-dragover-after > td { box-shadow: inset 0 -2px 0 var(--bs-primary); }
+td.mx-grip { width: 1%; color: var(--bs-secondary-color); }

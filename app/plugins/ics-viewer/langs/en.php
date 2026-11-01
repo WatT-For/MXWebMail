@@ -18,4 +18,13 @@ return [
 	'plugin.ics-viewer.reply_subject_accepted'  => 'Accepted: {v}',
 	'plugin.ics-viewer.reply_subject_tentative' => 'Maybe: {v}',
 	'plugin.ics-viewer.reply_subject_declined'  => 'Declined: {v}',
+	'plugin.ics-viewer.event'                       => 'Event: {v}',
+	'plugin.ics-viewer.start'                       => 'Start: {v}',
+	'plugin.ics-viewer.allday'                      => ' (all day)',
+	'plugin.ics-viewer.end'                         => 'End: {v}',
+	'plugin.ics-viewer.location'                    => 'Location: {v}',
+	'plugin.ics-viewer.organizer'                   => 'Organizer: {v}',
+	'plugin.ics-viewer.status'                      => 'Status: {v}',
+	'plugin.ics-viewer.title'                       => 'Calendar event',
+	'plugin.ics-viewer.attachment'                  => 'Calendar attachment',
 ];

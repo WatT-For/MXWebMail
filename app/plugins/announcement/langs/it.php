@@ -2,16 +2,16 @@
 declare(strict_types=1);
 
 return [
-	'plugin.announcement.description'         => 'Announcement banner set by the administrator (app page, optionally login)',
-	'plugin.announcement.f.enabled'           => 'Enabled',
-	'plugin.announcement.f.text'              => 'Banner text',
-	'plugin.announcement.f.text.help'         => 'Plain text shown to all users — HTML is not interpreted',
-	'plugin.announcement.f.level'             => 'Level',
+	'plugin.announcement.description'         => 'Banner di annuncio impostato dall\'amministratore (pagina app, opzionalmente login)',
+	'plugin.announcement.f.enabled'           => 'Attivato',
+	'plugin.announcement.f.text'              => 'Testo del banner',
+	'plugin.announcement.f.text.help'         => 'Testo semplice mostrato a tutti gli utenti — l\'HTML non è interpretato',
+	'plugin.announcement.f.level'             => 'Livello',
 	'plugin.announcement.f.level.info'         => 'Info',
-	'plugin.announcement.f.level.success'      => 'Success',
-	'plugin.announcement.f.level.warning'      => 'Warning',
-	'plugin.announcement.f.level.danger'       => 'Critical',
-	'plugin.announcement.f.show_on_login'     => 'Show on login page',
-	'plugin.announcement.f.show_on_login.help'=> 'Useful for maintenance notices',
-	'plugin.announcement.f.dismissible'       => 'Dismissible (× button)',
+	'plugin.announcement.f.level.success'      => 'Successo',
+	'plugin.announcement.f.level.warning'      => 'Avviso',
+	'plugin.announcement.f.level.danger'       => 'Critico',
+	'plugin.announcement.f.show_on_login'     => 'Mostra nella pagina di login',
+	'plugin.announcement.f.show_on_login.help'=> 'Utile per avvisi di manutenzione',
+	'plugin.announcement.f.dismissible'       => 'Chiudibile (pulsante ×)',
 ];

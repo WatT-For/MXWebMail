@@ -2,12 +2,12 @@
 declare(strict_types=1);
 
 return [
-	'plugin.wkd-keys.description'              => 'Automatic PGP key discovery (WKD + Autocrypt harvesting)',
-	'plugin.wkd-keys.f.keyserver_fallback'     => 'keys.openpgp.org fallback',
-	'plugin.wkd-keys.f.keyserver_fallback.help'=> 'Query the public keyserver when WKD yields nothing',
-	'plugin.wkd-keys.f.autocrypt'              => 'Harvest Autocrypt headers',
-	'plugin.wkd-keys.f.autocrypt.help'         => 'Store keys sent by correspondents in the Autocrypt header',
-	'plugin.wkd-keys.bad_email'                => 'Invalid email address',
-	'plugin.wkd-keys.import_confirm'           => 'A PGP key was found for {email}. Import it?',
-	'plugin.wkd-keys.imported'                 => 'PGP key imported.',
+	'plugin.wkd-keys.description'              => 'Otomatik PGP anahtar keşfi (WKD + Autocrypt toplama)',
+	'plugin.wkd-keys.f.keyserver_fallback'     => 'keys.openpgp.org yedeği',
+	'plugin.wkd-keys.f.keyserver_fallback.help'=> 'WKD sonuç vermediğinde genel anahtar sunucusunu sorgula',
+	'plugin.wkd-keys.f.autocrypt'              => 'Autocrypt başlıklarını topla',
+	'plugin.wkd-keys.f.autocrypt.help'         => 'Yazışılan kişilerin Autocrypt başlığında gönderdiği anahtarları sakla',
+	'plugin.wkd-keys.bad_email'                => 'Geçersiz e-posta adresi',
+	'plugin.wkd-keys.import_confirm'           => '{email} için bir PGP anahtarı bulundu. İçe aktarılsın mı?',
+	'plugin.wkd-keys.imported'                 => 'PGP anahtarı içe aktarıldı.',
 ];

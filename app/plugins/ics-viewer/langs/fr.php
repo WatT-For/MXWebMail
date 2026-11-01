@@ -18,4 +18,13 @@ return [
 	'plugin.ics-viewer.reply_subject_accepted'  => 'Accepté : {v}',
 	'plugin.ics-viewer.reply_subject_tentative' => 'Peut-être : {v}',
 	'plugin.ics-viewer.reply_subject_declined'  => 'Refusé : {v}',
+	'plugin.ics-viewer.event'                       => 'Événement : {v}',
+	'plugin.ics-viewer.start'                       => 'Début : {v}',
+	'plugin.ics-viewer.allday'                      => ' (toute la journée)',
+	'plugin.ics-viewer.end'                         => 'Fin : {v}',
+	'plugin.ics-viewer.location'                    => 'Lieu : {v}',
+	'plugin.ics-viewer.organizer'                   => 'Organisateur : {v}',
+	'plugin.ics-viewer.status'                      => 'Statut : {v}',
+	'plugin.ics-viewer.title'                       => 'Événement de calendrier',
+	'plugin.ics-viewer.attachment'                  => 'Pièce jointe calendrier',
 ];

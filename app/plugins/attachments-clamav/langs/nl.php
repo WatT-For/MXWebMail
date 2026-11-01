@@ -2,16 +2,16 @@
 declare(strict_types=1);
 
 return [
-	'plugin.attachments-clamav.description'        => 'ClamAV (clamd) scan of uploaded attachments',
-	'plugin.attachments-clamav.f.socket'           => 'clamd socket',
-	'plugin.attachments-clamav.f.socket.help'      => 'tcp://host:port or unix:///path/to/clamd.ctl',
-	'plugin.attachments-clamav.f.timeout'          => 'Timeout (seconds)',
-	'plugin.attachments-clamav.f.on_error'         => 'When clamd is unreachable',
-	'plugin.attachments-clamav.f.on_error.allow'   => 'Allow upload (log warning)',
-	'plugin.attachments-clamav.f.on_error.deny'    => 'Reject upload (fail-closed)',
-	'plugin.attachments-clamav.f.on_error.help'    => 'deny blocks every upload while clamd is down',
-	'plugin.attachments-clamav.virus_found'        => 'Virus detected in “{name}”',
-	'plugin.attachments-clamav.unavailable'        => 'Virus scanner unreachable',
-	'plugin.attachments-clamav.bad_response'       => 'Unexpected scanner response: {msg}',
+	'plugin.attachments-clamav.description'        => 'ClamAV (clamd)-scan van geüploade bijlagen',
+	'plugin.attachments-clamav.f.socket'           => 'clamd-socket',
+	'plugin.attachments-clamav.f.socket.help'      => 'tcp://host:port of unix:///pad/naar/clamd.ctl',
+	'plugin.attachments-clamav.f.timeout'          => 'Time-out (seconden)',
+	'plugin.attachments-clamav.f.on_error'         => 'Wanneer clamd onbereikbaar is',
+	'plugin.attachments-clamav.f.on_error.allow'   => 'Upload toestaan (waarschuwing loggen)',
+	'plugin.attachments-clamav.f.on_error.deny'    => 'Upload weigeren (fail-closed)',
+	'plugin.attachments-clamav.f.on_error.help'    => 'deny blokkeert elke upload zolang clamd down is',
+	'plugin.attachments-clamav.virus_found'        => 'Virus gedetecteerd in „{name}“',
+	'plugin.attachments-clamav.unavailable'        => 'Virusscanner onbereikbaar',
+	'plugin.attachments-clamav.bad_response'       => 'Onverwacht antwoord van de scanner: {msg}',
 	'plugin.attachments-clamav.read_failed'         => 'Kan bestand “{name}” niet lezen',
 ];

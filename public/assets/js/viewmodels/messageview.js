@@ -23,9 +23,12 @@ export class MessageViewVM {
 		// Aperçu de pièce jointe (image/PDF/texte) — modale dédiée #preview-modal.
 		this.previewModal = null;
 		this.previewName = ko.observable('');
-		this.previewType = ko.observable('');      // 'image' | 'pdf' | 'text'
+		this.previewType = ko.observable('');      // 'image' | 'pdf' | 'text' | 'eml'
 		this.previewUrl = ko.observable('');
 		this.previewText = ko.observable('');
+		this.previewEml = ko.observable(null);     // payload .eml (message/rfc822)
+		this.previewEmlAtt = null;                 // PJ .eml de 1er niveau (mimeIndex source)
+		this.previewEmlPath = ko.observable('');   // chemin ?sub= du noeud courant
 		this._mdnDismissed = false;                // « Ignorer » : masque le bandeau du message courant
 		// Bandeau accusé de réception : demandé + pas encore honoré +
 		// réglage mdn_mode ≠ 'never' (ask par défaut).
@@ -46,11 +49,30 @@ export class MessageViewVM {
 		this.security = ko.observable(null);      // verdict plugin anti-spoofing
 		this.requestedUid = null;                 // uid+dossier passés à show() — évite
 		this.requestedFolder = null;              // un re-fetch au re-clic sur le même mail
-		this.securityCss = ko.pureComputed(() => {
-			const s = this.security();
-			return s && s.level && s.level !== 'none' ? 'alert-' + s.level : '';
-		});
 		this.securityAlerts = ko.pureComputed(() => this.security()?.alerts || []);
+		this.securityOk = ko.pureComputed(() => this.security()?.auth_ok || ''); // SPF/DKIM/DMARC pass
+		// Couleur du bouclier : niveau max des alertes (info/warning/danger) ;
+		// sans alerte → vert si auth pass, gris sinon (vérif faite, RAS).
+		this.securityIconCss = ko.pureComputed(() => {
+			const s = this.security();
+			if (!s) { return ''; }
+			const lvl = s.level || 'none';
+			return lvl !== 'none' ? 'text-' + lvl
+				: s.auth_ok ? 'text-success' : 'text-muted';
+		});
+		// Tooltip du bouclier : titre « usurpation possible » seulement si
+		// warning/danger, puis une ligne par alerte, puis l'éventuel auth_ok.
+		this.securityTip = ko.pureComputed(() => {
+			const s = this.security();
+			if (!s) { return ''; }
+			const lines = [];
+			if (s.level === 'warning' || s.level === 'danger') {
+				lines.push(t('plugin.anti-spoofing.title'));
+			}
+			for (const a of this.securityAlerts()) { lines.push(a.text); }
+			if (this.securityOk()) { lines.push(this.securityOk()); }
+			return lines.join('\n') || t('plugin.anti-spoofing.clean');
+		});
 
 		// Knockout invoque les handlers avec this = $data du contexte courant
 		// (item dans un foreach / objet dans un with) : on force le binding sur le VM.
@@ -355,9 +377,10 @@ export class MessageViewVM {
 	 * pour qu'ils ne ciblent que le corps du mail. @media est récursé, les
 	 * autres @règles (@import, @font-face, @keyframes…) sont ignorées.
 	 * parseCSS porté de SnappyMail (textuel — .sheet n'est pas garanti sur
-	 * un document DOMParser).
+	 * un document DOMParser). scope = conteneur cible (« #mail-body » pour le
+	 * lecteur, « #eml-preview-body » pour l'aperçu .eml).
 	 */
-	scopeStyles(doc) {
+	scopeStyles(doc, scope = '#mail-body') {
 		const cleanRules = rules => rules
 			// position:fixed/absolute survivrait au namespace (viewport)
 			.replace(/(^|;)\s*position\s*:\s*(?:fixed|absolute|sticky)[^;{}]*/gi, '$1')
@@ -384,7 +407,7 @@ export class MessageViewVM {
 					const rules = cleanRules(m[4]);
 					if (rules.trim()) {
 						out += selector.split(',').map(s =>
-							('#mail-body ' + s.trim().replace(/\.([\w-]+)/g, '.msg-$1'))
+							(scope + ' ' + s.trim().replace(/\.([\w-]+)/g, '.msg-$1'))
 								.replace(/\sbody/gi, '')
 						).join(',') + '{' + rules + '}';
 					}
@@ -415,13 +438,14 @@ export class MessageViewVM {
 	 * pourrait matcher *dans* une valeur d'attribut (alt="logo src=cid:x").
 	 * Couvre src, srcset, background, url() dans style et dans <style>.
 	 */
-	rewriteImageRefs(doc, data, showImages) {
+	rewriteImageRefs(doc, data, showImages, urlFor = null) {
 		const cidMap = new Map(), locMap = new Map();
 		for (const a of data.attachments || []) {
-			if (!a.mimeIndex) { continue; }
-			const url = `${base()}/api/messages/${data.uid}/attachment/` +
-				`${encodeURIComponent(a.mimeIndex)}` +
-				`?folder=${encodeURIComponent(data.folder)}&download=0`;
+			if (!a.mimeIndex && !urlFor) { continue; }
+			const url = urlFor ? urlFor(a)
+				: `${base()}/api/messages/${data.uid}/attachment/` +
+					`${encodeURIComponent(a.mimeIndex)}` +
+					`?folder=${encodeURIComponent(data.folder)}&download=0`;
 			if (a.cid) { cidMap.set(this.normCid(a.cid), url); }
 			if (a.location) { locMap.set(String(a.location).trim(), url); }
 		}
@@ -543,7 +567,9 @@ export class MessageViewVM {
 		const mime = (att.mime || '').toLowerCase();
 		return MessageViewVM.PREVIEW_IMAGES.test(mime)
 			|| mime === 'application/pdf'
-			|| mime === 'text/plain';
+			|| mime === 'text/plain'
+			|| mime === 'message/rfc822'
+			|| /\.eml$/i.test(att.name || '');
 	}
 
 	/** URL inline (download=0) — attachment() refuse le téléchargement forcé. */
@@ -556,10 +582,17 @@ export class MessageViewVM {
 		this.previewName(att.name || t('app.search.attachment'));
 		this.previewUrl(this.previewAttachmentUrl(att));
 		this.previewText('');
+		this.previewEml(null);
+		this.previewEmlAtt = null;
+		this.previewEmlPath('');
 		if (MessageViewVM.PREVIEW_IMAGES.test(mime)) {
 			this.previewType('image');
 		} else if (mime === 'application/pdf') {
 			this.previewType('pdf');
+		} else if (mime === 'message/rfc822' || /\.eml$/i.test(att.name || '')) {
+			this.previewType('eml');
+			this.previewEmlAtt = att;
+			await this.loadEml('');
 		} else {
 			this.previewType('text');
 			try {
@@ -575,6 +608,67 @@ export class MessageViewVM {
 			this.previewModal = new bootstrap.Modal(document.getElementById('preview-modal'));
 		}
 		this.previewModal.show();
+	}
+
+	/** Charge le noeud ?sub= de la PJ .eml courante (récursion eml-dans-eml). */
+	async loadEml(sub) {
+		try {
+			const data = await api.get(this.emlJsonUrl(sub));
+			if (this.previewType() !== 'eml') { return; }
+			this.previewEml(data);
+			this.previewEmlPath(data.sub || '');
+			if (data.subject) { this.previewName(data.subject); }
+			await this.renderEmlBody(data);
+		} catch (e) {
+			// Repli texte : un faux .eml (text/plain joint) affiche au moins
+			// l'erreur dans le <pre> existant plutôt qu'un bloc invisible.
+			this.previewType('text');
+			this.previewText(t('errors.preview_failed') + ' (' + e.message + ')');
+		}
+	}
+
+	/** URL JSON du noeud ?sub= de la PJ .eml courante (mimeIndex 1er niveau). */
+	/** Chemin API nu du noeud ?sub= de la PJ .eml — consommé par api.get
+	 *  (qui préfixe déjà cfg.base + '/api' : pas de base() ni de /api ici,
+	 *  contrairement à emlPartUrl servi en href/src direct). */
+	emlJsonUrl(sub) {
+		const m = this.message(), att = this.previewEmlAtt;
+		return `/messages/${m.uid}/attachment/` +
+			`${encodeURIComponent(att.mimeIndex)}/eml` +
+			`?folder=${encodeURIComponent(m.folder)}` +
+			(m.uv ? `&uv=${m.uv}` : '') +
+			(sub ? `&sub=${encodeURIComponent(sub)}` : '');
+	}
+
+	/** URL d'une PJ imbriquée (n° n) du noeud courant — download=0 : image cid:. */
+	emlPartUrl(n, download) {
+		const m = this.message(), att = this.previewEmlAtt, sub = this.previewEmlPath();
+		return base() + `/api/messages/${m.uid}/attachment/` +
+			`${encodeURIComponent(att.mimeIndex)}/eml/${encodeURIComponent(n)}` +
+			`?folder=${encodeURIComponent(m.folder)}` +
+			(m.uv ? `&uv=${m.uv}` : '') +
+			(sub ? `&sub=${encodeURIComponent(sub)}` : '') +
+			`&download=${download ? 1 : 0}`;
+	}
+
+	/** Corps du noeud .eml : même pipeline sanitisation/images que renderBody. */
+	async renderEmlBody(data) {
+		const box = document.getElementById('eml-preview-body');
+		if (!box) { return; }
+		if (data.bodyHtml) {
+			const doc = this.sanitizedDoc(data.bodyHtml);
+			// view_images identique : le from du .eml sert au mode « match ».
+			this.rewriteImageRefs(doc, { attachments: data.attachments || [] },
+				await this.allowRemoteImages({ from: data.from }),
+				a => this.emlPartUrl(a.n, 0));
+			this.scopeStyles(doc, '#eml-preview-body');
+			box.replaceChildren(...doc.head.childNodes, ...doc.body.childNodes);
+			return;
+		}
+		const pre = document.createElement('pre');
+		pre.style.cssText = 'font:14px/1.5 system-ui,sans-serif;white-space:pre-wrap;margin:0';
+		pre.textContent = data.bodyPlain || '';
+		box.replaceChildren(pre);
 	}
 
 	/** Aperçu d'une pièce jointe iCalendar (plugin ics-viewer). */
@@ -813,18 +907,32 @@ export class MessageViewVM {
 	async toggleSpam() {
 		const m = this.message();
 		if (!m) { return; }
-		const current = this.app.folderList.isJunkFolder(m.folder) || !!m.isJunk();
-		let r;
-		try {
-			r = await api.post(`/messages/${m.uid}/spam`, { folder: m.folder, spam: !current });
-		} catch (e) { this.error(e.message); return; }
-		if (r.strategy === 'move') {
+		const spam = !(this.app.folderList.isJunkFolder(m.folder) || !!m.isJunk());
+		const ml = this.app.messageList;
+		// Prédiction miroir du test serveur ($folder === $junk) : 'move'
+		// attendu si le message part/rejoint le dossier Junk, 'keyword' sinon.
+		const junkName = this.app.folderList.junkFolder()?.fullName;
+		const expectMove = spam ? (!!junkName && m.folder !== junkName)
+			: (m.folder === junkName);
+		// UI optimiste : retrait immédiat + lecteur fermé, ou flag keyword.
+		if (expectMove) {
+			ml.hideMoved(m);
 			this.clear();
-			this.app.messageList.refresh();
 		} else {
-			m.isJunk(!current);
-			this.app.messageList.messages()
-				.find(x => x.uid === m.uid && x.folder === m.folder)?.isJunk(!current);
+			m.isJunk(spam);
+			ml.messages().find(x => x.uid === m.uid && x.folder === m.folder)?.isJunk(spam);
+		}
+		try {
+			const r = await api.post(`/messages/${m.uid}/spam`, { folder: m.folder, spam });
+			ml.unmarkMoved(m.folder, m.uid);
+			// Stratégie réelle ≠ prédiction : resync complet (cas rare).
+			if ((r.strategy === 'move') !== expectMove) { await ml.load(); }
+		} catch (e) {
+			ml.unmarkMoved(m.folder, m.uid);
+			if (expectMove && !m.isSeen()) { ml.adjustUnread(1, m.folder); }
+			// Le lecteur est fermé : erreur affichée côté liste.
+			ml.error(e.message);
+			await ml.load();
 		}
 	}
 
@@ -904,7 +1012,11 @@ export class MessageViewVM {
 	}
 
 	headerText(field) {
-		const v = this.message()?.[field];
+		return this.addrText(this.message()?.[field]);
+	}
+
+	/** « Nom <email>, … » — partagé par les en-têtes du message et du .eml. */
+	addrText(v) {
 		if (!v) { return ''; }
 		if (Array.isArray(v)) {
 			return v.map(e => e.name ? `${e.name} <${e.email}>` : (e.email || e)).join(', ');

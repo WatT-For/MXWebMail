@@ -64,6 +64,17 @@ final class ThemeManager
 		return $v !== '' ? $v : APP_VERSION;
 	}
 
+	/**
+	 * Version de busting d'un asset du template : mtime du fichier résolu
+	 * (héritage inclus) — une édition du fichier sans bump de theme.json change
+	 * l'URL. Repli sur la version du manifeste si le fichier est absent.
+	 */
+	public function assetVersion(string $name, string $file): string
+	{
+		$m = @filemtime($this->assetPath($name, $file));
+		return $m !== false ? (string) $m : $this->version($name);
+	}
+
 	/** Liste [{name, label, version}] des templates utilisables — pour le frontend (appdata → <select> KO). */
 	public function list(): array
 	{
@@ -312,6 +323,19 @@ final class ThemeManager
 	/** Map name => {darkMode, iconStyle, varsCss, config} — pour appdata (switch à chaud). */
 	public function themeData(): array
 	{
+		// Cache disque (storage/cache/themedata.php) : le bloc est identique pour
+		// tous les utilisateurs et ne change que sur édition de fichiers
+		// (theme.json extends / config.schema.json) ou de la config en base.
+		// Signature = mtime des fichiers + config de la table themes.
+		$sig = $this->themeDataSignature();
+		$cacheFile = $this->app->storageDir() . '/cache/themedata.php';
+		if (is_file($cacheFile)) {
+			$c = require $cacheFile;
+			if (is_array($c) && ($c['sig'] ?? null) === $sig
+				&& is_array($c['data'] ?? null)) {
+				return $c['data'];
+			}
+		}
 		$out = [];
 		foreach ($this->installed() as $name) {
 			$out[$name] = [
@@ -321,7 +345,25 @@ final class ThemeManager
 				'config'    => $this->config($name),
 			];
 		}
+		@mxwm_atomic_write($cacheFile, '<?php return '
+			. var_export(['sig' => $sig, 'data' => $out], true) . ";\n");
 		return $out;
+	}
+
+	/**
+	 * Signature d'invalidation du cache themeData : mtime des theme.json et
+	 * config.schema.json résolus (héritage) + configs de la table themes —
+	 * un setConfig/setAllowed admin ou un fichier modifié change la signature.
+	 */
+	private function themeDataSignature(): string
+	{
+		$parts = [];
+		foreach ($this->installed() as $name) {
+			$parts[] = $name . ':' . (int) @filemtime($this->templatesDir() . "/{$name}/theme.json")
+				. ':' . (int) @filemtime($this->resolve($name, 'config.schema.json'));
+		}
+		$parts[] = json_encode($this->app->themeRepo()->allConfigs());
+		return sha1(implode('|', $parts));
 	}
 
 	/**

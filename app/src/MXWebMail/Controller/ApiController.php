@@ -32,6 +32,9 @@ final class ApiController
 		'image/avif', 'image/bmp', 'image/x-icon', 'image/vnd.microsoft.icon',
 	];
 
+	/** Taille max d'une PJ .eml prévisualisée (fetch + parse en mémoire). */
+	private const EML_PREVIEW_MAX = 25 * 1024 * 1024;
+
 	/** Flags acceptés sur /api/messages/{uid}/flags (= enum IMAP complet). */
 	private const ALLOWED_FLAGS = [
 		\MailSo\Imap\Enumerations\MessageFlag::SEEN,
@@ -744,6 +747,17 @@ final class ApiController
 		return JsonResponse::ok();
 	}
 
+	/** Réordonnancement des comptes secondaires (glisser-déposer). */
+	public function accountOrder(Request $request): JsonResponse
+	{
+		$this->requireAuth();
+		$this->requireCsrf();
+		$this->app->auth()->reorderAccounts(
+			(int) $_SESSION['user_id'],
+			array_map('intval', (array) $request->input('ids', [])));
+		return JsonResponse::ok();
+	}
+
 	// ─── Filtres Sieve ───
 
 	public function filters(Request $request): JsonResponse
@@ -1168,14 +1182,31 @@ final class ApiController
 		$this->requireReadOnly();
 		$folder = $this->noCrlf((string) $request->input('folder', 'INBOX'), 'folder');
 		$uid = (int) $request->params['uid'];
-		$mimeIndex = (string) $request->params['id'];
-		$download = (bool) $request->input('download', true);
+		$found = $this->attachmentBody($folder, $uid,
+			(string) $request->params['id'], (string) $request->input('uv', ''));
+		if (!$found) {
+			return Response::notFound();
+		}
+		return $this->attachmentResponse($found['meta'], $found['body'],
+			(bool) $request->input('download', true), $found['immutable']);
+	}
 
+	/**
+	 * Corps d'une PJ (+ meta) : cache disque uv si possible, sinon liste
+	 * BODYSTRUCTURE + fetch IMAP. Partagé par attachment(), attachmentEml()
+	 * et attachmentEmlPart() — un .eml prévisualisé n'est fetché qu'une fois
+	 * (le JSON, les images cid: et les PJ imbriquées tapent le même cache).
+	 * $maxLength borne la lecture pour le chemin aperçu : lecture tronquée à
+	 * $maxLength+1 puis retour sans écriture de cache (le corps tronqué ne
+	 * doit pas corrompre le cache partagé avec le téléchargement).
+	 * Retour : ['meta','body','immutable'] ou null (absent).
+	 */
+	private function attachmentBody(string $folder, int $uid, string $mimeIndex, string $uv, ?int $maxLength = null): ?array
+	{
 		// uv = UIDVALIDITY exposée par message() : le contenu d'une PJ d'un
 		// (dossier,uidvalidity,uid,mimeIndex) donné est immuable — cache
 		// disque + immutable navigateur sûrs tant que l'URL porte uv.
 		// Sans uv (liens anciens/clients externes) : chemin historique.
-		$uv = (string) $request->input('uv', '');
 		$cacheKey = null;
 		if ($uv !== '') {
 			$cacheKey = sha1(implode('|', [
@@ -1187,7 +1218,15 @@ final class ApiController
 				$meta = json_decode((string) file_get_contents($dir . '/' . $cacheKey . '.json'), true);
 				$body = file_get_contents($dir . '/' . $cacheKey);
 				if (is_array($meta) && isset($meta['mime'], $meta['name']) && is_string($body)) {
-					return $this->attachmentResponse($meta, $body, $download, true);
+					return ['meta' => $meta, 'body' => $body, 'immutable' => true];
+				}
+			}
+			// Purge opportuniste (miss uniquement) : corps de PJ expirés (7 j).
+			// cache/att est écrit inconditionnellement → GC propre requis ; le
+			// GC cache.gc_hours ne couvre att/ que si cache.enabled = true.
+			foreach (glob($dir . '/*') ?: [] as $stale) {
+				if ((int) filemtime($stale) < time() - 604800) {
+					@unlink($stale);
 				}
 			}
 		}
@@ -1203,23 +1242,270 @@ final class ApiController
 			$this->app->log('warning', "Attachment 404 uid={$uid} folder={$folder} "
 				. "mimeIndex={$mimeIndex} dispo=["
 				. implode(',', array_column($atts ?? [], 'mimeIndex')) . ']');
-			return Response::notFound();
+			return null;
 		}
 		$body = null;
 		$ok = $this->app->mail()->mimeStream($folder, $uid, $mimeIndex,
-			function ($r) use (&$body) { $body = stream_get_contents($r); });
+			function ($r) use (&$body, $maxLength) {
+				$body = $maxLength === null
+					? stream_get_contents($r)
+					: stream_get_contents($r, $maxLength + 1);
+			});
 		if (!$ok || !is_string($body)) {
 			$this->app->log('warning',
 				"Attachment mimeStream échoué uid={$uid} folder={$folder} mimeIndex={$mimeIndex}");
-			return Response::notFound();
+			return null;
 		}
-		if ($cacheKey !== null) {
+		// Corps tronqué (lecture bornée) : ne pas cacher — le cache partagé
+		// sert aussi le téléchargement, un corps tronqué le corromprait.
+		$tooBig = $maxLength !== null && strlen($body) > $maxLength;
+		if ($cacheKey !== null && !$tooBig) {
 			// tmp+rename : un hit concurrent ne lit jamais un corps tronqué.
 			mxwm_atomic_write($dir . '/' . $cacheKey, $body);
 			mxwm_atomic_write($dir . '/' . $cacheKey . '.json',
 				json_encode(['mime' => $meta['mime'], 'name' => $meta['name']]));
 		}
-		return $this->attachmentResponse($meta, $body, $download, $cacheKey !== null);
+		return ['meta' => $meta, 'body' => $body, 'immutable' => $cacheKey !== null && !$tooBig];
+	}
+
+	/**
+	 * Aperçu JSON d'une PJ .eml (message/rfc822) : en-têtes + corps
+	 * texte/html décodés + méta des PJ imbriquées. ?sub=a[.b] descend dans
+	 * un .eml imbriqué (chaque indice pointe une PJ rfc822 du niveau courant).
+	 */
+	public function attachmentEml(Request $request): JsonResponse
+	{
+		$this->requireReadOnly();
+		$folder = $this->noCrlf((string) $request->input('folder', 'INBOX'), 'folder');
+		$uid = (int) $request->params['uid'];
+		$mimeIndex = (string) $request->params['id'];
+		$sub = (string) $request->input('sub', '');
+		if ($sub !== '' && !preg_match('/^\d+(\.\d+)*$/', $sub)) {
+			return JsonResponse::error(
+				$this->t('errors.invalid_value', ['key' => 'sub']), 'invalid_value', 400);
+		}
+		$found = $this->attachmentBody($folder, $uid, $mimeIndex,
+			(string) $request->input('uv', ''), self::EML_PREVIEW_MAX);
+		if (!$found) {
+			throw new \RuntimeException($this->t('errors.attachment_missing'), 404);
+		}
+		$meta = $found['meta'];
+		if (strtolower((string) ($meta['mime'] ?? '')) !== 'message/rfc822'
+			&& !preg_match('/\.eml$/i', (string) ($meta['name'] ?? ''))) {
+			return JsonResponse::error(
+				$this->t('errors.invalid_value', ['key' => 'mime']), 'invalid_value', 400);
+		}
+		if (strlen($found['body']) > self::EML_PREVIEW_MAX) {
+			return JsonResponse::error(
+				$this->t('errors.attachments_too_big',
+					['mb' => (int) (self::EML_PREVIEW_MAX / 1048576)]),
+				'too_big', 413);
+		}
+		try {
+			$root = \MailSo\Mime\Part::FromString($found['body']);
+		} catch (\Throwable) {
+			$root = null;
+		}
+		if (!$root) {
+			return JsonResponse::error($this->t('errors.preview_failed'), 'eml_parse', 422);
+		}
+		$node = self::emlDescend($root, $sub);
+		if (!$node) {
+			return JsonResponse::error(
+				$this->t('errors.invalid_value', ['key' => 'sub']), 'invalid_value', 400);
+		}
+		return JsonResponse::ok(self::emlToArray($node, $sub));
+	}
+
+	/**
+	 * Stream d'une PJ imbriquée dans un .eml (n° {part} du noeud ?sub=) —
+	 * téléchargement (download=1) ou image cid: (download=0). Mêmes en-têtes
+	 * sandboxés que la PJ de premier niveau.
+	 */
+	public function attachmentEmlPart(Request $request): Response
+	{
+		$this->requireReadOnly();
+		$folder = $this->noCrlf((string) $request->input('folder', 'INBOX'), 'folder');
+		$uid = (int) $request->params['uid'];
+		$mimeIndex = (string) $request->params['id'];
+		$partIdx = (string) $request->params['part'];
+		$sub = (string) $request->input('sub', '');
+		if (!preg_match('/^\d+$/', $partIdx)
+			|| ($sub !== '' && !preg_match('/^\d+(\.\d+)*$/', $sub))) {
+			return Response::notFound();
+		}
+		$found = $this->attachmentBody($folder, $uid, $mimeIndex,
+			(string) $request->input('uv', ''), self::EML_PREVIEW_MAX);
+		if (!$found || strlen($found['body']) > self::EML_PREVIEW_MAX) {
+			return Response::notFound();
+		}
+		try {
+			$root = \MailSo\Mime\Part::FromString($found['body']);
+			$node = $root ? self::emlDescend($root, $sub) : null;
+		} catch (\Throwable) {
+			$node = null;
+		}
+		if (!$node) {
+			return Response::notFound();
+		}
+		$atts = $_texts = [];
+		self::emlWalk($node, $atts, $_texts);
+		$p = $atts[(int) $partIdx] ?? null;
+		if (!$p) {
+			return Response::notFound();
+		}
+		$ct = $p->ContentType();
+		$name = \MailSo\Base\Utils::SecureFileName($p->FileName());
+		if ($name === '') {
+			$name = ($ct === 'message/rfc822' ? "message-{$partIdx}.eml" : "part-{$partIdx}");
+		}
+		return $this->attachmentResponse([
+				'mime' => $ct !== '' ? $ct : 'application/octet-stream',
+				'name' => $name,
+			], self::emlPartBody($p),
+			(bool) $request->input('download', true), $found['immutable']);
+	}
+
+	/**
+	 * Parcours d'un noeud MIME : multipart/* → récursion ; leaf text/* sans
+	 * disposition attachment → $texts ; tout autre leaf → $atts (ordre =
+	 * index `n` partagé avec la route {part} — source unique d'indexation).
+	 */
+	private static function emlWalk(\MailSo\Mime\Part $part, array &$atts, array &$texts): void
+	{
+		$ct = $part->ContentType();
+		if (str_starts_with($ct, 'multipart/')) {
+			foreach ($part->SubParts as $sub) {
+				self::emlWalk($sub, $atts, $texts);
+			}
+			return;
+		}
+		$isText = $ct === '' || $ct === 'text/plain' || $ct === 'text/html';
+		if ($isText && !str_starts_with(strtolower($part->Headers->ValueByName(
+				\MailSo\Mime\Enumerations\Header::CONTENT_DISPOSITION)), 'attachment')) {
+			$texts[] = $part;
+			return;
+		}
+		$atts[] = $part;
+	}
+
+	/** Descend les PJ rfc822 du chemin ?sub= (« a.b » = PJ a du noeud courant,
+	 *  puis PJ b du niveau suivant). null = indice ou type invalide. */
+	private static function emlDescend(\MailSo\Mime\Part $root, string $sub): ?\MailSo\Mime\Part
+	{
+		$node = $root;
+		foreach ($sub === '' ? [] : explode('.', $sub) as $idx) {
+			$atts = $_texts = [];
+			self::emlWalk($node, $atts, $_texts);
+			$p = $atts[(int) $idx] ?? null;
+			if (!$p || $p->ContentType() !== 'message/rfc822') {
+				return null;
+			}
+			$node = \MailSo\Mime\Part::FromString(self::emlPartBody($p));
+			if (!$node) {
+				return null;
+			}
+		}
+		return $node;
+	}
+
+	/** Corps décodé (Content-Transfer-Encoding) d'une partie. Body est un
+	 *  stream dont le pointeur est en fin après Parser::writeBody — rewind
+	 *  obligatoire avant lecture. */
+	private static function emlPartBody(\MailSo\Mime\Part $part): string
+	{
+		$body = '';
+		if (is_resource($part->Body)) {
+			rewind($part->Body);
+			$body = (string) stream_get_contents($part->Body);
+		}
+		return \MailSo\Base\Utils::DecodeEncodingValue($body,
+			$part->Headers->ValueByName(
+				\MailSo\Mime\Enumerations\Header::CONTENT_TRANSFER_ENCODING));
+	}
+
+	/** Corps texte décodé + converti UTF-8, capé à 256 Ko (comme le cap
+	 *  frontend de l'aperçu texte). */
+	private static function emlPartText(\MailSo\Mime\Part $part): string
+	{
+		$text = self::emlPartBody($part);
+		$text = \MailSo\Base\Utils::ConvertEncoding($text,
+			\MailSo\Base\Utils::NormalizeCharset($part->HeaderCharset() ?: 'utf-8', true),
+			\MailSo\Base\Enumerations\Charset::UTF_8);
+		$text = \MailSo\Base\Utils::Utf8Clear($text);
+		// format=flowed : Mime\Part::IsFlowedFormat() est inutilisable ici
+		// (il appelle ContentTransferEncoding(), absent de Mime\Part) —
+		// test manuel identique à Imap\BodyStructure.
+		$cte = strtolower($part->Headers->ValueByName(
+			\MailSo\Mime\Enumerations\Header::CONTENT_TRANSFER_ENCODING));
+		if ('flowed' === strtolower(trim($part->Headers->ParameterValue(
+				\MailSo\Mime\Enumerations\Header::CONTENT_TYPE,
+				\MailSo\Mime\Enumerations\Parameter::FORMAT)))
+			&& !in_array($cte, ['base64', 'quoted-printable'], true)) {
+			$text = \MailSo\Base\Utils::DecodeFlowedFormat($text);
+		}
+		if (strlen($text) > 262144) {
+			$text = mb_substr($text, 0, 262144) . "\n…";
+		}
+		return $text;
+	}
+
+	/** Payload JSON d'un noeud .eml — mêmes shapes que message() pour
+	 *  from/to/cc (EmailCollection → [{name,email}]). */
+	private static function emlToArray(\MailSo\Mime\Part $root, string $subPath = ''): array
+	{
+		$h = $root->Headers;
+		$atts = $texts = [];
+		self::emlWalk($root, $atts, $texts);
+		$out = [
+			'sub'       => $subPath,
+			'subject'   => \MailSo\Base\Utils::Utf8Clear(
+				$h->ValueByName(\MailSo\Mime\Enumerations\Header::SUBJECT, true)),
+			'from'      => $h->GetAsEmailCollection(\MailSo\Mime\Enumerations\Header::FROM_),
+			'to'        => $h->GetAsEmailCollection(\MailSo\Mime\Enumerations\Header::TO_),
+			'cc'        => $h->GetAsEmailCollection(\MailSo\Mime\Enumerations\Header::CC),
+			'date'      => \MailSo\Base\DateTimeHelper::ParseRFC2822DateString(
+				$h->ValueByName(\MailSo\Mime\Enumerations\Header::DATE)),
+			'bodyHtml'  => '',
+			'bodyPlain' => '',
+			'attachments' => [],
+		];
+		foreach ($texts as $p) {
+			$text = self::emlPartText($p);
+			if ($p->ContentType() === 'text/html') {
+				$out['bodyHtml'] .= ($out['bodyHtml'] === '' ? '' : '<br>') . $text;
+			} else {
+				$out['bodyPlain'] .= ($out['bodyPlain'] === '' ? '' : "\n") . $text;
+			}
+		}
+		// Même convention que messageFull (trim du plain assemblé).
+		$out['bodyPlain'] = trim($out['bodyPlain']);
+		foreach ($atts as $i => $p) {
+			$ct = $p->ContentType();
+			$name = \MailSo\Base\Utils::SecureFileName($p->FileName());
+			if ($name === '') {
+				$name = ($ct === 'message/rfc822' ? "message-{$i}.eml" : "part-{$i}");
+			}
+			$cid = trim($p->Headers->ValueByName(
+				\MailSo\Mime\Enumerations\Header::CONTENT_ID));
+			$loc = trim($p->Headers->ValueByName(
+				\MailSo\Mime\Enumerations\Header::CONTENT_LOCATION));
+			$disp = strtolower($p->Headers->ValueByName(
+				\MailSo\Mime\Enumerations\Header::CONTENT_DISPOSITION));
+			$eml = $ct === 'message/rfc822';
+			$out['attachments'][] = [
+				'n'        => $i,
+				'name'     => $name,
+				'mime'     => $ct !== '' ? $ct : 'application/octet-stream',
+				'size'     => strlen(self::emlPartBody($p)),
+				'cid'      => $cid !== '' ? $cid : null,
+				'location' => $loc !== '' ? $loc : null,
+				'isInline' => $disp === 'inline' || $cid !== '',
+				'eml'      => $eml,
+				'sub'      => $eml ? ($subPath === '' ? (string) $i : "{$subPath}.{$i}") : null,
+			];
+		}
+		return $out;
 	}
 
 	/**
@@ -1322,6 +1608,58 @@ final class ApiController
 			$this->noCrlf((string) $request->input('folder', 'INBOX'), 'folder'),
 			(int) $request->params['uid']
 		));
+	}
+
+	/** Suppression groupée : un UID MOVE/EXPUNGE par dossier au lieu d'une
+	 *  requête HTTP + commande IMAP par message (bulkDelete frontend). */
+	public function messagesDelete(Request $request): JsonResponse
+	{
+		$this->requireAuth();
+		$this->requireCsrf();
+		$this->requireDangerous();
+		$groups = $this->batchItemsByFolder($request);
+		if ($groups instanceof JsonResponse) { return $groups; }
+		$mail = $this->app->mail();
+		$done = 0; $errors = [];
+		foreach ($groups as $folder => $uids) {
+			try {
+				$mail->delete($folder, $uids);
+				$done += count($uids);
+			} catch (\Throwable $e) {
+				$errors[] = ['folder' => $folder, 'error' => $e->getMessage()];
+			}
+		}
+		return JsonResponse::ok(['done' => $done, 'errors' => $errors]);
+	}
+
+	/** Déplacement groupé : même batching que messagesDelete. Les groupes
+	 *  déjà dans la cible sont ignorés (le client les pré-filtre aussi). */
+	public function messagesMove(Request $request): JsonResponse
+	{
+		$this->requireAuth();
+		$this->requireCsrf();
+		$mail = $this->app->mail();
+		$to = $this->noCrlf((string) $request->input('to'), 'to');
+		if ($to === '') {
+			return JsonResponse::error($this->t('errors.invalid_value', ['key' => 'to']), 'invalid_value', 400);
+		}
+		// Même garde que messageMove : déplacer vers la corbeille = supprimer.
+		if ($to === $mail->trashFolder()) {
+			$this->requireDangerous();
+		}
+		$groups = $this->batchItemsByFolder($request);
+		if ($groups instanceof JsonResponse) { return $groups; }
+		$done = 0; $errors = [];
+		foreach ($groups as $folder => $uids) {
+			if ($folder === $to) { continue; }
+			try {
+				$mail->move($folder, $to, $uids);
+				$done += count($uids);
+			} catch (\Throwable $e) {
+				$errors[] = ['folder' => $folder, 'error' => $e->getMessage()];
+			}
+		}
+		return JsonResponse::ok(['done' => $done, 'errors' => $errors]);
 	}
 
 	/** Import dans un dossier (IMAP APPEND) : .eml (1 message) ou .mbox
@@ -1464,8 +1802,9 @@ final class ApiController
 		$this->requireReadOnly();
 		$folder = $this->noCrlf((string) $request->input('folder', 'INBOX'), 'folder');
 		$uid = (int) $request->params['uid'];
+		$mail = $this->app->mail();
 		// BODYSTRUCTURE seul : pas de fetch des corps texte pour les métas PJ.
-		$atts = $this->app->mail()->attachmentList($folder, $uid);
+		$atts = $mail->attachmentList($folder, $uid);
 		if (!$atts) {
 			return Response::notFound();
 		}
@@ -2398,6 +2737,35 @@ final class ApiController
 			return $this->noCrlf($raw, 'folder');
 		}
 		return $this->noCrlf((string) $request->input('name'), 'folder');
+	}
+
+	/**
+	 * items[] = {folder, uid} des endpoints batch : validation stricte
+	 * (un item malformé invalide toute la requête), regroupés par dossier.
+	 * @return array<string, int[]>|JsonResponse
+	 */
+	private function batchItemsByFolder(Request $request): array|JsonResponse
+	{
+		$items = $request->input('items', []);
+		if (!is_array($items) || !$items) {
+			return JsonResponse::error(
+				$this->t('errors.invalid_value', ['key' => 'items']), 'bad_uids', 400);
+		}
+		if (count($items) > 500) {
+			return JsonResponse::error(
+				$this->t('errors.too_many', ['max' => 500]), 'too_many', 413);
+		}
+		$byFolder = [];
+		foreach ($items as $it) {
+			$folder = is_array($it) ? (string) ($it['folder'] ?? '') : '';
+			$uid = is_array($it) ? (int) ($it['uid'] ?? 0) : 0;
+			if ($folder === '' || $uid < 1) {
+				return JsonResponse::error(
+					$this->t('errors.invalid_value', ['key' => 'items']), 'bad_uids', 400);
+			}
+			$byFolder[$this->noCrlf($folder, 'folder')][] = $uid;
+		}
+		return $byFolder;
 	}
 
 	/**

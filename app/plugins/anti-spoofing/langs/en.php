@@ -5,6 +5,7 @@ declare(strict_types=1);
 return [
 	'plugin.anti-spoofing.description'        => 'Email address and domain spoofing detection in the message reader',
 	'plugin.anti-spoofing.title'              => 'Warning — possible spoofing',
+	'plugin.anti-spoofing.clean'              => 'No spoofing detected',
 
 	'plugin.anti-spoofing.alert.envelope_mismatch'  => 'The sending address ({return_path}) does not match the displayed sender ({from}).',
 	'plugin.anti-spoofing.alert.reply_to_mismatch'  => 'Replies will be sent to {reply_to} instead of the displayed sender ({from}).',

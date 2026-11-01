@@ -83,6 +83,7 @@ final class MailService
 		try { $this->sieveClient?->Disconnect(); } catch (\Throwable) {}
 		$this->client = $this->sieveClient = null;
 		$this->specialMap = $this->userFolderSet = $this->folderRows = null;
+		unset($_SESSION['folder_cache']);
 	}
 
 	// ─── Dossiers ───
@@ -105,6 +106,8 @@ final class MailService
 				'role'         => $folder->Role(),
 				'total'        => $folder->MESSAGES,
 				'unread'       => $folder->UNSEEN,
+				// RFC 8438 — null si le serveur n'annonce pas STATUS=SIZE
+				'size'         => $folder->SIZE,
 			];
 			$exists[$folder->FullName] = true;
 		}
@@ -152,7 +155,34 @@ final class MailService
 				|| $f['special'] !== null;
 		}
 		unset($f);
+		// Lignes mises en cache session (par compte) : cachedFolders() sert la
+		// résolution des rôles (junkFolder(), trashFolder(), specialFolder(),
+		// folderFlags()) sans repayer un LIST+STATUS à chaque action (spam,
+		// corbeille, append Sent…). Les compteurs total/unread qu'elle
+		// contient peuvent être périmés — ces consommateurs ne les lisent pas.
+		$_SESSION['folder_cache'][(string) ($_SESSION['account_id'] ?? 0)] = $out;
 		return $this->folderRows = $out;
+	}
+
+	/**
+	 * Lignes folders() depuis le cache session écrit à chaque calcul réel
+	 * (GET /api/folders, donc rafraîchi par le poll list_refresh) ; absent →
+	 * folders() le peuple. Pour la résolution de rôles uniquement.
+	 */
+	private function cachedFolders(): array
+	{
+		$acct = (string) ($_SESSION['account_id'] ?? 0);
+		if (!isset($_SESSION['folder_cache'][$acct])) {
+			$this->folders(); // calcule et peuple le cache session
+		}
+		return $_SESSION['folder_cache'][$acct] ?? [];
+	}
+
+	/** Invalide la liste des dossiers et son cache session. */
+	private function invalidateFolderCache(): void
+	{
+		$this->folderRows = null;
+		unset($_SESSION['folder_cache'][(string) ($_SESSION['account_id'] ?? 0)]);
 	}
 
 	/**
@@ -255,19 +285,26 @@ final class MailService
 	}
 
 	/**
-	 * Métadonnées d'une pièce jointe : Fetch BODYSTRUCTURE seul.
-	 * Message() enchaînait un second FETCH de toutes les parties texte
-	 * (body_text_limit=0 → corps entier) pour ne lire que mimeIndex/mime/nom.
-	 */
-	/**
-	 * Métadonnées des pièces jointes d'un message : Fetch BODYSTRUCTURE
-	 * seul. Message() enchaînait un second FETCH de toutes les parties
-	 * texte (body_text_limit=0 → corps entier) pour ne lire que les PJ.
+	 * Métadonnées des pièces jointes d'un message : FETCH restreint à
+	 * BODYSTRUCTURE + champs minimum exigés par fromFetchResponse
+	 * (INTERNALDATE non-nullable, UID). Message() enchaînait un second
+	 * FETCH de toutes les parties texte (body_text_limit=0 → corps
+	 * entier) pour ne lire que les PJ.
 	 */
 	public function attachmentList(string $folder, int $uid): ?array
 	{
-		$fetch = $this->client()->ImapClient()->Fetch(
-			[\MailSo\Imap\Enumerations\FetchType::BODYSTRUCTURE], $uid, true);
+		$imap = $this->client()->ImapClient();
+		// EXAMINE comme Message()/MessageMimeStream() : Fetch exige une
+		// mailbox sélectionnée — attachmentList court-circuite MailClient
+		// qui la fait en interne.
+		$imap->FolderExamine($folder);
+		$fetch = $imap->Fetch(
+			[
+				\MailSo\Imap\Enumerations\FetchType::UID,
+				\MailSo\Imap\Enumerations\FetchType::INTERNALDATE,
+				\MailSo\Imap\Enumerations\FetchType::BODYSTRUCTURE,
+			],
+			(string) $uid, true);
 		$resp = $fetch[0] ?? null;
 		$bs = $resp?->GetFetchBodyStructure();
 		if (!$resp || !$bs) {
@@ -290,9 +327,9 @@ final class MailService
 			new \MailSo\Imap\SequenceSet(array_map('intval', $uids)), $flag, $set);
 	}
 
-	public function move(string $from, string $to, int $uid): void
+	public function move(string $from, string $to, int|array $uids): void
 	{
-		$this->client()->MessageMove($from, $to, new \MailSo\Imap\SequenceSet((string) $uid));
+		$this->client()->MessageMove($from, $to, new \MailSo\Imap\SequenceSet($uids));
 	}
 
 	public function copy(string $from, string $to, int $uid): void
@@ -301,18 +338,40 @@ final class MailService
 	}
 
 	/**
+	 * Déplacement vers un dossier de rôle ('junk'|'trash') issu du cache
+	 * session : si la cible a disparu (renommée/supprimée par un autre
+	 * client), invalide le cache, re-résout et retente une fois. Retourne
+	 * la cible effectivement utilisée.
+	 */
+	private function moveToRole(string $from, string $role, string $target, int|array $uid): string
+	{
+		try {
+			$this->move($from, $target, $uid);
+			return $target;
+		} catch (\Throwable $e) {
+			$this->invalidateFolderCache();
+			$fresh = $role === 'junk' ? $this->junkFolder() : $this->trashFolder();
+			if ($fresh !== null && $fresh !== $target) {
+				$this->move($from, $fresh, $uid);
+				return $fresh;
+			}
+			throw $e;
+		}
+	}
+
+	/**
 	 * « Supprimer » déplace vers la corbeille ; suppression définitive
 	 * (flag \Deleted + expunge) uniquement depuis la corbeille ou sans
 	 * dossier corbeille détecté.
 	 */
-	public function delete(string $folder, int $uid): array
+	public function delete(string $folder, int|array $uids): array
 	{
 		$trash = $this->trashFolder();
 		if ($trash !== null && $folder !== $trash) {
-			$this->move($folder, $trash, $uid);
-			return ['strategy' => 'move', 'folder' => $trash];
+			return ['strategy' => 'move',
+				'folder' => $this->moveToRole($folder, 'trash', $trash, $uids)];
 		}
-		$this->client()->MessageDelete($folder, new \MailSo\Imap\SequenceSet((string) $uid));
+		$this->client()->MessageDelete($folder, new \MailSo\Imap\SequenceSet($uids));
 		return ['strategy' => 'expunge', 'folder' => null];
 	}
 
@@ -352,8 +411,8 @@ final class MailService
 				return ['spam' => true, 'strategy' => 'move', 'folder' => $junk];
 			}
 			if ($junk !== null) {
-				$this->move($folder, $junk, $uid);
-				return ['spam' => true, 'strategy' => 'move', 'folder' => $junk];
+				return ['spam' => true, 'strategy' => 'move',
+					'folder' => $this->moveToRole($folder, 'junk', $junk, $uid)];
 			}
 			if ($this->supportsJunkKeyword($folder)) {
 				$this->flags($folder, $uid, \MailSo\Imap\Enumerations\MessageFlag::JUNK, true);
@@ -378,19 +437,19 @@ final class MailService
 	public function folderCreate(string $name, string $parent = ''): void
 	{
 		$this->client()->FolderCreate($name, $parent);
-		$this->folderRows = null;
+		$this->invalidateFolderCache();
 	}
 
 	public function folderDelete(string $name): void
 	{
 		$this->client()->FolderDelete($name);
-		$this->folderRows = null;
+		$this->invalidateFolderCache();
 	}
 
 	public function folderRename(string $from, string $to): void
 	{
 		$this->client()->FolderRename($from, $to);
-		$this->folderRows = null;
+		$this->invalidateFolderCache();
 	}
 
 	public function folderSubscribe(string $name, bool $subscribe): void
@@ -398,13 +457,13 @@ final class MailService
 		$subscribe
 			? $this->client()->FolderSubscribe($name)
 			: $this->client()->FolderUnsubscribe($name);
-		$this->folderRows = null;
+		$this->invalidateFolderCache();
 	}
 
 	public function folderClear(string $name): void
 	{
 		$this->client()->FolderClear($name);
-		$this->folderRows = null; // compteurs total/unread périmés
+		$this->invalidateFolderCache(); // compteurs total/unread périmés
 	}
 
 	/** Marque tous les messages du dossier comme lus (UID STORE 1:* +FLAGS \Seen). */
@@ -412,7 +471,7 @@ final class MailService
 	{
 		$this->client()->MessageSetFlag($name,
 			new \MailSo\Imap\SequenceSet('1:*'), '\\Seen', true);
-		$this->folderRows = null; // unread du dossier remis à zéro
+		$this->invalidateFolderCache(); // unread du dossier remis à zéro
 	}
 
 	public function quota(): ?array
@@ -464,6 +523,7 @@ final class MailService
 		$all[(string) ($_SESSION['account_id'] ?? 0)] = $map;
 		$this->app->settings()->set($uid, 'special_folders', $all);
 		$this->specialMap = $map;
+		$this->invalidateFolderCache(); // rôles effectifs recalculés
 	}
 
 	/**
@@ -532,6 +592,7 @@ final class MailService
 		$this->app->settings()->set($uid, 'user_folders',
 			array_filter($all) === [] ? null : $all);
 		$this->userFolderSet = null;
+		$this->invalidateFolderCache(); // exemptions de fallback modifiées
 	}
 
 	/**
@@ -596,7 +657,7 @@ final class MailService
 	public function specialFolder(string $role): ?string
 	{
 		$role = strtolower(ltrim($role, '\\'));
-		$folders = $this->folders();
+		$folders = $this->cachedFolders();
 		$override = $this->specialFolderMap()[$role] ?? null;
 		if ($override === 'none') {
 			return null;
@@ -609,18 +670,19 @@ final class MailService
 			}
 			// Dossier assigné disparu : retombe sur la détection auto
 		}
-		return $this->detectedSpecialFolder($role);
+		return $this->detectedSpecialFolder($role, $folders);
 	}
 
 	/**
 	 * Dossier du rôle résolu par la seule détection (special-use puis noms
 	 * usuels), en ignorant toute assignation utilisateur — ce que « auto »
-	 * utiliserait. Retourne un nom deviné si rien n'existe encore.
+	 * utiliserait. Retourne un nom deviné si rien n'existe encore. $folders
+	 * = lignes à scanner (défaut : folders() live).
 	 */
-	public function detectedSpecialFolder(string $role): ?string
+	public function detectedSpecialFolder(string $role, ?array $folders = null): ?string
 	{
 		$role = strtolower(ltrim($role, '\\'));
-		$folders = $this->folders();
+		$folders ??= $this->folders();
 		foreach ($folders as $f) {
 			if (strtolower(ltrim((string) $f['role'], '\\')) === $role) {
 				return $f['fullName'];
@@ -646,13 +708,14 @@ final class MailService
 		if (($this->specialFolderMap()['junk'] ?? null) === 'none') {
 			return null;
 		}
-		foreach ($this->folders() as $f) {
+		$folders = $this->cachedFolders();
+		foreach ($folders as $f) {
 			if ($f['special'] === 'junk') {
 				return $f['fullName'];
 			}
 		}
 		$junkNames = array_map('mb_strtolower', self::FOLDER_FALLBACKS['junk']);
-		foreach ($this->folders() as $f) {
+		foreach ($folders as $f) {
 			if (in_array(mb_strtolower((string) $f['name']), $junkNames, true)) {
 				return $f['fullName'];
 			}
@@ -669,13 +732,14 @@ final class MailService
 		if (($this->specialFolderMap()['trash'] ?? null) === 'none') {
 			return null;
 		}
-		foreach ($this->folders() as $f) {
+		$folders = $this->cachedFolders();
+		foreach ($folders as $f) {
 			if ($f['special'] === 'trash') {
 				return $f['fullName'];
 			}
 		}
 		$trashNames = array_map('mb_strtolower', self::FOLDER_FALLBACKS['trash']);
-		foreach ($this->folders() as $f) {
+		foreach ($folders as $f) {
 			if (in_array(mb_strtolower((string) $f['name']), $trashNames, true)) {
 				return $f['fullName'];
 			}
@@ -693,7 +757,7 @@ final class MailService
 		$inbox = strcasecmp($name, 'INBOX') === 0;
 		$system = $inbox;
 		if (!$system) {
-			foreach ($this->folders() as $f) {
+			foreach ($this->cachedFolders() as $f) {
 				if ($f['fullName'] === $name) {
 					$system = !empty($f['special']);
 					break;

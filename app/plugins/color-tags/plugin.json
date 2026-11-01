@@ -2,7 +2,7 @@
 	"name": "color-tags",
 	"class": "ColorTags",
 	"main": "ColorTags.php",
-	"version": "0.12.1",
+	"version": "0.13.0",
 	"description": "plugin.color-tags.description",
 	"hooks": ["app.data", "message.meta"]
 }

@@ -64,6 +64,20 @@ final class ThemeRepository
 		return $this->configs[$name];
 	}
 
+	/**
+	 * name => config décodé pour toute la table, en une requête — utilisé par
+	 * ThemeManager::themeDataSignature pour invalider le cache themeData quand
+	 * une config admin change (setConfig/setAllowed modifient la table).
+	 */
+	public function allConfigs(): array
+	{
+		$out = [];
+		foreach ($this->db->pdo()->query('SELECT name, config FROM themes') as $row) {
+			$out[$row['name']] = json_decode((string) $row['config'], true) ?: [];
+		}
+		return $out;
+	}
+
 	public function setConfig(string $name, array $config): void
 	{
 		$driver = $this->db->pdo()->getAttribute(\PDO::ATTR_DRIVER_NAME);

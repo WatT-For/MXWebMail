@@ -74,7 +74,7 @@ abstract class MimeType
 		return null;
 	}
 
-	public static function fromString(string &$str, string $name = '') : ?string
+	public static function fromString(string $str, string $name = '') : ?string
 	{
 		static::initFInfo();
 		$mime = self::$finfo

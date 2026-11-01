@@ -5,6 +5,7 @@ declare(strict_types=1);
 return [
 	'plugin.anti-spoofing.description'        => 'İleti okuyucuda e-posta adresi ve alan adı taklidi algılama',
 	'plugin.anti-spoofing.title'              => 'Uyarı — olası taklit',
+	'plugin.anti-spoofing.clean'              => 'Taklit tespit edilmedi',
 
 	'plugin.anti-spoofing.alert.envelope_mismatch'  => 'Gönderim adresi ({return_path}) görüntülenen gönderenle ({from}) eşleşmiyor.',
 	'plugin.anti-spoofing.alert.reply_to_mismatch'  => 'Yanıtlar görüntülenen gönderen ({from}) yerine {reply_to} adresine gönderilecek.',
@@ -21,10 +22,10 @@ return [
 	'plugin.anti-spoofing.f.check_sender'           => 'Sender başlığını denetle',
 	'plugin.anti-spoofing.f.check_display'          => 'Görünen ad taklidini algıla',
 	'plugin.anti-spoofing.f.check_lookalike'        => 'Benzer alan adlarını algıla',
-	'plugin.anti-spoofing.f.check_auth_results'   => 'Check SPF/DKIM/DMARC (Authentication-Results)',
-	'plugin.anti-spoofing.alert.auth_spf_fail'     => 'SPF check failed for this sender',
-	'plugin.anti-spoofing.alert.auth_dkim_fail'    => 'DKIM signature check failed',
-	'plugin.anti-spoofing.alert.auth_dmarc_fail'   => 'DMARC check failed',
-	'plugin.anti-spoofing.alert.auth_spf_softfail' => 'SPF softfail (sender not authorized)',
-	'plugin.anti-spoofing.alert.auth_pass_all'     => 'SPF, DKIM and DMARC verified (pass)',
+	'plugin.anti-spoofing.f.check_auth_results'   => 'SPF/DKIM/DMARC denetle (Authentication-Results)',
+	'plugin.anti-spoofing.alert.auth_spf_fail'     => 'Bu gönderen için SPF denetimi başarısız',
+	'plugin.anti-spoofing.alert.auth_dkim_fail'    => 'DKIM imza denetimi başarısız',
+	'plugin.anti-spoofing.alert.auth_dmarc_fail'   => 'DMARC denetimi başarısız',
+	'plugin.anti-spoofing.alert.auth_spf_softfail' => 'SPF softfail (gönderen yetkisiz)',
+	'plugin.anti-spoofing.alert.auth_pass_all'     => 'SPF, DKIM ve DMARC doğrulandı (pass)',
 ];

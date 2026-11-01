@@ -1,0 +1,30 @@
+{
+	"mode": {
+		"label": "plugin.link-confirmation.f.mode",
+		"type": "enum",
+		"options": {
+			"all": "plugin.link-confirmation.f.mode.all",
+			"suspicious": "plugin.link-confirmation.f.mode.suspicious"
+		},
+		"default": "all",
+		"help": "plugin.link-confirmation.f.mode.help"
+	},
+	"whitelist": {
+		"label": "plugin.link-confirmation.f.whitelist",
+		"type": "text",
+		"default": "",
+		"help": "plugin.link-confirmation.f.whitelist.help"
+	},
+	"warn_mailto": {
+		"label": "plugin.link-confirmation.f.warn_mailto",
+		"type": "bool",
+		"default": false,
+		"help": "plugin.link-confirmation.f.warn_mailto.help"
+	},
+	"remember": {
+		"label": "plugin.link-confirmation.f.remember",
+		"type": "bool",
+		"default": true,
+		"help": "plugin.link-confirmation.f.remember.help"
+	}
+}

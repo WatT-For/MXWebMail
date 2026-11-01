@@ -117,6 +117,7 @@ final class AntiSpoofing extends PluginBase
 
 		// 6. Authentication-Results du MTA : SPF/DKIM/DMARC déjà fetchés et
 		//    parsés par MailSo (propriétés du Message) — aucun re-fetch.
+		$authOk = null;
 		if ($this->flag('check_auth_results')) {
 			$present = 0; $fails = 0; $passes = 0;
 			foreach (['spf' => $msg->SPF, 'dkim' => $msg->DKIM, 'dmarc' => $msg->DMARC]
@@ -138,13 +139,14 @@ final class AntiSpoofing extends PluginBase
 					}
 				}
 			}
-			// Tous les mécanismes présents passent → indicateur de confiance.
+			// Tous les mécanismes présents passent → indicateur de confiance
+			// affiché hors du bandeau d'alerte (signal positif, pas une alerte).
 			if ($present > 0 && $fails === 0 && $passes === $present) {
-				$alerts[] = $this->alert('auth_pass_all', 'info', []);
+				$authOk = $this->t('plugin.anti-spoofing.alert.auth_pass_all');
 			}
 		}
 
-		return ['level' => self::level($alerts), 'alerts' => $alerts];
+		return ['level' => self::level($alerts), 'alerts' => $alerts, 'auth_ok' => $authOk];
 	}
 
 	private function alert(string $type, string $level, array $params): array

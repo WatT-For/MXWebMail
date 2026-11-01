@@ -2,12 +2,12 @@
 declare(strict_types=1);
 
 return [
-	'plugin.wkd-keys.description'              => 'Automatic PGP key discovery (WKD + Autocrypt harvesting)',
-	'plugin.wkd-keys.f.keyserver_fallback'     => 'keys.openpgp.org fallback',
-	'plugin.wkd-keys.f.keyserver_fallback.help'=> 'Query the public keyserver when WKD yields nothing',
-	'plugin.wkd-keys.f.autocrypt'              => 'Harvest Autocrypt headers',
-	'plugin.wkd-keys.f.autocrypt.help'         => 'Store keys sent by correspondents in the Autocrypt header',
-	'plugin.wkd-keys.bad_email'                => 'Invalid email address',
-	'plugin.wkd-keys.import_confirm'           => 'A PGP key was found for {email}. Import it?',
-	'plugin.wkd-keys.imported'                 => 'PGP key imported.',
+	'plugin.wkd-keys.description'              => 'Automatische PGP-Schlüsselsuche (WKD + Autocrypt-Harvesting)',
+	'plugin.wkd-keys.f.keyserver_fallback'     => 'keys.openpgp.org-Fallback',
+	'plugin.wkd-keys.f.keyserver_fallback.help'=> 'Öffentlichen Keyserver abfragen, wenn WKD nichts liefert',
+	'plugin.wkd-keys.f.autocrypt'              => 'Autocrypt-Header sammeln',
+	'plugin.wkd-keys.f.autocrypt.help'         => 'Von Korrespondenten im Autocrypt-Header gesendete Schlüssel speichern',
+	'plugin.wkd-keys.bad_email'                => 'Ungültige E-Mail-Adresse',
+	'plugin.wkd-keys.import_confirm'           => 'Für {email} wurde ein PGP-Schlüssel gefunden. Importieren?',
+	'plugin.wkd-keys.imported'                 => 'PGP-Schlüssel importiert.',
 ];

@@ -15,8 +15,12 @@
  * pick   : items = [{ label, value, icon?, depth?, disabled? }] ; + { searchable }
  *          (okLabel: null interne — pas de bouton OK en mode liste)
  * form   : + { fields: [{ name, label?, type: 'text'|'select',
- *            options?: [{label,value,depth?,disabled?}], defaultValue?, placeholder? }] }
+ *            options?: [{label,value,depth?,disabled?}], defaultValue?, placeholder?,
+ *            inputType?, readonly?, hint? }], onSubmit? }
  *          (option.depth indente le label par des espaces insécables)
+ *          onSubmit(values) async : retour string|{message,variant} = message
+ *          affiché dans la modale (reste ouverte) ; tout autre retour = fermeture.
+ *          Pendant l'appel : boutons/champs désactivés + spinner, fermeture bloquée.
  */
 import { t } from '../i18n.js';
 
@@ -36,7 +40,7 @@ function el(tag, className, text) {
 
 function open({ title = t('dialog.info'), message = '', variant = 'info',
 	icon = null, input = null, okLabel = 'OK', cancelLabel = null,
-	list = null, searchable = false, fields = null }) {
+	list = null, searchable = false, fields = null, onSubmit = null }) {
 	return new Promise(resolve => {
 		const v = VARIANTS[variant] || VARIANTS.info;
 		let result = (input || list || fields) ? null : (cancelLabel !== null ? false : undefined);
@@ -51,6 +55,16 @@ function open({ title = t('dialog.info'), message = '', variant = 'info',
 		header.append(h5);
 
 		const body = el('div', 'modal-body');
+		let alertEl = null;
+		if (onSubmit) {
+			alertEl = el('div', 'alert d-none py-2 px-3 mb-2');
+			alertEl.setAttribute('role', 'alert');
+			body.append(alertEl);
+		}
+		const showMsg = (text, kind = 'danger') => {
+			alertEl.className = `alert alert-${kind} py-2 px-3 mb-2`;
+			alertEl.textContent = text;
+		};
 		let filterEl = null;
 		let firstEnabled = null;
 		if (list) {
@@ -130,11 +144,14 @@ function open({ title = t('dialog.info'), message = '', variant = 'info',
 					ctrl.type = f.inputType || 'text';
 					ctrl.value = f.defaultValue || '';
 					if (f.placeholder) { ctrl.placeholder = f.placeholder; }
+					if (f.readonly) { ctrl.readOnly = true; }
+					if (ctrl.type === 'password') { ctrl.autocomplete = 'off'; }
 					ctrl.addEventListener('keydown', e => {
-						if (e.key === 'Enter') { e.preventDefault(); done(collect()); }
+						if (e.key === 'Enter') { e.preventDefault(); submit(); }
 					});
 				}
 				group.append(ctrl);
+				if (f.hint) { group.append(el('div', 'form-text', f.hint)); }
 				body.append(group);
 				fieldEls.push({ name: f.name, ctrl });
 			}
@@ -146,8 +163,9 @@ function open({ title = t('dialog.info'), message = '', variant = 'info',
 		};
 
 		const footer = el('div', 'modal-footer');
+		let cancel = null;
 		if (cancelLabel !== null) {
-			const cancel = el('button', 'btn btn-sm btn-outline-secondary', cancelLabel);
+			cancel = el('button', 'btn btn-sm btn-outline-secondary', cancelLabel);
 			cancel.type = 'button';
 			cancel.onclick = () => done(input || list || fields ? null : false);
 			footer.append(cancel);
@@ -156,7 +174,7 @@ function open({ title = t('dialog.info'), message = '', variant = 'info',
 		if (okLabel !== null) {
 			ok = el('button', `btn btn-sm ${v.btn}`, okLabel);
 			ok.type = 'button';
-			ok.onclick = () => done(fields ? collect() : (input ? inputEl.value : true));
+			ok.onclick = () => submit();
 			footer.append(ok);
 		}
 
@@ -168,13 +186,51 @@ function open({ title = t('dialog.info'), message = '', variant = 'info',
 
 		const m = new bootstrap.Modal(modal);
 		const done = val => { result = val; m.hide(); };
+		let busy = false;
+		let spinnerEl = null;
+		const setBusy = b => {
+			busy = b;
+			if (ok) { ok.disabled = b; }
+			if (cancel) { cancel.disabled = b; }
+			for (const { ctrl } of fieldEls) { ctrl.disabled = b; }
+			if (b && ok) {
+				spinnerEl = el('span', 'spinner-border spinner-border-sm me-1');
+				ok.prepend(spinnerEl);
+			} else {
+				spinnerEl?.remove();
+				spinnerEl = null;
+			}
+		};
+		const submit = async () => {
+			if (busy) { return; }
+			if (!fields || !onSubmit) {
+				done(fields ? collect() : (input ? inputEl.value : true));
+				return;
+			}
+			setBusy(true);
+			alertEl.classList.add('d-none');
+			let r;
+			try { r = await onSubmit(collect()); }
+			catch (e) { r = e?.message || String(e); }
+			setBusy(false); // avant done() : le garde hide.bs.modal bloque busy=true
+			if (typeof r === 'string') { showMsg(r); return; }
+			if (r && typeof r === 'object' && 'message' in r) {
+				showMsg(r.message, r.variant || 'danger');
+				return;
+			}
+			done(collect());
+		};
+		// Échap/backdrop pendant la soumission : la modale resterait en
+		// « annulation » alors que la requête en vol peut aboutir côté serveur.
+		modal.addEventListener('hide.bs.modal', e => { if (busy) { e.preventDefault(); } });
 		modal.addEventListener('hidden.bs.modal', () => {
 			m.dispose();
 			modal.remove();
 			resolve(result);
 		});
 		modal.addEventListener('shown.bs.modal', () => {
-			(inputEl || fieldEls[0]?.ctrl || filterEl || ok || firstEnabled || modal).focus();
+			(inputEl || fieldEls.find(f => !f.ctrl.readOnly && !f.ctrl.disabled)?.ctrl
+				|| filterEl || ok || firstEnabled || modal).focus();
 			if (inputEl && input.defaultValue) { inputEl.select(); }
 		});
 		if (inputEl) {

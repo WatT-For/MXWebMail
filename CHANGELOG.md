@@ -6,6 +6,56 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) —
 semver `0.MINOR.PATCH` en développement.
 Catégories, dans l'ordre : `Sécurité`, `Ajouté`, `Modifié`, `Corrigé`, `Obsolète`, `Supprimé`.
 
+## [0.49.0] — 2026-11-01
+
+### Ajouté
+
+- Réglages → Comptes : l'ordre des comptes secondaires est désormais persistant et modifiable par glisser-déposer — un nouveau compte s'ajoute en fin de liste (auparavant le tri était alphabétique).
+- Aperçu des pièces jointes `.eml` (message transféré, message/rfc822) : le bouton loupe affiche dans la modale les en-têtes (expéditeur, destinataires, date), le corps sanitisé comme un message normal (images `cid:` et distantes selon le réglage d'affichage) et les pièces jointes du message joint, téléchargeables individuellement — y compris les `.eml` imbriqués en cascade.
+- Plugin `link-confirmation` : modale de confirmation avant l'ouverture d'un lien contenu dans un mail (anti-hameçonnage) — destination réelle affichée, signalement des liens suspects (texte différent de l'URL cible, IP littérale, punycode, identifiants dans l'URL), domaines de confiance et option « ne plus demander pour ce domaine » (réglages dans Extensions → ⚙).
+- Réglages → Dossiers : nouvelle colonne « Taille » affichant la taille totale des messages de chaque dossier — nécessite l'extension IMAP `STATUS=SIZE` (RFC 8438), la colonne est masquée si le serveur ne l'annonce pas.
+- Écran de chargement plein page affiché jusqu'à l'initialisation complète de l'interface (fin du premier chargement de la liste de messages) — supprime le flash de mise en page brute au rechargement ou au changement de compte, avec fondu de sortie et durée d'affichage minimale.
+- Indicateur de chargement animé centré sur la colonne de la liste des messages (voile estompé + spinner) pendant les rechargements déclenchés par l'utilisateur — le rafraîchissement automatique en arrière-plan reste signalé par la seule icône.
+
+### Modifié
+
+- Onglet « Pièces jointes » du lecteur de message : les fichiers sont présentés en tableau (nom, taille, actions d'aperçu et de téléchargement) au lieu d'une suite de boutons.
+- Le sélecteur de comptes de la barre supérieure devient un bouton visible (auparavant un texte semi-transparent peu lisible).
+- Changement de compte : l'interface revient désormais systématiquement sur la boîte de réception, quel que soit le dossier consulté (auparavant le dossier courant était reporté via le hash et conservé si un dossier du même nom existait sur le compte cible).
+- Robustesse : le cache disque des pièces jointes est purgé automatiquement (7 jours) et l'aperçu d'une pièce jointe `.eml` borne la lecture à 25 Mo avant mise en mémoire (évite une croissance disque non maîtrisée et un pic mémoire sur les messages volumineux).
+- Performances : le cache fichier (`cache.enabled`) est désormais activé par défaut — il cache les listes de messages IMAP (indexées sur l'ETag du dossier), les résolutions DNS, la détection de domaine et la vérification de mise à jour, et borne le dossier `storage/cache` via un GC périodique.
+- Performances : les assets servis par PHP (CSS de thème, assets de plugins, favicon) sont désormais mis en cache navigateur — `http.etag`, `http.assets_ttl` (24 h) et `http.favicon_ttl` (1 h) activés par défaut, avec `?v=` basé sur le mtime du fichier servi (bust garanti à chaque édition).
+- Actions des dossiers : le menu `⋯` en face de chaque dossier est supprimé — « Renommer », « ACL » et « Supprimer » sont déplacés dans Réglages → Dossiers, dont l'onglet « Dossiers surveillés » devient « Dossiers » (premier sous-onglet) avec un tableau regroupant surveillance et gestion ; « Vider » et « Tout marquer comme lu » deviennent des boutons de l'en-tête de la colonne agissant sur le dossier affiché.
+- Performances : « Signaler comme spam » / « Non-spam » retire désormais le message immédiatement de la liste (action en arrière-plan, resynchronisation en cas d'échec), et la résolution des dossiers spéciaux (indésirables, corbeille, envoyés…) est mise en cache de session au lieu d'un listage complet des dossiers IMAP à chaque action — suppression, déplacement et vidage à la déconnexion en bénéficient aussi.
+- Performances : la suppression et le déplacement d'une sélection multiple n'envoient plus qu'un seul appel API groupé (une commande IMAP `UID MOVE`/`EXPUNGE` par dossier) au lieu d'une requête par message — la sélection disparaît instantanément au lieu de s'effacer ligne par ligne.
+- Ajout d'un compte secondaire : email et mot de passe sont réunis en une seule modale et les erreurs s'affichent en place avec la saisie conservée (auparavant deux boîtes de dialogue successives puis une alerte séparée).
+- Réglages → Dossiers : la colonne « Surveillance » est resserrée sur son en-tête avec les cases à cocher centrées, et les lignes du tableau ont une hauteur uniforme avec ou sans boutons d'action.
+- Réglages → Étiquettes (plugin color-tags) : la palette et les règles automatiques sont réparties sur deux sous-onglets, avec deep-link `#/@settings/color-tags/rules`.
+- Lecteur de message : le verdict anti-spoofing s'affiche désormais sous forme d'icône bouclier colorée en bas à droite de l'en-tête, sous les boutons d'action (couleur selon le niveau, détail au survol) — le bandeau d'alerte et la ligne verte sous l'en-tête sont supprimés.
+
+### Corrigé
+
+- La liste des messages est rafraîchie quand le champ de recherche est vidé via l'icône « × » native du navigateur — auparavant les résultats de la recherche restaient affichés.
+- Proxy d'images : erreur 500 systématique (`MimeType::fromString` appelé avec une expression alors que son premier paramètre était passé par référence) — les images distantes des mails ne s'affichaient plus.
+- Plugin anti-spoofing : le bandeau « Attention — usurpation possible » s'affichait sur quasiment tous les mails car le succès SPF/DKIM/DMARC y était compté comme une alerte — il devient un indicateur vert discret, le bandeau n'apparaît plus qu'en cas de vraie alerte.
+- Traductions de/es/it/nl/pl/pt/ru/tr complétées : plusieurs fonctionnalités récentes restaient en anglais (répondeur d'absence, réponses types, import .eml, désabonnement, réglages HTTP/cache admin, plugins announcement, filelink, spam-learn, wkd-keys…).
+- Aperçu d'une pièce jointe .ics : les libellés affichaient les clés de traduction brutes (ex. `plugin.ics-viewer.start`) dans toutes les langues.
+- Aide du réglage `admin_path` en français : le placeholder `{path}` s'affichait littéralement.
+- Aperçu, téléchargement et export ZIP des pièces jointes : erreur 500 systématique — régression du FETCH `BODYSTRUCTURE` dédié (UID passé en `int` sous `strict_types`, dossier IMAP non sélectionné, champ `INTERNALDATE` exigé par la reconstruction du message non demandé).
+- Export ZIP « Tout télécharger » des pièces jointes : erreur 500 — variable `$mail` non initialisée dans la boucle de lecture (le fichier téléchargé contenait la réponse d'erreur au lieu des PJ).
+- Export ZIP « Tout télécharger » : le fichier téléchargé était un gzip contenant le zip (double compression) — un en-tête Content-Encoding vide empêchait le navigateur de décoder la compression serveur.
+- Plugin avatars : les refus de favicon pour domaine inexistant (NXDOMAIN — cas banal des expéditeurs sans site web) remplissaient le journal en WARNING ; ils passent en INFO, seuls les refus vers IP privée/réservée restent en WARNING, et les avatars introuvables sont mémorisés 7 jours (cache négatif) au lieu de retenter DNS + HTTP à chaque affichage.
+- La sélection du dossier courant reste synchronisée avec la liste des mails affichée (rechargement F5, navigation précédent/suivant, lien direct par hash).
+- « Vider » sur le dossier affiché ne rafraîchissait pas la liste : les messages supprimés restaient visibles, la pagination gardait l'ancien total et le lecteur pouvait encore afficher un message inexistant — la liste est rechargée et le lecteur fermé si son message venait du dossier vidé.
+- Ajout d'un compte secondaire : message d'erreur explicite (« Identifiants invalides », « Serveur IMAP injoignable ») au lieu d'un « Erreur interne » générique — y compris pour l'ajout OAuth et les champs obligatoires.
+- Vue « Conversations » : l'item du menu de tri était inerte (mauvais contexte de binding Knockout) — le clic bascule désormais le mode et la coche reflète l'état actif.
+- Vue « Conversations » activée dans les réglages : la liste des messages n'était pas rechargée après la sauvegarde — le basculement est désormais appliqué immédiatement.
+- Vue « Conversations » : une note indique désormais dans les réglages quand le serveur IMAP ne supporte pas l'extension `THREAD` — auparavant le réglage restait activable sans aucun effet ni explication ; les sous-messages d'un fil déplié sont aussi retirés de la liste avec leur racine.
+
+### Supprimé
+
+- Le bouton « Basculer sur ce compte » est retiré de Réglages → Comptes — la bascule reste dans le sélecteur de comptes de la barre supérieure.
+
 ## [0.47.0] — 2026-10-30
 
 ### Sécurité

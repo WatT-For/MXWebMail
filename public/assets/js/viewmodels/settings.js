@@ -42,6 +42,9 @@ export class SettingsVM {
 		this.contactsLoading = ko.observable(false);
 		this._contactsReq = null;
 
+		// Comptes : id du compte en cours de glisser-déposer
+		this._dragId = null;
+
 		// Sessions « se souvenir de moi » (jetons persistants)
 		this.sessions = ko.observableArray([]);
 		this._sessionsLoaded = false;
@@ -49,7 +52,7 @@ export class SettingsVM {
 
 		// Dossiers système (assignation par compte : auto | none | fullName ;
 		// /folders/special renvoie {assigned, detected} par rôle)
-		this.foldersTab = ko.observable('roles'); // sous-onglet : roles | notify | import
+		this.foldersTab = ko.observable('manage'); // sous-onglet : manage | roles | import
 		// Import .eml (sous-onglet « Importer » de l'onglet Dossiers)
 		this.importFolder = ko.observable('INBOX');
 		this.importProgress = ko.observable(null);
@@ -71,11 +74,18 @@ export class SettingsVM {
 		this.notifyChecks = ko.pureComputed(() =>
 			this.app.folderList.folders().map(f => ({
 				fullName: f.fullName,
+				name: f.name,
 				label: f.label,
 				depth: f.depth,
 				isInbox: f.isInbox,
+				isSystem: f.isSystem,
+				folder: f,
 				checked: this._notifySel[f.fullName] ??= ko.observable(!!f.isInbox),
 			})));
+		// Colonne « Taille » masquée si le serveur ne remonte aucune taille
+		// (STATUS=SIZE non annoncé, RFC 8438).
+		this.hasFolderSize = ko.pureComputed(() =>
+			this.app.folderList.folders().some(f => f.size != null));
 
 		// Filtres Sieve
 		this.filtersTab = ko.observable('list'); // sous-onglet : list | vacation
@@ -215,9 +225,9 @@ export class SettingsVM {
 		if (this.tab() === 'contacts') { this.loadContacts(); }
 		if (this.tab() === 'sessions') { this.loadSessions(); }
 		if (this.tab() === 'folders') {
-			this.foldersTab(['notify', 'import'].includes(detail) ? detail : 'roles');
+			this.foldersTab(['manage', 'roles', 'import'].includes(detail) ? detail : 'manage');
 			if (this.foldersTab() === 'roles') { this.loadFolderRoles(); }
-			else if (this.foldersTab() === 'notify') { this.loadNotifyFolders(); }
+			else if (this.foldersTab() === 'manage') { this.loadNotifyFolders(); }
 		}
 		if (this.tab() === 'filters') {
 			this.filtersTab(detail === 'vacation' ? 'vacation' : 'list');
@@ -247,7 +257,12 @@ export class SettingsVM {
 		this.app.armAutoRefresh(Math.min(60, Math.max(0,
 			parseInt(this.values().list_refresh, 10) || 0)));
 		this.app.notifyEnabled(!!this.values().notify_new_mail);
-		this.app.messageList.useThreads(!!this.values().list_threads);
+		const threads = !!this.values().list_threads;
+		if (threads !== this.app.messageList.useThreads()) {
+			this.app.messageList.useThreads(threads);
+			this.app.messageList.page(1);
+			this.app.messageList.load();
+		}
 		// Pagination : limite + rechargement immédiat de la liste
 		const mpp = parseInt(this.values().messages_per_page, 10);
 		if (mpp > 0 && mpp !== this.app.messageList.limit) {
@@ -293,6 +308,74 @@ export class SettingsVM {
 			await api.post(`/accounts/${a.id}/delete`);
 			this.app.accounts(await api.get('/accounts'));
 		} catch (e) { this.error(e.message); }
+	}
+
+	// Glisser-déposer des comptes secondaires : réordonne app.accounts puis
+	// POST l'ordre complet — le principal (is_default) reste épingle en tête.
+
+	/** Zone de dépose : 'before' | 'after' selon la moitié de ligne survolée. */
+	_dropZone(e) {
+		const r = e.currentTarget.getBoundingClientRect();
+		return e.clientY > r.top + r.height / 2 ? 'after' : 'before';
+	}
+
+	_accountDragClear(tr) {
+		tr.closest('tbody')
+			.querySelectorAll('.mx-dragover, .mx-dragover-after')
+			.forEach(el => el.classList.remove('mx-dragover', 'mx-dragover-after'));
+	}
+
+	accountDragStart(a, e) {
+		if (Number(a.is_default)) { return false; }
+		this._dragId = Number(a.id);
+		// setData requis par Firefox pour que le drag démarre
+		e.dataTransfer.setData('text/plain', String(a.id));
+		e.dataTransfer.effectAllowed = 'move';
+		e.currentTarget.classList.add('mx-dragging');
+		return true;
+	}
+
+	accountDragOver(a, e) {
+		const tr = e.currentTarget;
+		this._accountDragClear(tr);
+		// Cible non valide (principal ou ligne source) : pas de preventDefault
+		// → le navigateur affiche le curseur « interdit » et refuse le drop.
+		if (this._dragId === null || Number(a.is_default) || Number(a.id) === this._dragId) {
+			return true;
+		}
+		e.preventDefault();
+		tr.classList.add(this._dropZone(e) === 'after' ? 'mx-dragover-after' : 'mx-dragover');
+		return true;
+	}
+
+	accountDrop(a, e) {
+		e.preventDefault();
+		this._accountDragClear(e.currentTarget);
+		if (this._dragId === null || Number(a.is_default) || Number(a.id) === this._dragId) {
+			return true;
+		}
+		const list = this.app.accounts().slice();
+		const from = list.findIndex(x => Number(x.id) === this._dragId);
+		if (from < 0) { return true; }
+		const [moved] = list.splice(from, 1);
+		// indexOf post-retrait : insertion avant/après la ligne cible
+		list.splice(list.indexOf(a) + (this._dropZone(e) === 'after' ? 1 : 0), 0, moved);
+		if (list.every((x, i) => x === this.app.accounts()[i])) { return true; } // inchangé
+		this.app.accounts(list);
+		api.post('/accounts/order', {
+			ids: list.filter(x => !Number(x.is_default)).map(x => x.id),
+		}).catch(err => {
+			this.error(err.message);
+			this.loadAccounts(); // resync depuis le serveur
+		});
+		return true;
+	}
+
+	accountDragEnd(a, e) {
+		this._dragId = null;
+		e.currentTarget.classList.remove('mx-dragging');
+		this._accountDragClear(e.currentTarget);
+		return true;
 	}
 
 	// ─── Identités ───
@@ -472,7 +555,7 @@ export class SettingsVM {
 		await this.app.folderList.load();
 	}
 
-	// ─── Dossiers surveillés ───
+	// ─── Onglet Dossiers (surveillance + gestion) ───
 
 	loadNotifyFolders() {
 		if (this.notifyFoldersLoaded) { return; }

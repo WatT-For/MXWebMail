@@ -230,6 +230,11 @@ class AppVM {
 	async switchAccount(a) {
 		if (a.active) { return; }
 		await api.post(`/accounts/${a.id}/switch`);
+		// Retour systématique sur INBOX : un dossier est propre à un compte.
+		// replaceState (pas de hashchange → pas de selectFolder fantôme sur
+		// l'ancien compte) puis reload : l'ancien dossier disparaît aussi de
+		// l'historique — « retour » ne peut pas retomber sur le hash périmé.
+		history.replaceState(null, '', '#/INBOX');
 		location.reload();
 	}
 
@@ -241,35 +246,52 @@ class AppVM {
 	async addAccount(arg) {
 		const preset = typeof arg === 'string' ? arg.trim() : '';
 		const title = preset ? t('settings.account_edit') : t('app.add_account');
-		const email = preset || await dialog.prompt(t('app.add_account_email'),
-			{ title, inputType: 'email' });
-		if (!email) { return; }
 		// Domaine OAuth2 (gmail, outlook…) → consentement provider en popup ;
 		// sinon ajout classique par mot de passe IMAP. needs_app : l'utilisateur
 		// n'a pas encore enregistré d'application OAuth2 pour ce provider.
-		try {
-			let r = await api.post('/accounts/oauth', { email });
-			if (r.needs_app) {
-				if (!(await this.promptOauthApp(r.provider, r.redirect_uri, title))) { return; }
-				r = await api.post('/accounts/oauth', { email });
+		let oauth = null; // réponse /accounts/oauth si handoff vers le flow OAuth
+		const v = await dialog.form({
+			title,
+			fields: [
+				{ name: 'email', label: t('app.add_account_email'), inputType: 'email',
+					defaultValue: preset, readonly: !!preset },
+				{ name: 'password', label: t('app.add_account_pass'), inputType: 'password',
+					hint: t('app.add_account_pass_hint') },
+			],
+			okLabel: preset ? t('common.save') : t('common.add'),
+			onSubmit: async (f) => {
+				const email = f.email.trim().toLowerCase();
+				if (!email.includes('@')) { return t('errors.email_pass_required'); }
+				let r;
+				try { r = await api.post('/accounts/oauth', { email }); }
+				catch (e) { return e.message; }
+				if (r.needs_app || r.url) { oauth = r; return true; }
+				if (!f.password) { return t('errors.email_pass_required'); }
+				try { await api.post('/accounts', { email, password: f.password }); }
+				catch (e) { return e.message; }
+				return true;
+			},
+		});
+		if (v === null) { return; } // annulation
+		if (oauth) {
+			// Suite hors modale (séquentiel, pas d'empilement de modales).
+			try {
+				let r = oauth;
+				if (r.needs_app) {
+					if (!(await this.promptOauthApp(r.provider, r.redirect_uri, title))) { return; }
+					r = await api.post('/accounts/oauth', { email: v.email.trim().toLowerCase() });
+				}
+				if (r.url) { this.openOauthPopup(r.url, title); return; }
+				// url toujours null après retry needs_app → garde-fou serveur.
+				await dialog.alert(t('errors.oauth_required'), { title, variant: 'danger' });
+			} catch (e) {
+				await dialog.alert(t('errors.failed', { msg: e.message }),
+					{ title, variant: 'danger' });
 			}
-			if (r.url) { this.openOauthPopup(r.url, title); return; }
-		} catch (e) {
-			await dialog.alert(t('errors.failed', { msg: e.message }),
-				{ title, variant: 'danger' });
 			return;
 		}
-		const password = await dialog.prompt(t('app.add_account_pass'),
-			{ title, inputType: 'password' });
-		if (password === null) { return; }
-		try {
-			await api.post('/accounts', { email, password });
-			this.accounts(await api.get('/accounts'));
-			toast.success(t('app.account_added'), { title });
-		} catch (e) {
-			await dialog.alert(t('errors.failed', { msg: e.message }),
-				{ title, variant: 'danger' });
-		}
+		this.accounts(await api.get('/accounts'));
+		toast.success(t('app.account_added'), { title });
 	}
 
 	oauthError(code) {
@@ -385,7 +407,7 @@ class AppVM {
 		// Liste du dossier courant — sautée si une sélection est en cours
 		// (les MessageModel sont recréés, les cases cochées seraient perdues).
 		if (this.view() === 'mail' && this.messageList.checkedMessages().length === 0) {
-			await this.messageList.load();
+			await this.messageList.load(true);
 			// Les modèles sont recréés : re-poser la pastille sur le mail affiché.
 			const uid = this.messageView.requestedUid;
 			if (uid) {
@@ -440,7 +462,10 @@ class AppVM {
 	/** Applique un template : CSS + variables de config + attributs <html>. */
 	applyTheme(name) {
 		const link = document.getElementById('theme-css');
-		if (link) {
+		// Swap uniquement sur vrai changement : le ?v= du rendu serveur est un
+		// mtime, celui calculé ici la version du manifeste — une comparaison
+		// d'URL complète serait toujours fausse, on teste le nom dans le path.
+		if (link && !link.href.includes(`/assets/theme/${name}/`)) {
 			const v = this.themeOptions().find(t => t.name === name)?.version || window.MXWM.ver;
 			link.href = `${window.MXWM.base}/assets/theme/${name}/app.css?v=${v}`;
 		}
@@ -476,10 +501,51 @@ class AppVM {
 
 const vm = new AppVM();
 ko.applyBindings(vm);
-vm.init().catch(e => {
-	// textContent : pas de HTML depuis un message d'erreur
-	const div = document.createElement('div');
-	div.className = 'alert alert-danger m-3';
-	div.textContent = t('errors.load', { msg: e.message });
-	document.body.append(div);
-});
+
+// Splash de démarrage (HTML/CSS pur, visible avant knockout) : retiré en
+// fondu quand l'interface est prête — fin d'init() + 1er chargement de
+// liste — avec durée minimale d'affichage pour éviter le clignotement.
+const splash = document.getElementById('app-splash');
+let splashHidden = false;
+const hideSplash = () => {
+	if (splashHidden || !splash) { return; }
+	splashHidden = true;
+	clearTimeout(splashGuard);
+	splash.classList.add('done');
+	// remove() différé d'une frame : le navigateur commite d'abord une frame
+	// où l'élément est déjà invisible (opacity:0 + visibility:hidden) — sinon
+	// le compositeur peut repeindre une frame à pleine opacité (flash fantôme).
+	splash.addEventListener('transitionend',
+		() => requestAnimationFrame(() => splash.remove()), { once: true });
+	// transitionend non garanti (prefers-reduced-motion → transition:none)
+	// et rAF suspendu en onglet caché : repli à 600 ms (> 250 ms de fondu).
+	setTimeout(() => splash.remove(), 600);
+};
+// API en carafe : jamais d'écran figé.
+const splashGuard = setTimeout(hideSplash, 20000);
+
+// Résout quand le 1er chargement de liste se termine ; en vue settings
+// aucun load() n'est lancé → promesse déjà résolue.
+const firstListLoaded = () => {
+	if (vm.view() !== 'mail' || !vm.messageList.loading()) { return Promise.resolve(); }
+	return new Promise(res => {
+		const sub = vm.messageList.loading.subscribe(v => {
+			if (!v) { sub.dispose(); res(); }
+		});
+	});
+};
+// performance.now() = ms depuis le début de navigation.
+const minSplashTime = () => new Promise(res =>
+	setTimeout(res, Math.max(0, 400 - performance.now())));
+
+vm.init()
+	.then(firstListLoaded)
+	.then(minSplashTime)
+	.catch(e => {
+		// textContent : pas de HTML depuis un message d'erreur
+		const div = document.createElement('div');
+		div.className = 'alert alert-danger m-3';
+		div.textContent = t('errors.load', { msg: e.message });
+		document.body.append(div);
+	})
+	.finally(hideSplash);

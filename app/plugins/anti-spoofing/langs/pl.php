@@ -5,6 +5,7 @@ declare(strict_types=1);
 return [
 	'plugin.anti-spoofing.description'        => 'Wykrywanie fałszowania adresów e-mail i domen w czytniku wiadomości',
 	'plugin.anti-spoofing.title'              => 'Ostrzeżenie — możliwe fałszowanie',
+	'plugin.anti-spoofing.clean'              => 'Nie wykryto fałszowania',
 
 	'plugin.anti-spoofing.alert.envelope_mismatch'  => 'Adres wysyłki ({return_path}) nie pasuje do wyświetlanego nadawcy ({from}).',
 	'plugin.anti-spoofing.alert.reply_to_mismatch'  => 'Odpowiedzi zostaną wysłane do {reply_to} zamiast do wyświetlanego nadawcy ({from}).',
@@ -21,10 +22,10 @@ return [
 	'plugin.anti-spoofing.f.check_sender'           => 'Sprawdzaj nagłówek Sender',
 	'plugin.anti-spoofing.f.check_display'          => 'Wykrywaj fałszowanie nazwy wyświetlanej',
 	'plugin.anti-spoofing.f.check_lookalike'        => 'Wykrywaj podobne domeny',
-	'plugin.anti-spoofing.f.check_auth_results'   => 'Check SPF/DKIM/DMARC (Authentication-Results)',
-	'plugin.anti-spoofing.alert.auth_spf_fail'     => 'SPF check failed for this sender',
-	'plugin.anti-spoofing.alert.auth_dkim_fail'    => 'DKIM signature check failed',
-	'plugin.anti-spoofing.alert.auth_dmarc_fail'   => 'DMARC check failed',
-	'plugin.anti-spoofing.alert.auth_spf_softfail' => 'SPF softfail (sender not authorized)',
-	'plugin.anti-spoofing.alert.auth_pass_all'     => 'SPF, DKIM and DMARC verified (pass)',
+	'plugin.anti-spoofing.f.check_auth_results'   => 'Sprawdź SPF/DKIM/DMARC (Authentication-Results)',
+	'plugin.anti-spoofing.alert.auth_spf_fail'     => 'Sprawdzanie SPF nie powiodło się dla tego nadawcy',
+	'plugin.anti-spoofing.alert.auth_dkim_fail'    => 'Sprawdzanie podpisu DKIM nie powiodło się',
+	'plugin.anti-spoofing.alert.auth_dmarc_fail'   => 'Sprawdzanie DMARC nie powiodło się',
+	'plugin.anti-spoofing.alert.auth_spf_softfail' => 'SPF softfail (nadawca nieautoryzowany)',
+	'plugin.anti-spoofing.alert.auth_pass_all'     => 'SPF, DKIM i DMARC zweryfikowane (pass)',
 ];

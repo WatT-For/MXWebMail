@@ -5,6 +5,7 @@ declare(strict_types=1);
 return [
 	'plugin.anti-spoofing.description'        => "Détection d'usurpation d'adresse et de domaine dans le lecteur de message",
 	'plugin.anti-spoofing.title'              => 'Attention — usurpation possible',
+	'plugin.anti-spoofing.clean'              => 'Aucune usurpation détectée',
 
 	'plugin.anti-spoofing.alert.envelope_mismatch'  => "L'adresse d'expédition ({return_path}) ne correspond pas à l'expéditeur affiché ({from}).",
 	'plugin.anti-spoofing.alert.reply_to_mismatch'  => 'Les réponses seront envoyées à {reply_to} au lieu de l\'expéditeur affiché ({from}).',

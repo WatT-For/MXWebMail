@@ -47,7 +47,7 @@ final class App
 
 	public function __construct(?string $rootDir = null, ?string $installDir = null)
 	{
-		defined('APP_VERSION') || define('APP_VERSION', '0.47.0'); // X-Mailer MailSo
+		defined('APP_VERSION') || define('APP_VERSION', '0.49.0'); // X-Mailer MailSo
 		// Prérequis du paquet de mise à jour — lus par regex dans le App.php du
 		// paquet extrait (UpdateService::checkRequirements) avant application.
 		defined('APP_REQ_PHP') || define('APP_REQ_PHP', '>=8.4');
@@ -467,25 +467,37 @@ final class App
 	}
 
 	/**
-	 * L'hôte résout-il vers une/des IP publiques ? Bloque les littéraux IP
-	 * ([10.0.0.5], [::1]) et les DNS privés/réservés — anti-SSRF pour toute
-	 * requête sortante sur un hôte issu d'une saisie (plugins avatars,
-	 * carddav, wkd…). Fail-closed : échec DNS ou une seule IP
-	 * privée/réservée → false.
+	 * L'hôte résout-il vers une/des IP publiques ? Voir publicHostBlockReason().
 	 */
 	public function isPublicHost(string $host): bool
 	{
+		return $this->publicHostBlockReason($host) === null;
+	}
+
+	/**
+	 * Pourquoi l'hôte n'est-il pas public ? null = OK. Bloque les littéraux
+	 * IP ([10.0.0.5], [::1]) et les DNS privés/réservés — anti-SSRF pour
+	 * toute requête sortante sur un hôte issu d'une saisie (plugins
+	 * avatars, carddav, wkd…). Fail-closed : échec DNS ou une seule IP
+	 * privée/réservée → refus. Raisons : 'literal' = littéral IP non
+	 * public, 'dns' = rien à résoudre (hôte vide, NXDOMAIN, échec DNS),
+	 * 'private' = résolution vers une IP privée/réservée.
+	 */
+	public function publicHostBlockReason(string $host): ?string
+	{
 		$h = trim($host, '[]');
 		if ($h === '') {
-			return false;
+			return 'dns';
 		}
 		if (filter_var($h, FILTER_VALIDATE_IP)) {
-			return (bool) filter_var($h, FILTER_VALIDATE_IP,
-				FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
+			return filter_var($h, FILTER_VALIDATE_IP,
+				FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)
+				? null : 'literal';
 		}
 		// A + AAAA : gethostbyname (IPv4 seul) refuserait un hôte IPv6-only.
+		// @ : un SERVFAIL émettrait sinon « DNS Query failed » par requête.
 		$ips = [];
-		foreach (dns_get_record($h, DNS_A + DNS_AAAA) ?: [] as $r) {
+		foreach (@dns_get_record($h, DNS_A + DNS_AAAA) ?: [] as $r) {
 			if (isset($r['ip'])) {
 				$ips[] = $r['ip'];
 			}
@@ -494,15 +506,15 @@ final class App
 			}
 		}
 		if (!$ips) {
-			return false;
+			return 'dns';
 		}
 		foreach ($ips as $ip) {
 			if (!filter_var($ip, FILTER_VALIDATE_IP,
 				FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
-				return false;
+				return 'private';
 			}
 		}
-		return true;
+		return null;
 	}
 
 	private bool $sessionUserLoaded = false;
@@ -826,6 +838,11 @@ final class App
 		$router->get('/api/messages/{uid}', [$api, 'message']);
 		$router->get('/api/messages/{uid}/raw', [$api, 'messageRaw']);
 		$router->get('/api/messages/{uid}/attachment/{id}', [$api, 'attachment']);
+		$router->get('/api/messages/{uid}/attachment/{id}/eml', [$api, 'attachmentEml']);
+		$router->get('/api/messages/{uid}/attachment/{id}/eml/{part}', [$api, 'attachmentEmlPart']);
+		// Batch multi-dossiers (sélection cochée) — avant les routes {uid}.
+		$router->post('/api/messages/delete', [$api, 'messagesDelete']);
+		$router->post('/api/messages/move', [$api, 'messagesMove']);
 		$router->post('/api/messages/{uid}/flags', [$api, 'messageFlags']);
 		$router->post('/api/messages/{uid}/move', [$api, 'messageMove']);
 		$router->post('/api/messages/{uid}/copy', [$api, 'messageCopy']);
@@ -872,6 +889,7 @@ final class App
 		$router->post('/api/accounts/{id}/switch', [$api, 'accountSwitch']);
 		$router->post('/api/accounts/{id}/delete', [$api, 'accountDelete']);
 		$router->post('/api/accounts/{id}/default', [$api, 'accountDefault']);
+		$router->post('/api/accounts/order', [$api, 'accountOrder']);
 
 		// Filtres Sieve
 		$router->get('/api/filters', [$api, 'filters']);

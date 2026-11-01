@@ -14,6 +14,9 @@ export class MessageListVM {
 		this.app = app;
 		this.messages = ko.observableArray([]);
 		this.loading = ko.observable(false);
+		this.showLoader = ko.observable(false); // voile centré — false pour les chargements d'arrière-plan (poll)
+		this._loadCount = 0;   // requêtes en vol (toutes) — garde contre les loads concurrents
+		this._fgLoadCount = 0; // requêtes de premier plan en vol (pilotent showLoader)
 		this.error = ko.observable('');
 		this.page = ko.observable(1);
 		this.limit = 50;
@@ -39,8 +42,14 @@ export class MessageListVM {
 		this.folder = ko.observable('INBOX');
 		// Conversations (IMAP THREAD) — réglage list_threads
 		this.useThreads = ko.observable(false);
-		this.threadsSupported = ko.observable(false);
+		// null = inconnu (avant la 1ère réponse dossier) — distingue « pas
+		// encore chargé » de « non supporté » pour la note des réglages.
+		this.threadsSupported = ko.observable(null);
 		this.threadChildren = {}; // parentUid → MessageModel[] insérés sous la ligne
+		// Messages retirés optimistement dont le POST n'est pas soldé — un
+		// load() (poll…) passé avant la fin du MOVE serveur ne doit pas les
+		// faire réapparaître. Clés 'folder\nuid', retirées à la fin du POST.
+		this._gone = new Set();
 		// Critère IMAP SORT (RFC 5256) — persisté dans le réglage list_sort
 		this.sort = ko.observable(DEFAULT_SORT);
 		this.sortOptions = [
@@ -97,8 +106,12 @@ export class MessageListVM {
 		}
 	}
 
-	async load() {
+	/** silent = chargement d'arrière-plan (poll auto) : pas de voile bloquant. */
+	async load(silent = false) {
+		this._loadCount++;
+		if (!silent) { this._fgLoadCount++; }
 		this.loading(true);
+		if (!silent) { this.showLoader(true); }
 		try {
 			const global = this.searchScope() === 'all' && this.searchQuery() !== '';
 			const q = `?folder=${encodeURIComponent(global ? '*' : this.folder())}` +
@@ -107,14 +120,19 @@ export class MessageListVM {
 				`&sort=${encodeURIComponent(this.sort())}` +
 				(!global && this.useThreads() ? '&threads=1' : '');
 			const data = await api.get('/messages' + q);
-			this.threadsSupported(!!data.threadsSupported);
+			// La recherche multi-dossiers renvoie threadsSupported:false — elle
+			// ne doit pas écraser l'état connu du dossier (item de menu masqué).
+			if (!global) { this.threadsSupported(!!data.threadsSupported); }
 			this.threadChildren = {};
 			this.total(data.total || 0);
-			this.messages((data.messages || []).map(m => new MessageModel(m)));
+			this.messages((data.messages || [])
+				.filter(m => !this._gone.has(this.goneKey(m.folder, m.uid)))
+				.map(m => new MessageModel(m)));
 		} catch (e) {
 			this.error(e.message);
 		} finally {
-			this.loading(false);
+			if (--this._loadCount === 0) { this.loading(false); }
+			if (!silent && --this._fgLoadCount === 0) { this.showLoader(false); }
 		}
 	}
 
@@ -194,6 +212,29 @@ export class MessageListVM {
 		if (f) { f.unread(Math.max(0, f.unread() + delta)); }
 	}
 
+	/** Clé _gone d'un message (folder+uid — les UID sont par dossier). */
+	goneKey(folder, uid) {
+		return folder + '\n' + uid;
+	}
+
+	/** Fin de suivi optimiste d'un déplacement (POST soldé). */
+	unmarkMoved(folder, uid) {
+		this._gone.delete(this.goneKey(folder, uid));
+	}
+
+	/** Retrait optimiste d'un message en cours de déplacement : badge non-lu,
+	 *  ligne de la liste, suivi _gone. m = MessageModel ou message() du
+	 *  lecteur (mêmes champs folder/uid/isSeen). */
+	hideMoved(m) {
+		this._gone.add(this.goneKey(m.folder, m.uid));
+		const row = this.messages().find(x => x.uid === m.uid && x.folder === m.folder);
+		if (!(row || m).isSeen()) { this.adjustUnread(-1, m.folder); }
+		if (row) { this.messages.remove(row); }
+		// Sous-lignes d'un fil déplié : retirées avec leur racine
+		this.messages.removeAll(this.threadChildren[m.uid] || []);
+		delete this.threadChildren[m.uid];
+	}
+
 	totalPages() {
 		return Math.max(1, Math.ceil(this.total() / this.limit));
 	}
@@ -219,6 +260,9 @@ export class MessageListVM {
 	/** Bascule le mode conversation — persisté dans list_threads. */
 	async toggleThreads() {
 		this.useThreads(!this.useThreads());
+		// Synchro userSettings : seede la case des réglages à leur ouverture
+		// (même pattern que savePaneSizes / saveComposeSize).
+		this.app.userSettings.list_threads = this.useThreads();
 		this.page(1);
 		await this.load();
 		api.post('/settings', { list_threads: this.useThreads() }).catch(() => {});
@@ -289,6 +333,16 @@ export class MessageListVM {
 		await this.load();
 	}
 
+	/** Évènement `search` de l'input[type=search] : émis par l'icône « × » native
+	 *  (Blink/WebKit) et par Enter sous Blink (déjà traité en keydown). Ne recharge
+	 *  que si le champ a été vidé et que la requête appliquée diffère — les
+	 *  filtres avancés éventuels restent actifs (rebuild via buildSearch). */
+	clearSearch(d, e) {
+		if (e.target.value !== '') { return; }
+		this.search(''); // l'event input peut ne pas être encore passé
+		if (this.buildSearch().full !== this.searchQuery()) { this.searchNow(); }
+	}
+
 	async resetSearch() {
 		this.search('');
 		this.searchFrom(''); this.searchTo('');
@@ -307,6 +361,7 @@ export class MessageListVM {
 	async setSort(o) {
 		if (this.sort() === o.key) { return; }
 		this.sort(o.key);
+		this.app.userSettings.list_sort = o.key;
 		this.page(1);
 		await this.load();
 		// silencieux : préférence utilisateur, non bloquante
@@ -378,6 +433,32 @@ export class MessageListVM {
 		}
 	}
 
+	/** Retrait optimiste groupé (actions batch) : suivi _gone + badge non-lu
+	 *  + removeAll en UNE notification KO (remove() par item re-rendrait la
+	 *  liste à chaque ligne — effet « disparition une par une »).
+	 *  Retourne le voisin à rouvrir pour advanceOrClear. */
+	optimisticRemove(list) {
+		const mv = this.app.messageView;
+		const next = this.peekAdvance(mv.requestedUid, mv.requestedFolder);
+		for (const m of list) {
+			this._gone.add(this.goneKey(m.folder, m.uid));
+			if (!m.isSeen()) { this.adjustUnread(-1, m.folder); }
+		}
+		// Sous-lignes des fils dépliés : retirées avec leur racine, en une
+		// seule notification KO (elles ne sont pas _gone — toujours en IMAP).
+		this.messages.removeAll([...list,
+			...list.flatMap(m => this.threadChildren[m.uid] || [])]);
+		list.forEach(m => delete this.threadChildren[m.uid]);
+		return next;
+	}
+
+	/** Solde un POST batch : les clés _gone partent AVANT tout load() de
+	 *  resync — sinon elles filtreraient les messages restaurés. */
+	async settleBatch(list, fail) {
+		list.forEach(m => this.unmarkMoved(m.folder, m.uid));
+		if (fail) { this.error(fail); await this.load(); }
+	}
+
 	async bulkDelete() {
 		const list = this.checkedMessages();
 		// Sélection multi-dossiers : suppression définitive dès qu'un message
@@ -386,30 +467,29 @@ export class MessageListVM {
 			? 'messages.delete_confirm_perm' : 'messages.delete_confirm';
 		if (!list.length || !(await dialog.confirm(t(key, { n: list.length }),
 			{ variant: 'danger', okLabel: t('common.delete'), title: t('messages.delete_title') }))) { return; }
-		const mv = this.app.messageView;
-		const next = this.peekAdvance(mv.requestedUid, mv.requestedFolder);
-		for (const m of list) {
-			try {
-				await api.post(`/messages/${m.uid}/delete`, { folder: m.folder });
-				if (!m.isSeen()) { this.adjustUnread(-1, m.folder); }
-				this.messages.remove(m);
-			} catch (e) { this.error(e.message); }
-		}
+		const next = this.optimisticRemove(list);
 		await this.advanceOrClear(next);
+		let fail = null;
+		try {
+			const r = await api.post('/messages/delete',
+				{ items: list.map(m => ({ folder: m.folder, uid: m.uid })) });
+			if (r.errors?.length) { fail = r.errors[0].error; }
+		} catch (e) { fail = e.message; }
+		await this.settleBatch(list, fail);
 	}
 
 	async bulkMove(target) {
-		const mv = this.app.messageView;
-		const next = this.peekAdvance(mv.requestedUid, mv.requestedFolder);
-		for (const m of this.checkedMessages()) {
-			if (m.folder === target) { continue; } // déjà dans le dossier cible
-			try {
-				await api.post(`/messages/${m.uid}/move`, { folder: m.folder, to: target });
-				if (!m.isSeen()) { this.adjustUnread(-1, m.folder); }
-				this.messages.remove(m);
-			} catch (e) { this.error(e.message); }
-		}
+		const list = this.checkedMessages().filter(m => m.folder !== target);
+		if (!list.length) { return; } // tout est déjà dans le dossier cible
+		const next = this.optimisticRemove(list);
 		await this.advanceOrClear(next);
+		let fail = null;
+		try {
+			const r = await api.post('/messages/move',
+				{ items: list.map(m => ({ folder: m.folder, uid: m.uid })), to: target });
+			if (r.errors?.length) { fail = r.errors[0].error; }
+		} catch (e) { fail = e.message; }
+		await this.settleBatch(list, fail);
 	}
 
 	async moveWithPicker() {
@@ -443,25 +523,47 @@ export class MessageListVM {
 	}
 
 	async bulkSpam(spam) {
-		let moved = false;
 		const mv = this.app.messageView;
 		const next = this.peekAdvance(mv.requestedUid, mv.requestedFolder);
+		const junkName = this.app.folderList.junkFolder()?.fullName;
+		const targets = [];
 		for (const m of this.checkedMessages()) {
 			// Déjà dans l'état voulu : le serveur renverrait 'move' sans rien
 			// déplacer (ex. spam sur un message déjà dans Junk) — sautés.
 			const junk = this.app.folderList.isJunkFolder(m.folder) || !!m.isJunk();
 			if (junk === spam) { continue; }
-			try {
-				const r = await api.post(`/messages/${m.uid}/spam`, { folder: m.folder, spam });
-				if (r.strategy === 'move') {
-					if (!m.isSeen()) { this.adjustUnread(-1, m.folder); }
-					this.messages.remove(m);
-					moved = true;
-				} else {
-					m.isJunk(spam);
-				}
-			} catch (e) { this.error(e.message); }
+			// Prédiction miroir du test serveur ($folder === $junk) : 'move'
+			// attendu si le message part/rejoint le dossier Junk, 'keyword' sinon.
+			const expectMove = spam ? (!!junkName && m.folder !== junkName)
+				: (m.folder === junkName);
+			targets.push({ m, expectMove });
+		}
+		// UI optimiste : retrait immédiat (move attendu) ou flag (keyword).
+		let moved = false;
+		for (const { m, expectMove } of targets) {
+			if (expectMove) { this.hideMoved(m); moved = true; }
+			else { m.isJunk(spam); }
 		}
 		if (moved) { await this.advanceOrClear(next); }
+		// POSTs en fond ; échec ou stratégie divergente → resync de la liste.
+		let resync = false;
+		for (const { m, expectMove } of targets) {
+			try {
+				const r = await api.post(`/messages/${m.uid}/spam`, { folder: m.folder, spam });
+				if (r.strategy === 'move' && !expectMove) {
+					// Move imprévu : la ligne est encore affichée — la retirer.
+					if (!m.isSeen()) { this.adjustUnread(-1, m.folder); }
+					this.messages.remove(m);
+				} else if (r.strategy !== 'move' && expectMove) {
+					resync = true;
+				}
+			} catch (e) {
+				this.error(e.message);
+				if (expectMove && !m.isSeen()) { this.adjustUnread(1, m.folder); }
+				resync = true;
+			}
+			this.unmarkMoved(m.folder, m.uid);
+		}
+		if (resync) { await this.load(); }
 	}
 }

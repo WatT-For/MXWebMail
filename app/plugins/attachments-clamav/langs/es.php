@@ -2,16 +2,16 @@
 declare(strict_types=1);
 
 return [
-	'plugin.attachments-clamav.description'        => 'ClamAV (clamd) scan of uploaded attachments',
-	'plugin.attachments-clamav.f.socket'           => 'clamd socket',
-	'plugin.attachments-clamav.f.socket.help'      => 'tcp://host:port or unix:///path/to/clamd.ctl',
-	'plugin.attachments-clamav.f.timeout'          => 'Timeout (seconds)',
-	'plugin.attachments-clamav.f.on_error'         => 'When clamd is unreachable',
-	'plugin.attachments-clamav.f.on_error.allow'   => 'Allow upload (log warning)',
-	'plugin.attachments-clamav.f.on_error.deny'    => 'Reject upload (fail-closed)',
-	'plugin.attachments-clamav.f.on_error.help'    => 'deny blocks every upload while clamd is down',
-	'plugin.attachments-clamav.virus_found'        => 'Virus detected in “{name}”',
-	'plugin.attachments-clamav.unavailable'        => 'Virus scanner unreachable',
-	'plugin.attachments-clamav.bad_response'       => 'Unexpected scanner response: {msg}',
+	'plugin.attachments-clamav.description'        => 'Análisis ClamAV (clamd) de los adjuntos subidos',
+	'plugin.attachments-clamav.f.socket'           => 'Socket de clamd',
+	'plugin.attachments-clamav.f.socket.help'      => 'tcp://host:port o unix:///ruta/a/clamd.ctl',
+	'plugin.attachments-clamav.f.timeout'          => 'Tiempo de espera (segundos)',
+	'plugin.attachments-clamav.f.on_error'         => 'Cuando clamd no responde',
+	'plugin.attachments-clamav.f.on_error.allow'   => 'Permitir la subida (aviso en el log)',
+	'plugin.attachments-clamav.f.on_error.deny'    => 'Rechazar la subida (fail-closed)',
+	'plugin.attachments-clamav.f.on_error.help'    => 'deny bloquea toda subida mientras clamd esté caído',
+	'plugin.attachments-clamav.virus_found'        => 'Virus detectado en «{name}»',
+	'plugin.attachments-clamav.unavailable'        => 'Antivirus inaccesible',
+	'plugin.attachments-clamav.bad_response'       => 'Respuesta inesperada del escáner: {msg}',
 	'plugin.attachments-clamav.read_failed'         => 'No se puede leer el archivo “{name}”',
 ];

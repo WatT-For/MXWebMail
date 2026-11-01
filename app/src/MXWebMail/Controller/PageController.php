@@ -208,9 +208,11 @@ final class PageController
 		$vars['sponsorUrl'] = (string) $this->app->config()->get('sponsor_url', '');
 		// Lien du dépôt GitHub officiel (GitHubClient::REPO ; vide = bouton masqué)
 		$vars['githubUrl'] = $this->app->github()->repoUrl() ?? '';
-		// Thème actif — pour construire les URLs d'assets du template
+		// Thème actif — pour construire les URLs d'assets du template.
+		// themeVer = mtime du CSS résolu : une édition sans bump de theme.json
+		// change le ?v= (le cache long + immutable reste sûr).
 		$vars['theme'] = $theme;
-		$vars['themeVer'] = $this->app->themes()->version($theme);
+		$vars['themeVer'] = $this->app->themes()->assetVersion($theme, 'app.css');
 		// Config du template : attributs <html> + variables CSS (mode sombre, couleurs, icônes)
 		$vars['themeHtmlAttrs'] = $this->app->themes()->htmlAttrs($theme);
 		$vars['themeHead']      = $this->app->themes()->styleBlock($theme);

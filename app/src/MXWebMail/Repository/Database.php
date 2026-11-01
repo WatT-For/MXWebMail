@@ -326,6 +326,19 @@ final class Database
 		11 => [
 			"DELETE FROM plugins WHERE name = 'admin-stats'",
 		],
+
+		// Ordre d'affichage des comptes (réordonnable dans Réglages → Comptes) :
+		// backfill = ordre visuel actuel (principal puis alphabétique). La
+		// table dérivée contourne la contrainte d'auto-référence MySQL/MariaDB.
+		12 => [
+			"ALTER TABLE accounts $addCol position INTEGER NOT NULL DEFAULT 0",
+			'UPDATE accounts SET position = (
+				SELECT n FROM (
+					SELECT id, ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY is_default DESC, email) AS n
+					FROM accounts
+				) r WHERE r.id = accounts.id
+			)',
+		],
 		];
 	}
 

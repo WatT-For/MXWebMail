@@ -45,25 +45,30 @@ final class ContactRepository
 	public function exportRows(int $userId): array
 	{
 		$pdo = $this->udb->for($userId)->pdo();
-		$rows = $pdo->prepare(
-			'SELECT id, name, properties, source_uid FROM contacts
-			 WHERE user_id = :u ORDER BY name'
+		// Un seul JOIN : l'ancien code interrogeait contact_emails par contact (N+1).
+		$stmt = $pdo->prepare(
+			'SELECT c.id, c.name, c.properties, c.source_uid, ce.email, ce.type
+			 FROM contacts c LEFT JOIN contact_emails ce ON ce.contact_id = c.id
+			 WHERE c.user_id = :u ORDER BY c.name, ce.id'
 		);
-		$rows->execute(['u' => $userId]);
+		$stmt->execute(['u' => $userId]);
 		$out = [];
-		$emails = $pdo->prepare(
-			'SELECT email, type FROM contact_emails WHERE contact_id = :c ORDER BY id');
-		foreach ($rows->fetchAll() as $r) {
-			$emails->execute(['c' => $r['id']]);
-			$out[] = [
-				'id'         => (int) $r['id'],
-				'name'       => (string) $r['name'],
-				'emails'     => $emails->fetchAll(),
-				'properties' => json_decode((string) ($r['properties'] ?? ''), true) ?: [],
-				'source_uid' => $r['source_uid'],
-			];
+		foreach ($stmt->fetchAll() as $r) {
+			$id = (int) $r['id'];
+			if (!isset($out[$id])) {
+				$out[$id] = [
+					'id'         => $id,
+					'name'       => (string) $r['name'],
+					'emails'     => [],
+					'properties' => json_decode((string) ($r['properties'] ?? ''), true) ?: [],
+					'source_uid' => $r['source_uid'],
+				];
+			}
+			if ($r['email'] !== null) {
+				$out[$id]['emails'][] = ['email' => $r['email'], 'type' => $r['type']];
+			}
 		}
-		return $out;
+		return array_values($out);
 	}
 
 	public function save(int $userId, array $data): int
@@ -83,9 +88,9 @@ final class ContactRepository
 				->execute(['u' => $userId, 'n' => $data['name'] ?? '', 'p' => json_encode($data['properties'] ?? [])]);
 			$id = (int) $pdo->lastInsertId();
 		}
+		$insMail = $pdo->prepare('INSERT INTO contact_emails (contact_id, email) VALUES (:c, :e)');
 		foreach ($emails as $email) {
-			$pdo->prepare('INSERT INTO contact_emails (contact_id, email) VALUES (:c, :e)')
-				->execute(['c' => $id, 'e' => $email]);
+			$insMail->execute(['c' => $id, 'e' => $email]);
 		}
 		return $id;
 	}
@@ -155,6 +160,14 @@ final class ContactRepository
 			 ORDER BY c.id LIMIT 1'
 		);
 		$report = ['imported' => 0, 'merged' => 0, 'skipped' => 0];
+		// Statements préparés une fois hors boucle (ATTR_EMULATE_PREPARES=false :
+		// chaque prepare est un aller-retour serveur sous MariaDB).
+		$insMail = $pdo->prepare(
+			'INSERT INTO contact_emails (contact_id, email, type) VALUES (:c,:e,:t)');
+		$insMailIfNew = $pdo->prepare(
+			'INSERT INTO contact_emails (contact_id, email, type)
+			 SELECT :c, :e, :t WHERE NOT EXISTS (
+				SELECT 1 FROM contact_emails WHERE contact_id = :c AND email = :e COLLATE NOCASE)');
 		$pdo->beginTransaction();
 		try {
 			foreach ($items as $item) {
@@ -181,13 +194,8 @@ final class ContactRepository
 					$id = (int) $existing['id'];
 					$changed = false;
 					foreach ($emails as $e) {
-						$ins = $pdo->prepare(
-							'INSERT INTO contact_emails (contact_id, email, type)
-							 SELECT :c, :e, :t WHERE NOT EXISTS (
-								SELECT 1 FROM contact_emails WHERE contact_id = :c AND email = :e COLLATE NOCASE)'
-						);
-						$ins->execute(['c' => $id, 'e' => $e['email'], 't' => $e['type']]);
-						$changed = $changed || $ins->rowCount() > 0;
+						$insMailIfNew->execute(['c' => $id, 'e' => $e['email'], 't' => $e['type']]);
+						$changed = $changed || $insMailIfNew->rowCount() > 0;
 					}
 					if (trim((string) $existing['name']) === ''
 						&& trim((string) ($item['name'] ?? '')) !== '') {
@@ -223,8 +231,6 @@ final class ContactRepository
 						? (string) $item['source_uid'] : null,
 				]);
 				$id = (int) $pdo->lastInsertId();
-				$insMail = $pdo->prepare(
-					'INSERT INTO contact_emails (contact_id, email, type) VALUES (:c,:e,:t)');
 				foreach ($emails as $e) {
 					$insMail->execute(['c' => $id, 'e' => $e['email'], 't' => $e['type']]);
 				}

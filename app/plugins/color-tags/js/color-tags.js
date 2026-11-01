@@ -1,6 +1,7 @@
 /**
- * Onglet Paramètres du plugin color-tags : palette de couleurs + règles
- * automatiques (sujet / expéditeur / domaine, wildcard « * »).
+ * Onglet Paramètres du plugin color-tags : deux sous-onglets (palette de
+ * couleurs / règles automatiques — sujet / expéditeur / domaine, wildcard
+ * « * ») avec deep-link #/@settings/color-tags/{palette|rules}.
  * Chargé dynamiquement par le binding pluginMount.
  */
 export default function mount(el, ctx) {
@@ -9,33 +10,40 @@ export default function mount(el, ctx) {
 	const FIELDS = ['from', 'domain', 'subject'];
 	let palette = [];
 	let rules = [];
+	let sub = 'palette';
 
 	el.innerHTML = `
 		<div style="max-width:720px">
 			<div class="alert alert-warning small" id="ct-manual" style="display:none"></div>
-			<h6>${t(K + 'palette')}</h6>
-			<table class="table table-sm align-middle">
-				<thead class="table-light"><tr>
-					<th style="width:46px"></th>
-					<th>${t(K + 'col_name')}</th>
-					<th style="width:150px">${t(K + 'col_id')}</th>
-					<th style="width:40px"></th>
-				</tr></thead>
-				<tbody id="ct-palette"></tbody>
-			</table>
-			<button class="btn btn-sm btn-outline-secondary" id="ct-add-pal"><i class="fa-solid fa-plus"></i> ${t('common.add')}</button>
-			<h6 class="mt-4">${t(K + 'rules')}</h6>
-			<p class="text-muted small">${t(K + 'rules_help')}</p>
-			<table class="table table-sm align-middle" id="ct-rules-table">
-				<thead class="table-light"><tr>
-					<th style="width:150px"></th>
-					<th>${t(K + 'pattern')}</th>
-					<th style="width:170px">${t(K + 'tag')}</th>
-					<th style="width:96px"></th>
-				</tr></thead>
-				<tbody id="ct-rules"></tbody>
-			</table>
-			<button class="btn btn-sm btn-outline-secondary" id="ct-add-rule"><i class="fa-solid fa-plus"></i> ${t('common.add')}</button>
+			<ul class="nav nav-tabs mb-3">
+				<li class="nav-item"><a class="nav-link" id="ct-tab-palette" href="#/@settings/color-tags/palette">${t(K + 'palette')}</a></li>
+				<li class="nav-item"><a class="nav-link" id="ct-tab-rules" href="#/@settings/color-tags/rules">${t(K + 'rules')}</a></li>
+			</ul>
+			<div id="ct-pane-palette">
+				<table class="table table-sm align-middle">
+					<thead class="table-light"><tr>
+						<th style="width:46px"></th>
+						<th>${t(K + 'col_name')}</th>
+						<th style="width:150px">${t(K + 'col_id')}</th>
+						<th style="width:40px"></th>
+					</tr></thead>
+					<tbody id="ct-palette"></tbody>
+				</table>
+				<button class="btn btn-sm btn-outline-secondary" id="ct-add-pal"><i class="fa-solid fa-plus"></i> ${t('common.add')}</button>
+			</div>
+			<div id="ct-pane-rules">
+				<p class="text-muted small">${t(K + 'rules_help')}</p>
+				<table class="table table-sm align-middle" id="ct-rules-table">
+					<thead class="table-light"><tr>
+						<th style="width:150px"></th>
+						<th>${t(K + 'pattern')}</th>
+						<th style="width:170px">${t(K + 'tag')}</th>
+						<th style="width:96px"></th>
+					</tr></thead>
+					<tbody id="ct-rules"></tbody>
+				</table>
+				<button class="btn btn-sm btn-outline-secondary" id="ct-add-rule"><i class="fa-solid fa-plus"></i> ${t('common.add')}</button>
+			</div>
 			<div class="mt-3">
 				<button class="btn btn-sm btn-primary" id="ct-save">${t('common.save')}</button>
 			</div>
@@ -43,6 +51,34 @@ export default function mount(el, ctx) {
 		</div>`;
 
 	const $ = id => el.querySelector('#' + id);
+
+	const subFromHash = () =>
+		location.hash === '#/@settings/color-tags/rules' ? 'rules' : 'palette';
+
+	function renderTabs() {
+		$('ct-tab-palette').classList.toggle('active', sub === 'palette');
+		$('ct-tab-rules').classList.toggle('active', sub === 'rules');
+		$('ct-pane-palette').style.display = sub === 'palette' ? '' : 'none';
+		$('ct-pane-rules').style.display = sub === 'rules' ? '' : 'none';
+	}
+
+	// Les <a> font la navigation hash native ; activate() côté cœur conserve
+	// tab==='color-tags' et ignore le détail — la synchro du sous-onglet se
+	// fait ici. Auto-nettoyage : le plugin est remonté à chaque entrée dans
+	// Paramètres (foreach pluginTabs), le listener d'un div détaché se retire.
+	const onHash = () => {
+		if (!el.isConnected) {
+			window.removeEventListener('hashchange', onHash);
+			return;
+		}
+		if (!location.hash.startsWith('#/@settings/color-tags')) { return; }
+		const s = subFromHash();
+		if (s !== sub) { sub = s; renderTabs(); }
+	};
+	window.addEventListener('hashchange', onHash);
+
+	sub = subFromHash();
+	renderTabs();
 	const call = (a, b) => ctx.api.post(`/plugin/color-tags/${a}`, b || {});
 	const msg = (m, ok) => { if (m) { (ok ? ctx.toast.success : ctx.toast.error)(m); } };
 

@@ -74,7 +74,11 @@ class ZIP
 		if ($i = \ob_get_level()) {
 			# Clear buffers:
 			while ($i-- && \ob_end_clean());
-			\ob_get_level() || \header('Content-Encoding: ');
+		}
+		// no-gzip : exempte la réponse de mod_deflate/LiteSpeed ; zlib ini
+		// (si actif) posera alors lui-même Content-Encoding: gzip correctement.
+		if (\function_exists('apache_setenv')) {
+			\apache_setenv('no-gzip', '1');
 		}
 		\header('Cache-Control: no-store');
 		\header('Pragma: no-cache');

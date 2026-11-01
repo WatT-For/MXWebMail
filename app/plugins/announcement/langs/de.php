@@ -2,16 +2,16 @@
 declare(strict_types=1);
 
 return [
-	'plugin.announcement.description'         => 'Announcement banner set by the administrator (app page, optionally login)',
-	'plugin.announcement.f.enabled'           => 'Enabled',
-	'plugin.announcement.f.text'              => 'Banner text',
-	'plugin.announcement.f.text.help'         => 'Plain text shown to all users — HTML is not interpreted',
-	'plugin.announcement.f.level'             => 'Level',
+	'plugin.announcement.description'         => 'Ankündigungsbanner, vom Administrator festgelegt (App-Seite, optional Login)',
+	'plugin.announcement.f.enabled'           => 'Aktiviert',
+	'plugin.announcement.f.text'              => 'Bannertext',
+	'plugin.announcement.f.text.help'         => 'Reiner Text für alle Benutzer — HTML wird nicht interpretiert',
+	'plugin.announcement.f.level'             => 'Stufe',
 	'plugin.announcement.f.level.info'         => 'Info',
-	'plugin.announcement.f.level.success'      => 'Success',
-	'plugin.announcement.f.level.warning'      => 'Warning',
-	'plugin.announcement.f.level.danger'       => 'Critical',
-	'plugin.announcement.f.show_on_login'     => 'Show on login page',
-	'plugin.announcement.f.show_on_login.help'=> 'Useful for maintenance notices',
-	'plugin.announcement.f.dismissible'       => 'Dismissible (× button)',
+	'plugin.announcement.f.level.success'      => 'Erfolg',
+	'plugin.announcement.f.level.warning'      => 'Warnung',
+	'plugin.announcement.f.level.danger'       => 'Kritisch',
+	'plugin.announcement.f.show_on_login'     => 'Auf der Login-Seite anzeigen',
+	'plugin.announcement.f.show_on_login.help'=> 'Nützlich für Wartungshinweise',
+	'plugin.announcement.f.dismissible'       => 'Schließbar (×-Schaltfläche)',
 ];

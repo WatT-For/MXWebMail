@@ -2,13 +2,13 @@
 declare(strict_types=1);
 
 return [
-	'plugin.filelink.description'      => 'Send oversized attachments as expiring download links',
-	'plugin.filelink.f.max_size'       => 'Max file size (MB)',
-	'plugin.filelink.f.max_size.help'  => 'Files larger than this are rejected',
-	'plugin.filelink.f.ttl_days'       => 'Link lifetime (days)',
-	'plugin.filelink.f.ttl_days.help'  => 'Download links expire after this delay',
-	'plugin.filelink.error_upload'     => 'Filelink upload failed',
-	'plugin.filelink.error_too_big'    => 'File exceeds {mb} MB',
-	'plugin.filelink.expired'          => 'This link has expired or is invalid.',
+	'plugin.filelink.description'      => 'Übergroße Anhänge als befristete Download-Links versenden',
+	'plugin.filelink.f.max_size'       => 'Max. Dateigröße (MB)',
+	'plugin.filelink.f.max_size.help'  => 'Größere Dateien werden abgelehnt',
+	'plugin.filelink.f.ttl_days'       => 'Link-Lebensdauer (Tage)',
+	'plugin.filelink.f.ttl_days.help'  => 'Download-Links laufen nach dieser Frist ab',
+	'plugin.filelink.error_upload'     => 'Filelink-Upload fehlgeschlagen',
+	'plugin.filelink.error_too_big'    => 'Datei überschreitet {mb} MB',
+	'plugin.filelink.expired'          => 'Dieser Link ist abgelaufen oder ungültig.',
 	'plugin.filelink.attached'         => '{name} ({size}): {url}',
 ];

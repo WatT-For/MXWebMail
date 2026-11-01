@@ -12,16 +12,41 @@
 	<?= $themeScript ?>
 	<!-- openpgp (~540K) et tinymce (~500K) chargés à la demande via js/lazy.js -->
 	<?= $pluginHead ?>
+	<style>
+	/* Splash de démarrage : HTML/CSS pur affiché dès le 1er paint (avant
+	   knockout.js), retiré en fondu par app.js une fois l'interface prête.
+	   z-index au-dessus du plus haut niveau Bootstrap (toast = 1090). */
+	#app-splash {
+		position: fixed; inset: 0; z-index: 2000;
+		display: flex; flex-direction: column;
+		align-items: center; justify-content: center; gap: 1rem;
+		background: var(--bs-body-bg); color: var(--bs-body-color);
+		/* visibility flip discret en fin de fondu : le compositeur ne peut
+		   pas rejouer une frame à pleine opacité (flash fantôme) au remove(). */
+		transition: opacity .25s ease, visibility 0s linear .25s;
+	}
+	#app-splash.done { opacity: 0; visibility: hidden; pointer-events: none; }
+	@media (prefers-reduced-motion: reduce) {
+		#app-splash { transition: none; }
+	}
+	</style>
 </head>
 <body>
+<div id="app-splash" role="status">
+	<div class="brand-logo"><?= htmlspecialchars($app->config()->get('app_name')) ?></div>
+	<div class="spinner-border text-primary" aria-hidden="true"></div>
+	<div class="text-body-secondary small"><?= $t('common.loading') ?></div>
+</div>
+<noscript><style>#app-splash{display:none}</style></noscript>
 <div class="app-shell">
 	<!-- Barre supérieure -->
 	<nav class="navbar navbar-dark px-3">
 		<span class="navbar-brand mb-0"><?= htmlspecialchars($app->config()->get('app_name')) ?></span>
 		<div class="d-flex align-items-center gap-3">
 			<div class="dropdown">
-				<a class="text-white-50 small text-decoration-none dropdown-toggle" role="button" href="#" data-bs-toggle="dropdown"
-					data-bind="text: user() && user().email"></a>
+				<button class="btn btn-sm btn-outline-light dropdown-toggle" type="button" data-bs-toggle="dropdown">
+					<i class="fa-solid fa-circle-user me-1"></i><span data-bind="text: user() && user().email"></span>
+				</button>
 				<ul class="dropdown-menu dropdown-menu-end">
 					<!-- ko foreach: accounts -->
 					<li><a class="dropdown-item" href="#" data-bind="click: $parent.switchAccount">
@@ -59,14 +84,27 @@
 					data-bind="click: $root.compose.openNew.bind($root.compose)">
 					<i class="fa-solid fa-pen"></i> <?= $t('app.new_message') ?>
 				</button>
-				<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: createFolder, tooltip: 'app.new_folder'">
-					<i class="fa-solid fa-plus"></i>
-				</button>
+				<span class="d-flex gap-1">
+					<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: createFolder, tooltip: 'app.new_folder'">
+						<i class="fa-solid fa-plus"></i>
+					</button>
+					<button class="btn btn-sm btn-icon btn-outline-secondary"
+						data-bind="click: markAllReadCurrent, tooltip: 'app.mark_all_read',
+							disable: !currentFolder() || currentFolder().unread() === 0">
+						<i class="fa-regular fa-envelope-open"></i>
+					</button>
+					<button class="btn btn-sm btn-icon btn-outline-secondary"
+						data-bind="click: clearCurrent, tooltip: 'app.empty_folder',
+							visible: $root.features().dangerous_actions !== false,
+							disable: !currentFolder() || currentFolder().isInbox" style="display:none">
+						<i class="fa-solid fa-broom"></i>
+					</button>
+				</span>
 			</div>
 			<!-- ko toast: { value: error, variant: 'danger' } --><!-- /ko -->
 			<div class="list-group list-group-flush" data-bind="foreach: folders">
 				<div class="list-group-item list-group-item-action" role="button"
-					data-bind="click: (d, e) => { if (!e.target.closest('.dropdown')) { $parent.select(d); } },
+					data-bind="click: $parent.select,
 						css: { active: $parent.isActive($data), 'folder-sep': $data.sep },
 						style: { paddingLeft: (8 + $data.depth * 14) + 'px' }">
 					<span>
@@ -75,29 +113,6 @@
 					</span>
 					<span class="d-flex align-items-center">
 						<span class="badge text-bg-primary" data-bind="visible: unread() > 0, text: unread" style="display:none"></span>
-						<span class="dropdown">
-							<button type="button" class="btn btn-sm btn-icon border-0 p-0 text-muted px-1 folder-menu-toggle" data-bs-toggle="dropdown"
-								data-bs-popper-config='{"strategy":"fixed"}'
-								data-bind="visible: !isSystem || ($root.features().dangerous_actions !== false && !isInbox)">
-								<i class="fa-solid fa-ellipsis-vertical"></i>
-							</button>
-							<ul class="dropdown-menu dropdown-menu-end">
-								<!-- ko ifnot: isSystem -->
-								<li><a class="dropdown-item" href="#" data-bind="click: $parent.renameFolder"><i class="fa-solid fa-pen me-2"></i><?= $t('app.rename') ?></a></li>
-								<!-- /ko -->
-								<li><a class="dropdown-item" href="#" data-bind="visible: unread() > 0, click: $parent.markAllRead"><i class="fa-regular fa-envelope-open me-2"></i><?= $t('app.mark_all_read') ?></a></li>
-								<!-- ko if: $root.features().dangerous_actions !== false && !isInbox -->
-								<li><a class="dropdown-item" href="#" data-bind="click: $parent.clearFolder"><i class="fa-solid fa-broom me-2"></i><?= $t('app.empty_folder') ?></a></li>
-								<!-- /ko -->
-								<!-- ko ifnot: isSystem -->
-								<li><a class="dropdown-item" href="#" data-bind="click: $parent.editAcl"><i class="fa-solid fa-user-lock me-2"></i>ACL</a></li>
-								<!-- /ko -->
-								<!-- ko if: $root.features().dangerous_actions !== false && !isSystem -->
-								<li><hr class="dropdown-divider"></li>
-								<li><a class="dropdown-item text-danger" href="#" data-bind="click: $parent.deleteFolder"><i class="fa-solid fa-trash me-2"></i><?= $t('common.delete') ?></a></li>
-								<!-- /ko -->
-							</ul>
-						</span>
 					</span>
 				</div>
 			</div>
@@ -125,7 +140,7 @@
 			<div class="p-2 border-bottom d-flex gap-2">
 				<div class="input-group input-group-sm">
 					<input type="search" class="form-control" placeholder="<?= $t('app.search') ?>"
-						data-bind="value: search, valueUpdate: 'input', event: { keydown: function(d,e){ if(e.key==='Enter'){ searchNow(); return false; } return true; } }">
+						data-bind="value: search, valueUpdate: 'input', event: { keydown: function(d,e){ if(e.key==='Enter'){ searchNow(); return false; } return true; }, search: clearSearch }">
 					<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: searchNow"><i class="fa-solid fa-magnifying-glass"></i></button>
 					<button class="btn btn-sm btn-icon btn-outline-secondary position-relative"
 						data-bind="click: openSearch, tooltip: 'app.search.advanced'">
@@ -152,8 +167,8 @@
 						</a></li>
 						<!-- /ko -->
 						<li><hr class="dropdown-divider"></li>
-						<li><a class="dropdown-item" href="#" data-bind="click: $parent.toggleThreads, visible: threadsSupported" style="display:none">
-							<i class="fa-solid fa-check fa-fw me-1" data-bind="visible: $parent.useThreads" style="display:none"></i>
+						<li><a class="dropdown-item" href="#" data-bind="click: toggleThreads, visible: threadsSupported" style="display:none">
+							<i class="fa-solid fa-check fa-fw me-1" data-bind="visible: useThreads" style="display:none"></i>
 							<?= $t('app.threads') ?>
 						</a></li>
 					</ul>
@@ -257,6 +272,13 @@
 					</button>
 				</div>
 			</div>
+
+			<!-- Voile de chargement centré sur la colonne -->
+			<div class="msglist-loading" role="status" style="display:none"
+				data-bind="visible: showLoader">
+				<span class="spinner-border text-primary" aria-hidden="true"></span>
+				<span class="visually-hidden"><?= $t('common.loading') ?></span>
+			</div>
 		</section>
 
 		<div class="pane-resizer" role="separator"
@@ -293,62 +315,60 @@
 							<div data-bind="text: new Date(date * 1000).toLocaleString($root.lang)"></div>
 						</div>
 					</div>
-					<div class="btn-group btn-group-sm">
-						<button class="btn btn-sm btn-icon btn-outline-secondary"
-							data-bind="click: () => $root.compose.openReply($data,
-								($root.userSettings?.msg_default_action || 'reply') === 'reply_all'),
-								tooltip: 'app.reply'">
-							<i class="fa-solid" data-bind="css: ($root.userSettings?.msg_default_action || 'reply') === 'reply_all' ? 'fa-reply-all' : 'fa-reply'"></i>
-						</button>
-						<button class="btn btn-sm btn-icon btn-outline-secondary"
-							data-bind="click: () => $root.compose.openReply($data, true), tooltip: 'app.reply_all'">
-							<i class="fa-solid fa-reply-all"></i>
-						</button>
-						<button class="btn btn-sm btn-icon btn-outline-secondary"
-							data-bind="click: () => $root.compose.openForward($data), tooltip: 'app.forward'">
-							<i class="fa-solid fa-share"></i>
-						</button>
-						<button class="btn btn-sm btn-icon btn-outline-secondary"
-							data-bind="click: $parent.toggleFlag,
-								tooltip: isFlagged() ? 'app.mark_unflagged' : 'app.mark_flagged'">
-							<i class="fa-star" data-bind="css: isFlagged() ? 'fa-solid text-warning' : 'fa-regular'"></i>
-						</button>
-						<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: $parent.toggleSpam, tooltip: $parent.spamLabel()"><i class="fa-solid fa-shield-halved"></i></button>
-						<!-- ko if: $root.features().dangerous_actions !== false -->
-						<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: $parent.deleteMessage, tooltip: 'common.delete'">
-							<i class="fa-solid fa-trash text-danger"></i>
-						</button>
-						<!-- /ko -->
-						<button class="btn btn-sm btn-icon btn-outline-secondary"
-							data-bs-toggle="dropdown"
-							data-bs-popper-config='{"strategy":"fixed"}'
-							aria-label="<?= $t('app.more_actions') ?>">
-							<i class="fa-solid fa-ellipsis" data-bind="tooltip: 'app.more_actions'"></i>
-						</button>
-						<ul class="dropdown-menu dropdown-menu-end">
-							<li><a class="dropdown-item" href="#" data-bind="click: () => $root.compose.openForward($data, true)"><i class="fa-solid fa-paperclip me-2"></i><?= $t('app.forward_attach') ?></a></li>
-							<li style="display:none" data-bind="visible: !!unsubscribe"><a class="dropdown-item" href="#"
-								data-bind="click: $parent.unsubscribe"><i class="fa-solid fa-user-xmark me-2"></i><?= $t('app.unsubscribe') ?></a></li>
-							<li><a class="dropdown-item" href="#" data-bind="click: $parent.moveWithPicker"><i class="fa-solid fa-file-export me-2"></i><?= $t('app.move_to') ?></a></li>
-							<li style="display:none"
-								data-bind="visible: $root.folderList.archiveFolder() && folder !== $root.folderList.archiveFolder().fullName"><a class="dropdown-item" href="#"
-								data-bind="click: $parent.archive"><i class="fa-solid fa-box-archive me-2"></i><?= $t('app.archive') ?></a></li>
-							<li><a class="dropdown-item" href="#" data-bind="click: $parent.markUnread"><i class="fa-regular fa-envelope me-2"></i><?= $t('app.mark_unread') ?></a></li>
-							<li><hr class="dropdown-divider"></li>
-							<li><a class="dropdown-item" href="#" data-bind="click: $parent.printMessage"><i class="fa-solid fa-print me-2"></i><?= $t('app.print') ?></a></li>
-							<li><a class="dropdown-item" data-bind="attr: { href: $parent.rawUrl() }"><i class="fa-solid fa-download me-2"></i><?= $t('app.download_eml') ?></a></li>
-							<li><a class="dropdown-item" href="#" data-bind="click: $parent.showSource"><i class="fa-solid fa-code me-2"></i><?= $t('app.view_source') ?></a></li>
-						</ul>
+					<div class="d-flex flex-column align-items-end align-self-stretch gap-1">
+						<div class="btn-group btn-group-sm">
+							<button class="btn btn-sm btn-icon btn-outline-secondary"
+								data-bind="click: () => $root.compose.openReply($data,
+									($root.userSettings?.msg_default_action || 'reply') === 'reply_all'),
+									tooltip: 'app.reply'">
+								<i class="fa-solid" data-bind="css: ($root.userSettings?.msg_default_action || 'reply') === 'reply_all' ? 'fa-reply-all' : 'fa-reply'"></i>
+							</button>
+							<button class="btn btn-sm btn-icon btn-outline-secondary"
+								data-bind="click: () => $root.compose.openReply($data, true), tooltip: 'app.reply_all'">
+								<i class="fa-solid fa-reply-all"></i>
+							</button>
+							<button class="btn btn-sm btn-icon btn-outline-secondary"
+								data-bind="click: () => $root.compose.openForward($data), tooltip: 'app.forward'">
+								<i class="fa-solid fa-share"></i>
+							</button>
+							<button class="btn btn-sm btn-icon btn-outline-secondary"
+								data-bind="click: $parent.toggleFlag,
+									tooltip: isFlagged() ? 'app.mark_unflagged' : 'app.mark_flagged'">
+								<i class="fa-star" data-bind="css: isFlagged() ? 'fa-solid text-warning' : 'fa-regular'"></i>
+							</button>
+							<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: $parent.toggleSpam, tooltip: $parent.spamLabel()"><i class="fa-solid fa-shield-halved"></i></button>
+							<!-- ko if: $root.features().dangerous_actions !== false -->
+							<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: $parent.deleteMessage, tooltip: 'common.delete'">
+								<i class="fa-solid fa-trash text-danger"></i>
+							</button>
+							<!-- /ko -->
+							<button class="btn btn-sm btn-icon btn-outline-secondary"
+								data-bs-toggle="dropdown"
+								data-bs-popper-config='{"strategy":"fixed"}'
+								aria-label="<?= $t('app.more_actions') ?>">
+								<i class="fa-solid fa-ellipsis" data-bind="tooltip: 'app.more_actions'"></i>
+							</button>
+							<ul class="dropdown-menu dropdown-menu-end">
+								<li><a class="dropdown-item" href="#" data-bind="click: () => $root.compose.openForward($data, true)"><i class="fa-solid fa-paperclip me-2"></i><?= $t('app.forward_attach') ?></a></li>
+								<li style="display:none" data-bind="visible: !!unsubscribe"><a class="dropdown-item" href="#"
+									data-bind="click: $parent.unsubscribe"><i class="fa-solid fa-user-xmark me-2"></i><?= $t('app.unsubscribe') ?></a></li>
+								<li><a class="dropdown-item" href="#" data-bind="click: $parent.moveWithPicker"><i class="fa-solid fa-file-export me-2"></i><?= $t('app.move_to') ?></a></li>
+								<li style="display:none"
+									data-bind="visible: $root.folderList.archiveFolder() && folder !== $root.folderList.archiveFolder().fullName"><a class="dropdown-item" href="#"
+									data-bind="click: $parent.archive"><i class="fa-solid fa-box-archive me-2"></i><?= $t('app.archive') ?></a></li>
+								<li><a class="dropdown-item" href="#" data-bind="click: $parent.markUnread"><i class="fa-regular fa-envelope me-2"></i><?= $t('app.mark_unread') ?></a></li>
+								<li><hr class="dropdown-divider"></li>
+								<li><a class="dropdown-item" href="#" data-bind="click: $parent.printMessage"><i class="fa-solid fa-print me-2"></i><?= $t('app.print') ?></a></li>
+								<li><a class="dropdown-item" data-bind="attr: { href: $parent.rawUrl() }"><i class="fa-solid fa-download me-2"></i><?= $t('app.download_eml') ?></a></li>
+								<li><a class="dropdown-item" href="#" data-bind="click: $parent.showSource"><i class="fa-solid fa-code me-2"></i><?= $t('app.view_source') ?></a></li>
+							</ul>
+						</div>
+						<!-- Verdict anti-spoofing : bouclier coloré par niveau, détail en tooltip -->
+						<i class="fa-solid fa-shield-halved fa-2x mt-auto" tabindex="0" style="display:none"
+							data-bind="visible: !!$parent.security(), css: $parent.securityIconCss,
+								attr: { 'aria-label': $parent.securityTip },
+								tooltip: { text: $parent.securityTip, placement: 'left', pre: true }"></i>
 					</div>
-				</div>
-
-				<div class="alert mb-2" style="display:none"
-					data-bind="visible: $parent.securityAlerts().length, css: $parent.securityCss">
-					<i class="fa-solid fa-triangle-exclamation me-1"></i>
-					<strong data-bind="text: $root.t('plugin.anti-spoofing.title')"></strong>
-					<ul class="mb-0 small ps-3" data-bind="foreach: $parent.securityAlerts">
-						<li data-bind="text: $data.text"></li>
-					</ul>
 				</div>
 
 				<ul class="nav nav-tabs mb-2" data-bind="visible: attachments && attachments.length" style="display:none">
@@ -365,22 +385,41 @@
 						data-bind="visible: attachments && attachments.length > 1,
 							attr: { href: $parent.attachmentsZipUrl() }">
 						<i class="fa-solid fa-file-zipper"></i> <?= $t('app.download_all') ?></a>
-					<div class="d-flex flex-wrap gap-1" data-bind="foreach: attachments">
-						<a class="btn btn-sm btn-outline-secondary" data-bind="attr: { href: $parents[1].attachmentUrl($data) },
-							text: name + (size ? ' (' + $parents[1].formatSize(size) + ')' : '')"></a>
-						<!-- ko if: $root.features().ics_viewer
-							&& (mime === 'text/calendar' || /\.ics$/i.test(name || '')) -->
-						<button class="btn btn-sm btn-icon btn-outline-primary"
-							data-bind="click: () => $parents[1].previewIcs($data)">
-							<i class="fa-solid fa-calendar-days"></i>
-						</button>
-						<!-- /ko -->
-						<!-- ko if: $parents[1].isPreviewable($data) -->
-						<button class="btn btn-sm btn-icon btn-outline-primary"
-							data-bind="click: () => $parents[1].preview($data), tooltip: 'app.preview'">
-							<i class="fa-solid fa-magnifying-glass"></i>
-						</button>
-						<!-- /ko -->
+					<div class="table-responsive">
+					<table class="table table-hover table-sm align-middle mb-0" style="table-layout:fixed">
+						<thead class="table-light"><tr>
+							<th><?= $t('common.name') ?></th>
+							<th class="text-end" style="width:5.5rem"><?= $t('common.size') ?></th>
+							<th class="text-end" style="width:6.5rem"><?= $t('common.actions') ?></th>
+						</tr></thead>
+						<tbody data-bind="foreach: attachments">
+							<tr>
+								<td class="text-truncate" data-bind="attr: { title: name }, text: name"></td>
+								<td class="text-end text-muted"
+									data-bind="text: size ? $parents[1].formatSize(size) : ''"></td>
+								<td><div class="d-flex gap-1 justify-content-end">
+									<!-- ko if: $root.features().ics_viewer
+										&& (mime === 'text/calendar' || /\.ics$/i.test(name || '')) -->
+									<button class="btn btn-sm btn-icon btn-outline-primary"
+										data-bind="click: () => $parents[1].previewIcs($data), tooltip: 'plugin.ics-viewer.title'">
+										<i class="fa-solid fa-calendar-days"></i>
+									</button>
+									<!-- /ko -->
+									<!-- ko if: $parents[1].isPreviewable($data) -->
+									<button class="btn btn-sm btn-icon btn-outline-primary"
+										data-bind="click: () => $parents[1].preview($data), tooltip: 'app.preview'">
+										<i class="fa-solid fa-magnifying-glass"></i>
+									</button>
+									<!-- /ko -->
+									<a class="btn btn-sm btn-icon btn-outline-secondary"
+										data-bind="attr: { href: $parents[1].attachmentUrl($data) },
+											tooltip: 'common.download'">
+										<i class="fa-solid fa-download"></i>
+									</a>
+								</div></td>
+							</tr>
+						</tbody>
+					</table>
 					</div>
 				</div>
 
@@ -618,7 +657,8 @@
 								data-bind="tooltip: 'settings.list_threads_help'"></i></label>
 							<div class="col-md-8"><div class="form-check">
 								<input class="form-check-input" type="checkbox" id="st-threads" data-bind="checked: values().list_threads">
-							</div></div>
+							</div>
+							<div class="form-text" data-bind="visible: $root.messageList.threadsSupported() === false" style="display:none"><?= $t('settings.list_threads_unsupported') ?></div></div>
 						</div>
 					</div>
 					<div class="col-12 col-xxl-6">
@@ -650,9 +690,10 @@
 			</div>
 			<p class="text-muted small"><?= $t('settings.accounts_help') ?></p>
 			<table class="table table-hover table-sm align-middle">
-				<thead class="table-light"><tr><th>Email</th><th></th><th></th></tr></thead>
+				<thead class="table-light"><tr><th></th><th>Email</th><th></th><th></th></tr></thead>
 				<tbody data-bind="foreach: $root.accounts">
-					<tr>
+					<tr data-bind="attr: {draggable: !Number(is_default)}, css: {'mx-drag': !Number(is_default)}, event: {dragstart: $parent.accountDragStart, dragover: $parent.accountDragOver, drop: $parent.accountDrop, dragend: $parent.accountDragEnd}">
+						<td class="mx-grip"><i class="fa-solid fa-grip-vertical" data-bind="visible: !Number(is_default), tooltip: 'settings.account_reorder'" style="display:none"></i></td>
 						<td>
 							<span data-bind="text: email"></span>
 							<span class="badge text-bg-info ms-1" data-bind="visible: auth && auth !== 'password', text: auth" style="display:none"></span>
@@ -662,7 +703,6 @@
 							<span class="badge text-bg-success ms-1" data-bind="visible: active" style="display:none"><?= $t('settings.account_active') ?></span>
 						</td>
 						<td class="text-end">
-							<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="visible: !active, click: $root.switchAccount, tooltip: 'settings.account_switch'" style="display:none"><i class="fa-solid fa-arrow-right-arrow-left"></i></button>
 							<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: $parent.editAccount, tooltip: 'settings.account_edit'"><i class="fa-solid fa-pen"></i></button>
 							<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="visible: !Number(is_default), click: $parent.defaultAccount, tooltip: 'settings.account_set_default'" style="display:none"><i class="fa-solid fa-star"></i></button>
 							<button class="btn btn-sm btn-icon btn-outline-danger" data-bind="visible: !Number(is_default) && !active, click: $parent.deleteAccount, tooltip: 'common.delete'" style="display:none"><i class="fa-solid fa-trash"></i></button>
@@ -700,17 +740,55 @@
 			</div>
 		</div>
 
-		<!-- Dossiers système -->
+		<!-- Dossiers -->
 		<div data-bind="visible: tab()==='folders'" style="display:none">
 			<h5><?= $t('settings.folders') ?></h5>
 			<ul class="nav nav-tabs mb-3">
+				<li class="nav-item"><a class="nav-link" href="#/@settings/folders/manage"
+					data-bind="css:{active: foldersTab()==='manage'}"><?= $t('settings.folders_manage') ?></a></li>
 				<li class="nav-item"><a class="nav-link" href="#/@settings/folders/roles"
 					data-bind="css:{active: foldersTab()==='roles'}"><?= $t('settings.folders_roles') ?></a></li>
-				<li class="nav-item"><a class="nav-link" href="#/@settings/folders/notify"
-					data-bind="css:{active: foldersTab()==='notify'}"><?= $t('settings.folders_notify') ?></a></li>
 				<li class="nav-item"><a class="nav-link" href="#/@settings/folders/import"
 					data-bind="css:{active: foldersTab()==='import'}"><?= $t('app.import_eml') ?></a></li>
 			</ul>
+			<div data-bind="visible: foldersTab()==='manage'" style="display:none">
+				<div class="card"><div class="card-body">
+					<p class="text-muted small"><?= $t('settings.folders_notify_help') ?></p>
+					<table class="table table-hover table-sm align-middle settings-folders">
+						<thead class="table-light"><tr>
+							<th class="text-center text-nowrap" style="width:1%"><?= $t('settings.folders_watch') ?></th>
+							<th><?= $t('settings.folders') ?></th>
+							<th class="text-end text-nowrap" style="width:1%; display:none"
+								data-bind="visible: hasFolderSize"><?= $t('common.size') ?></th>
+							<th style="width:1%"></th>
+						</tr></thead>
+						<tbody data-bind="foreach: notifyChecks">
+							<tr>
+								<td class="text-center">
+									<input class="form-check-input" type="checkbox"
+										data-bind="checked: checked, disable: isInbox, attr: { id: 'nf-' + $index() }">
+								</td>
+								<td>
+									<label data-bind="text: label, attr: { for: 'nf-' + $index() },
+										style: { paddingLeft: (depth * 1.25) + 'rem' }"></label>
+									<!-- ko if: isInbox --><span class="text-muted small ms-1"><?= $t('settings.folders_notify_inbox') ?></span><!-- /ko -->
+								</td>
+								<td class="text-end text-nowrap" style="display:none"
+									data-bind="visible: $parent.hasFolderSize, text: folder.sizeLabel"></td>
+								<td class="text-end text-nowrap">
+									<button class="btn btn-sm btn-icon btn-outline-secondary" style="display:none"
+										data-bind="visible: !isSystem, click: () => $root.folderList.renameFolder($data.folder), tooltip: 'app.rename'"><i class="fa-solid fa-pen"></i></button>
+									<button class="btn btn-sm btn-icon btn-outline-secondary" style="display:none"
+										data-bind="visible: !isSystem, click: () => $root.folderList.editAcl($data.folder), tooltip: 'folders.acl_title'"><i class="fa-solid fa-user-lock"></i></button>
+									<button class="btn btn-sm btn-icon btn-outline-danger" style="display:none"
+										data-bind="visible: !isSystem && $root.features().dangerous_actions !== false, click: () => $root.folderList.deleteFolder($data.folder), tooltip: 'common.delete'"><i class="fa-solid fa-trash"></i></button>
+								</td>
+							</tr>
+						</tbody>
+					</table>
+					<button class="btn btn-primary btn-sm" data-bind="click: saveNotifyFolders"><?= $t('common.save') ?></button>
+				</div></div>
+			</div>
 			<div data-bind="visible: foldersTab()==='roles'" style="display:none">
 				<div class="card"><div class="card-body">
 					<p class="text-muted small"><?= $t('settings.folders_help') ?></p>
@@ -724,19 +802,6 @@
 					</div>
 					<!-- /ko -->
 					<button class="btn btn-primary btn-sm" data-bind="click: saveFolderRoles"><?= $t('common.save') ?></button>
-				</div></div>
-			</div>
-			<div data-bind="visible: foldersTab()==='notify'" style="display:none">
-				<div class="card"><div class="card-body">
-					<p class="text-muted small"><?= $t('settings.folders_notify_help') ?></p>
-					<!-- ko foreach: notifyChecks -->
-					<div class="form-check">
-						<input class="form-check-input" type="checkbox" data-bind="checked: checked, disable: isInbox, attr: { id: 'nf-' + $index() }">
-						<label class="form-check-label" data-bind="text: label, attr: { for: 'nf-' + $index() }, style: { paddingLeft: (depth * 1.25) + 'rem' }"></label>
-						<!-- ko if: isInbox --><span class="text-muted small ms-1"><?= $t('settings.folders_notify_inbox') ?></span><!-- /ko -->
-					</div>
-					<!-- /ko -->
-					<button class="btn btn-primary btn-sm mt-2" data-bind="click: saveNotifyFolders"><?= $t('common.save') ?></button>
 				</div></div>
 			</div>
 			<div data-bind="visible: foldersTab()==='import'" style="display:none">
@@ -1219,6 +1284,39 @@
 						data-bind="visible: previewType() === 'pdf', attr: { src: previewType() === 'pdf' ? previewUrl() : '' }"></iframe>
 					<pre class="font-monospace small mb-0 text-start" style="max-height:75vh;overflow:auto;display:none"
 						data-bind="visible: previewType() === 'text', text: previewText"></pre>
+					<!-- Aperçu .eml : en-têtes + corps sanitisé + PJ imbriquées. -->
+					<div class="text-start" style="display:none"
+						data-bind="visible: previewType() === 'eml'">
+						<!-- ko if: previewEml() -->
+						<div class="small text-muted border-bottom pb-1 mb-2" data-bind="with: previewEml">
+							<div data-bind="visible: from && from.length">
+								<strong class="text-body"><?= $t('app.from') ?></strong>
+								<span data-bind="text: $parent.addrText(from)"></span></div>
+							<div data-bind="visible: to && to.length">
+								<strong class="text-body"><?= $t('app.to') ?></strong>
+								<span data-bind="text: $parent.addrText(to)"></span></div>
+							<div data-bind="visible: cc && cc.length">
+								<strong class="text-body"><?= $t('app.cc') ?></strong>
+								<span data-bind="text: $parent.addrText(cc)"></span></div>
+							<div data-bind="visible: date">
+								<span data-bind="text: new Date(date * 1000).toLocaleString($parent.app.lang)"></span></div>
+						</div>
+						<!-- /ko -->
+						<div id="eml-preview-body" class="mail-body" style="max-height:60vh;overflow:auto"></div>
+						<!-- ko if: previewEml() && previewEml().attachments.length -->
+						<div class="d-flex flex-wrap gap-1 mt-2" data-bind="foreach: previewEml().attachments">
+							<a class="btn btn-sm btn-outline-secondary"
+								data-bind="attr: { href: $parent.emlPartUrl(n, 1) },
+									text: name + (size ? ' (' + $parent.formatSize(size) + ')' : '')"></a>
+							<!-- ko if: eml -->
+							<button class="btn btn-sm btn-icon btn-outline-primary"
+								data-bind="click: () => $parent.loadEml(sub), tooltip: 'app.preview'">
+								<i class="fa-solid fa-magnifying-glass"></i>
+							</button>
+							<!-- /ko -->
+						</div>
+						<!-- /ko -->
+					</div>
 				</div>
 				<div class="modal-footer">
 					<a class="btn btn-sm btn-outline-primary" download
