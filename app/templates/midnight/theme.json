@@ -1,0 +1,6 @@
+{
+	"name": "midnight",
+	"label": "Minuit",
+	"version": "0.2.0",
+	"extends": "default"
+}

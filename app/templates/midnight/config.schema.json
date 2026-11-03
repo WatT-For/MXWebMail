@@ -1,0 +1,52 @@
+{
+	"dark_mode": {
+		"label": "theme.default.f.dark_mode",
+		"type": "enum",
+		"options": { "auto": "theme.default.dark_mode.auto", "light": "theme.default.dark_mode.light", "dark": "theme.default.dark_mode.dark" },
+		"default": "dark"
+	},
+	"primary_color": {
+		"label": "theme.default.f.primary_color",
+		"type": "color",
+		"default": "#0d9488"
+	},
+	"link_color": {
+		"label": "theme.default.f.link_color",
+		"type": "color",
+		"default": "#0d9488"
+	},
+	"header_color": {
+		"label": "theme.default.f.header_color",
+		"type": "color",
+		"default": "#0f172a"
+	},
+	"folder_active_color": {
+		"label": "theme.default.f.folder_active_color",
+		"type": "color",
+		"default": "#0d9488"
+	},
+	"primary_color_dark": {
+		"label": "theme.default.f.primary_color_dark",
+		"type": "color",
+		"default": "",
+		"help": "theme.default.help.dark_inherit"
+	},
+	"link_color_dark": {
+		"label": "theme.default.f.link_color_dark",
+		"type": "color",
+		"default": "",
+		"help": "theme.default.help.dark_inherit"
+	},
+	"header_color_dark": {
+		"label": "theme.default.f.header_color_dark",
+		"type": "color",
+		"default": "",
+		"help": "theme.default.help.dark_inherit"
+	},
+	"folder_active_color_dark": {
+		"label": "theme.default.f.folder_active_color_dark",
+		"type": "color",
+		"default": "",
+		"help": "theme.default.help.dark_inherit"
+	}
+}

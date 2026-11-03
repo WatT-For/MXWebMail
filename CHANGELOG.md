@@ -6,7 +6,7 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) -
 semver `0.MINOR.PATCH` en développement.
 Catégories, dans l'ordre : `Sécurité`, `Ajouté`, `Modifié`, `Corrigé`, `Obsolète`, `Supprimé`.
 
-## [Unreleased]
+## [0.50.0] - 2026-11-03
 
 ### Ajouté
 
@@ -29,7 +29,6 @@ Catégories, dans l'ordre : `Sécurité`, `Ajouté`, `Modifié`, `Corrigé`, `Ob
 - Colonne des dossiers : le dossier de rôle archive (Archives, All Mail) est désormais rangé dans la section des dossiers utilisateur au lieu du groupe des dossiers de base - il reste protégé (pas de renommage ni suppression).
 - Après un déplacement, une suppression ou un marquage (non) spam, l'application ne sélectionne plus automatiquement un autre mail - le lecteur ne se ferme que si le message affiché était parmi ceux retirés, sinon il reste ouvert.
 - Menu des comptes : le compte actif est désormais mis en évidence par un fond coloré sur toute la ligne, au lieu d'une icône de coche devant son adresse.
-- Typographie ASCII dans tous les textes du projet (commentaires, documentation, traductions, notes de release) : les em dash "—" deviennent "-", les guillemets "«" et "»" deviennent des guillemets droits `"` et les flèches "→" deviennent ">". Les en-têtes de version du changelog adoptent le format `## [x.y.z] - AAAA-MM-JJ`.
 
 ### Corrigé
 
