@@ -9,7 +9,7 @@ use MXWebMail\Security\Wildcard;
 
 /**
  * Liste noire de connexion : refuse le login avant la vérification IMAP
- * si l'email correspond (évite le probing). « exceptions » = emails de
+ * si l'email correspond (évite le probing). "exceptions" = emails de
  * la liste qui restent autorisés. Portage du plugin legacy black-list.
  */
 final class BlackList extends PluginBase

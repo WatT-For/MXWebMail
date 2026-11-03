@@ -22,10 +22,10 @@ final class PluginManager
 	) {}
 
 	/**
-	 * Charge les plugins activés. Un plugin marqué non « utilisable par les
-	 * utilisateurs » (plugins.user_allowed = 0) n'est chargé qu'en contexte
+	 * Charge les plugins activés. Un plugin marqué non "utilisable par les
+	 * utilisateurs" (plugins.user_allowed = 0) n'est chargé qu'en contexte
 	 * admin : surface admin (page + /api/admin/*, flag $adminSurface passé par
-	 * App::run — les hooks pré-login admin en ont besoin) ou session admin.
+	 * App::run - les hooks pré-login admin en ont besoin) ou session admin.
 	 */
 	public function loadEnabled(bool $adminSurface = false): void
 	{
@@ -60,11 +60,11 @@ final class PluginManager
 	}
 
 	/**
-	 * Manifestes plugins présents (path => manifest décodé) — cache
+	 * Manifestes plugins présents (path => manifest décodé) - cache
 	 * storage/cache/plugins.php revalidé par filemtime de chaque
 	 * plugin.json : 22 stats ≪ 22 lectures + décodages à chaque requête.
 	 * Un manifeste modifié (install/update) change son mtime ; un plugin
-	 * ajouté/supprimé change la liste des fichiers → revalidation naturelle,
+	 * ajouté/supprimé change la liste des fichiers > revalidation naturelle,
 	 * aucune invalidation explicite requise.
 	 */
 	private function manifests(): array
@@ -106,7 +106,7 @@ final class PluginManager
 		return $this->loaded;
 	}
 
-	/** Map nom → version des plugins chargés — pour le ?v= des assets plugin. */
+	/** Map nom > version des plugins chargés - pour le ?v= des assets plugin. */
 	public function versions(): array
 	{
 		$out = [];
@@ -117,10 +117,10 @@ final class PluginManager
 	}
 
 	/**
-	 * Dispatch API borné : /api/plugin/{name}/{action} → Plugin::api<Action>.
+	 * Dispatch API borné : /api/plugin/{name}/{action} > Plugin::api<Action>.
 	 * Uniquement si le plugin est chargé (donc activé) et la méthode existe.
-	 * Le namespace admin est séparé : une action « admin-* » résoudrait en
-	 * apiAdmin* (même préfixe api) — elle est rejetée ici, ces méthodes ne
+	 * Le namespace admin est séparé : une action "admin-*" résoudrait en
+	 * apiAdmin* (même préfixe api) - elle est rejetée ici, ces méthodes ne
 	 * sont atteignables que via callAdminApi (requireAdmin en amont).
 	 */
 	public function callApi(string $name, string $action, \MXWebMail\Http\Request $request): mixed
@@ -141,7 +141,7 @@ final class PluginManager
 
 	/**
 	 * Dispatch borné côté admin : /api/admin/plugin/{name}/{action}
-	 * → Plugin::apiAdmin<Action>. La session admin (requireAdmin) est
+	 * > Plugin::apiAdmin<Action>. La session admin (requireAdmin) est
 	 * vérifiée en amont par AdminController ; pas de $user ici.
 	 */
 	public function callAdminApi(string $name, string $action, \MXWebMail\Http\Request $request): mixed
@@ -183,8 +183,8 @@ final class PluginManager
 
 	/**
 	 * Plugin sans surface utilisateur : tous les hooks déclarés au manifeste
-	 * sont des hooks admin.* (ex. admin.mounts) — le switch « Accès
-	 * utilisateurs » de l'onglet Extensions est alors sans objet (masqué).
+	 * sont des hooks admin.* (ex. admin.mounts) - le switch "Accès
+	 * utilisateurs" de l'onglet Extensions est alors sans objet (masqué).
 	 */
 	private static function isAdminOnly(array $manifest): bool
 	{

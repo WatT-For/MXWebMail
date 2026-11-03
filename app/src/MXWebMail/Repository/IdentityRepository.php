@@ -111,7 +111,7 @@ final class IdentityRepository
 		foreach ($aParts as $sPart) {
 			try {
 				$oEmail = \MailSo\Mime\Email::Parse(trim($sPart));
-				// Parse accepte un nom seul → exiger une vraie adresse.
+				// Parse accepte un nom seul > exiger une vraie adresse.
 				if (!filter_var($oEmail->GetEmail(), FILTER_VALIDATE_EMAIL)) {
 					return false;
 				}

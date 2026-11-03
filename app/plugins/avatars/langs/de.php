@@ -7,7 +7,7 @@ return [
 	'plugin.avatars.email_invalid'      => 'Ungültige E-Mail',
 	'plugin.avatars.not_found'          => 'Kein Avatar',
 	'plugin.avatars.f.gravatar'         => 'Gravatar',
-	'plugin.avatars.f.gravatar.help'    => 'Fragt gravatar.com ab (MD5-Hash der E-Mail — Datenschutzerwägung)',
+	'plugin.avatars.f.gravatar.help'    => 'Fragt gravatar.com ab (MD5-Hash der E-Mail - Datenschutzerwägung)',
 	'plugin.avatars.f.favicon'          => 'Domain-Favicon',
 	'plugin.avatars.f.favicon.help'     => 'Ruft das Favicon der Absender-Domain ab',
 	'plugin.avatars.f.service'          => 'Bekannte Service-Icons',

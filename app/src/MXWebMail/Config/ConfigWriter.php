@@ -38,7 +38,7 @@ final class ConfigWriter
 			}
 			$config?->set($key, $current[$key]);
 		}
-		$php = "<?php\n// Configuration MXWebMail — régénéré par l'admin le "
+		$php = "<?php\n// Configuration MXWebMail - régénéré par l'admin le "
 			. date('Y-m-d H:i:s') . "\nreturn " . var_export($current, true) . ";\n";
 		$tmp = $file . '.tmp';
 		if (file_put_contents($tmp, $php) === false || !rename($tmp, $file)) {

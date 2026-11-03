@@ -66,7 +66,7 @@ final class UserRepository
 		)->fetchAll();
 	}
 
-	/** Mise à jour admin : display_name (vide → NULL), is_admin, disabled. */
+	/** Mise à jour admin : display_name (vide > NULL), is_admin, disabled. */
 	public function save(int $id, array $data): void
 	{
 		$name = trim((string) ($data['display_name'] ?? ''));

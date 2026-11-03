@@ -5,7 +5,7 @@ title: ''
 labels: bug
 ---
 
-**Version MXWebMail** : <!-- ex. 0.38.0 — admin, onglet « À propos » -->
+**Version MXWebMail** : <!-- ex. 0.38.0 - admin, onglet "À propos" -->
 **PHP** : <!-- ex. 8.4.x -->
 **Base de données** : <!-- SQLite / MariaDB -->
 **Navigateur** : <!-- ex. Edge, Firefox… -->

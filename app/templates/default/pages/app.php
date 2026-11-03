@@ -49,8 +49,8 @@
 				</button>
 				<ul class="dropdown-menu dropdown-menu-end">
 					<!-- ko foreach: accounts -->
-					<li><a class="dropdown-item" href="#" data-bind="click: $parent.switchAccount">
-						<i class="fa-solid fa-check me-1" data-bind="visible: active" style="display:none"></i>
+					<li><a class="dropdown-item" href="#"
+						data-bind="click: $parent.switchAccount, css: { active: active }, attr: { 'aria-current': active ? 'true' : null }">
 						<span data-bind="text: email"></span>
 						<span class="badge text-bg-info ms-1" data-bind="visible: auth && auth !== 'password', text: auth"></span>
 					</a></li>
@@ -78,7 +78,7 @@
 	<div class="app-main" data-bind="with: $root, visible: view() === 'mail',
 		style: gridTemplate, css: { 'layout-vertical': layout() === 'vertical' }" style="display:none">
 		<!-- Colonne dossiers -->
-		<aside class="folder-pane bg-light" data-bind="with: folderList">
+		<aside class="folder-pane" data-bind="with: folderList">
 			<div class="d-flex justify-content-between align-items-center gap-2 p-2 border-bottom">
 				<button class="btn btn-sm btn-primary text-truncate" style="min-width:0"
 					data-bind="click: $root.compose.openNew.bind($root.compose)">
@@ -104,10 +104,17 @@
 			<!-- ko toast: { value: error, variant: 'danger' } --><!-- /ko -->
 			<div class="list-group list-group-flush" data-bind="foreach: folders">
 				<div class="list-group-item list-group-item-action" role="button"
-					data-bind="click: $parent.select,
-						css: { active: $parent.isActive($data), 'folder-sep': $data.sep },
-						style: { paddingLeft: (8 + $data.depth * 14) + 'px' }">
+					data-bind="click: $parent.select, visible: !hidden(),
+						css: { active: $parent.isActive($data), 'folder-sep': $data.fullName === $parent.firstBottomName() },
+						style: { paddingLeft: (8 + $data.depth * 14) + 'px' },
+						event: { dragenter: $parent.folderDragOver, dragover: $parent.folderDragOver,
+							dragleave: $parent.folderDragLeave, drop: $parent.folderDrop }">
 					<span>
+						<i class="fa-solid folder-caret" data-bind="
+							css: { 'fa-chevron-down': !collapsed(), 'fa-chevron-right': collapsed(), invisible: !hasChildren },
+							click: $parent.toggleCollapse, clickBubble: false,
+							tooltip: { text: caretTip, placement: 'right' },
+							attr: { 'aria-expanded': hasChildren ? String(!collapsed()) : null }"></i>
 						<i class="fa-solid" data-bind="css: $parent.iconFor($data)"></i>
 						<span data-bind="text: label"></span>
 					</span>
@@ -215,7 +222,9 @@
 					<colgroup><col style="width:6px"><col style="width:28px"><col><col style="width:110px"></colgroup>
 					<tbody data-bind="foreach: messages">
 						<tr data-bind="click: $parent.select.bind($parent),
-							css: { 'table-active': isSelected, 'message-unread': !isSeen() }">
+							css: { 'table-active': isSelected, 'message-unread': !isSeen() },
+							attr: { draggable: true },
+							event: { dragstart: $parent.messageDragStart, dragend: $parent.messageDragEnd }">
 							<td class="p-0 msg-tag-cell"
 								data-bind="style: { backgroundColor: colorTag() || 'transparent' },
 									attr: { title: colorTagLabel }"></td>
@@ -342,6 +351,10 @@
 								<i class="fa-solid fa-trash text-danger"></i>
 							</button>
 							<!-- /ko -->
+							<button class="btn btn-sm btn-icon btn-outline-secondary" style="display:none"
+								data-bind="visible: !!unsubscribe, click: $parent.unsubscribe, tooltip: 'app.unsubscribe'">
+								<i class="fa-solid fa-user-xmark"></i>
+							</button>
 							<button class="btn btn-sm btn-icon btn-outline-secondary"
 								data-bs-toggle="dropdown"
 								data-bs-popper-config='{"strategy":"fixed"}'
@@ -350,8 +363,6 @@
 							</button>
 							<ul class="dropdown-menu dropdown-menu-end">
 								<li><a class="dropdown-item" href="#" data-bind="click: () => $root.compose.openForward($data, true)"><i class="fa-solid fa-paperclip me-2"></i><?= $t('app.forward_attach') ?></a></li>
-								<li style="display:none" data-bind="visible: !!unsubscribe"><a class="dropdown-item" href="#"
-									data-bind="click: $parent.unsubscribe"><i class="fa-solid fa-user-xmark me-2"></i><?= $t('app.unsubscribe') ?></a></li>
 								<li><a class="dropdown-item" href="#" data-bind="click: $parent.moveWithPicker"><i class="fa-solid fa-file-export me-2"></i><?= $t('app.move_to') ?></a></li>
 								<li style="display:none"
 									data-bind="visible: $root.folderList.archiveFolder() && folder !== $root.folderList.archiveFolder().fullName"><a class="dropdown-item" href="#"
@@ -577,18 +588,6 @@
 					</div>
 					<div class="col-12 col-xxl-6">
 						<div class="row align-items-center mb-2">
-							<label class="col-md-4 col-form-label col-form-label-sm"><?= $t('settings.auto_advance') ?></label>
-							<div class="col-md-8">
-								<select class="form-select form-select-sm" data-bind="value: values().auto_advance">
-									<option value="next"><?= $t('settings.auto_advance.next') ?></option>
-									<option value="prev"><?= $t('settings.auto_advance.prev') ?></option>
-									<option value="none"><?= $t('settings.auto_advance.none') ?></option>
-								</select>
-							</div>
-						</div>
-					</div>
-					<div class="col-12 col-xxl-6">
-						<div class="row align-items-center mb-2">
 							<label class="col-md-4 col-form-label col-form-label-sm"><?= $t('settings.mark_read_delay') ?></label>
 							<div class="col-md-8">
 								<input type="number" min="0" max="300" class="form-control form-control-sm" data-bind="value: values().mark_read_delay">
@@ -639,7 +638,6 @@
 									<input class="form-check-input" type="checkbox" id="st-notify"
 										data-bind="checked: values().notify_new_mail, event: { change: toggleNotify }">
 								</div>
-								<div class="text-danger small" data-bind="visible: notifyPermission()==='denied'" style="display:none"><?= $t('settings.notify_denied') ?></div>
 							</div>
 						</div>
 					</div>
@@ -901,13 +899,14 @@
 				<h5><?= $t('settings.contacts') ?></h5>
 				<div>
 					<button class="btn btn-sm btn-outline-secondary me-1" data-bind="click: exportContacts"><i class="fa-solid fa-file-export"></i> <?= $t('settings.export') ?></button>
-					<label class="btn btn-sm btn-outline-secondary me-1 mb-0"><i class="fa-solid fa-file-import"></i> <?= $t('settings.import') ?><input type="file" accept=".vcf,.csv,text/vcard,text/csv" class="d-none" data-bind="event: {change: importContacts}"></label>
+					<label class="btn btn-sm btn-outline-secondary me-1 mb-0"><i class="fa-solid fa-file-import"></i> <?= $t('settings.import') ?><input type="file" accept=".vcf,.csv,.sqlite,.sqlite3,.db,text/vcard,text/csv,application/vnd.sqlite3,application/x-sqlite3" class="d-none" data-bind="event: {change: importContacts}"></label>
 					<button class="btn btn-sm btn-primary" data-bind="click: () => editContact(null)"><i class="fa-solid fa-plus"></i> <?= $t('common.add') ?></button>
 				</div>
 			</div>
+			<p class="text-muted small"><?= $t('settings.contacts_import_help') ?></p>
 			<table class="table table-hover table-sm align-middle">
 				<thead class="table-light"><tr><th><?= $t('common.name') ?></th><th>Emails</th><th><?= $t('settings.contact_groups') ?></th><th></th></tr></thead>
-				<tbody data-bind="foreach: contacts">
+				<tbody data-bind="foreach: pagedContacts">
 					<tr>
 						<td data-bind="text: name"></td>
 						<td data-bind="text: emails"></td>
@@ -921,21 +920,23 @@
 					</tr>
 				</tbody>
 			</table>
+			<div class="d-flex justify-content-end mt-1" data-bind="visible: contactsTotalPages() > 1" style="display:none">
+				<div class="btn-group btn-group-sm">
+					<button class="btn btn-sm btn-icon btn-outline-secondary"
+						data-bind="click: contactsPrevPage, disable: contactsPageEff() <= 1,
+							tooltip: 'app.page_prev', attr: { 'aria-label': $root.t('app.page_prev') }">
+						<i class="fa-solid fa-chevron-left"></i>
+					</button>
+					<span class="btn btn-outline-secondary disabled" data-bind="text: contactsPageEff() + ' / ' + contactsTotalPages()"></span>
+					<button class="btn btn-sm btn-icon btn-outline-secondary"
+						data-bind="click: contactsNextPage, disable: contactsPageEff() >= contactsTotalPages(),
+							tooltip: 'app.page_next', attr: { 'aria-label': $root.t('app.page_next') }">
+						<i class="fa-solid fa-chevron-right"></i>
+					</button>
+				</div>
+			</div>
 			<div class="text-center py-4" data-bind="visible: contactsLoading" style="display:none">
 				<span class="spinner-border spinner-border-sm text-secondary" role="status"></span>
-			</div>
-			<div class="card" data-bind="visible: editingContact">
-				<div class="card-body" data-bind="with: editingContact">
-					<div class="row g-2">
-						<div class="col-md-4"><input class="form-control" placeholder="<?= $t('common.name') ?>" data-bind="value: name"></div>
-						<div class="col-md-5"><input class="form-control" placeholder="<?= $t('settings.emails_csv') ?>" data-bind="value: emails"></div>
-						<div class="col-md-3"><input class="form-control" placeholder="<?= $t('settings.groups_csv') ?>" data-bind="value: categories"></div>
-					</div>
-					<div class="mt-3">
-						<button class="btn btn-primary btn-sm" data-bind="click: $parent.saveContact"><?= $t('common.save') ?></button>
-						<button class="btn btn-link btn-sm" data-bind="click: () => $parent.editingContact(null)"><?= $t('common.cancel') ?></button>
-					</div>
-				</div>
 			</div>
 		</div>
 
@@ -1076,7 +1077,7 @@
 			</div>
 		</div>
 
-		<!-- Onglet Sessions (jetons « se souvenir de moi ») -->
+		<!-- Onglet Sessions (jetons "se souvenir de moi") -->
 		<div data-bind="visible: tab()==='sessions'" style="display:none">
 			<h5><?= $t('settings.sessions') ?></h5>
 			<p class="text-muted small"><?= $t('settings.sessions_help') ?></p>
@@ -1091,12 +1092,12 @@
 				<tbody data-bind="foreach: sessions">
 					<tr>
 						<td class="text-truncate" style="max-width:280px">
-							<span data-bind="text: agent || '—'"></span>
+							<span data-bind="text: agent || '-'"></span>
 							<span class="badge text-bg-primary ms-1" style="display:none" data-bind="visible: current"><?= $t('settings.session_current') ?></span>
 						</td>
-						<td class="small text-nowrap" data-bind="text: last_ip || ip || '—'"></td>
+						<td class="small text-nowrap" data-bind="text: last_ip || ip || '-'"></td>
 						<td class="small" data-bind="text: $parent.fmtTs(created_at)"></td>
-						<td class="small" data-bind="text: last_used_at ? $parent.fmtTs(last_used_at) : '—'"></td>
+						<td class="small" data-bind="text: last_used_at ? $parent.fmtTs(last_used_at) : '-'"></td>
 						<td class="text-end text-nowrap">
 							<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: $parent.showSession, tooltip: 'settings.session_details'"><i class="fa-solid fa-circle-info"></i></button>
 							<button class="btn btn-sm btn-icon btn-outline-danger" data-bind="click: $parent.deleteSession, tooltip: 'common.delete'"><i class="fa-solid fa-trash"></i></button>
@@ -1131,9 +1132,9 @@
 							</button>
 							<ul class="dropdown-menu dropdown-menu-end">
 								<li><label class="dropdown-item"><input type="checkbox" class="form-check-input me-2"
-									data-bind="checked: showCc, enable: !cc()"> <?= $t('compose.cc') ?></label></li>
+									data-bind="checked: showCc, enable: !cc().length && !ccText()"> <?= $t('compose.cc') ?></label></li>
 								<li><label class="dropdown-item"><input type="checkbox" class="form-check-input me-2"
-									data-bind="checked: showBcc, enable: !bcc()"> <?= $t('compose.bcc') ?></label></li>
+									data-bind="checked: showBcc, enable: !bcc().length && !bccText()"> <?= $t('compose.bcc') ?></label></li>
 								<li><hr class="dropdown-divider"></li>
 								<li><label class="dropdown-item"><input type="checkbox" class="form-check-input me-2"
 									data-bind="checked: priority"> <i class="fa-solid fa-exclamation me-1"></i><?= $t('compose.priority') ?></label></li>
@@ -1169,24 +1170,78 @@
 					<!-- ko toast: { value: error, variant: 'danger' } --><!-- /ko -->
 
 					<div class="mb-2 position-relative">
-						<input class="form-control form-control-sm" placeholder="<?= $t('compose.to') ?>" data-bind="value: to, event: { input: () => suggest('to') }">
-						<div class="list-group compose-suggestions position-absolute w-100 shadow" style="z-index:1055" data-bind="foreach: suggestions, visible: suggestField()==='to'">
-							<a class="list-group-item list-group-item-action py-1 small" href="#"
-								data-bind="click: () => $parent.applySuggestion('to', $data), text: (name ? name + ' — ' : '') + email"></a>
+						<div class="form-control form-control-sm addr-field d-flex flex-wrap align-items-center gap-1"
+							data-bind="click: () => document.getElementById('compose-to-input').focus()">
+							<!-- ko foreach: to -->
+							<span class="addr-chip" data-bind="css:{'addr-chip-invalid':!!$data.invalid}, attr:{title:email}">
+								<span data-bind="text: name || email"></span>
+								<button type="button" class="addr-chip-x" title="<?= $t('common.delete') ?>"
+									data-bind="click: () => $parent.removeChip('to', $data)"><i class="fa-solid fa-xmark"></i></button>
+							</span>
+							<!-- /ko -->
+							<input id="compose-to-input" class="addr-input" type="text" autocomplete="off"
+								placeholder="<?= $t('compose.to') ?>"
+								data-bind="value: toText, valueUpdate: 'input', event: {
+									input: () => onAddrInput('to'),
+									keydown: (d,e) => onAddrKey('to', e),
+									blur: onAddrBlur }">
+						</div>
+						<div class="list-group compose-suggestions position-absolute w-100 shadow" style="z-index:1055" role="listbox"
+							data-bind="foreach: suggestions, visible: suggestField()==='to' && suggestions().length">
+							<a class="list-group-item list-group-item-action py-1 small" href="#" role="option"
+								data-bind="event:{mousedown:(d,e)=>{e.preventDefault();$parent.applySuggestion('to',$data);}},
+									css:{active:$index()===$parent.suggestIndex()},
+									text:(name?name+' - ':'')+email"></a>
 						</div>
 					</div>
-					<div class="mb-2 position-relative" style="display:none" data-bind="visible: showCc() || !!cc()">
-						<input class="form-control form-control-sm" placeholder="<?= $t('compose.cc') ?>" data-bind="value: cc, event: { input: () => suggest('cc') }">
-						<div class="list-group compose-suggestions position-absolute w-100 shadow" style="z-index:1055" data-bind="foreach: suggestions, visible: suggestField()==='cc'">
-							<a class="list-group-item list-group-item-action py-1 small" href="#"
-								data-bind="click: () => $parent.applySuggestion('cc', $data), text: (name ? name + ' — ' : '') + email"></a>
+					<div class="mb-2 position-relative" style="display:none" data-bind="visible: showCc() || !!cc().length || !!ccText()">
+						<div class="form-control form-control-sm addr-field d-flex flex-wrap align-items-center gap-1"
+							data-bind="click: () => document.getElementById('compose-cc-input').focus()">
+							<!-- ko foreach: cc -->
+							<span class="addr-chip" data-bind="css:{'addr-chip-invalid':!!$data.invalid}, attr:{title:email}">
+								<span data-bind="text: name || email"></span>
+								<button type="button" class="addr-chip-x" title="<?= $t('common.delete') ?>"
+									data-bind="click: () => $parent.removeChip('cc', $data)"><i class="fa-solid fa-xmark"></i></button>
+							</span>
+							<!-- /ko -->
+							<input id="compose-cc-input" class="addr-input" type="text" autocomplete="off"
+								placeholder="<?= $t('compose.cc') ?>"
+								data-bind="value: ccText, valueUpdate: 'input', event: {
+									input: () => onAddrInput('cc'),
+									keydown: (d,e) => onAddrKey('cc', e),
+									blur: onAddrBlur }">
+						</div>
+						<div class="list-group compose-suggestions position-absolute w-100 shadow" style="z-index:1055" role="listbox"
+							data-bind="foreach: suggestions, visible: suggestField()==='cc' && suggestions().length">
+							<a class="list-group-item list-group-item-action py-1 small" href="#" role="option"
+								data-bind="event:{mousedown:(d,e)=>{e.preventDefault();$parent.applySuggestion('cc',$data);}},
+									css:{active:$index()===$parent.suggestIndex()},
+									text:(name?name+' - ':'')+email"></a>
 						</div>
 					</div>
-					<div class="mb-2 position-relative" style="display:none" data-bind="visible: showBcc() || !!bcc()">
-						<input class="form-control form-control-sm" placeholder="<?= $t('compose.bcc') ?>" data-bind="value: bcc, event: { input: () => suggest('bcc') }">
-						<div class="list-group compose-suggestions position-absolute w-100 shadow" style="z-index:1055" data-bind="foreach: suggestions, visible: suggestField()==='bcc'">
-							<a class="list-group-item list-group-item-action py-1 small" href="#"
-								data-bind="click: () => $parent.applySuggestion('bcc', $data), text: (name ? name + ' — ' : '') + email"></a>
+					<div class="mb-2 position-relative" style="display:none" data-bind="visible: showBcc() || !!bcc().length || !!bccText()">
+						<div class="form-control form-control-sm addr-field d-flex flex-wrap align-items-center gap-1"
+							data-bind="click: () => document.getElementById('compose-bcc-input').focus()">
+							<!-- ko foreach: bcc -->
+							<span class="addr-chip" data-bind="css:{'addr-chip-invalid':!!$data.invalid}, attr:{title:email}">
+								<span data-bind="text: name || email"></span>
+								<button type="button" class="addr-chip-x" title="<?= $t('common.delete') ?>"
+									data-bind="click: () => $parent.removeChip('bcc', $data)"><i class="fa-solid fa-xmark"></i></button>
+							</span>
+							<!-- /ko -->
+							<input id="compose-bcc-input" class="addr-input" type="text" autocomplete="off"
+								placeholder="<?= $t('compose.bcc') ?>"
+								data-bind="value: bccText, valueUpdate: 'input', event: {
+									input: () => onAddrInput('bcc'),
+									keydown: (d,e) => onAddrKey('bcc', e),
+									blur: onAddrBlur }">
+						</div>
+						<div class="list-group compose-suggestions position-absolute w-100 shadow" style="z-index:1055" role="listbox"
+							data-bind="foreach: suggestions, visible: suggestField()==='bcc' && suggestions().length">
+							<a class="list-group-item list-group-item-action py-1 small" href="#" role="option"
+								data-bind="event:{mousedown:(d,e)=>{e.preventDefault();$parent.applySuggestion('bcc',$data);}},
+									css:{active:$index()===$parent.suggestIndex()},
+									text:(name?name+' - ':'')+email"></a>
 						</div>
 					</div>
 					<div class="mb-2">
@@ -1327,7 +1382,7 @@
 	</div>
 
 	<!-- Modale des options de recherche : champs combinés en ET avec le texte libre.
-	     Le brouillon vit dans les observables → conservé à la fermeture. -->
+	     Le brouillon vit dans les observables > conservé à la fermeture. -->
 	<div class="modal fade" id="search-modal" tabindex="-1" data-bind="with: messageList">
 		<div class="modal-dialog">
 			<form class="modal-content" data-bind="submit: applySearch">
@@ -1482,7 +1537,7 @@
 		</div>
 	</div>
 
-	<!-- Modale détails d'une session « se souvenir de moi » -->
+	<!-- Modale détails d'une session "se souvenir de moi" -->
 	<div class="modal fade" id="session-modal" tabindex="-1" data-bind="with: settings">
 		<div class="modal-dialog modal-dialog-scrollable">
 			<div class="modal-content" data-bind="with: sessionDetail">
@@ -1496,15 +1551,15 @@
 						<dt class="col-sm-4"><?= $t('settings.session_agent') ?></dt>
 						<dd class="col-sm-8" data-bind="text: $parent.agentInfo(agent)"></dd>
 						<dt class="col-sm-4"><?= $t('settings.session_user_agent') ?></dt>
-						<dd class="col-sm-8 small font-monospace text-break" data-bind="text: agent || '—'"></dd>
+						<dd class="col-sm-8 small font-monospace text-break" data-bind="text: agent || '-'"></dd>
 						<dt class="col-sm-4"><?= $t('settings.session_created_ip') ?></dt>
-						<dd class="col-sm-8" data-bind="text: ip || '—'"></dd>
+						<dd class="col-sm-8" data-bind="text: ip || '-'"></dd>
 						<dt class="col-sm-4"><?= $t('settings.session_last_ip') ?></dt>
-						<dd class="col-sm-8" data-bind="text: last_ip || ip || '—'"></dd>
+						<dd class="col-sm-8" data-bind="text: last_ip || ip || '-'"></dd>
 						<dt class="col-sm-4"><?= $t('settings.session_created') ?></dt>
 						<dd class="col-sm-8" data-bind="text: $parent.fmtTs(created_at)"></dd>
 						<dt class="col-sm-4"><?= $t('settings.session_last_used') ?></dt>
-						<dd class="col-sm-8" data-bind="text: last_used_at ? $parent.fmtTs(last_used_at) : '—'"></dd>
+						<dd class="col-sm-8" data-bind="text: last_used_at ? $parent.fmtTs(last_used_at) : '-'"></dd>
 						<dt class="col-sm-4"><?= $t('settings.session_expires') ?></dt>
 						<dd class="col-sm-8" data-bind="text: $parent.fmtTs(expires_at)"></dd>
 					</dl>
@@ -1552,13 +1607,37 @@
 			</div>
 		</div>
 	</div>
+
+	<!-- Modale contact (ajout/édition) -->
+	<div class="modal fade" id="contact-modal" tabindex="-1" data-bind="with: settings">
+		<div class="modal-dialog">
+			<div class="modal-content" data-bind="with: editingContact">
+				<div class="modal-header">
+					<h5 class="modal-title" data-bind="text: id
+						? $root.t('settings.contact_edit')
+						: $root.t('settings.contact_new')"></h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body">
+					<div class="mb-2"><input id="contact-name" class="form-control" placeholder="<?= $t('common.name') ?>" data-bind="value: name"></div>
+					<div class="mb-2"><input class="form-control" placeholder="<?= $t('settings.emails_csv') ?>" data-bind="value: emails"></div>
+					<div><input class="form-control" placeholder="<?= $t('settings.groups_csv') ?>" data-bind="value: categories"></div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal"><?= $t('common.cancel') ?></button>
+					<button type="button" class="btn btn-sm btn-primary" data-bind="click: $parent.saveContact"><?= $t('common.save') ?></button>
+				</div>
+			</div>
+		</div>
+	</div>
 </div>
 
 <script nonce="<?= $nonce ?>">
 	window.MXWM = <?= $mxwmJson ?>;
 </script>
+<script src="<?= $i18nUrl ?>"></script>
 <script src="<?= $assets ?>/vendor/knockout/knockout.js"></script>
 <script src="<?= $assets ?>/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
-<script type="module" src="<?= $assets ?>/js/app.js"></script>
+<script type="module" src="<?= $assets ?>/js/dist/app.js"></script>
 </body>
 </html>

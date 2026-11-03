@@ -29,10 +29,10 @@ final class ImapContactsSuggestions extends PluginBase
 			return [];
 		}
 		// TTL 5 min : l'endpoint est frappé à chaque frappe (debounce 250 ms)
-		// — sans cache chaque saisie ouvrirait une connexion IMAP + SEARCH.
+		// - sans cache chaque saisie ouvrirait une connexion IMAP + SEARCH.
 		$cache = \MXWebMail\API::Actions()->Cacher();
 		// L'identité du compte fait partie de la clé : l'index de cache est
-		// partagé — sans elle deux comptes se serviraient leurs suggestions.
+		// partagé - sans elle deux comptes se serviraient leurs suggestions.
 		$ckey = 'contacts.imap/' . md5(
 			($_SESSION['account_id'] ?? 0) . '|' . ($_SESSION['email'] ?? '')
 			. '|' . ($this->config['folder'] ?? 'INBOX') . '|' . $q . '|' . $max);

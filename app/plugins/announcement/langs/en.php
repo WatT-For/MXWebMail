@@ -5,7 +5,7 @@ return [
 	'plugin.announcement.description'         => 'Announcement banner set by the administrator (app page, optionally login)',
 	'plugin.announcement.f.enabled'           => 'Enabled',
 	'plugin.announcement.f.text'              => 'Banner text',
-	'plugin.announcement.f.text.help'         => 'Plain text shown to all users — HTML is not interpreted',
+	'plugin.announcement.f.text.help'         => 'Plain text shown to all users - HTML is not interpreted',
 	'plugin.announcement.f.level'             => 'Level',
 	'plugin.announcement.f.level.info'         => 'Info',
 	'plugin.announcement.f.level.success'      => 'Success',

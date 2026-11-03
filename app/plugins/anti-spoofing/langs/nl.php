@@ -4,14 +4,17 @@ declare(strict_types=1);
 /** Dictionnaire néerlandais du plugin anti-spoofing. */
 return [
 	'plugin.anti-spoofing.description'        => 'Detectie van spoofing van e-mailadressen en domeinen in de berichtenlezer',
-	'plugin.anti-spoofing.title'              => 'Waarschuwing — mogelijke spoofing',
+	'plugin.anti-spoofing.title'              => 'Waarschuwing - mogelijke spoofing',
 	'plugin.anti-spoofing.clean'              => 'Geen spoofing gedetecteerd',
 
 	'plugin.anti-spoofing.alert.envelope_mismatch'  => 'Het verzendadres ({return_path}) komt niet overeen met de weergegeven afzender ({from}).',
 	'plugin.anti-spoofing.alert.reply_to_mismatch'  => 'Antwoorden worden naar {reply_to} gestuurd in plaats van de weergegeven afzender ({from}).',
 	'plugin.anti-spoofing.alert.sender_mismatch'    => 'Dit bericht is verzonden door {sender} namens {from}.',
-	'plugin.anti-spoofing.alert.display_name_spoof' => 'De weergavenaam «{name}» doet zich voor als een bekende afzender, maar het echte adres is {email}.',
+	'plugin.anti-spoofing.alert.display_name_spoof' => 'De weergavenaam "{name}" doet zich voor als een bekende afzender, maar het echte adres is {email}.',
+	'plugin.anti-spoofing.alert.display_name_homoglyph' => 'De weergavenaam "{name}" gebruikt misleidende tekens om een bekende afzender na te bootsen; het echte adres is {email}.',
 	'plugin.anti-spoofing.alert.lookalike_domain'   => 'Het domein {domain} imiteert het legitieme domein {protected}.',
+	'plugin.anti-spoofing.alert.lookalike_subdomain'    => 'Het domein {domain} geeft {protected} uit voor een subdomein.',
+	'plugin.anti-spoofing.alert.lookalike_tld'          => 'Het domein {domain} gebruikt de naam "{protected}" ten onrechte.',
 
 	'plugin.anti-spoofing.f.protected_domains'      => 'Beschermde domeinen',
 	'plugin.anti-spoofing.f.protected_domains.help' => 'Te beschermen legitieme domeinen, naast uw eigen domein en de serverdomeinen (automatisch beschermd).',
@@ -27,5 +30,6 @@ return [
 	'plugin.anti-spoofing.alert.auth_dkim_fail'    => 'DKIM-handtekeningcontrole mislukt',
 	'plugin.anti-spoofing.alert.auth_dmarc_fail'   => 'DMARC-controle mislukt',
 	'plugin.anti-spoofing.alert.auth_spf_softfail' => 'SPF-softfail (afzender niet geautoriseerd)',
-	'plugin.anti-spoofing.alert.auth_pass_all'     => 'SPF, DKIM en DMARC geverifieerd (pass)',
+	'plugin.anti-spoofing.alert.auth_dkim_fail_thirdparty' => 'DKIM-handtekening van derde ongeldig ({domain}) - waarschijnlijk een relay.',
+	'plugin.anti-spoofing.alert.auth_pass'         => 'Authenticatie geverifieerd: {mechs}',
 ];

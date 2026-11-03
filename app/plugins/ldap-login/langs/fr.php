@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /** Dictionnaire français du plugin ldap-login. */
 return [
-	'plugin.ldap-login.description'    => "Résolution du login via LDAP : uid/courriel court → adresse IMAP complète",
+	'plugin.ldap-login.description'    => "Résolution du login via LDAP : uid/courriel court > adresse IMAP complète",
 	'plugin.ldap-login.starttls_denied' => 'STARTTLS refusé',
 	'plugin.ldap-login.bind_denied'    => 'Bind LDAP refusé',
 	'plugin.ldap-login.f.host'         => 'Hôte LDAP',

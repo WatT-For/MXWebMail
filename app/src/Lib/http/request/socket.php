@@ -88,7 +88,7 @@ class Socket extends \MXWebMailLib\HTTP\Request
 			\fwrite($sock, $body);
 		}
 
-		# Read all headers — borne 64 Kio : fgets(1024) cassait les longues
+		# Read all headers - borne 64 Kio : fgets(1024) cassait les longues
 		# lignes d'en-tête (WWW-Authenticate, Set-Cookie) en plein milieu.
 		$chunked = false;
 		$response_headers = array();
@@ -156,9 +156,9 @@ class Socket extends \MXWebMailLib\HTTP\Request
 					$chunk = \hexdec(\trim(\fgets($sock, 8192)));
 					if (!$chunk) { break; }
 					while ($chunk > 0) {
-						// taille déclarée énorme → lecture bornée par morceaux
+						// taille déclarée énorme > lecture bornée par morceaux
 						$tmp = \fread($sock, \min($chunk, 8192));
-						if ('' === $tmp || false === $tmp) { break 2; } // timeout → sortie
+						if ('' === $tmp || false === $tmp) { break 2; } // timeout > sortie
 						\fwrite($this->stream, $tmp);
 						$chunk -= \strlen($tmp);
 					}

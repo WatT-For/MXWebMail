@@ -7,7 +7,7 @@ final class Headers
 {
 	private static ?string $nonce = null;
 
-	/** Nonce CSP par requête — autorise les <script> inline signés des templates. */
+	/** Nonce CSP par requête - autorise les <script> inline signés des templates. */
 	public static function nonce(): string
 	{
 		return self::$nonce ??= base64_encode(random_bytes(16));
@@ -32,7 +32,7 @@ final class Headers
 	/**
 	 * CSP restrictive : scripts depuis self uniquement (modules ES locaux),
 	 * images data:/blob: (pièces jointes inline), styles self + inline (Bootstrap/éditeur).
-	 * $extra : directives additionnelles (« csp_extra »), ex. "img-src https:".
+	 * $extra : directives additionnelles ("csp_extra"), ex. "img-src https:".
 	 */
 	public static function csp(string $extra = ''): string
 	{

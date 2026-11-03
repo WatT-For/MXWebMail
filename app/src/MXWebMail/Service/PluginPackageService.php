@@ -8,15 +8,15 @@ use MXWebMail\Application\App;
 /**
  * Installation / mise à jour / suppression des plugins lus directement dans
  * le dépôt GitHub au ref update.plugins_ref ('release' = tag de la dernière
- * release, 'main', tout ref — voir GitHubClient) : tree git récursif pour la
+ * release, 'main', tout ref - voir GitHubClient) : tree git récursif pour la
  * liste des fichiers, raw.githubusercontent.com pinné sur le sha du commit
  * pour les contenus, chaque fichier vérifié par sha1 de blob git + taille.
  *
- * Source alternative dev/tests : update.plugins_local (dossier disque —
+ * Source alternative dev/tests : update.plugins_local (dossier disque -
  * catalogue + install hors réseau, sans ancre de vérification externe).
  *
  * Staging : app/storage/update/plugins/. Verrou partagé update.lock avec
- * UpdateService — jamais d'opération cœur et plugin simultanées (le code
+ * UpdateService - jamais d'opération cœur et plugin simultanées (le code
  * sous les pieds ne doit pas être remplacé pendant une opération).
  */
 final class PluginPackageService
@@ -99,7 +99,7 @@ final class PluginPackageService
 
 	// ─── Sources du catalogue ───
 
-	/** Dossier local (update.plugins_local) → name => métadonnées manifeste. */
+	/** Dossier local (update.plugins_local) > name => métadonnées manifeste. */
 	private function localCatalog(string $dir): array
 	{
 		$out = [];
@@ -124,8 +124,8 @@ final class PluginPackageService
 	}
 
 	/**
-	 * Dépôt au ref résolu → name => métadonnées manifeste.
-	 * plugin.json de chaque plugin via raw (cache par blob sha — seuls les
+	 * Dépôt au ref résolu > name => métadonnées manifeste.
+	 * plugin.json de chaque plugin via raw (cache par blob sha - seuls les
 	 * manifestes modifiés sont re-téléchargés).
 	 */
 	private function gitCatalog(bool $force): array
@@ -156,7 +156,7 @@ final class PluginPackageService
 		return $out;
 	}
 
-	/** {ref, sha, tree} — ref→commit à TTL, tree immutable (mémoïsé). */
+	/** {ref, sha, tree} - ref>commit à TTL, tree immutable (mémoïsé). */
 	private function gitSource(bool $force): array
 	{
 		if (!$force && $this->remote !== null) {
@@ -171,7 +171,7 @@ final class PluginPackageService
 		];
 	}
 
-	/** plugin.json distant — cache par blob sha, contenu vérifié (sha1+size). */
+	/** plugin.json distant - cache par blob sha, contenu vérifié (sha1+size). */
 	private function remoteManifest(string $commit, string $name, string $path, array $blob): ?array
 	{
 		$cacheDir = $this->app->storageDir() . '/cache';
@@ -244,7 +244,7 @@ final class PluginPackageService
 				$this->invalidateCaches();
 				$version = (string) $m['version'];
 				$this->app->log('info', "plugin $name "
-					. ($previous !== null ? "$previous → $version" : "installé en $version"));
+					. ($previous !== null ? "$previous > $version" : "installé en $version"));
 				return [
 					'name'     => $name,
 					'version'  => $version,
@@ -264,7 +264,7 @@ final class PluginPackageService
 
 	/**
 	 * Suppression définitive : ligne DB purgée + dossier supprimé.
-	 * Aucun backup — désinstaller = supprimer.
+	 * Aucun backup - désinstaller = supprimer.
 	 */
 	public function remove(string $name): array
 	{
@@ -282,7 +282,7 @@ final class PluginPackageService
 		}
 		$exists = $real !== false && is_dir($target);
 		if (!$exists && !$this->app->pluginRepo()->has($name)) {
-			throw new \RuntimeException("Plugin « $name » inconnu", 404);
+			throw new \RuntimeException("Plugin \"$name\" inconnu", 404);
 		}
 		$lock = $this->lock();
 		try {
@@ -301,12 +301,12 @@ final class PluginPackageService
 
 	// ─── Internes ───
 
-	/** Copie récursive <dir>/<name> → staging $dest/<name> (source locale). */
+	/** Copie récursive <dir>/<name> > staging $dest/<name> (source locale). */
 	private function stageLocal(string $dir, string $dest, string $name): string
 	{
 		$srcDir = rtrim($dir, '/\\') . '/' . $name;
 		if (!is_dir($srcDir) || !is_file("$srcDir/plugin.json")) {
-			throw new \RuntimeException("Plugin « $name » absent de la source locale", 404);
+			throw new \RuntimeException("Plugin \"$name\" absent de la source locale", 404);
 		}
 		$this->rmrf($dest);
 		$root = "$dest/$name";
@@ -325,7 +325,7 @@ final class PluginPackageService
 
 	/**
 	 * Télécharge chaque blob app/plugins/<name>/** du tree via raw (pinné au
-	 * sha du commit) → staging $dest/<name>. Chaque fichier est vérifié :
+	 * sha du commit) > staging $dest/<name>. Chaque fichier est vérifié :
 	 * taille + sha1 de blob git du tree (anti corruption/CDN raw obsolète).
 	 */
 	private function stageRemote(array $src, string $dest, string $name): string
@@ -339,12 +339,12 @@ final class PluginPackageService
 		}
 		if ($files === [] || !isset($files['plugin.json'])) {
 			throw new \RuntimeException(
-				"Plugin « $name » absent du dépôt (ref {$src['ref']})", 404);
+				"Plugin \"$name\" absent du dépôt (ref {$src['ref']})", 404);
 		}
 		$this->rmrf($dest);
 		$root = "$dest/$name";
 		foreach ($files as $rel => $meta) {
-			// Anti-traversal (défense en profondeur — la source est l'API GitHub)
+			// Anti-traversal (défense en profondeur - la source est l'API GitHub)
 			if ($rel === '' || str_contains($rel, '..') || str_contains($rel, '\\')
 				|| $rel[0] === '/' || preg_match('/^[a-zA-Z]:/', $rel)) {
 				throw new \RuntimeException("Chemin refusé : $rel", 502);
@@ -360,7 +360,7 @@ final class PluginPackageService
 		return $root;
 	}
 
-	/** Validation du dossier stagé → manifeste (plugin.json concordant, semver, main sain, compat). */
+	/** Validation du dossier stagé > manifeste (plugin.json concordant, semver, main sain, compat). */
 	private function validatePluginDir(string $root, string $name): array
 	{
 		$m = json_decode((string) @file_get_contents("$root/plugin.json"), true);
@@ -377,7 +377,7 @@ final class PluginPackageService
 		if ($main === '' || $rootReal === false || $mainReal === false
 			|| !str_starts_with(str_replace('\\', '/', $mainReal),
 				str_replace('\\', '/', $rootReal) . '/')) {
-			throw new \RuntimeException("Paquet invalide (main « $main » illisible)", 502);
+			throw new \RuntimeException("Paquet invalide (main \"$main\" illisible)", 502);
 		}
 		// Compatibilité : min_app/max_app du manifeste distant vs APP_VERSION
 		if ($this->compatible(
@@ -409,7 +409,7 @@ final class PluginPackageService
 	}
 
 	/**
-	 * Remplace app/plugins/<name> par $src (renommages — même volume) ;
+	 * Remplace app/plugins/<name> par $src (renommages - même volume) ;
 	 * l'ancien est déplacé dans un backup unique par plugin (rollback +
 	 * restauration manuelle). Retourne la version précédente ou null.
 	 */

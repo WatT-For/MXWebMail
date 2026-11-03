@@ -5,7 +5,7 @@ return [
 	'plugin.announcement.description'         => 'Aankondigingsbanner ingesteld door de beheerder (app-pagina, optioneel login)',
 	'plugin.announcement.f.enabled'           => 'Ingeschakeld',
 	'plugin.announcement.f.text'              => 'Bannertekst',
-	'plugin.announcement.f.text.help'         => 'Platte tekst voor alle gebruikers — HTML wordt niet geïnterpreteerd',
+	'plugin.announcement.f.text.help'         => 'Platte tekst voor alle gebruikers - HTML wordt niet geïnterpreteerd',
 	'plugin.announcement.f.level'             => 'Niveau',
 	'plugin.announcement.f.level.info'         => 'Info',
 	'plugin.announcement.f.level.success'      => 'Geslaagd',

@@ -14,8 +14,8 @@ export class MessageListVM {
 		this.app = app;
 		this.messages = ko.observableArray([]);
 		this.loading = ko.observable(false);
-		this.showLoader = ko.observable(false); // voile centré — false pour les chargements d'arrière-plan (poll)
-		this._loadCount = 0;   // requêtes en vol (toutes) — garde contre les loads concurrents
+		this.showLoader = ko.observable(false); // voile centré - false pour les chargements d'arrière-plan (poll)
+		this._loadCount = 0;   // requêtes en vol (toutes) - garde contre les loads concurrents
 		this._fgLoadCount = 0; // requêtes de premier plan en vol (pilotent showLoader)
 		this.error = ko.observable('');
 		this.page = ko.observable(1);
@@ -23,7 +23,7 @@ export class MessageListVM {
 		this.total = ko.observable(0);
 		this.search = ko.observable('');
 		// Recherche avancée : champs de la modale (brouillon). La requête n'est
-		// commitée que dans searchNow() — sinon un load() ultérieur (dossier,
+		// commitée que dans searchNow() - sinon un load() ultérieur (dossier,
 		// pagination, refresh) appliquerait des filtres jamais validés.
 		this.searchFrom    = ko.observable('');
 		this.searchTo      = ko.observable('');
@@ -36,21 +36,21 @@ export class MessageListVM {
 		this.searchBefore  = ko.observable('');
 		this.searchQuery = ko.observable(''); // requête appliquée (tokens + texte)
 		this.searchScope = ko.observable('folder'); // 'folder' | 'all' (multi-dossiers)
-		this.appliedAdv  = ko.observable(''); // portion tokens → indicateur actif
-		this.appliedFilterCount = ko.observable(0); // nb de critères → badge bouton
+		this.appliedAdv  = ko.observable(''); // portion tokens > indicateur actif
+		this.appliedFilterCount = ko.observable(0); // nb de critères > badge bouton
 		this.hasSearchFilters = ko.pureComputed(() => this.appliedAdv() !== '');
 		this.folder = ko.observable('INBOX');
-		// Conversations (IMAP THREAD) — réglage list_threads
+		// Conversations (IMAP THREAD) - réglage list_threads
 		this.useThreads = ko.observable(false);
-		// null = inconnu (avant la 1ère réponse dossier) — distingue « pas
-		// encore chargé » de « non supporté » pour la note des réglages.
+		// null = inconnu (avant la 1ère réponse dossier) - distingue "pas
+		// encore chargé" de "non supporté" pour la note des réglages.
 		this.threadsSupported = ko.observable(null);
-		this.threadChildren = {}; // parentUid → MessageModel[] insérés sous la ligne
-		// Messages retirés optimistement dont le POST n'est pas soldé — un
+		this.threadChildren = {}; // parentUid > MessageModel[] insérés sous la ligne
+		// Messages retirés optimistement dont le POST n'est pas soldé - un
 		// load() (poll…) passé avant la fin du MOVE serveur ne doit pas les
 		// faire réapparaître. Clés 'folder\nuid', retirées à la fin du POST.
 		this._gone = new Set();
-		// Critère IMAP SORT (RFC 5256) — persisté dans le réglage list_sort
+		// Critère IMAP SORT (RFC 5256) - persisté dans le réglage list_sort
 		this.sort = ko.observable(DEFAULT_SORT);
 		this.sortOptions = [
 			{ key: 'REVERSE DATE', label: 'app.sort.date_desc' },
@@ -61,15 +61,17 @@ export class MessageListVM {
 			{ key: 'REVERSE SIZE', label: 'app.sort.size_desc' },
 			{ key: 'SIZE',         label: 'app.sort.size_asc' },
 		];
-		// Tri ≠ défaut → bouton « survolé » (même convention que hasSearchFilters)
+		// Tri ≠ défaut > bouton "survolé" (même convention que hasSearchFilters)
 		this.hasCustomSort = ko.pureComputed(() => this.sort() !== DEFAULT_SORT);
-		// Tooltip/aria-label du bouton : « Trier : Objet » (pass-through de t())
+		// Tooltip/aria-label du bouton : "Trier : Objet" (pass-through de t())
 		this.sortTooltip = ko.pureComputed(() => {
 			const o = this.sortOptions.find(o => o.key === this.sort()) || this.sortOptions[0];
 			return t('app.sort') + ' : ' + t(o.label);
 		});
-		this._readTimer = null; // marquage « lu » différé (réglage mark_read_delay)
+		this._readTimer = null; // marquage "lu" différé (réglage mark_read_delay)
 		this.searchModal = null; // bootstrap.Modal instanciée paresseusement (openSearch)
+		this._dragList = null;  // MessageModel[] en cours de glisser-déposer
+		this._dragGhost = null; // fantôme compteur affiché pendant le drag
 
 		// pureComputed inscriptible : lecture = tout coché, écriture = (dé)cocher tout
 		this.allChecked = ko.pureComputed({
@@ -79,15 +81,15 @@ export class MessageListVM {
 			},
 			write: v => this.messages().forEach(m => m.isChecked(!!v)),
 		});
-		// vrai si au moins un coché mais pas tous → état visuel « indéterminé »
+		// vrai si au moins un coché mais pas tous > état visuel "indéterminé"
 		this.someChecked = ko.pureComputed(() => {
 			const n = this.checkedMessages().length;
 			return n > 0 && n < this.messages().length;
 		});
-		// ≥ 2 → la zone de lecture affiche le compteur de multi-sélection
+		// ≥ 2 > la zone de lecture affiche le compteur de multi-sélection
 		this.checkedCount = ko.pureComputed(() => this.checkedMessages().length);
 		// État agrégé de la sélection cochée : pilote les boutons toggle groupés.
-		// Sélection mixte (ou rien de flaggé/lu) → false → le clic applique « poser ».
+		// Sélection mixte (ou rien de flaggé/lu) > false > le clic applique "poser".
 		this.checkedAllFlagged = ko.pureComputed(() => {
 			const c = this.checkedMessages();
 			return c.length > 0 && c.every(m => m.isFlagged());
@@ -120,7 +122,7 @@ export class MessageListVM {
 				`&sort=${encodeURIComponent(this.sort())}` +
 				(!global && this.useThreads() ? '&threads=1' : '');
 			const data = await api.get('/messages' + q);
-			// La recherche multi-dossiers renvoie threadsSupported:false — elle
+			// La recherche multi-dossiers renvoie threadsSupported:false - elle
 			// ne doit pas écraser l'état connu du dossier (item de menu masqué).
 			if (!global) { this.threadsSupported(!!data.threadsSupported); }
 			this.threadChildren = {};
@@ -159,7 +161,7 @@ export class MessageListVM {
 		this.messages().forEach(m => { m.isSelected(false); m.isChecked(false); });
 		message.isSelected(true);
 		message.isChecked(true);
-		// Return avant cancelReadTimer : le marquage « lu » différé en cours
+		// Return avant cancelReadTimer : le marquage "lu" différé en cours
 		// (mark_read_delay) doit suivre son cours pour le mail encore affiché.
 		if (alreadyShown) { return; }
 		this.cancelReadTimer();
@@ -200,7 +202,7 @@ export class MessageListVM {
 		}
 	}
 
-	/** Annule le marquage « lu » différé en attente (mark_read_delay > 0). */
+	/** Annule le marquage "lu" différé en attente (mark_read_delay > 0). */
 	cancelReadTimer() {
 		clearTimeout(this._readTimer);
 		this._readTimer = null;
@@ -212,7 +214,7 @@ export class MessageListVM {
 		if (f) { f.unread(Math.max(0, f.unread() + delta)); }
 	}
 
-	/** Clé _gone d'un message (folder+uid — les UID sont par dossier). */
+	/** Clé _gone d'un message (folder+uid - les UID sont par dossier). */
 	goneKey(folder, uid) {
 		return folder + '\n' + uid;
 	}
@@ -257,7 +259,7 @@ export class MessageListVM {
 		await this.load();
 	}
 
-	/** Bascule le mode conversation — persisté dans list_threads. */
+	/** Bascule le mode conversation - persisté dans list_threads. */
 	async toggleThreads() {
 		this.useThreads(!this.useThreads());
 		// Synchro userSettings : seede la case des réglages à leur ouverture
@@ -289,7 +291,7 @@ export class MessageListVM {
 		} catch (e) { this.error(e.message); }
 	}
 
-	/** Compose la requête IMAP key:value — tokens en premier (détection ancrée
+	/** Compose la requête IMAP key:value - tokens en premier (détection ancrée
 	 *  dans SearchCriterias::fromString), texte libre en dernier. */
 	buildSearch() {
 		const quote = v => /[\s"]/.test(v) ? '"' + v.replace(/[\\"]/g, '\\$&') + '"' : v;
@@ -312,7 +314,7 @@ export class MessageListVM {
 			this.searchModal = new bootstrap.Modal(document.getElementById('search-modal'));
 		}
 		this.searchModal.show();
-		// Le focus avant la fin de la transition est volé par Bootstrap →
+		// Le focus avant la fin de la transition est volé par Bootstrap >
 		// focus du premier champ une fois la modale visible (pattern compose).
 		document.getElementById('search-modal').addEventListener(
 			'shown.bs.modal', () => document.getElementById('mx-search-from')?.focus(),
@@ -333,9 +335,9 @@ export class MessageListVM {
 		await this.load();
 	}
 
-	/** Évènement `search` de l'input[type=search] : émis par l'icône « × » native
+	/** Évènement `search` de l'input[type=search] : émis par l'icône "×" native
 	 *  (Blink/WebKit) et par Enter sous Blink (déjà traité en keydown). Ne recharge
-	 *  que si le champ a été vidé et que la requête appliquée diffère — les
+	 *  que si le champ a été vidé et que la requête appliquée diffère - les
 	 *  filtres avancés éventuels restent actifs (rebuild via buildSearch). */
 	clearSearch(d, e) {
 		if (e.target.value !== '') { return; }
@@ -378,7 +380,7 @@ export class MessageListVM {
 		return this.checkedMessages().length > 0;
 	}
 
-	/** Toggle \Flagged — sémantique SnappyMail : si le mail cliqué est
+	/** Toggle \Flagged - sémantique SnappyMail : si le mail cliqué est
 	 *  coché, applique à tous les cochés, sinon à lui seul. */
 	async toggleFlag(message) {
 		const set = !message.isFlagged();
@@ -396,7 +398,7 @@ export class MessageListVM {
 		for (const m of this.checkedMessages()) {
 			try {
 				// m.folder (dossier réel du message) : en recherche multi-dossiers
-				// il diffère du dossier courant — les UID sont par dossier.
+				// il diffère du dossier courant - les UID sont par dossier.
 				await api.post(`/messages/${m.uid}/flags`, { folder: m.folder, flag, set });
 				if (flag === '\\Seen' && m.isSeen() !== set) {
 					m.isSeen(set);
@@ -407,53 +409,36 @@ export class MessageListVM {
 		}
 	}
 
-	/** Voisin à sélectionner quand uid va être retiré de la liste
-	 *  (réglage auto_advance : next|prev|none). Non mutateur — à appeler
-	 *  AVANT le retrait, sur la liste encore complète ; le repli bascule
-	 *  sur l'autre côté (ex. dernier élément + mode next → précédent). */
-	peekAdvance(uid, folder) {
-		const mode = this.app.userSettings?.auto_advance || 'next';
-		if (mode === 'none' || uid == null) { return null; }
-		const list = this.messages();
-		// En recherche multi-dossiers le même uid existe dans plusieurs dossiers :
-		// la correspondance porte aussi sur le dossier quand il est fourni.
-		const i = list.findIndex(m => m.uid === uid && (folder === undefined || m.folder === folder));
-		if (i < 0) { return null; }
-		const fwd = mode !== 'prev';
-		return list[fwd ? i + 1 : i - 1] ?? list[fwd ? i - 1 : i + 1] ?? null;
-	}
-
-	/** Après un bulk : rouvre le voisin du message visionné s'il a été retiré,
-	 *  sinon ferme le lecteur (comportement historique). */
-	async advanceOrClear(next) {
-		if (next && this.messages().includes(next)) {
-			await this.select(next);
-		} else {
-			this.app.messageView.clear();
+	/** Après retrait groupé (déplacement, suppression, spam) : aucune
+	 *  sélection automatique - le lecteur n'est fermé que si le message
+	 *  qu'il affichait a disparu de la liste (couvre aussi les sous-lignes
+	 *  de fils retirées avec leur racine). */
+	closeViewerIfRemoved() {
+		const mv = this.app.messageView;
+		if (mv.requestedUid !== null
+			&& !this.messages().some(m => m.uid === mv.requestedUid && m.folder === mv.requestedFolder)) {
+			this.cancelReadTimer(); // même hygiène que selectFolder/clearFolder
+			mv.clear();
 		}
 	}
 
 	/** Retrait optimiste groupé (actions batch) : suivi _gone + badge non-lu
 	 *  + removeAll en UNE notification KO (remove() par item re-rendrait la
-	 *  liste à chaque ligne — effet « disparition une par une »).
-	 *  Retourne le voisin à rouvrir pour advanceOrClear. */
+	 *  liste à chaque ligne - effet "disparition une par une"). */
 	optimisticRemove(list) {
-		const mv = this.app.messageView;
-		const next = this.peekAdvance(mv.requestedUid, mv.requestedFolder);
 		for (const m of list) {
 			this._gone.add(this.goneKey(m.folder, m.uid));
 			if (!m.isSeen()) { this.adjustUnread(-1, m.folder); }
 		}
 		// Sous-lignes des fils dépliés : retirées avec leur racine, en une
-		// seule notification KO (elles ne sont pas _gone — toujours en IMAP).
+		// seule notification KO (elles ne sont pas _gone - toujours en IMAP).
 		this.messages.removeAll([...list,
 			...list.flatMap(m => this.threadChildren[m.uid] || [])]);
 		list.forEach(m => delete this.threadChildren[m.uid]);
-		return next;
 	}
 
 	/** Solde un POST batch : les clés _gone partent AVANT tout load() de
-	 *  resync — sinon elles filtreraient les messages restaurés. */
+	 *  resync - sinon elles filtreraient les messages restaurés. */
 	async settleBatch(list, fail) {
 		list.forEach(m => this.unmarkMoved(m.folder, m.uid));
 		if (fail) { this.error(fail); await this.load(); }
@@ -467,8 +452,8 @@ export class MessageListVM {
 			? 'messages.delete_confirm_perm' : 'messages.delete_confirm';
 		if (!list.length || !(await dialog.confirm(t(key, { n: list.length }),
 			{ variant: 'danger', okLabel: t('common.delete'), title: t('messages.delete_title') }))) { return; }
-		const next = this.optimisticRemove(list);
-		await this.advanceOrClear(next);
+		this.optimisticRemove(list);
+		this.closeViewerIfRemoved();
 		let fail = null;
 		try {
 			const r = await api.post('/messages/delete',
@@ -478,11 +463,13 @@ export class MessageListVM {
 		await this.settleBatch(list, fail);
 	}
 
-	async bulkMove(target) {
-		const list = this.checkedMessages().filter(m => m.folder !== target);
+	/** Déplacement optimiste d'une liste de messages (sélection cochée ou
+	 *  glisser-déposer) vers un dossier. */
+	async moveMessages(list, target) {
+		list = list.filter(m => m.folder !== target);
 		if (!list.length) { return; } // tout est déjà dans le dossier cible
-		const next = this.optimisticRemove(list);
-		await this.advanceOrClear(next);
+		this.optimisticRemove(list);
+		this.closeViewerIfRemoved();
 		let fail = null;
 		try {
 			const r = await api.post('/messages/move',
@@ -492,19 +479,63 @@ export class MessageListVM {
 		await this.settleBatch(list, fail);
 	}
 
+	async bulkMove(target) {
+		await this.moveMessages(this.checkedMessages(), target);
+	}
+
+	// ─── Glisser-déposer vers les dossiers ───
+
+	/** MessageModel[] en cours de glisser-déposer - null hors drag (lecture
+	 *  par FolderListVM pour la cible et AppVM pour la garde du poll). */
+	dragItems() {
+		return this._dragList;
+	}
+
+	/** Charge utile du drag : tous les cochés si la ligne saisie est cochée,
+	 *  sinon elle seule - même sémantique que toggleFlag. */
+	messageDragStart(m, e) {
+		this._dragList = m.isChecked() ? this.checkedMessages() : [m];
+		// setData requis par Firefox pour que le drag démarre
+		e.dataTransfer.setData('text/plain', String(this._dragList.length));
+		e.dataTransfer.effectAllowed = 'move';
+		e.currentTarget.classList.add('mx-dragging');
+		document.body.classList.add('mx-msg-drag');
+		// Fantôme compteur à la place de la ligne - retiré à dragend (Firefox
+		// le rend après setDragImage : une suppression immédiate = image vide).
+		const ghost = document.createElement('div');
+		ghost.className = 'msg-drag-ghost';
+		ghost.innerHTML = '<i class="fa-solid fa-envelope"></i> '
+			+ t('app.selected_count', { n: this._dragList.length });
+		document.body.append(ghost);
+		e.dataTransfer.setDragImage(ghost, 10, 12);
+		this._dragGhost = ghost;
+		return true;
+	}
+
+	messageDragEnd(m, e) {
+		this._dragList = null;
+		this._dragGhost?.remove();
+		this._dragGhost = null;
+		e.currentTarget.classList.remove('mx-dragging');
+		document.body.classList.remove('mx-msg-drag');
+		// Surbrillance de cible + timer d'expansion restés sur un dossier
+		this.app.folderList.dropCleanup();
+		return true;
+	}
+
 	async moveWithPicker() {
 		const target = await this.app.folderList.pickFolder(this.folder());
 		if (target) { await this.bulkMove(target); }
 	}
 
-	/** Déplace la sélection vers le dossier de rôle « archive » (s'il existe). */
+	/** Déplace la sélection vers le dossier de rôle "archive" (s'il existe). */
 	async bulkArchive() {
 		const target = this.app.folderList.archiveFolder()?.fullName;
 		if (target) { await this.bulkMove(target); }
 	}
 
 	/** Télécharge les messages cochés en .eml dans un zip par dossier source
-	 *  (GET direct — un zip par dossier en recherche multi-dossiers). */
+	 *  (GET direct - un zip par dossier en recherche multi-dossiers). */
 	downloadEmlZip() {
 		const byFolder = new Map();
 		for (const m of this.checkedMessages()) {
@@ -523,13 +554,11 @@ export class MessageListVM {
 	}
 
 	async bulkSpam(spam) {
-		const mv = this.app.messageView;
-		const next = this.peekAdvance(mv.requestedUid, mv.requestedFolder);
 		const junkName = this.app.folderList.junkFolder()?.fullName;
 		const targets = [];
 		for (const m of this.checkedMessages()) {
 			// Déjà dans l'état voulu : le serveur renverrait 'move' sans rien
-			// déplacer (ex. spam sur un message déjà dans Junk) — sautés.
+			// déplacer (ex. spam sur un message déjà dans Junk) - sautés.
 			const junk = this.app.folderList.isJunkFolder(m.folder) || !!m.isJunk();
 			if (junk === spam) { continue; }
 			// Prédiction miroir du test serveur ($folder === $junk) : 'move'
@@ -544,16 +573,17 @@ export class MessageListVM {
 			if (expectMove) { this.hideMoved(m); moved = true; }
 			else { m.isJunk(spam); }
 		}
-		if (moved) { await this.advanceOrClear(next); }
-		// POSTs en fond ; échec ou stratégie divergente → resync de la liste.
+		if (moved) { this.closeViewerIfRemoved(); }
+		// POSTs en fond ; échec ou stratégie divergente > resync de la liste.
 		let resync = false;
 		for (const { m, expectMove } of targets) {
 			try {
 				const r = await api.post(`/messages/${m.uid}/spam`, { folder: m.folder, spam });
 				if (r.strategy === 'move' && !expectMove) {
-					// Move imprévu : la ligne est encore affichée — la retirer.
+					// Move imprévu : la ligne est encore affichée - la retirer.
 					if (!m.isSeen()) { this.adjustUnread(-1, m.folder); }
 					this.messages.remove(m);
+					this.closeViewerIfRemoved();
 				} else if (r.strategy !== 'move' && expectMove) {
 					resync = true;
 				}
@@ -564,6 +594,6 @@ export class MessageListVM {
 			}
 			this.unmarkMoved(m.folder, m.uid);
 		}
-		if (resync) { await this.load(); }
+		if (resync) { await this.load(); this.closeViewerIfRemoved(); }
 	}
 }

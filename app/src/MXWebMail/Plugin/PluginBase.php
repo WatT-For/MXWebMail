@@ -20,7 +20,7 @@ abstract class PluginBase
 	/** Enregistre les hooks : $hooks->on('settings.tabs.user', ...) */
 	abstract public function register(HookRegistry $hooks): void;
 
-	/** Version déclarée dans plugin.json — utilisée pour le ?v= des assets. */
+	/** Version déclarée dans plugin.json - utilisée pour le ?v= des assets. */
 	public function version(): string
 	{
 		return (string) ($this->manifest['version'] ?? '');
@@ -29,7 +29,7 @@ abstract class PluginBase
 	/**
 	 * Traduction dans la langue résolue de la requête.
 	 * Les dictionnaires du plugin sont dans langs/<lang>.php
-	 * (clés « plugin.<name>.* »), fusionnés avec le dictionnaire cœur.
+	 * (clés "plugin.<name>.*"), fusionnés avec le dictionnaire cœur.
 	 */
 	protected function t(string $key, array $params = []): string
 	{

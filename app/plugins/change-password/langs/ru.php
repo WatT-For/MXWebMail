@@ -19,7 +19,7 @@ return [
 	'plugin.change-password.too_short'        => 'Новый пароль слишком короткий',
 	'plugin.change-password.too_weak'         => 'Новый пароль слишком слабый',
 	'plugin.change-password.pwned'            => 'Этот пароль встречается в известной утечке данных',
-	'plugin.change-password.driver_unknown'   => 'Неизвестный драйвер «{driver}»',
+	'plugin.change-password.driver_unknown'   => 'Неизвестный драйвер "{driver}"',
 	'plugin.change-password.poppassd_down'    => 'poppassd недоступен ({host}:{port})',
 	'plugin.change-password.poppassd_failed'  => 'Ошибка poppassd: {msg}',
 	'plugin.change-password.sql_missing'      => 'SQL-запрос PDO-драйвера не настроен',
@@ -31,7 +31,7 @@ return [
 	'plugin.change-password.mailcow_unconfigured' => 'API Mailcow не настроен',
 	'plugin.change-password.mailcow_failed'   => 'Mailcow: ошибка ({status})',
 
-	// Schéma de configuration (admin → Extensions → Configurer)
+	// Schéma de configuration (admin > Extensions > Configurer)
 	'plugin.change-password.f.driver'         => 'Драйвер',
 	'plugin.change-password.f.driver.help'    => 'Бэкенд, применяющий новый пароль',
 	'plugin.change-password.f.allowed_emails'       => 'Разрешённые адреса',

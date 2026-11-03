@@ -5,11 +5,24 @@ namespace MXWebMail\Http;
 
 class Response
 {
+	protected ?string $file = null;
+
 	public function __construct(
 		protected string $body = '',
 		protected int $status = 200,
 		protected array $headers = []
 	) {}
+
+	/**
+	 * Réponse dont le corps est streamé depuis un fichier disque - mémoire
+	 * constante quelle que soit la taille (pièces jointes, archives).
+	 */
+	public static function file(string $path, int $status = 200, array $headers = []): self
+	{
+		$r = new self('', $status, $headers);
+		$r->file = $path;
+		return $r;
+	}
 
 	public function send(): void
 	{
@@ -17,18 +30,30 @@ class Response
 		foreach ($this->headers as $name => $value) {
 			header("{$name}: {$value}");
 		}
+		if ($this->file !== null) {
+			$fp = fopen($this->file, 'rb');
+			if (is_resource($fp)) {
+				\MailSo\Base\Utils::FpassthruWithTimeLimitReset($fp);
+				fclose($fp);
+			}
+			return;
+		}
 		echo $this->body;
 	}
 
 	/**
 	 * Compresse le corps en gzip si le type le permet. Pose toujours
-	 * « Vary: Accept-Encoding » dès que le type est compressible (même si le
-	 * corps est trop petit ou le client ne l'accepte pas) — un cache partagé
+	 * "Vary: Accept-Encoding" dès que le type est compressible (même si le
+	 * corps est trop petit ou le client ne l'accepte pas) - un cache partagé
 	 * doit distinguer les variantes. Retourne true si le corps a été compressé.
 	 */
 	public function gzip(int $level, int $minSize, bool $accepted): bool
 	{
-		if ($this->status >= 300 || isset($this->headers['Content-Encoding'])) {
+		// Un corps fichier n'est jamais compressé : gzencode l'exigerait en
+		// mémoire (le but du fichier est justement la mémoire constante) et
+		// garderait un Content-Length incohérent.
+		if ($this->status >= 300 || $this->file !== null
+			|| isset($this->headers['Content-Encoding'])) {
 			return false;
 		}
 		$type = (string) ($this->headers['Content-Type'] ?? '');
@@ -65,6 +90,6 @@ class Response
 
 	public static function notFound(): self
 	{
-		return new self('404 — Page introuvable', 404, ['Content-Type' => 'text/plain; charset=utf-8']);
+		return new self('404 - Page introuvable', 404, ['Content-Type' => 'text/plain; charset=utf-8']);
 	}
 }

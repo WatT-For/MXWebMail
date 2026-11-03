@@ -18,4 +18,4 @@
 - [ ] `docs/` mis à jour si le comportement, la config ou le rendu change
 - [ ] Aucun secret, token ou credential dans le diff
 - [ ] PR focalisée : un seul sujet
-- [ ] Puce de changelog suggérée (optionnel — reformulée par le mainteneur) :
+- [ ] Puce de changelog suggérée (optionnel - reformulée par le mainteneur) :

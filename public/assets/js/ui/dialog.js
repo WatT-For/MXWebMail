@@ -1,19 +1,19 @@
 /**
- * Boîtes de dialogue Bootstrap — remplacement de alert/confirm/prompt natifs.
+ * Boîtes de dialogue Bootstrap - remplacement de alert/confirm/prompt natifs.
  * Chaque appel crée une modale éphémère, détruite à la fermeture.
- * La Promise résout après hidden.bs.modal → pas d'empilement de backdrops
+ * La Promise résout après hidden.bs.modal > pas d'empilement de backdrops
  * lors de dialogues séquentiels.
  *
- * dialog.alert(message, opts)   → Promise<void>
- * dialog.confirm(message, opts) → Promise<boolean>     (Échap/backdrop = false)
- * dialog.prompt(message, opts)  → Promise<string|null> (Échap/backdrop/Annuler = null)
- * dialog.pick(items, opts)      → Promise<value|null>  (Échap/backdrop/Annuler = null)
- * dialog.form(opts)             → Promise<{name:value}|null>
+ * dialog.alert(message, opts)   > Promise<void>
+ * dialog.confirm(message, opts) > Promise<boolean>     (Échap/backdrop = false)
+ * dialog.prompt(message, opts)  > Promise<string|null> (Échap/backdrop/Annuler = null)
+ * dialog.pick(items, opts)      > Promise<value|null>  (Échap/backdrop/Annuler = null)
+ * dialog.form(opts)             > Promise<{name:value}|null>
  *
  * opts : { title, variant: info|success|warning|danger, icon, okLabel, cancelLabel }
  * prompt : + { inputType, defaultValue, placeholder }
  * pick   : items = [{ label, value, icon?, depth?, disabled? }] ; + { searchable }
- *          (okLabel: null interne — pas de bouton OK en mode liste)
+ *          (okLabel: null interne - pas de bouton OK en mode liste)
  * form   : + { fields: [{ name, label?, type: 'text'|'select',
  *            options?: [{label,value,depth?,disabled?}], defaultValue?, placeholder?,
  *            inputType?, readonly?, hint? }], onSubmit? }
@@ -221,7 +221,7 @@ function open({ title = t('dialog.info'), message = '', variant = 'info',
 			done(collect());
 		};
 		// Échap/backdrop pendant la soumission : la modale resterait en
-		// « annulation » alors que la requête en vol peut aboutir côté serveur.
+		// "annulation" alors que la requête en vol peut aboutir côté serveur.
 		modal.addEventListener('hide.bs.modal', e => { if (busy) { e.preventDefault(); } });
 		modal.addEventListener('hidden.bs.modal', () => {
 			m.dispose();

@@ -39,7 +39,7 @@ final class Request
 	 * Chemin de base de l'application tel que perçu par le navigateur
 	 * ('' si servie à la racine du vhost, '/sous/dossier' sinon).
 	 * Le front controller vit dans public/ ; la réécriture racine
-	 * (RewriteRule -> public/) expose ce segment dans SCRIPT_NAME — on le
+	 * (RewriteRule -> public/) expose ce segment dans SCRIPT_NAME - on le
 	 * retire pour que l'URL publique n'en porte pas trace.
 	 */
 	public static function basePath(): string
@@ -68,7 +68,7 @@ final class Request
 		if ($this->jsonBody === null) {
 			$raw = file_get_contents('php://input');
 			$decoded = is_string($raw) && $raw !== '' ? json_decode($raw, true) : null;
-			// JSON scalaire (123, "x", true) ou malformé → objet vide, pas TypeError.
+			// JSON scalaire (123, "x", true) ou malformé > objet vide, pas TypeError.
 			$this->jsonBody = is_array($decoded) ? $decoded : [];
 		}
 		return $this->jsonBody;

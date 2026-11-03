@@ -18,7 +18,7 @@ return [
 	'plugin.carddav-contacts.saved'          => 'Configurações salvas.',
 	'plugin.carddav-contacts.testing'        => 'Testando…',
 	'plugin.carddav-contacts.syncing'        => 'Sincronizando…',
-	'plugin.carddav-contacts.test_ok'        => 'Conexão OK — agenda «{book}», {n} cartão(ões).',
+	'plugin.carddav-contacts.test_ok'        => 'Conexão OK - agenda "{book}", {n} cartão(ões).',
 	'plugin.carddav-contacts.imported'       => '{n} contato(s) importados.',
 	'plugin.carddav-contacts.not_configured' => 'CardDAV não configurado',
 	'plugin.carddav-contacts.no_addressbook' => 'Nenhuma agenda CardDAV encontrada nesta URL',

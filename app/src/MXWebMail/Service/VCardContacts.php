@@ -7,7 +7,7 @@ use Sabre\VObject\Component\VCard;
 use Sabre\VObject\Splitter\VCard as VCardSplitter;
 
 /**
- * Conversion vCard ↔ items de contacts — partagée entre l'import/export
+ * Conversion vCard ↔ items de contacts - partagée entre l'import/export
  * utilisateur (/api/contacts/import|export), le plugin carddav-contacts et
  * l'import SnappyMail.
  *
@@ -45,7 +45,7 @@ final class VCardContacts
 		return $items;
 	}
 
-	/** Une fiche → item. null si aucune adresse exploitable. */
+	/** Une fiche > item. null si aucune adresse exploitable. */
 	public static function fromVCard(VCard $card): ?array
 	{
 		$emails = [];
@@ -87,7 +87,7 @@ final class VCardContacts
 		];
 	}
 
-	/** TYPE=work,home → 'work' (le premier significatif ; 'internet'/'pref' ignorés). */
+	/** TYPE=work,home > 'work' (le premier significatif ; 'internet'/'pref' ignorés). */
 	private static function firstType(\Sabre\VObject\Property $prop): ?string
 	{
 		if (!isset($prop['TYPE'])) {
@@ -104,7 +104,7 @@ final class VCardContacts
 
 	/**
 	 * Exporte des lignes contacts (ContactRepository::all + properties décodé)
-	 * en .vcf (vCard 3.0 — interop la plus large).
+	 * en .vcf (vCard 3.0 - interop la plus large).
 	 * @param array<int, array> $contacts
 	 */
 	public static function export(array $contacts): string
@@ -147,7 +147,7 @@ final class VCardContacts
 
 	/**
 	 * Normalise la liste d'emails d'un item : chaînes ou {email, type}
-	 * → [{email, type}] dédupliqués et validés.
+	 * > [{email, type}] dédupliqués et validés.
 	 * @return array<int, array{email:string, type:?string}>
 	 */
 	public static function normalizeEmails(array $emails): array
@@ -173,7 +173,7 @@ final class VCardContacts
 
 	private static function emailsOf(array $contact): array
 	{
-		// Ligne DB (contact_emails jointes en CSV « emails ») ou item complet.
+		// Ligne DB (contact_emails jointes en CSV "emails") ou item complet.
 		if (isset($contact['emails']) && is_array($contact['emails'])) {
 			return self::normalizeEmails($contact['emails']);
 		}

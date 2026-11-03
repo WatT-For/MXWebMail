@@ -7,7 +7,7 @@ import { loadOpenPgp } from '../lazy.js';
 /**
  * ViewModel : lecture d'un message.
  * bodyHtml est sanitisé (allowlist stricte, style SnappyMail) puis rendu
- * inline dans #mail-body — jamais innerHTML brut, jamais d'iframe.
+ * inline dans #mail-body - jamais innerHTML brut, jamais d'iframe.
  */
 export class MessageViewVM {
 	constructor(app) {
@@ -20,7 +20,7 @@ export class MessageViewVM {
 		this.avatarSrc = ko.observable('');       // plugin avatars
 		this.sourceText = ko.observable('');      // source MIME affiché dans la modale
 		this.sourceModal = null;
-		// Aperçu de pièce jointe (image/PDF/texte) — modale dédiée #preview-modal.
+		// Aperçu de pièce jointe (image/PDF/texte) - modale dédiée #preview-modal.
 		this.previewModal = null;
 		this.previewName = ko.observable('');
 		this.previewType = ko.observable('');      // 'image' | 'pdf' | 'text' | 'eml'
@@ -28,8 +28,9 @@ export class MessageViewVM {
 		this.previewText = ko.observable('');
 		this.previewEml = ko.observable(null);     // payload .eml (message/rfc822)
 		this.previewEmlAtt = null;                 // PJ .eml de 1er niveau (mimeIndex source)
+		this.previewEmlMsg = null;                 // message propriétaire du .eml (snapshot)
 		this.previewEmlPath = ko.observable('');   // chemin ?sub= du noeud courant
-		this._mdnDismissed = false;                // « Ignorer » : masque le bandeau du message courant
+		this._mdnDismissed = false;                // "Ignorer" : masque le bandeau du message courant
 		// Bandeau accusé de réception : demandé + pas encore honoré +
 		// réglage mdn_mode ≠ 'never' (ask par défaut).
 		this.mdnBanner = ko.pureComputed(() => {
@@ -47,12 +48,12 @@ export class MessageViewVM {
 		});
 		this.tab = ko.observable('message');      // onglet actif : 'message' | 'attachments'
 		this.security = ko.observable(null);      // verdict plugin anti-spoofing
-		this.requestedUid = null;                 // uid+dossier passés à show() — évite
+		this.requestedUid = null;                 // uid+dossier passés à show() - évite
 		this.requestedFolder = null;              // un re-fetch au re-clic sur le même mail
 		this.securityAlerts = ko.pureComputed(() => this.security()?.alerts || []);
 		this.securityOk = ko.pureComputed(() => this.security()?.auth_ok || ''); // SPF/DKIM/DMARC pass
 		// Couleur du bouclier : niveau max des alertes (info/warning/danger) ;
-		// sans alerte → vert si auth pass, gris sinon (vérif faite, RAS).
+		// sans alerte > vert si auth pass, gris sinon (vérif faite, RAS).
 		this.securityIconCss = ko.pureComputed(() => {
 			const s = this.security();
 			if (!s) { return ''; }
@@ -60,7 +61,7 @@ export class MessageViewVM {
 			return lvl !== 'none' ? 'text-' + lvl
 				: s.auth_ok ? 'text-success' : 'text-muted';
 		});
-		// Tooltip du bouclier : titre « usurpation possible » seulement si
+		// Tooltip du bouclier : titre "usurpation possible" seulement si
 		// warning/danger, puis une ligne par alerte, puis l'éventuel auth_ok.
 		this.securityTip = ko.pureComputed(() => {
 			const s = this.security();
@@ -84,7 +85,7 @@ export class MessageViewVM {
 
 		// Diagnostic (réglage Debug admin) : si du contenu du mail recouvre
 		// un bouton, e.target montre l'élément intercepteur au lieu du bouton.
-		// Le flag arrive via /appdata (async) → test dans le handler.
+		// Le flag arrive via /appdata (async) > test dans le handler.
 		document.addEventListener('pointerdown', e => {
 			if (this.app.debug()) { console.info('[mxwm] hit:', e.target); }
 		}, true);
@@ -116,7 +117,7 @@ export class MessageViewVM {
 			this.loadAvatar(data);
 			const allow = await this.allowRemoteImages(data);
 			// Nombre de refs distantes réellement neutralisées dans le doc
-			// sanitisé (src/srcset/background/url()) — pas de regex sur le
+			// sanitisé (src/srcset/background/url()) - pas de regex sur le
 			// HTML brut, qui pouvait matcher du contenu ensuite supprimé.
 			this.imagesBlocked(this.renderBody(data, allow) > 0);
 		} catch (e) {
@@ -127,8 +128,8 @@ export class MessageViewVM {
 			}
 			this.error(e.message);
 		} finally {
-			// Fetch « stale » (clear() ou show() plus récent entre-temps) : ne
-			// pas éteindre le spinner du fetch en cours — null = clear() → off.
+			// Fetch "stale" (clear() ou show() plus récent entre-temps) : ne
+			// pas éteindre le spinner du fetch en cours - null = clear() > off.
 			if (this.requestedUid === uid || this.requestedUid === null) {
 				this.loading(false);
 			}
@@ -136,9 +137,9 @@ export class MessageViewVM {
 	}
 
 	/**
-	 * Réglage utilisateur « view_images » :
-	 *   always → proxy systématique ; ask → bloquées jusqu'à clic ;
-	 *   match  → affichées si l'expéditeur est dans les contacts.
+	 * Réglage utilisateur "view_images" :
+	 *   always > proxy systématique ; ask > bloquées jusqu'à clic ;
+	 *   match  > affichées si l'expéditeur est dans les contacts.
 	 */
 	async allowRemoteImages(m) {
 		// Proxy désactivé en config admin : aucune image distante affichable.
@@ -157,7 +158,7 @@ export class MessageViewVM {
 		return false;
 	}
 
-	/** Bouton « Afficher les images » : re-rend le corps via le proxy. */
+	/** Bouton "Afficher les images" : re-rend le corps via le proxy. */
 	showRemoteImages() {
 		const m = this.message();
 		this.imagesBlocked(false);
@@ -207,7 +208,7 @@ export class MessageViewVM {
 		try {
 			const keys = await api.get('/pgp/keys');
 			const priv = keys.find(k => Number(k.is_private) === 1);
-			// openpgp chargé à la demande (lazy.js) — ~540K hors du boot.
+			// openpgp chargé à la demande (lazy.js) - ~540K hors du boot.
 			const openpgp = await loadOpenPgp();
 			if (!priv) {
 				await dialog.alert(t('pgp.no_private_key'),
@@ -241,7 +242,7 @@ export class MessageViewVM {
 
 	/**
 	 * Assainit le HTML d'un mail pour un rendu inline dans #mail-body (pas de
-	 * frame sandboxée) : allowlist stricte de balises et d'attributs — tout ce
+	 * frame sandboxée) : allowlist stricte de balises et d'attributs - tout ce
 	 * qui n'y figure pas est supprimé (on*, id, srcdoc, autofocus, data-*…).
 	 * Seconde couche : CSP script-src 'self'+nonce bloque toute exécution
 	 * inline survivante. DOMParser n'exécute rien : parsing sûr.
@@ -249,7 +250,7 @@ export class MessageViewVM {
 	 * Retourne le document (refs images + styles réécrits ensuite).
 	 */
 	sanitizedDoc(html) {
-		// <body> → div.mail-body : ses attributs (bgcolor, style, margins…)
+		// <body> > div.mail-body : ses attributs (bgcolor, style, margins…)
 		// restent sur la div, qui sera insérée dans #mail-body.
 		html = html.replace(/<(\/?)body(\s[^>]*)?>/gi, '<$1div class="mail-body"$2>');
 		const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -262,7 +263,7 @@ export class MessageViewVM {
 		for (const el of doc.querySelectorAll('form, button, data')) {
 			el.replaceWith(...el.childNodes);
 		}
-		// xmp : texte brut historique → pre échappé (textContent = pas de HTML)
+		// xmp : texte brut historique > pre échappé (textContent = pas de HTML)
 		for (const el of doc.querySelectorAll('xmp')) {
 			const pre = doc.createElement('pre');
 			pre.textContent = el.textContent;
@@ -279,7 +280,7 @@ export class MessageViewVM {
 			+ 'ins,kbd,li,main,mark,marquee,nav,nobr,ol,p,pre,q,rb,rp,rt,rtc,ruby,s,'
 			+ 'samp,section,small,span,strike,strong,style,sub,summary,sup,table,tbody,'
 			+ 'td,tfoot,th,thead,time,tr,tt,u,ul,var,wbr';
-		// head/body ne sont jamais insérés — seuls leurs descendants sont
+		// head/body ne sont jamais insérés - seuls leurs descendants sont
 		// nettoyés puis déplacés (sinon l'allowlist tuerait tout le contenu).
 		for (const root of [doc.head, doc.body]) {
 			for (const el of root.querySelectorAll(':not(' + allowed + ')')) {
@@ -333,7 +334,7 @@ export class MessageViewVM {
 						}
 					}
 				}
-				// class → msg-cls : le <style> du mail ne peut cibler les
+				// class > msg-cls : le <style> du mail ne peut cibler les
 				// classes de l'app, et la sienne ne reçoit pas nos styles.
 				if (el.className && el.className !== 'mail-body') {
 					el.className = el.className.replace(/(^|\s+)(\S)/g, '$1msg-$2');
@@ -350,7 +351,7 @@ export class MessageViewVM {
 						}
 					}
 				}
-				// Largeurs fixes attribut → CSS + responsive (newsletters
+				// Largeurs fixes attribut > CSS + responsive (newsletters
 				// à layout table débordaient du panneau sinon)
 				if (['IMG','TABLE'].includes(el.tagName)) {
 					for (const key of ['width','height']) {
@@ -373,19 +374,19 @@ export class MessageViewVM {
 
 	/**
 	 * Namespacing des <style> du mail : chaque sélecteur est préfixé
-	 * « #mail-body » (et .cls → .msg-cls, en miroir du préfixage d'attributs)
+	 * "#mail-body" (et .cls > .msg-cls, en miroir du préfixage d'attributs)
 	 * pour qu'ils ne ciblent que le corps du mail. @media est récursé, les
 	 * autres @règles (@import, @font-face, @keyframes…) sont ignorées.
-	 * parseCSS porté de SnappyMail (textuel — .sheet n'est pas garanti sur
-	 * un document DOMParser). scope = conteneur cible (« #mail-body » pour le
-	 * lecteur, « #eml-preview-body » pour l'aperçu .eml).
+	 * parseCSS porté de SnappyMail (textuel - .sheet n'est pas garanti sur
+	 * un document DOMParser). scope = conteneur cible ("#mail-body" pour le
+	 * lecteur, "#eml-preview-body" pour l'aperçu .eml).
 	 */
 	scopeStyles(doc, scope = '#mail-body') {
 		const cleanRules = rules => rules
 			// position:fixed/absolute survivrait au namespace (viewport)
 			.replace(/(^|;)\s*position\s*:\s*(?:fixed|absolute|sticky)[^;{}]*/gi, '$1')
 			.replace(/(^|;)\s*(?:behavior|-moz-binding)\s*:[^;{}]*/gi, '$1')
-			// déclaration contenant un token dangereux → supprimée entièrement
+			// déclaration contenant un token dangereux > supprimée entièrement
 			.replace(/(^|;)[^;{}]*?(?:expression\s*\(|javascript:|vbscript:)[^;{}]*/gi, '$1');
 		const parse = source => {
 			let out = '';
@@ -421,7 +422,7 @@ export class MessageViewVM {
 		}
 	}
 
-	/** Normalise un Content-ID (« <a@b> », « a%40b ») pour la correspondance cid:. */
+	/** Normalise un Content-ID ("<a@b>", "a%40b") pour la correspondance cid:. */
 	normCid(cid) {
 		let v = String(cid).trim();
 		try { v = decodeURIComponent(v); } catch { /* encodage malformé */ }
@@ -430,11 +431,11 @@ export class MessageViewVM {
 
 	/**
 	 * Réécrit les références d'images du corps sanitisé vers les endpoints
-	 * authentifiés : cid: → /api/messages/{uid}/attachment/{mimeIndex},
-	 * https: → /api/proxy (ou neutralisées si images distantes bloquées).
-	 * Content-Location d'une PJ → attachment direct (aucun fetch externe).
+	 * authentifiés : cid: > /api/messages/{uid}/attachment/{mimeIndex},
+	 * https: > /api/proxy (ou neutralisées si images distantes bloquées).
+	 * Content-Location d'une PJ > attachment direct (aucun fetch externe).
 	 *
-	 * Opère sur le DOM, jamais par regex sur du HTML sérialisé — une regex
+	 * Opère sur le DOM, jamais par regex sur du HTML sérialisé - une regex
 	 * pourrait matcher *dans* une valeur d'attribut (alt="logo src=cid:x").
 	 * Couvre src, srcset, background, url() dans style et dans <style>.
 	 */
@@ -451,8 +452,8 @@ export class MessageViewVM {
 		}
 		const px = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
 		const missing = new Set();
-		let blocked = 0; // refs distantes neutralisées (bandeau « Afficher »)
-		// null → référence à supprimer (distante bloquée, relative, exotique)
+		let blocked = 0; // refs distantes neutralisées (bandeau "Afficher")
+		// null > référence à supprimer (distante bloquée, relative, exotique)
 		const resolve = v => {
 			v = String(v).trim();
 			if (/^cid:/i.test(v)) {
@@ -487,7 +488,7 @@ export class MessageViewVM {
 				const r = resolve(v);
 				if (r === null) {
 					el.removeAttribute(name);
-					// mémorise l'URL distante bloquée (debug / « Afficher les images »)
+					// mémorise l'URL distante bloquée (debug / "Afficher les images")
 					if (/^(?:https?:)?\/\//i.test(v.trim())) {
 						el.setAttribute('data-src-blocked', v);
 					}
@@ -500,7 +501,7 @@ export class MessageViewVM {
 				// Entrées "url [descripteur]" séparées par des virgules. Une URI
 				// data: en contient une (mediatype,payload) : si le fragment
 				// commence par data: sans virgule, la virgule suivante appartient
-				// à l'URI → on recolle avant de traiter l'entrée.
+				// à l'URI > on recolle avant de traiter l'entrée.
 				const chunks = [];
 				let pending = '';
 				for (const piece of ss.split(',')) {
@@ -534,7 +535,7 @@ export class MessageViewVM {
 		}
 		if (missing.size) {
 			console.warn('[mxwm] cid: sans pièce jointe correspondante :',
-				[...missing], '— cids disponibles :', [...cidMap.keys()]);
+				[...missing], '- cids disponibles :', [...cidMap.keys()]);
 		}
 		return blocked;
 	}
@@ -559,7 +560,7 @@ export class MessageViewVM {
 		return 0;
 	}
 
-	/** Types servis en aperçu inline : bitmap uniquement (pas de svg/html —
+	/** Types servis en aperçu inline : bitmap uniquement (pas de svg/html -
 	 *  même whitelist bitmap que PROXY_IMAGE_TYPES côté serveur). */
 	static PREVIEW_IMAGES = /^(image\/(png|jpe?g|gif|webp|avif|bmp|x-icon|vnd\.microsoft\.icon))$/i;
 
@@ -572,7 +573,7 @@ export class MessageViewVM {
 			|| /\.eml$/i.test(att.name || '');
 	}
 
-	/** URL inline (download=0) — attachment() refuse le téléchargement forcé. */
+	/** URL inline (download=0) - attachment() refuse le téléchargement forcé. */
 	previewAttachmentUrl(att) {
 		return this.attachmentUrl(att) + '&download=0';
 	}
@@ -584,6 +585,7 @@ export class MessageViewVM {
 		this.previewText('');
 		this.previewEml(null);
 		this.previewEmlAtt = null;
+		this.previewEmlMsg = null;
 		this.previewEmlPath('');
 		if (MessageViewVM.PREVIEW_IMAGES.test(mime)) {
 			this.previewType('image');
@@ -592,6 +594,7 @@ export class MessageViewVM {
 		} else if (mime === 'message/rfc822' || /\.eml$/i.test(att.name || '')) {
 			this.previewType('eml');
 			this.previewEmlAtt = att;
+			this.previewEmlMsg = this.message();
 			await this.loadEml('');
 		} else {
 			this.previewType('text');
@@ -628,11 +631,12 @@ export class MessageViewVM {
 	}
 
 	/** URL JSON du noeud ?sub= de la PJ .eml courante (mimeIndex 1er niveau). */
-	/** Chemin API nu du noeud ?sub= de la PJ .eml — consommé par api.get
+	/** Chemin API nu du noeud ?sub= de la PJ .eml - consommé par api.get
 	 *  (qui préfixe déjà cfg.base + '/api' : pas de base() ni de /api ici,
 	 *  contrairement à emlPartUrl servi en href/src direct). */
 	emlJsonUrl(sub) {
-		const m = this.message(), att = this.previewEmlAtt;
+		const m = this.previewEmlMsg, att = this.previewEmlAtt;
+		if (!m || !att) { return '#'; }
 		return `/messages/${m.uid}/attachment/` +
 			`${encodeURIComponent(att.mimeIndex)}/eml` +
 			`?folder=${encodeURIComponent(m.folder)}` +
@@ -640,9 +644,11 @@ export class MessageViewVM {
 			(sub ? `&sub=${encodeURIComponent(sub)}` : '');
 	}
 
-	/** URL d'une PJ imbriquée (n° n) du noeud courant — download=0 : image cid:. */
+	/** URL d'une PJ imbriquée (n° n) du noeud courant - download=0 : image cid:. */
 	emlPartUrl(n, download) {
-		const m = this.message(), att = this.previewEmlAtt, sub = this.previewEmlPath();
+		const m = this.previewEmlMsg, att = this.previewEmlAtt,
+			sub = this.previewEmlPath();
+		if (!m || !att) { return '#'; }
 		return base() + `/api/messages/${m.uid}/attachment/` +
 			`${encodeURIComponent(att.mimeIndex)}/eml/${encodeURIComponent(n)}` +
 			`?folder=${encodeURIComponent(m.folder)}` +
@@ -657,7 +663,7 @@ export class MessageViewVM {
 		if (!box) { return; }
 		if (data.bodyHtml) {
 			const doc = this.sanitizedDoc(data.bodyHtml);
-			// view_images identique : le from du .eml sert au mode « match ».
+			// view_images identique : le from du .eml sert au mode "match".
 			this.rewriteImageRefs(doc, { attachments: data.attachments || [] },
 				await this.allowRemoteImages({ from: data.from }),
 				a => this.emlPartUrl(a.n, 0));
@@ -679,7 +685,7 @@ export class MessageViewVM {
 			const r = await api.get(`/plugin/ics-viewer/event?folder=${encodeURIComponent(m.folder)}` +
 				`&uid=${m.uid}&mime=${encodeURIComponent(att.mimeIndex)}`);
 			const lines = [];
-			// ev.start/end sont ISO 8601 depuis ics-viewer 0.13 → formatage localisé
+			// ev.start/end sont ISO 8601 depuis ics-viewer 0.13 > formatage localisé
 			const fmt = (s, allDay) => {
 				const d = new Date(s);
 				return isNaN(d) ? s
@@ -697,7 +703,7 @@ export class MessageViewVM {
 			}
 			await dialog.alert(lines.join('\n'),
 				{ title: t('plugin.ics-viewer.title'), variant: 'info' });
-			// Invitation (METHOD:REQUEST) → proposer la réponse iTIP.
+			// Invitation (METHOD:REQUEST) > proposer la réponse iTIP.
 			if (r.method === 'REQUEST') {
 				const choice = await dialog.pick([
 					{ value: 'ACCEPTED',  label: t('plugin.ics-viewer.reply_accept'),    icon: 'fa-check' },
@@ -734,7 +740,7 @@ export class MessageViewVM {
 		}
 	}
 
-	/** Envoie l'accusé de réception demandé (action manuelle — RFC 3798). */
+	/** Envoie l'accusé de réception demandé (action manuelle - RFC 3798). */
 	async sendMdn() {
 		const m = this.message();
 		if (!m) { return; }
@@ -763,7 +769,7 @@ export class MessageViewVM {
 
 	attachmentUrl(att) {
 		const m = this.message();
-		// &uv= (UIDVALIDITY) : active le cache disque/immutable côté serveur —
+		// &uv= (UIDVALIDITY) : active le cache disque/immutable côté serveur -
 		// le contenu d'une PJ est figé par (dossier,uidvalidity,uid,mimeIndex).
 		return base() + `/api/messages/${m.uid}/attachment/${att.mimeIndex}` +
 			`?folder=${encodeURIComponent(m.folder)}` +
@@ -781,7 +787,7 @@ export class MessageViewVM {
 	}
 
 	/** Se désabonner : one-click RFC 8058 côté serveur, sinon ouverture
-	 *  du lien https ; mailto → composition pré-remplie. */
+	 *  du lien https ; mailto > composition pré-remplie. */
 	async unsubscribe() {
 		const m = this.message();
 		if (!m?.unsubscribe) { return; }
@@ -794,7 +800,8 @@ export class MessageViewVM {
 			} else if (r.mailto) {
 				const c = this.app.compose;
 				c.openNew();
-				c.to(r.mailto.replace(/^mailto:/i, '').split('?')[0]);
+				c.to([c.normChip(decodeURIComponent(
+					r.mailto.replace(/^mailto:/i, '').split('?')[0]))]);
 				c.subject('unsubscribe');
 			}
 		} catch (e) { this.error(e.message); }
@@ -818,7 +825,7 @@ export class MessageViewVM {
 	}
 
 	/**
-	 * Impression : document dédié dans une nouvelle fenêtre — en-têtes +
+	 * Impression : document dédié dans une nouvelle fenêtre - en-têtes +
 	 * corps sanitisé tel que rendu dans #mail-body. Pas de noopener dans
 	 * window.open : il ferait retourner null, or le handle est requis.
 	 */
@@ -850,7 +857,7 @@ export class MessageViewVM {
 			+ '</style></head><body></body></html>');
 		doc.close();
 		doc.title = m.subject || '';
-		// En-têtes via DOM + textContent — jamais de HTML interpolé
+		// En-têtes via DOM + textContent - jamais de HTML interpolé
 		const hdr = doc.createElement('div');
 		hdr.className = 'print-hdr';
 		const h1 = doc.createElement('h1');
@@ -868,9 +875,9 @@ export class MessageViewVM {
 			hdr.append(line(t('app.cc') + ' ' + this.headerText('cc')));
 		}
 		hdr.append(line(new Date(m.date * 1000).toLocaleString(this.app.lang)));
-		// Corps : texte déchiffré PGP → <pre> ; sinon copie de #mail-body
+		// Corps : texte déchiffré PGP > <pre> ; sinon copie de #mail-body
 		// (l'id est requis : les <style> copiés ont des sélecteurs préfixés
-		// « #mail-body » — scopeStyles).
+		// "#mail-body" - scopeStyles).
 		if (this.decryptedText()) {
 			const pre = doc.createElement('pre');
 			pre.textContent = this.decryptedText();
@@ -951,7 +958,6 @@ export class MessageViewVM {
 		if (!(await dialog.confirm(t(key, { n: 1 }),
 			{ variant: 'danger', okLabel: t('common.delete'), title: t('messages.delete_title') }))) { return; }
 		const ml = this.app.messageList;
-		const next = ml.peekAdvance(m.uid, m.folder);
 		try {
 			await api.post(`/messages/${m.uid}/delete`, { folder: m.folder });
 		} catch (e) { this.error(e.message); return; }
@@ -960,12 +966,10 @@ export class MessageViewVM {
 			if (!model.isSeen()) { ml.adjustUnread(-1, m.folder); }
 			ml.messages.remove(model);
 		}
-		if (next && ml.messages().includes(next)) {
-			await ml.select(next);
-		} else {
-			this.clear();
-			ml.refresh();
-		}
+		// Après une suppression : aucun mail sélectionné - lecteur fermé.
+		ml.cancelReadTimer();
+		this.clear();
+		ml.refresh();
 	}
 
 	async markUnread() {
@@ -983,19 +987,16 @@ export class MessageViewVM {
 		const m = this.message();
 		if (!m || !target) { return; }
 		const ml = this.app.messageList;
-		const next = ml.peekAdvance(m.uid, m.folder);
 		await api.post(`/messages/${m.uid}/move`, { folder: m.folder, to: target });
 		const model = ml.messages().find(x => x.uid === m.uid && x.folder === m.folder);
 		if (model) {
 			if (!model.isSeen()) { ml.adjustUnread(-1, m.folder); }
 			ml.messages.remove(model);
 		}
-		if (next && ml.messages().includes(next)) {
-			await ml.select(next);
-		} else {
-			this.clear();
-			ml.refresh();
-		}
+		// Après un déplacement : aucun mail sélectionné - lecteur fermé.
+		ml.cancelReadTimer();
+		this.clear();
+		ml.refresh();
 	}
 
 	async moveWithPicker() {
@@ -1005,7 +1006,7 @@ export class MessageViewVM {
 		if (target) { await this.moveTo(target); }
 	}
 
-	/** Déplace le message affiché vers le dossier de rôle « archive ». */
+	/** Déplace le message affiché vers le dossier de rôle "archive". */
 	async archive() {
 		const target = this.app.folderList.archiveFolder()?.fullName;
 		if (target) { await this.moveTo(target); }
@@ -1015,7 +1016,7 @@ export class MessageViewVM {
 		return this.addrText(this.message()?.[field]);
 	}
 
-	/** « Nom <email>, … » — partagé par les en-têtes du message et du .eml. */
+	/** "Nom <email>, …" - partagé par les en-têtes du message et du .eml. */
 	addrText(v) {
 		if (!v) { return ''; }
 		if (Array.isArray(v)) {

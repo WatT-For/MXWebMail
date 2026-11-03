@@ -8,7 +8,7 @@ use MXWebMail\Plugin\PluginBase;
 
 /**
  * Ajoute X-Originating-IP aux messages sortants (header lu par certains
- * filtres anti-spam). check_proxy → IP cliente via trusted_proxies.
+ * filtres anti-spam). check_proxy > IP cliente via trusted_proxies.
  * Portage du plugin legacy add-x-originating-ip-header.
  */
 final class AddXOriginatingIpHeader extends PluginBase

@@ -6,7 +6,7 @@ import { t } from '../i18n.js';
  * Usage : <!-- ko toast: { value: error, variant: 'danger' } --><!-- /ko -->
  *         <!-- ko toast: { value: saved, variant: 'success',
  *               text: 'settings.saved' } --><!-- /ko -->
- * value : chaîne non vide → texte du toast ; true → t(opts.text).
+ * value : chaîne non vide > texte du toast ; true > t(opts.text).
  * La souscription est libérée à la destruction du nœud (modales with:).
  */
 ko.bindingHandlers.toast = {

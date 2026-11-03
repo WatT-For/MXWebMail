@@ -40,10 +40,10 @@ final class UserDatabase
 		return is_file($this->pathFor($userId));
 	}
 
-	/** Suppression : remplace l'ancien cascade FK contacts.user_id → users.id. */
+	/** Suppression : remplace l'ancien cascade FK contacts.user_id > users.id. */
 	public function deleteFor(int $userId): void
 	{
-		unset($this->pool[$userId]); // ferme le PDO — unlink impossible sinon (Windows)
+		unset($this->pool[$userId]); // ferme le PDO - unlink impossible sinon (Windows)
 		foreach (['', '-wal', '-shm', '-journal'] as $suffix) {
 			@unlink($this->pathFor($userId) . $suffix);
 		}

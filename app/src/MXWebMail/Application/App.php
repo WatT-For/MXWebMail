@@ -5,6 +5,8 @@ namespace MXWebMail\Application;
 
 use MXWebMail\Config\Config;
 use MXWebMail\Controller\AdminController;
+use MXWebMail\Controller\Api;
+use MXWebMail\Controller\Admin;
 use MXWebMail\Controller\ApiController;
 use MXWebMail\Controller\PageController;
 use MXWebMail\Controller\SetupController;
@@ -25,7 +27,7 @@ use MXWebMail\Service\MailService;
 use MXWebMail\Theme\ThemeManager;
 
 /**
- * Point d'entrée applicatif : config → session → stockage → routes.
+ * Point d'entrée applicatif : config > session > stockage > routes.
  * Conteneur de services minimal, instanciés à la demande.
  */
 final class App
@@ -47,13 +49,13 @@ final class App
 
 	public function __construct(?string $rootDir = null, ?string $installDir = null)
 	{
-		defined('APP_VERSION') || define('APP_VERSION', '0.49.0'); // X-Mailer MailSo
-		// Prérequis du paquet de mise à jour — lus par regex dans le App.php du
+		defined('APP_VERSION') || define('APP_VERSION', '0.50.0'); // X-Mailer MailSo
+		// Prérequis du paquet de mise à jour - lus par regex dans le App.php du
 		// paquet extrait (UpdateService::checkRequirements) avant application.
 		defined('APP_REQ_PHP') || define('APP_REQ_PHP', '>=8.4');
 		defined('APP_REQ_FROM') || define('APP_REQ_FROM', ''); // source minimale, '' = aucune
 		$this->rootDir = $rootDir ?? dirname(__DIR__, 3);
-		// Racine d'installation (parent de public/) — passée explicitement par
+		// Racine d'installation (parent de public/) - passée explicitement par
 		// index.php car indéductible de rootDir quand app/ est hors racine web.
 		$this->installDir = $installDir ?? dirname($this->rootDir);
 		$this->config = new Config($this->rootDir);
@@ -99,13 +101,13 @@ final class App
 	public function closeDb(): void
 	{
 		$this->db = null;
-		// Repositories mémoïsés : ils référencent l'ancien PDO — à recréer.
+		// Repositories mémoïsés : ils référencent l'ancien PDO - à recréer.
 		$this->users = $this->domains = $this->settings = $this->pluginRepo
 			= $this->themeRepo = $this->pgp = $this->oauthApps = $this->identities = null;
 	}
 
 	/**
-	 * Bases par utilisateur (storage/db/users/<id>.sqlite) — contacts.
+	 * Bases par utilisateur (storage/db/users/<id>.sqlite) - contacts.
 	 * L'import legacy est déclenché ici et non dans db() : /api/contacts sur
 	 * session valide n'ouvre jamais la base globale, l'import doit donc être
 	 * garanti au premier accès contacts.
@@ -120,8 +122,8 @@ final class App
 	}
 
 	/**
-	 * Bascule unique : contacts de la base globale → fichiers par utilisateur.
-	 * Le flag meta est posé après succès — un échec est retenté à la requête
+	 * Bascule unique : contacts de la base globale > fichiers par utilisateur.
+	 * Le flag meta est posé après succès - un échec est retenté à la requête
 	 * suivante (auto-réparant). Fonctionne sous SQLite et MariaDB.
 	 */
 	private function importLegacyContacts(): void
@@ -139,7 +141,7 @@ final class App
 			: (bool) $db->pdo()->query("SHOW TABLES LIKE 'contacts'")->fetchColumn();
 
 		if ($has) {
-			// Seuls les utilisateurs existants sont copiés — les orphelins
+			// Seuls les utilisateurs existants sont copiés - les orphelins
 			// éventuels sont purgés par le DROP final.
 			$uids = $db->pdo()->query(
 				'SELECT DISTINCT c.user_id FROM contacts c JOIN users u ON u.id = c.user_id'
@@ -286,18 +288,34 @@ final class App
 			$lang = ($forced !== 'auto' && in_array($forced, $langs, true))
 				? $forced
 				: Translator::detect($langs);
-			$this->locale = new Translator($lang, array_merge(
-				[$this->localeDir()],
-				glob($this->rootDir . '/plugins/*/langs', GLOB_ONLYDIR) ?: [],
-				glob($this->rootDir . '/templates/*/langs', GLOB_ONLYDIR) ?: []
-			), $this->storageDir() . '/cache/i18n_' . $lang . '.php');
+			$this->locale = $this->translatorFor($lang);
 		}
 		return $this->locale;
 	}
 
+	/** Dossiers de dictionnaires : cœur + plugins + templates (mêmes globs que locale()). */
+	private function localeDirs(): array
+	{
+		return array_merge(
+			[$this->localeDir()],
+			glob($this->rootDir . '/plugins/*/langs', GLOB_ONLYDIR) ?: [],
+			glob($this->rootDir . '/templates/*/langs', GLOB_ONLYDIR) ?: []
+		);
+	}
+
+	/**
+	 * Traducteur d'une langue donnée (sert le dict via /assets/i18n/{lang}.js).
+	 * Le cache i18n_{lang}.php est mutualisé avec locale() - même signature de sources.
+	 */
+	public function translatorFor(string $lang): Translator
+	{
+		return new Translator($lang, $this->localeDirs(),
+			$this->storageDir() . '/cache/i18n_' . $lang . '.php');
+	}
+
 	/**
 	 * $adminSurface = requête sur la surface admin (page + /api/admin/*) : les
-	 * plugins « non utilisables par les utilisateurs » s'y chargent quand même,
+	 * plugins "non utilisables par les utilisateurs" s'y chargent quand même,
 	 * y compris avant login admin (hooks admin.post-login / admin.totp-required).
 	 */
 	public function plugins(bool $adminSurface = false): PluginManager
@@ -333,7 +351,7 @@ final class App
 
 	/**
 	 * MailService mémoïsé : une seule connexion IMAP/Sieve par requête.
-	 * Avant : chaque appel instanciait un service neuf → Connect+Login par
+	 * Avant : chaque appel instanciait un service neuf > Connect+Login par
 	 * appel (jusqu'à 3-4 connexions par endpoint, ×2 par image cid:).
 	 * Mutateurs de session mail (AuthService::switchAccount) doivent appeler
 	 * mail()->disconnect() pour forcer la reconnexion au prochain accès.
@@ -356,7 +374,7 @@ final class App
 	{
 		$f = $this->storageDir() . '/update/applying';
 		// filemtime suffit : le contenu posé par UpdateService == l'instant
-		// d'écriture — évite une lecture de fichier par requête API.
+		// d'écriture - évite une lecture de fichier par requête API.
 		return is_file($f) && (int) @filemtime($f) > time() - 900;
 	}
 
@@ -379,7 +397,7 @@ final class App
 		}
 		session_name('mxwm_session');
 		$lifetime = (int) $this->config->get('session_lifetime', 0) * 3600;
-		// Plancher 8 h même à 0 (« cookie de session ») : sinon le GC PHP
+		// Plancher 8 h même à 0 ("cookie de session") : sinon le GC PHP
 		// (défaut 1440 s) collecte une session idle > 24 min et l'utilisateur
 		// est déconnecté alors que l'onglet est encore ouvert.
 		ini_set('session.gc_maxlifetime', (string) max($lifetime, 28800));
@@ -419,18 +437,27 @@ final class App
 	 */
 	public function publicUrl(string $path): string
 	{
-		$host = (string) ($_SERVER['HTTP_HOST'] ?? '');
-		if (preg_match('/^(\[[0-9a-fA-F:]+\]|[A-Za-z0-9.\-]+)(?::(\d{1,5}))?$/', $host, $m)) {
-			if (('[' === $m[1][0]
-					&& !filter_var(substr($m[1], 1, -1), FILTER_VALIDATE_IP, FILTER_FLAG_IPV6))
-				|| (isset($m[2]) && (int) $m[2] > 65535)) {
-				$host = 'localhost';
-			}
-		} else {
-			$host = 'localhost';
-		}
-		return ($this->isHttps() ? 'https' : 'http') . '://' . $host
+		return ($this->isHttps() ? 'https' : 'http') . '://'
+			. self::normalizeHost((string) ($_SERVER['HTTP_HOST'] ?? ''))
 			. Request::basePath() . $path;
+	}
+
+	/**
+	 * HTTP_HOST est client-contrôlé : validation partagée entre publicUrl et
+	 * la redirection force_https (nom/punycode, IPv6 littéral […], port ≤
+	 * 65535) - tout autre forme retombe sur 'localhost'.
+	 */
+	private static function normalizeHost(string $host): string
+	{
+		if (!preg_match('/^(\[[0-9a-fA-F:]+\]|[A-Za-z0-9.\-]+)(?::(\d{1,5}))?$/', $host, $m)) {
+			return 'localhost';
+		}
+		if (('[' === $m[1][0]
+				&& !filter_var(substr($m[1], 1, -1), FILTER_VALIDATE_IP, FILTER_FLAG_IPV6))
+			|| (isset($m[2]) && (int) $m[2] > 65535)) {
+			return 'localhost';
+		}
+		return $host;
 	}
 
 	/**
@@ -476,10 +503,10 @@ final class App
 
 	/**
 	 * Pourquoi l'hôte n'est-il pas public ? null = OK. Bloque les littéraux
-	 * IP ([10.0.0.5], [::1]) et les DNS privés/réservés — anti-SSRF pour
+	 * IP ([10.0.0.5], [::1]) et les DNS privés/réservés - anti-SSRF pour
 	 * toute requête sortante sur un hôte issu d'une saisie (plugins
 	 * avatars, carddav, wkd…). Fail-closed : échec DNS ou une seule IP
-	 * privée/réservée → refus. Raisons : 'literal' = littéral IP non
+	 * privée/réservée > refus. Raisons : 'literal' = littéral IP non
 	 * public, 'dns' = rien à résoudre (hôte vide, NXDOMAIN, échec DNS),
 	 * 'private' = résolution vers une IP privée/réservée.
 	 */
@@ -495,7 +522,7 @@ final class App
 				? null : 'literal';
 		}
 		// A + AAAA : gethostbyname (IPv4 seul) refuserait un hôte IPv6-only.
-		// @ : un SERVFAIL émettrait sinon « DNS Query failed » par requête.
+		// @ : un SERVFAIL émettrait sinon "DNS Query failed" par requête.
 		$ips = [];
 		foreach (@dns_get_record($h, DNS_A + DNS_AAAA) ?: [] as $r) {
 			if (isset($r['ip'])) {
@@ -545,8 +572,8 @@ final class App
 
 	/**
 	 * Whitelist des clés de réglages utilisateur (user_settings) : clés de
-	 * user_defaults + celles déclarées par les plugins via « settings.allowed ».
-	 * Les clés « plugin.* » restent gérées par l'API dédiée de chaque plugin.
+	 * user_defaults + celles déclarées par les plugins via "settings.allowed".
+	 * Les clés "plugin.*" restent gérées par l'API dédiée de chaque plugin.
 	 */
 	public function allowedUserSettingKeys(): array
 	{
@@ -559,7 +586,7 @@ final class App
 	}
 
 	/**
-	 * Règles de validation des clés user_defaults — partagées entre
+	 * Règles de validation des clés user_defaults - partagées entre
 	 * l'édition admin des défauts globaux (AdminController::settingsSet)
 	 * et les écritures de réglages par utilisateur (settingsSet /
 	 * userSettingsSet) pour qu'une valeur hors bornes ne soit jamais
@@ -572,7 +599,6 @@ final class App
 			'list_sort' => 'enum:REVERSE DATE,DATE,ARRIVAL,REVERSE ARRIVAL,FROM,REVERSE FROM,TO,REVERSE TO,CC,SUBJECT,REVERSE SUBJECT,SIZE,REVERSE SIZE',
 			'view_images' => 'enum:ask,match,always',
 			'msg_default_action' => 'enum:reply,reply_all',
-			'auto_advance'      => 'enum:next,prev,none',
 			'mark_read_delay' => 'int:0:300',
 			'compose_autosave' => 'int:0:300',
 			'mdn_mode' => 'enum:ask,never',
@@ -598,7 +624,7 @@ final class App
 	 * Retourne [accepté, valeur normalisée] :
 	 * - null en entrée = suppression de la clé (toujours accepté) ;
 	 * - theme : existence + autorisation (isSelectable, plus strict que 'key') ;
-	 * - clé sans règle (plugins via « settings.allowed ») : scalaire accepté ;
+	 * - clé sans règle (plugins via "settings.allowed") : scalaire accepté ;
 	 * - valeur non scalaire ou hors bornes : rejetée, jamais stockée.
 	 */
 	public function checkUserSetting(string $key, mixed $value): array
@@ -634,9 +660,9 @@ final class App
 
 	/**
 	 * Envoi unique d'une Response : applique la compression gzip configurable
-	 * (section « http ») puis émet. Vary est posé dès que le type est
-	 * compressible — même sans compression effective. zlib.output_compression
-	 * actif côté ini ou en-tête Content-Encoding déjà posé → rien à faire.
+	 * (section "http") puis émet. Vary est posé dès que le type est
+	 * compressible - même sans compression effective. zlib.output_compression
+	 * actif côté ini ou en-tête Content-Encoding déjà posé > rien à faire.
 	 */
 	private function sendResponse(Response $response, Request $request): void
 	{
@@ -659,7 +685,7 @@ final class App
 		$request = Request::fromGlobals();
 		$isApi = str_starts_with($request->path, '/api/');
 
-		// Verrou d'installation absent → assistant d'installation (l'API répond
+		// Verrou d'installation absent > assistant d'installation (l'API répond
 		// 503). /setup est servi par le SetupController intégré ; une fois le
 		// verrou posé, /setup suit le routing normal et tombe sur un 404.
 		$isSetup = $request->path === '/setup'
@@ -668,9 +694,9 @@ final class App
 			$response = match (true) {
 				$isSetup && class_exists(SetupController::class)
 					=> (new SetupController($this))->handle($request),
-				// Classe absente (upload incomplet) : 503 — le bras « default »
+				// Classe absente (upload incomplet) : 503 - le bras "default"
 				// redirigerait vers /setup/ en boucle.
-				$isSetup => Response::html('<h1>503 — '
+				$isSetup => Response::html('<h1>503 - '
 					. htmlspecialchars($this->locale()->t('errors.not_installed'), ENT_QUOTES, 'UTF-8')
 					. '</h1>', 503),
 				$isApi => \MXWebMail\Http\JsonResponse::error(
@@ -684,20 +710,12 @@ final class App
 
 		// Redirection HTTPS permanente avant tout traitement
 		if ($this->config->get('force_https', false) && !$this->isHttps()) {
-			// HTTP_HOST est client-contrôlé : sans validation, un Host forgé
-			// se retrouve dans le Location du 301 (host header injection).
-			// Formes acceptées : nom/punycode, IPv6 littéral […], port ≤ 65535.
-			$host = (string) ($_SERVER['HTTP_HOST'] ?? '');
-			if (preg_match('/^(\[[0-9a-fA-F:]+\]|[A-Za-z0-9.\-]+)(?::(\d{1,5}))?$/', $host, $m)) {
-				if (('[' === $m[1][0]
-						&& !filter_var(substr($m[1], 1, -1), FILTER_VALIDATE_IP, FILTER_FLAG_IPV6))
-					|| (isset($m[2]) && (int) $m[2] > 65535)) {
-					$host = 'localhost';
-				}
-			} else {
-				$host = 'localhost';
-			}
-			header('Location: https://' . $host . ($_SERVER['REQUEST_URI'] ?? '/'), true, 301);
+			// HTTP_HOST est client-contrôlé : sans validation (normalizeHost),
+			// un Host forgé se retrouve dans le Location du 301 (host header
+			// injection).
+			header('Location: https://'
+				. self::normalizeHost((string) ($_SERVER['HTTP_HOST'] ?? ''))
+				. ($_SERVER['REQUEST_URI'] ?? '/'), true, 301);
 			return;
 		}
 
@@ -708,12 +726,12 @@ final class App
 		);
 
 		// Anti-CSRF via en-têtes Sec-Fetch-* : rejette le cross-site, sauf
-		// navigation GET vers un document (isEntering — y compris sans
+		// navigation GET vers un document (isEntering - y compris sans
 		// Sec-Fetch-User : le navigateur le retire après chaque redirection,
 		// cf. entrées via portail/liens réécrits). Les règles additionnelles
 		// de 'secfetch_allow' étendent les combinaisons acceptées.
 		// Exception : le retour OAuth2 est une navigation cross-site par
-		// redirection provider (pas de Sec-Fetch-User) — sa protection réelle
+		// redirection provider (pas de Sec-Fetch-User) - sa protection réelle
 		// est le state signé + PKCE, vérifiés dans accountOauthCallback.
 		$oauthCallback = $request->method === 'GET'
 			&& $request->path === '/api/oauth/callback';
@@ -724,14 +742,14 @@ final class App
 			$this->sendResponse($isApi
 				? \MXWebMail\Http\JsonResponse::error(
 					$this->locale()->t('errors.cross_site'), 'secfetch', 403)
-				: Response::html('<h1>403 — '
+				: Response::html('<h1>403 - '
 					. htmlspecialchars($this->locale()->t('errors.forbidden'), ENT_QUOTES, 'UTF-8')
 					. '</h1>', 403), $request);
 			return;
 		}
 
 		// Mise à jour en cours (flag posé par UpdateService::apply/rollback) :
-		// bloque l'API non-admin — les fichiers sont remplacés pendant la copie.
+		// bloque l'API non-admin - les fichiers sont remplacés pendant la copie.
 		if ($isApi && $this->isUpdating()
 			&& !str_starts_with($request->path, '/api/admin/')
 			&& $request->path !== '/api/ping') {
@@ -750,7 +768,7 @@ final class App
 		}
 
 		$this->startSession();
-		// Jeton « se souvenir de moi » : restaure une session webmail
+		// Jeton "se souvenir de moi" : restaure une session webmail
 		// absente/expirée avant le dispatch (rotation du validator à l'usage).
 		if (empty($_SESSION['user_id']) && !empty($_COOKIE['mxwm_remember'])) {
 			try {
@@ -760,7 +778,7 @@ final class App
 			}
 		}
 		// Sonde maintenance/update : réponse sans charger les plugins ni le
-		// routeur — la page maintenance la frappe en boucle pendant la copie.
+		// routeur - la page maintenance la frappe en boucle pendant la copie.
 		if ($request->path === '/api/ping') {
 			$this->sendResponse((new ApiController($this))->ping($request), $request);
 			return;
@@ -779,17 +797,35 @@ final class App
 		try {
 			$response = $router->dispatch($request) ?? Response::notFound();
 		} catch (\Throwable $e) {
+			// Panne du serveur mail amont (socket coupé, hôte down, timeout) :
+			// la chaîne est parcourue - les services enveloppent l'erreur
+			// socket d'origine. > 503 + message dédié, pas "erreur interne".
+			$net = null;
+			for ($x = $e; $x !== null && $net === null; $x = $x->getPrevious()) {
+				$net = match (true) {
+					$x instanceof \MailSo\Net\Exceptions\ConnectionException,
+					$x instanceof \MailSo\Net\Exceptions\SocketReadTimeoutException => 'errors.mail_unreachable',
+					$x instanceof \MailSo\Net\Exceptions\SocketReadException,
+					$x instanceof \MailSo\Net\Exceptions\SocketWriteException => 'errors.mail_conn_lost',
+					default => null,
+				};
+			}
 			$code = $e->getCode();
-			$status = ($code >= 400 && $code < 600) ? $code : 500;
+			$status = $net !== null ? 503
+				: (($code >= 400 && $code < 600) ? $code : 500);
 			if ($status >= 500) {
 				$this->log('error', $e->getMessage() . ' @ ' . $e->getFile() . ':' . $e->getLine());
 			}
-			$message = ($status >= 500 && !$this->config->isDebug())
-				? $this->locale()->t('errors.internal')
-				: $e->getMessage();
+			$message = match (true) {
+				// Message déjà traduit et sûr (avec host éventuel) : prioritaire.
+				$e instanceof \MXWebMail\UserFacingException => $e->getMessage(),
+				$net !== null => $this->locale()->t($net),
+				$status >= 500 && !$this->config->isDebug() => $this->locale()->t('errors.internal'),
+				default => $e->getMessage(),
+			};
 			$response = $isApi
 				? \MXWebMail\Http\JsonResponse::error($message, 'error', $status)
-				: Response::html('<h1>' . $status . ' — '
+				: Response::html('<h1>' . $status . ' - '
 					. htmlspecialchars($message, ENT_QUOTES, 'UTF-8') . '</h1>', $status);
 		}
 
@@ -801,6 +837,19 @@ final class App
 		$pages = new PageController($this);
 		$api = new ApiController($this);
 		$admin = new AdminController($this);
+		$apiFolders = new Api\FoldersController($this);
+		$apiMessages = new Api\MessagesController($this);
+		$apiCompose = new Api\ComposeController($this);
+		$apiContacts = new Api\ContactsController($this);
+		$apiSettings = new Api\SettingsController($this);
+		$apiAccounts = new Api\AccountsController($this);
+		$apiFilters = new Api\FiltersController($this);
+		$apiPgp = new Api\PgpController($this);
+		$admUsers = new Admin\UsersController($this);
+		$admDomains = new Admin\DomainsController($this);
+		$admPlugins = new Admin\PluginsController($this);
+		$admThemes = new Admin\ThemesController($this);
+		$admSystem = new Admin\SystemController($this);
 
 		// ─── Pages ───
 		$router->get('/', [$pages, 'home']);
@@ -808,6 +857,7 @@ final class App
 		$router->get('/favicon.ico', [$pages, 'favicon']);
 		$router->get('/assets/plugin/{name}/{file}', [$pages, 'pluginAsset']);
 		$router->get('/assets/theme/{name}/{file}', [$pages, 'themeAsset']);
+		$router->get('/assets/i18n/{lang}.js', [$pages, 'i18nAsset']);
 
 		// ─── API publique ───
 		$router->post('/api/login', [$api, 'login']);
@@ -817,153 +867,154 @@ final class App
 		$router->get('/api/proxy', [$api, 'proxy']);
 
 		// ─── API authentifiée ───
-		$router->get('/api/folders', [$api, 'folders']);
-		$router->post('/api/folders/create', [$api, 'folderCreate']);
-		$router->post('/api/folders/{name}/delete', [$api, 'folderDelete']);
-		$router->post('/api/folders/{name}/rename', [$api, 'folderRename']);
-		$router->post('/api/folders/{name}/subscribe', [$api, 'folderSubscribe']);
-		$router->post('/api/folders/{name}/clear', [$api, 'folderClear']);
-		$router->post('/api/folders/{name}/mark-read', [$api, 'folderMarkRead']);
-		$router->post('/api/folders/{name}/import', [$api, 'folderImport']);
-		$router->get('/api/folders/{name}/eml.zip', [$api, 'emlZip']);
-		$router->get('/api/folders/{name}/acl', [$api, 'folderAcl']);
-		$router->post('/api/folders/{name}/acl', [$api, 'folderAclSet']);
-		$router->post('/api/folders/{name}/acl/delete', [$api, 'folderAclDelete']);
-		$router->get('/api/folders/special', [$api, 'foldersSpecialGet']);
-		$router->post('/api/folders/special', [$api, 'foldersSpecialSet']);
-		$router->get('/api/folders/notify', [$api, 'foldersNotifyGet']);
-		$router->post('/api/folders/notify', [$api, 'foldersNotifySet']);
+		$router->get('/api/folders', [$apiFolders, 'folders']);
+		$router->post('/api/folders/create', [$apiFolders, 'folderCreate']);
+		$router->post('/api/folders/{name}/delete', [$apiFolders, 'folderDelete']);
+		$router->post('/api/folders/{name}/rename', [$apiFolders, 'folderRename']);
+		$router->post('/api/folders/{name}/subscribe', [$apiFolders, 'folderSubscribe']);
+		$router->post('/api/folders/{name}/clear', [$apiFolders, 'folderClear']);
+		$router->post('/api/folders/{name}/mark-read', [$apiFolders, 'folderMarkRead']);
+		$router->post('/api/folders/{name}/import', [$apiFolders, 'folderImport']);
+		$router->get('/api/folders/{name}/eml.zip', [$apiFolders, 'emlZip']);
+		$router->get('/api/folders/{name}/acl', [$apiFolders, 'folderAcl']);
+		$router->post('/api/folders/{name}/acl', [$apiFolders, 'folderAclSet']);
+		$router->post('/api/folders/{name}/acl/delete', [$apiFolders, 'folderAclDelete']);
+		$router->get('/api/folders/special', [$apiFolders, 'foldersSpecialGet']);
+		$router->post('/api/folders/special', [$apiFolders, 'foldersSpecialSet']);
+		$router->get('/api/folders/notify', [$apiFolders, 'foldersNotifyGet']);
+		$router->post('/api/folders/notify', [$apiFolders, 'foldersNotifySet']);
+		$router->post('/api/folders/collapsed', [$apiFolders, 'foldersCollapsedSet']);
 
-		$router->get('/api/messages', [$api, 'messages']);
-		$router->get('/api/messages/{uid}', [$api, 'message']);
-		$router->get('/api/messages/{uid}/raw', [$api, 'messageRaw']);
-		$router->get('/api/messages/{uid}/attachment/{id}', [$api, 'attachment']);
-		$router->get('/api/messages/{uid}/attachment/{id}/eml', [$api, 'attachmentEml']);
-		$router->get('/api/messages/{uid}/attachment/{id}/eml/{part}', [$api, 'attachmentEmlPart']);
-		// Batch multi-dossiers (sélection cochée) — avant les routes {uid}.
-		$router->post('/api/messages/delete', [$api, 'messagesDelete']);
-		$router->post('/api/messages/move', [$api, 'messagesMove']);
-		$router->post('/api/messages/{uid}/flags', [$api, 'messageFlags']);
-		$router->post('/api/messages/{uid}/move', [$api, 'messageMove']);
-		$router->post('/api/messages/{uid}/copy', [$api, 'messageCopy']);
-		$router->post('/api/messages/{uid}/delete', [$api, 'messageDelete']);
-		$router->post('/api/messages/{uid}/spam', [$api, 'messageSpam']);
-		$router->post('/api/messages/{uid}/unsubscribe', [$api, 'messageUnsubscribe']);
-		$router->post('/api/messages/{uid}/mdn', [$api, 'messageMdnSend']);
-		$router->post('/api/messages/{uid}/smime-verify', [$api, 'messageSmimeVerify']);
-		$router->get('/api/messages/{uid}/attachments.zip', [$api, 'attachmentsZip']);
-		$router->get('/api/responses', [$api, 'responses']);
-		$router->post('/api/responses', [$api, 'responseSave']);
-		$router->post('/api/responses/{id}/delete', [$api, 'responseDelete']);
+		$router->get('/api/messages', [$apiMessages, 'messages']);
+		$router->get('/api/messages/{uid}', [$apiMessages, 'message']);
+		$router->get('/api/messages/{uid}/raw', [$apiMessages, 'messageRaw']);
+		$router->get('/api/messages/{uid}/attachment/{id}', [$apiMessages, 'attachment']);
+		$router->get('/api/messages/{uid}/attachment/{id}/eml', [$apiMessages, 'attachmentEml']);
+		$router->get('/api/messages/{uid}/attachment/{id}/eml/{part}', [$apiMessages, 'attachmentEmlPart']);
+		// Batch multi-dossiers (sélection cochée) - avant les routes {uid}.
+		$router->post('/api/messages/delete', [$apiMessages, 'messagesDelete']);
+		$router->post('/api/messages/move', [$apiMessages, 'messagesMove']);
+		$router->post('/api/messages/{uid}/flags', [$apiMessages, 'messageFlags']);
+		$router->post('/api/messages/{uid}/move', [$apiMessages, 'messageMove']);
+		$router->post('/api/messages/{uid}/copy', [$apiMessages, 'messageCopy']);
+		$router->post('/api/messages/{uid}/delete', [$apiMessages, 'messageDelete']);
+		$router->post('/api/messages/{uid}/spam', [$apiMessages, 'messageSpam']);
+		$router->post('/api/messages/{uid}/unsubscribe', [$apiMessages, 'messageUnsubscribe']);
+		$router->post('/api/messages/{uid}/mdn', [$apiMessages, 'messageMdnSend']);
+		$router->post('/api/messages/{uid}/smime-verify', [$apiMessages, 'messageSmimeVerify']);
+		$router->get('/api/messages/{uid}/attachments.zip', [$apiMessages, 'attachmentsZip']);
+		$router->get('/api/responses', [$apiCompose, 'responses']);
+		$router->post('/api/responses', [$apiCompose, 'responseSave']);
+		$router->post('/api/responses/{id}/delete', [$apiCompose, 'responseDelete']);
 
-		$router->post('/api/compose/send', [$api, 'composeSend']);
-		$router->post('/api/compose/upload', [$api, 'composeUpload']);
-		$router->post('/api/compose/upload/{token}/delete', [$api, 'composeUploadDelete']);
-		$router->post('/api/compose/save-draft', [$api, 'composeSaveDraft']);
+		$router->post('/api/compose/send', [$apiCompose, 'composeSend']);
+		$router->post('/api/compose/upload', [$apiCompose, 'composeUpload']);
+		$router->post('/api/compose/upload/{token}/delete', [$apiCompose, 'composeUploadDelete']);
+		$router->post('/api/compose/save-draft', [$apiCompose, 'composeSaveDraft']);
 
-		$router->get('/api/contacts', [$api, 'contacts']);
-		$router->post('/api/contacts', [$api, 'contactSave']);
-		$router->post('/api/contacts/delete', [$api, 'contactDelete']);
-		$router->post('/api/contacts/import', [$api, 'contactsImport']);
-		$router->get('/api/contacts/export', [$api, 'contactsExport']);
-		$router->post('/api/password/change', [$api, 'passwordChange']);
-		$router->get('/api/sessions', [$api, 'sessions']);
-		$router->post('/api/sessions/{id}/delete', [$api, 'sessionDelete']);
-		$router->post('/api/sessions/revoke-others', [$api, 'sessionsRevokeOthers']);
-		$router->get('/api/settings', [$api, 'settingsGet']);
-		$router->post('/api/settings', [$api, 'settingsSet']);
-		$router->get('/api/identities', [$api, 'identities']);
-		$router->post('/api/identities', [$api, 'identitySave']);
-		$router->post('/api/identities/delete', [$api, 'identityDelete']);
-		$router->post('/api/identities/{id}/default', [$api, 'identityDefault']);
+		$router->get('/api/contacts', [$apiContacts, 'contacts']);
+		$router->post('/api/contacts', [$apiContacts, 'contactSave']);
+		$router->post('/api/contacts/delete', [$apiContacts, 'contactDelete']);
+		$router->post('/api/contacts/import', [$apiContacts, 'contactsImport']);
+		$router->get('/api/contacts/export', [$apiContacts, 'contactsExport']);
+		$router->post('/api/password/change', [$apiSettings, 'passwordChange']);
+		$router->get('/api/sessions', [$apiSettings, 'sessions']);
+		$router->post('/api/sessions/{id}/delete', [$apiSettings, 'sessionDelete']);
+		$router->post('/api/sessions/revoke-others', [$apiSettings, 'sessionsRevokeOthers']);
+		$router->get('/api/settings', [$apiSettings, 'settingsGet']);
+		$router->post('/api/settings', [$apiSettings, 'settingsSet']);
+		$router->get('/api/identities', [$apiSettings, 'identities']);
+		$router->post('/api/identities', [$apiSettings, 'identitySave']);
+		$router->post('/api/identities/delete', [$apiSettings, 'identityDelete']);
+		$router->post('/api/identities/{id}/default', [$apiSettings, 'identityDefault']);
 
 		// Comptes additionnels (+ flow OAuth2 : begin JSON, callback page ;
 		// identifiants d'app par utilisateur : /api/oauth/apps)
-		$router->get('/api/accounts', [$api, 'accounts']);
-		$router->post('/api/accounts', [$api, 'accountAdd']);
-		$router->post('/api/accounts/oauth', [$api, 'accountOauthBegin']);
-		$router->get('/api/oauth/callback', [$api, 'accountOauthCallback']);
-		$router->get('/api/oauth/apps', [$api, 'oauthApps']);
-		$router->post('/api/oauth/apps', [$api, 'oauthAppSave']);
-		$router->post('/api/oauth/apps/delete', [$api, 'oauthAppDelete']);
-		$router->post('/api/accounts/{id}/switch', [$api, 'accountSwitch']);
-		$router->post('/api/accounts/{id}/delete', [$api, 'accountDelete']);
-		$router->post('/api/accounts/{id}/default', [$api, 'accountDefault']);
-		$router->post('/api/accounts/order', [$api, 'accountOrder']);
+		$router->get('/api/accounts', [$apiAccounts, 'accounts']);
+		$router->post('/api/accounts', [$apiAccounts, 'accountAdd']);
+		$router->post('/api/accounts/oauth', [$apiAccounts, 'accountOauthBegin']);
+		$router->get('/api/oauth/callback', [$apiAccounts, 'accountOauthCallback']);
+		$router->get('/api/oauth/apps', [$apiAccounts, 'oauthApps']);
+		$router->post('/api/oauth/apps', [$apiAccounts, 'oauthAppSave']);
+		$router->post('/api/oauth/apps/delete', [$apiAccounts, 'oauthAppDelete']);
+		$router->post('/api/accounts/{id}/switch', [$apiAccounts, 'accountSwitch']);
+		$router->post('/api/accounts/{id}/delete', [$apiAccounts, 'accountDelete']);
+		$router->post('/api/accounts/{id}/default', [$apiAccounts, 'accountDefault']);
+		$router->post('/api/accounts/order', [$apiAccounts, 'accountOrder']);
 
 		// Filtres Sieve
-		$router->get('/api/filters', [$api, 'filters']);
-		$router->get('/api/filters/script', [$api, 'filterGet']);
-		$router->post('/api/filters/script', [$api, 'filterSave']);
-		$router->post('/api/filters/activate', [$api, 'filterActivate']);
-		$router->post('/api/filters/deactivate', [$api, 'filterDeactivate']);
-		$router->post('/api/filters/compile', [$api, 'filterCompile']);
-		$router->get('/api/filters/vacation', [$api, 'vacationGet']);
-		$router->post('/api/filters/vacation', [$api, 'vacationSave']);
-		$router->post('/api/filters/delete', [$api, 'filterDelete']);
-		// PGP — gestion du keyring (crypto côté navigateur, OpenPGP.js)
-		$router->get('/api/pgp/keys', [$api, 'pgpKeys']);
-		$router->post('/api/pgp/keys', [$api, 'pgpKeySave']);
-		$router->post('/api/pgp/keys/{id}/delete', [$api, 'pgpKeyDelete']);
-		$router->get('/api/pgp/keys/lookup', [$api, 'pgpKeysLookup']);
+		$router->get('/api/filters', [$apiFilters, 'filters']);
+		$router->get('/api/filters/script', [$apiFilters, 'filterGet']);
+		$router->post('/api/filters/script', [$apiFilters, 'filterSave']);
+		$router->post('/api/filters/activate', [$apiFilters, 'filterActivate']);
+		$router->post('/api/filters/deactivate', [$apiFilters, 'filterDeactivate']);
+		$router->post('/api/filters/compile', [$apiFilters, 'filterCompile']);
+		$router->get('/api/filters/vacation', [$apiFilters, 'vacationGet']);
+		$router->post('/api/filters/vacation', [$apiFilters, 'vacationSave']);
+		$router->post('/api/filters/delete', [$apiFilters, 'filterDelete']);
+		// PGP - gestion du keyring (crypto côté navigateur, OpenPGP.js)
+		$router->get('/api/pgp/keys', [$apiPgp, 'pgpKeys']);
+		$router->post('/api/pgp/keys', [$apiPgp, 'pgpKeySave']);
+		$router->post('/api/pgp/keys/{id}/delete', [$apiPgp, 'pgpKeyDelete']);
+		$router->get('/api/pgp/keys/lookup', [$apiPgp, 'pgpKeysLookup']);
 
-		$router->get('/api/quota', [$api, 'quota']);
+		$router->get('/api/quota', [$apiSettings, 'quota']);
 
-		// API générique des plugins : /api/plugin/{name}/{action} → Plugin::api<Action>
+		// API générique des plugins : /api/plugin/{name}/{action} > Plugin::api<Action>
 		$router->get('/api/plugin/{name}/{action}', [$api, 'pluginCall']);
 		$router->post('/api/plugin/{name}/{action}', [$api, 'pluginCall']);
 
 		// ─── API admin ───
 		$router->post('/api/admin/login', [$admin, 'login']);
 		$router->post('/api/admin/logout', [$admin, 'logout']);
-		$router->get('/api/admin/bootstrap', [$admin, 'bootstrap']);
-		$router->get('/api/admin/users', [$admin, 'users']);
-		$router->get('/api/admin/users/{id}', [$admin, 'userGet']);
-		$router->post('/api/admin/users/{id}', [$admin, 'userSave']);
-		$router->post('/api/admin/users/{id}/delete', [$admin, 'userDelete']);
-		$router->post('/api/admin/users/{id}/settings', [$admin, 'userSettingsSet']);
-		$router->post('/api/admin/users/{id}/settings/reset', [$admin, 'userSettingsReset']);
-		$router->post('/api/admin/users/{id}/accounts/delete', [$admin, 'userAccountDelete']);
-		$router->post('/api/admin/users/{id}/identities', [$admin, 'userIdentitySave']);
-		$router->post('/api/admin/users/{id}/identities/delete', [$admin, 'userIdentityDelete']);
-		$router->post('/api/admin/users/{id}/identities/default', [$admin, 'userIdentityDefault']);
-		$router->get('/api/admin/domains', [$admin, 'domains']);
-		$router->post('/api/admin/domains', [$admin, 'domainSave']);
-		$router->post('/api/admin/domains/delete', [$admin, 'domainDelete']);
-		$router->post('/api/admin/domains/detect', [$admin, 'domainDetect']);
-		$router->get('/api/admin/plugins', [$admin, 'plugins']);
-		$router->get('/api/admin/plugins/catalog', [$admin, 'pluginsCatalog']);
-		$router->post('/api/admin/plugins/{name}/install', [$admin, 'pluginInstall']);
-		$router->post('/api/admin/plugins/{name}/remove', [$admin, 'pluginRemove']);
-		$router->post('/api/admin/plugins/{name}/toggle', [$admin, 'pluginToggle']);
-		$router->post('/api/admin/plugins/{name}/allowed', [$admin, 'pluginAllowedSet']);
-		$router->get('/api/admin/plugins/{name}/config', [$admin, 'pluginConfigGet']);
-		$router->post('/api/admin/plugins/{name}/config', [$admin, 'pluginConfigSet']);
-		// API générique des plugins côté admin : → Plugin::apiAdmin<Action>
+		$router->get('/api/admin/bootstrap', [$admSystem, 'bootstrap']);
+		$router->get('/api/admin/users', [$admUsers, 'users']);
+		$router->get('/api/admin/users/{id}', [$admUsers, 'userGet']);
+		$router->post('/api/admin/users/{id}', [$admUsers, 'userSave']);
+		$router->post('/api/admin/users/{id}/delete', [$admUsers, 'userDelete']);
+		$router->post('/api/admin/users/{id}/settings', [$admUsers, 'userSettingsSet']);
+		$router->post('/api/admin/users/{id}/settings/reset', [$admUsers, 'userSettingsReset']);
+		$router->post('/api/admin/users/{id}/accounts/delete', [$admUsers, 'userAccountDelete']);
+		$router->post('/api/admin/users/{id}/identities', [$admUsers, 'userIdentitySave']);
+		$router->post('/api/admin/users/{id}/identities/delete', [$admUsers, 'userIdentityDelete']);
+		$router->post('/api/admin/users/{id}/identities/default', [$admUsers, 'userIdentityDefault']);
+		$router->get('/api/admin/domains', [$admDomains, 'domains']);
+		$router->post('/api/admin/domains', [$admDomains, 'domainSave']);
+		$router->post('/api/admin/domains/delete', [$admDomains, 'domainDelete']);
+		$router->post('/api/admin/domains/detect', [$admDomains, 'domainDetect']);
+		$router->get('/api/admin/plugins', [$admPlugins, 'plugins']);
+		$router->get('/api/admin/plugins/catalog', [$admPlugins, 'pluginsCatalog']);
+		$router->post('/api/admin/plugins/{name}/install', [$admPlugins, 'pluginInstall']);
+		$router->post('/api/admin/plugins/{name}/remove', [$admPlugins, 'pluginRemove']);
+		$router->post('/api/admin/plugins/{name}/toggle', [$admPlugins, 'pluginToggle']);
+		$router->post('/api/admin/plugins/{name}/allowed', [$admPlugins, 'pluginAllowedSet']);
+		$router->get('/api/admin/plugins/{name}/config', [$admPlugins, 'pluginConfigGet']);
+		$router->post('/api/admin/plugins/{name}/config', [$admPlugins, 'pluginConfigSet']);
+		// API générique des plugins côté admin : > Plugin::apiAdmin<Action>
 		$router->get('/api/admin/plugin/{name}/{action}', [$admin, 'pluginCall']);
 		$router->post('/api/admin/plugin/{name}/{action}', [$admin, 'pluginCall']);
-		$router->get('/api/admin/themes', [$admin, 'themes']);
-		$router->post('/api/admin/themes/{name}/default', [$admin, 'themeDefaultSet']);
-		$router->post('/api/admin/themes/{name}/allowed', [$admin, 'themeAllowedSet']);
-		$router->get('/api/admin/themes/{name}/config', [$admin, 'themeConfigGet']);
-		$router->post('/api/admin/themes/{name}/config', [$admin, 'themeConfigSet']);
-		$router->post('/api/admin/test-connexion', [$admin, 'testConnexion']);
-		$router->post('/api/admin/test-db', [$admin, 'testDb']);
-		$router->get('/api/admin/logs', [$admin, 'logs']);
-		$router->post('/api/admin/logs/clear', [$admin, 'logsClear']);
-		$router->get('/api/admin/settings', [$admin, 'settingsGet']);
-		$router->post('/api/admin/settings', [$admin, 'settingsSet']);
-		$router->post('/api/admin/password', [$admin, 'passwordSet']);
-		$router->post('/api/admin/favicon', [$admin, 'faviconUpload']);
-		$router->post('/api/admin/favicon/delete', [$admin, 'faviconDelete']);
-		$router->get('/api/admin/about', [$admin, 'about']);
-		$router->get('/api/admin/update/check', [$admin, 'updateCheck']);
-		$router->get('/api/admin/update/status', [$admin, 'updateStatus']);
-		$router->post('/api/admin/update/download', [$admin, 'updateDownload']);
-		$router->post('/api/admin/update/apply', [$admin, 'updateApply']);
-		$router->post('/api/admin/update/finalize', [$admin, 'updateFinalize']);
-		$router->post('/api/admin/update/rollback', [$admin, 'updateRollback']);
-		$router->post('/api/admin/update/reset', [$admin, 'updateReset']);
+		$router->get('/api/admin/themes', [$admThemes, 'themes']);
+		$router->post('/api/admin/themes/{name}/default', [$admThemes, 'themeDefaultSet']);
+		$router->post('/api/admin/themes/{name}/allowed', [$admThemes, 'themeAllowedSet']);
+		$router->get('/api/admin/themes/{name}/config', [$admThemes, 'themeConfigGet']);
+		$router->post('/api/admin/themes/{name}/config', [$admThemes, 'themeConfigSet']);
+		$router->post('/api/admin/test-connexion', [$admSystem, 'testConnexion']);
+		$router->post('/api/admin/test-db', [$admSystem, 'testDb']);
+		$router->get('/api/admin/logs', [$admSystem, 'logs']);
+		$router->post('/api/admin/logs/clear', [$admSystem, 'logsClear']);
+		$router->get('/api/admin/settings', [$admSystem, 'settingsGet']);
+		$router->post('/api/admin/settings', [$admSystem, 'settingsSet']);
+		$router->post('/api/admin/password', [$admSystem, 'passwordSet']);
+		$router->post('/api/admin/favicon', [$admSystem, 'faviconUpload']);
+		$router->post('/api/admin/favicon/delete', [$admSystem, 'faviconDelete']);
+		$router->get('/api/admin/about', [$admSystem, 'about']);
+		$router->get('/api/admin/update/check', [$admSystem, 'updateCheck']);
+		$router->get('/api/admin/update/status', [$admSystem, 'updateStatus']);
+		$router->post('/api/admin/update/download', [$admSystem, 'updateDownload']);
+		$router->post('/api/admin/update/apply', [$admSystem, 'updateApply']);
+		$router->post('/api/admin/update/finalize', [$admSystem, 'updateFinalize']);
+		$router->post('/api/admin/update/rollback', [$admSystem, 'updateRollback']);
+		$router->post('/api/admin/update/reset', [$admSystem, 'updateReset']);
 
 		// Les plugins activés enregistrent leurs routes publiques/dédiées
 		// (manifest PWA, service worker…). Émis en dernier : leurs routes
@@ -1018,7 +1069,7 @@ final class App
 	}
 
 	/**
-	 * Rotation par taille : file.log → file.1.log → … → file.{keep}.log.
+	 * Rotation par taille : file.log > file.1.log > … > file.{keep}.log.
 	 * Publique/statique : aussi appelée par MailSo\Log\Drivers\File (mail.log).
 	 */
 	public static function rotateLog(string $file, int $maxBytes, int $keep): void
@@ -1035,7 +1086,7 @@ final class App
 		@rename($file, $rotated(1));
 	}
 
-	/** logs.max_size (Mio) → octets ; défaut 5 Mio, minimum 1. */
+	/** logs.max_size (Mio) > octets ; défaut 5 Mio, minimum 1. */
 	private function logMaxSize(): int
 	{
 		$logs = $this->config->get('logs');

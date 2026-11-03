@@ -3,7 +3,7 @@
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title><?= htmlspecialchars($app->config()->get('app_name')) ?> — <?= $t('login.sign_in') ?></title>
+	<title><?= htmlspecialchars($app->config()->get('app_name')) ?> - <?= $t('login.sign_in') ?></title>
 	<link rel="icon" href="<?= $faviconUrl ?>">
 	<link rel="stylesheet" href="<?= $assets ?>/vendor/bootstrap/css/bootstrap.min.css">
 	<link rel="stylesheet" href="<?= $assets ?>/vendor/fontawesome/css/all.min.css">
@@ -58,9 +58,10 @@
 <script nonce="<?= $nonce ?>">
 	window.MXWM = <?= $mxwmJson ?>;
 </script>
+<script src="<?= $i18nUrl ?>"></script>
 <script src="<?= $assets ?>/vendor/knockout/knockout.js"></script>
 <script type="module" nonce="<?= $nonce ?>">
-	import { api } from '<?= $assets ?>/js/api.js';
+	import { api } from '<?= $assets ?>/js/dist/api.js';
 
 	class LoginVM {
 		constructor() {
@@ -79,7 +80,7 @@
 				await api.post('/login', { email: this.email(), password: this.password(), totp: this.totp(), remember: this.remember() });
 				location.href = window.MXWM.base + '/';
 			} catch (e) {
-				// Code d'erreur stable — jamais de test sur le message localisé
+				// Code d'erreur stable - jamais de test sur le message localisé
 				if (e.code === 'totp_required') { this.showTotp(true); }
 				this.error(e.message);
 			} finally {

@@ -9,10 +9,10 @@ use MXWebMail\Plugin\PluginBase;
 
 /**
  * Avatar de l'expéditeur dans le lecteur de message.
- * Sources par ordre : cache local → icône de domaine connue (embarquée)
- * → Gravatar → favicon du domaine → identicon généré (initiales).
+ * Sources par ordre : cache local > icône de domaine connue (embarquée)
+ * > Gravatar > favicon du domaine > identicon généré (initiales).
  * Les images sont mises en cache dans storage/avatars.
- * API : /api/plugin/avatars/get?email= → { dataUrl } ou { svg }.
+ * API : /api/plugin/avatars/get?email= > { dataUrl } ou { svg }.
  */
 final class Avatars extends PluginBase
 {
@@ -48,7 +48,7 @@ final class Avatars extends PluginBase
 			return $icon;
 		}
 
-		// 3-4. Sources distantes — sautées si échec récent (cache négatif
+		// 3-4. Sources distantes - sautées si échec récent (cache négatif
 		// .none) : sinon chaque affichage rejouerait DNS + HTTP + log.
 		if (!$this->missed($email)) {
 			// 3. Gravatar (404 = pas d'avatar)
@@ -123,8 +123,8 @@ final class Avatars extends PluginBase
 				'literal' => 'ip-littérale',
 				default => 'ip-non-publique',
 			};
-			// NXDOMAIN = cas banal (expéditeur sans domaine web) → info ;
-			// IP privée/réservée = vrai signal anti-SSRF → warning.
+			// NXDOMAIN = cas banal (expéditeur sans domaine web) > info ;
+			// IP privée/réservée = vrai signal anti-SSRF > warning.
 			if ($reason === 'dns') {
 				\MXWebMailLib\Log::info('AVATARS',
 					"fetch refusé (hôte non public : {$label}) : {$url}");
@@ -169,7 +169,7 @@ final class Avatars extends PluginBase
 				continue; // marker de cache négatif, pas une image
 			}
 			// TTL : un avatar en cache > N jours est refetché au prochain
-			// affichage — sinon les icônes n'évolueraient jamais et le
+			// affichage - sinon les icônes n'évolueraient jamais et le
 			// dossier grossirait sans borne (auto-nettoyant, pas de GC).
 			if (filemtime($file) < time() - self::CACHE_TTL) {
 				@unlink($file);

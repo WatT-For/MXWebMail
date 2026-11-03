@@ -6,7 +6,7 @@
 Normal : le verrou `app/storage/INSTALLED` est absent. Terminez l'installation, ou créez le
 fichier manuellement après avoir posé `config.php`.
 
-**L'assistant affiche « config/ non inscriptible »**
+**L'assistant affiche "config/ non inscriptible"**
 Avertissement non bloquant : copiez le contenu affiché dans `app/config/config.php` à la
 main, puis relancez l'installation. Vérifiez aussi que `app/storage/` est inscriptible
 (bloquant).
@@ -49,13 +49,13 @@ connaissance de cause).
 `autodetect.enabled` est désactivé par défaut. Activez-le, ou utilisez le bouton
 **Détecter** de la page *Domaines*.
 
-**« Signaler comme spam » ne filtre pas les mails suivants**
+**"Signaler comme spam" ne filtre pas les mails suivants**
 Le bouton déplace le message vers le dossier Courrier indésirable (ou pose le
-keyword IMAP `$Junk` si le serveur n'a pas de dossier Junk) — il n'apprend rien
+keyword IMAP `$Junk` si le serveur n'a pas de dossier Junk) - il n'apprend rien
 au serveur. Les filtres Sieve ne s'appliquent qu'à la livraison : le modèle
-*Anti-spam* de l'assistant (Paramètres → Filtres) classe les mails marqués
+*Anti-spam* de l'assistant (Paramètres > Filtres) classe les mails marqués
 `X-Spam-Flag: YES` par le MTA. L'apprentissage automatique (spam/ham) exige une
-configuration côté serveur — Dovecot IMAPSieve (script report-spam/ham déclenché
+configuration côté serveur - Dovecot IMAPSieve (script report-spam/ham déclenché
 par la copie vers/depuis Junk, que le MOVE de l'app déclenche) ou
 rspamd/sa-learn.
 
@@ -89,24 +89,27 @@ contacts par utilisateur sont conservés). Il n'y a pas d'outil de migration de 
 
 ## Mises à jour
 
-**Le bouton de vérification des mises à jour ne fait rien / HTTP 404 sur `releases/latest`**
+**"Échec : Introuvable sur GitHub … dépôt privé ou ressource absente"**
 Le dépôt officiel est verrouillé (`GitHubClient::REPO` = `WatT-For/MXWebMail`) et
 **privé** : `PAT GitHub` (PAT avec accès `Contents: Read` au dépôt) est requis
-dans `config.php`. GitHub renvoie 404 — pas 403 — quand le token n'a pas accès
-au dépôt. `update.repo`/`PAT GitHub` se règlent manuellement dans `config.php`.
+dans `config.php`. GitHub renvoie 404 - pas 403 - quand le token n'a pas accès
+au dépôt ; le message indique le endpoint fautif (`releases/latest`, `commits/…`
+ou un chemin `raw` du catalogue plugins). Un 404 persistant **avec** token valide
+signifie plutôt une ressource absente (aucune release publiée, `update.plugins_ref`
+inconnu). `update.repo`/`PAT GitHub` se règlent manuellement dans `config.php`.
 
 **HTTP 404 sur `…/releases/download/…` (catalogue plugins ou téléchargement de mise à jour)**
 Sur dépôt privé, le `browser_download_url` des assets renvoie 404 même avec un
 token valide. Corrigé à partir de la 0.36.1 : les assets sont téléchargés via
 l'endpoint API `releases/assets/<id>` quand `PAT GitHub` est configuré.
 
-**Le site répond 503 « update » / page maintenance pendant une mise à jour**
+**Le site répond 503 "update" / page maintenance pendant une mise à jour**
 Normal : le flag `app/storage/update/applying` coupe l'API utilisateur pendant la
 copie des fichiers (jamais de mix ancien/nouveau code). Il est retiré à la fin ;
-s'il reste après un plantage, il expire tout seul au bout de 15 min — ou
+s'il reste après un plantage, il expire tout seul au bout de 15 min - ou
 supprimez `app/storage/update/applying` manuellement.
 
-**« Migrations en attente » après une mise à jour**
+**"Migrations en attente" après une mise à jour**
 La finalisation (`/api/admin/update/finalize`) n'a pas tourné : bouton
 *Finaliser* dans *À propos*, ou en CLI `php app/bin/post-update.php`. Sans
 action, les migrations s'appliquent quand même à la prochaine requête
@@ -121,7 +124,7 @@ base depuis votre `mysqldump`, puis relancez le rollback (la confirmation forcé
 est proposée). S'il faut repartir de zéro : réinstaller le paquet d'origine et
 restaurer `app/storage/` (dont `app.key` et `db/`).
 
-**Bandeau « schéma de la base plus récent que le code »**
+**Bandeau "schéma de la base plus récent que le code"**
 `meta.schema_ahead` : le code installé est plus ancien que le schéma (rollback
 fichiers sans restauration de la base, ou paquet plus ancien déployé). Restaurez
 la base ou réappliquez la version correspondante ; les migrations restent
@@ -133,7 +136,7 @@ suspendues tant que l'écart existe.
 Non, si le `root` pointe sur `public/` et que le bloc `location ~ /\.` + `^/(app|dist)`
 est présent. Ne pointez jamais le `root` sur la racine du projet.
 
-**Erreur 403 « cross_site » sur une requête légitime**
+**Erreur 403 "cross_site" sur une requête légitime**
 La protection `Sec-Fetch-*` a rejeté la requête. Si vous intégrez une API externe
 légitime, ajoutez une règle dans `secfetch_allow`.
 

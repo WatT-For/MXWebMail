@@ -10,8 +10,8 @@ use MXWebMail\Security\Wildcard;
 /**
  * Liste blanche de connexion : refuse le login avant la vérification IMAP
  * si l'email ne correspond pas (évite le probing). Exception levée dans
- * auth.login.mapped (email résolu post-mapping) — jamais de session établie.
- * Portage du plugin legacy white-list (même sémantique : « exceptions »
+ * auth.login.mapped (email résolu post-mapping) - jamais de session établie.
+ * Portage du plugin legacy white-list (même sémantique : "exceptions"
  * = les emails hors liste qui sont explicitement rejetés quand la
  * liste d'exceptions est renseignée).
  */

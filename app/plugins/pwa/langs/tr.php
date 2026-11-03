@@ -13,7 +13,7 @@ return [
 	'plugin.pwa.f.background_color'      => 'Arka plan rengi',
 	'plugin.pwa.f.background_color.help' => 'Açılış ekranı (splash) rengi',
 	'plugin.pwa.f.display'               => 'Görüntüleme modu',
-	'plugin.pwa.f.display.help'          => '«standalone» = bağımsız pencere (önerilen)',
+	'plugin.pwa.f.display.help'          => '"standalone" = bağımsız pencere (önerilen)',
 	'plugin.pwa.f.icon_url'              => 'Simge URL\'si',
 	'plugin.pwa.f.icon_url.help'         => 'Kare PNG ≥512px; boş = yerleşik varsayılan simgeler',
 ];

@@ -1,6 +1,6 @@
 <?php
 /**
- * Configuration MXWebMail — copier en config.php et adapter.
+ * Configuration MXWebMail - copier en config.php et adapter.
  * Seules les clés définies ici écrasent les défauts de Config.php.
  */
 return [
@@ -12,10 +12,10 @@ return [
 
 	// ─── Application ───
 	'app_name'   => 'MXWebMail',
-	// Nom du fichier favicon uploadé dans app/storage/branding (admin → Général) ;
+	// Nom du fichier favicon uploadé dans app/storage/branding (admin > Général) ;
 	// vide = icône MXWebMail par défaut. Servi via /favicon.ico.
 	'favicon'    => '',
-	// Lien « Sponsor » GitHub (bouton admin + paramètres webmail) ; vide = masqué.
+	// Lien "Sponsor" GitHub (bouton admin + paramètres webmail) ; vide = masqué.
 	'sponsor_url' => 'https://github.com/sponsors/WatT-For',
 	'debug'      => false,          // affiche les erreurs internes aux clients API (jamais en production)
 	// 'auto' = Accept-Language du navigateur ; sinon code d'un fichier
@@ -24,7 +24,7 @@ return [
 
 	// ─── Domaines ───
 	// Les serveurs IMAP/SMTP/Sieve se configurent par domaine dans l'admin
-	// (page « Domaines » ; le domaine '*' sert de paramètres catch-all).
+	// (page "Domaines" ; le domaine '*' sert de paramètres catch-all).
 	// Suffixe d'un login saisi sans @domaine : 'auto' = hôte HTTP
 	// (sans www. ni :port), '<domaine>' = suffixe fixe, '' = aucun.
 	'default_domain'   => 'auto',
@@ -32,7 +32,7 @@ return [
 	// (ni '*' ni la détection ne s'appliquent).
 	'restrict_domains' => true,
 	// Détection automatique de la config d'un domaine inconnu au login
-	// (SRV → autoconfig Mozilla → MX → sondage). Désactivée par défaut.
+	// (SRV > autoconfig Mozilla > MX > sondage). Désactivée par défaut.
 	// Quelle que soit la source, ManageSieve (4190) est aussi sondé sur
 	// l'hôte IMAP détecté (et sieve.<domaine> quand probe est actif).
 	'autodetect' => [
@@ -41,12 +41,12 @@ return [
 		'probe'     => false,  // sondage de ports imap./mail./smtp./sieve.<domaine>
 	],
 	// Applications OAuth2 des comptes secondaires : identifiants saisis et
-	// stockés PAR UTILISATEUR (table oauth_apps ; Réglages → Applications
+	// stockés PAR UTILISATEUR (table oauth_apps ; Réglages > Applications
 	// OAuth2). L'admin n'autorise que le provider par domaine (options.oauth).
 
 	// ─── Sécurité ───
 	'admin_path'      => 'admin',   // chemin d'accès au panneau admin (/admin_path)
-	// Compte admin local (indépendant d'IMAP) — à renseigner manuellement :
+	// Compte admin local (indépendant d'IMAP) - à renseigner manuellement :
 	// 'admin_password_hash' => password_hash('motdepasse', PASSWORD_DEFAULT)
 	// Sans admin_user + admin_password_hash, le login admin retombe sur un
 	// utilisateur is_admin vérifié via IMAP.
@@ -61,7 +61,7 @@ return [
 	'maintenance'        => false,  // page maintenance 503 sur / + /api/* utilisateur en 503
 	                                // (admin + /api/ping restent actifs ; les connectés basculent
 	                                // sur la page maintenance à leur prochaine requête API)
-	'force_https'        => false,  // rediriger HTTP → HTTPS (301) dès l'entrée
+	'force_https'        => false,  // rediriger HTTP > HTTPS (301) dès l'entrée
 	'hsts'               => false,  // émettre Strict-Transport-Security quand la requête est HTTPS
 	'cookie_samesite'    => 'Lax',    // Lax | Strict | None (None exige HTTPS ;
 	                                // Strict casse le retour OAuth2 cross-site)
@@ -72,29 +72,29 @@ return [
 	'trusted_proxies'    => '',
 	// Règles Sec-Fetch-* additionnelles (format MXWebMailLib\HTTP\SecFetch :
 	// "site=same-origin;mode=cors"). Vide = requêtes cross-site rejetées
-	// sauf navigation GET vers un document (entrée sur le site — anti-CSRF
+	// sauf navigation GET vers un document (entrée sur le site - anti-CSRF
 	// de base).
 	'secfetch_allow'     => '',
 
-	// ─── Mises à jour (admin → À propos, GitHub Releases) ───
-	// Le dépôt officiel est verrouillé dans GitHubClient::REPO — partagé par
+	// ─── Mises à jour (admin > À propos, GitHub Releases) ───
+	// Le dépôt officiel est verrouillé dans GitHubClient::REPO - partagé par
 	// l'updater cœur (zip mxwebmail-*.zip de la release) et le catalogue
 	// plugins (lu dans le dépôt au ref update.plugins_ref, chaque fichier
 	// vérifié par sha1 de blob git). Cette section n'est pas modifiable via
-	// le panel admin (sauf channel) — édition manuelle de config.php.
+	// le panel admin (sauf channel) - édition manuelle de config.php.
 	'update' => [
 		'repo'    => '',        // fallback dev si GitHubClient::REPO vide ('owner/mxwebmail')
 		'channel' => 'stable',  // stable | beta (le seul réglage exposé dans l'admin)
-		'token'   => '',        // PAT GitHub — requis tant que le dépôt est privé
+		'token'   => '',        // PAT GitHub - requis tant que le dépôt est privé
 		'manifest_url' => '',   // dev : manifeste JSON format release, bypass l'API
 		'plugins_ref'   => 'release', // ref source des plugins : 'release' (tag de la
 		                            // dernière release) | 'main' (branche, dev) | ref git
-		'plugins_local' => '',        // dev/tests : dossier local de plugins — catalogue
+		'plugins_local' => '',        // dev/tests : dossier local de plugins - catalogue
 		                            // et install hors réseau, sans vérification distante
 	],
 
 	// ─── Fonctionnalités ───
-	'attachment_max_size' => 25,    // Mo maximum par fichier — doit être ≤ attachments_max_total
+	'attachment_max_size' => 25,    // Mo maximum par fichier - doit être ≤ attachments_max_total
 	'attachments_max_total' => 25,  // Mo maximum cumulé des pièces jointes par message
 	'allow_additional_accounts'  => true,  // l'utilisateur peut ajouter des comptes secondaires
 	'allow_additional_identities' => true, // l'utilisateur peut créer des identités additionnelles
@@ -105,13 +105,12 @@ return [
 
 	// ─── Défauts des réglages utilisateur (écrasables par utilisateur) ───
 	// Les clés autorisées en écriture via /api/settings sont celles de cette
-	// liste + celles déclarées par les plugins via le hook « settings.allowed ».
+	// liste + celles déclarées par les plugins via le hook "settings.allowed".
 	'user_defaults' => [
 		'messages_per_page' => 50,       // messages par page (5-200)
 		'list_sort'         => 'REVERSE DATE', // tri liste messages (critère IMAP SORT whitelisté API)
 		'view_images'       => 'ask',    // images externes : always | ask | match (expéditeur connu)
 		'msg_default_action' => 'reply', // bouton répondre par défaut : reply | reply_all
-		'auto_advance'      => 'next',   // après suppression/déplacement du message ouvert : next | prev | none
 		'mark_read_delay'   => 5,        // secondes avant de marquer lu un message ouvert (0 = immédiat)
 		'compose_autosave'  => 60,       // secondes entre enregistrements auto du brouillon (0 = jamais)
 		'mdn_mode'          => 'ask',    // accusés de réception : ask (bandeau) | never (masquer)
@@ -144,20 +143,20 @@ return [
 	],
 
 	// ─── Proxy images externes ───
-	'import_max_size'    => 100,    // taille max d'un .mbox importé (Mo) — les .eml
+	'import_max_size'    => 100,    // taille max d'un .mbox importé (Mo) - les .eml
 	                                // gardent le plafond attachment_max_size
 	'smime_ca_path'      => '',     // chemin CA (fichier PEM) pour la confiance S/MIME ;
 	                                // vide = signature crypto vérifiée seule (PKCS7_NOVERIFY)
 	'image_proxy' => true,          // servir les images distantes via /api/proxy
-	'image_proxy_allowlist' => '',  // domaines autorisés (CSV, *.domaine ok) ; vide = tous — IP privées toujours bloquées
+	'image_proxy_allowlist' => '',  // domaines autorisés (CSV, *.domaine ok) ; vide = tous - IP privées toujours bloquées
 
 	// ─── Logs MailSo (protocoles IMAP/SMTP/Sieve) ───
 	'logs' => [
-		'enabled' => true,              // app/storage/logs/mail.log — secrets masqués
+		'enabled' => true,              // app/storage/logs/mail.log - secrets masqués
 		'level'   => LOG_WARNING,       // LOG_DEBUG pour tracer le protocole
 		'syslog'  => false,             // doublon vers syslog() quand le log fichier est inactif
 		'time_zone' => '',              // fuseau des horodatages de log (ex. 'Europe/Paris') ; vide = serveur
-		'max_size' => 5,                // rotation au-delà de N Mio — vaut pour
+		'max_size' => 5,                // rotation au-delà de N Mio - vaut pour
 		                              // mail.log, app.log et le journal d'auth
 		'keep'    => 3,                 // rotations conservées : app.1.log … app.{keep}.log
 	],
@@ -176,8 +175,11 @@ return [
 		'etag'          => true,   // ETag + 304 sur les assets servis par PHP (thème/plugin/favicon)
 		'assets_ttl'    => 86400,  // max-age des assets thème/plugin (s ; 0 = revalidation systématique)
 		'favicon_ttl'   => 3600,   // max-age de /favicon.ico (s)
-		'proxy_ttl'     => 0,      // max-age des images servies via /api/proxy (s ;
-		                           // 0 = pas de cache disque non plus)
+		'proxy_ttl'     => 86400,  // max-age des images servies via /api/proxy (s) -
+		                           // aussi le TTL du cache disque (storage/cache/proxy).
+		                           // 0 = aucun cache (re-fetch + revalidation SSRF à
+		                           // chaque affichage). Le GC "cache.gc_hours" purge
+		                           // proxy/ : garder proxy_ttl ≤ gc_hours.
 	],
 
 	// ─── Cache applicatif (fichiers dans app/storage/cache) ───

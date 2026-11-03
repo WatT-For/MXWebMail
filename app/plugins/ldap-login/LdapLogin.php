@@ -10,7 +10,7 @@ use MXWebMail\Plugin\PluginBase;
  * Mapping de login via LDAP (hook auth.login.mapping).
  * Permet de se connecter avec un uid ou un alias : le plugin résout
  * l'entrée LDAP et renvoie l'adresse email réelle utilisée pour l'IMAP.
- * Retourne null si aucune entrée ne correspond → vérification normale.
+ * Retourne null si aucune entrée ne correspond > vérification normale.
  */
 final class LdapLogin extends PluginBase
 {

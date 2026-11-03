@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /** Dictionnaire allemand du plugin ldap-login. */
 return [
-	'plugin.ldap-login.description'    => 'Login-Auflösung via LDAP: uid/kurze E-Mail → vollständige IMAP-Adresse',
+	'plugin.ldap-login.description'    => 'Login-Auflösung via LDAP: uid/kurze E-Mail > vollständige IMAP-Adresse',
 	'plugin.ldap-login.starttls_denied' => 'STARTTLS abgelehnt',
 	'plugin.ldap-login.bind_denied'    => 'LDAP-Bind abgelehnt',
 	'plugin.ldap-login.f.host'         => 'LDAP-Host',

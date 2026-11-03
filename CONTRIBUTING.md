@@ -3,27 +3,27 @@
 *English: contributions are welcome via fork + pull request against `main`.
 Discussions may be held in French or English. Essentials: keep PRs focused,
 update `docs/` when behavior changes, never commit secrets or credentials.
-All contributions are licensed under the AGPL-3.0 — see below for details.*
+All contributions are licensed under the AGPL-3.0 - see below for details.*
 
 Merci de l'intérêt porté au projet ! Ce document décrit comment contribuer
 sereinement.
 
 ## Ce qui est bienvenu
 
-- **Correctifs** de bugs (cœur, plugins, thèmes) — directement en PR ;
-- **Plugins et thèmes** : le cœur est conçu pour être étendu sans modification —
+- **Correctifs** de bugs (cœur, plugins, thèmes) - directement en PR ;
+- **Plugins et thèmes** : le cœur est conçu pour être étendu sans modification -
   voir [docs/plugins.md](docs/plugins.md) et [docs/themes.md](docs/themes.md) ;
-- **Traductions** — voir [docs/localisation.md](docs/localisation.md) ;
+- **Traductions** - voir [docs/localisation.md](docs/localisation.md) ;
 - **Documentation** (`docs/`, README) ;
 - **Fonctionnalités du cœur** : ouvrez d'abord une **issue** pour discuter de
-  l'approche — cela évite le travail perdu sur une direction non retenue.
+  l'approche - cela évite le travail perdu sur une direction non retenue.
 
 ## Processus
 
 1. Forkez le dépôt, créez une branche depuis `main`
    (`feature/…`, `fix/…` ou `docs/…`).
 2. Développez des changements **focalisés** : une PR = un sujet.
-3. Testez localement sur une instance réelle — l'installation standard suffit
+3. Testez localement sur une instance réelle - l'installation standard suffit
    ([docs/installation.md](docs/installation.md)) : le dépôt est complet tel
    quel, aucune dépendance à installer.
 4. Ouvrez la PR vers `main` et remplissez le template proposé.
@@ -32,13 +32,13 @@ sereinement.
 
 ## Conventions
 
-- **Stack** : PHP 8.4, Knockout.js, Bootstrap 5.3 — **pas de jQuery** ; MariaDB
+- **Stack** : PHP 8.4, Knockout.js, Bootstrap 5.3 - **pas de jQuery** ; MariaDB
   et SQLite doivent rester tous deux supportés.
-- **Bootstrap** : un seul composant JS Bootstrap par élément — ne pas ajouter de
+- **Bootstrap** : un seul composant JS Bootstrap par élément - ne pas ajouter de
   second composant (tooltip, popover…) sur un élément portant déjà
   `data-bs-toggle` ; le mettre sur un élément enfant.
 - **Plugins** : `plugin.json` avec `version` semver et compatibilité
-  `min_app`/`max_app` — voir [docs/plugins.md](docs/plugins.md).
+  `min_app`/`max_app` - voir [docs/plugins.md](docs/plugins.md).
 - **Docs synchronisées** : tout changement de comportement, de config ou de
   rendu doit se refléter dans `docs/` dans la même PR.
 - **Changelog** : l'entrée `CHANGELOG.md` est rédigée par le mainteneur au

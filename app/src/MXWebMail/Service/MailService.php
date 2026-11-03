@@ -5,6 +5,7 @@ namespace MXWebMail\Service;
 
 use MXWebMail\Application\App;
 use MXWebMail\Security\CredentialCrypt;
+use MXWebMail\UserFacingException;
 
 /**
  * Façade MailSo : ouvre une connexion IMAP à la demande avec les
@@ -23,10 +24,10 @@ final class MailService
 	public function __construct(private App $app) {}
 
 	/**
-	 * Credentials de session → réglages MailSo. Compte mot de passe :
+	 * Credentials de session > réglages MailSo. Compte mot de passe :
 	 * passphrase = mot de passe IMAP déchiffré. Compte OAuth2 : passphrase =
 	 * access token frais (refresh échangé à la volée) + mécanismes SASL
-	 * OAUTHBEARER/XOAUTH2 — les mécanismes par défaut échoueraient le token.
+	 * OAUTHBEARER/XOAUTH2 - les mécanismes par défaut échoueraient le token.
 	 */
 	private function applyAuth(\MailSo\Net\ConnectSettings $settings): void
 	{
@@ -63,8 +64,25 @@ final class MailService
 			$imap = $client->ImapClient();
 			$imap->Settings = $settings;
 			$this->app->hooks()->run('imap.before-connect', $imap, $settings);
-			$imap->Connect($settings);
-			$imap->Login($settings);
+			try {
+				$imap->Connect($settings);
+				$imap->Login($settings);
+			} catch (\MailSo\Imap\Exceptions\LoginException $e) {
+				// NO/BAD du serveur pendant le login (credentials, compte
+				// suspendu, méthode refusée) > refus d'authentification.
+				throw new UserFacingException(
+					$this->t('errors.bad_credentials'), 401, $e);
+			} catch (\MailSo\Net\Exceptions\ConnectionException
+				| \MailSo\Net\Exceptions\SocketReadException
+				| \MailSo\Net\Exceptions\SocketReadTimeoutException
+				| \MailSo\Net\Exceptions\SocketWriteException
+				| \MailSo\Imap\Exceptions\ResponseException $e) {
+				// Réseau, TLS, EOF mid-handshake, bannière illisible : le
+				// serveur est injoignable ou défaillant - host dans le
+				// message, détail technique déjà tracé dans mail.log.
+				throw new UserFacingException($this->t('errors.imap_unreachable',
+					['host' => $settings->host]), 503, $e);
+			}
 
 			$this->client = $client;
 		}
@@ -106,7 +124,7 @@ final class MailService
 				'role'         => $folder->Role(),
 				'total'        => $folder->MESSAGES,
 				'unread'       => $folder->UNSEEN,
-				// RFC 8438 — null si le serveur n'annonce pas STATUS=SIZE
+				// RFC 8438 - null si le serveur n'annonce pas STATUS=SIZE
 				'size'         => $folder->SIZE,
 			];
 			$exists[$folder->FullName] = true;
@@ -120,10 +138,10 @@ final class MailService
 			}
 		}
 		unset($f);
-		// 3e passe : repli sur les noms usuels pour les rôles non résolus — ces
+		// 3e passe : repli sur les noms usuels pour les rôles non résolus - ces
 		// dossiers sont déjà utilisés fonctionnellement (specialFolder()/
 		// junkFolder()), le classement suit. Exemptés : les dossiers créés via
-		// l'interface (un « Archives » fait main reste un dossier personnel)
+		// l'interface (un "Archives" fait main reste un dossier personnel)
 		// et les conteneurs non sélectionnables.
 		$map = $this->specialFolderMap();
 		$userCreated = $this->userFolderSet();
@@ -139,6 +157,7 @@ final class MailService
 				foreach ($out as $i => $f) {
 					if ($f['special'] === null && $f['isSelectable'] !== false
 						&& !isset($userCreated[$f['fullName']])
+						&& self::isRoleCandidate($f)
 						&& mb_strtolower((string) $f['name']) === $c) {
 						$out[$i]['special'] = $role;
 						$hit = true;
@@ -150,23 +169,25 @@ final class MailService
 				}
 			}
 		}
+		$collapsed = $this->collapsedFolderSet();
 		foreach ($out as &$f) {
 			$f['system'] = strcasecmp((string) $f['fullName'], 'INBOX') === 0
 				|| $f['special'] !== null;
+			$f['collapsed'] = isset($collapsed[(string) $f['fullName']]);
 		}
 		unset($f);
 		// Lignes mises en cache session (par compte) : cachedFolders() sert la
 		// résolution des rôles (junkFolder(), trashFolder(), specialFolder(),
 		// folderFlags()) sans repayer un LIST+STATUS à chaque action (spam,
 		// corbeille, append Sent…). Les compteurs total/unread qu'elle
-		// contient peuvent être périmés — ces consommateurs ne les lisent pas.
+		// contient peuvent être périmés - ces consommateurs ne les lisent pas.
 		$_SESSION['folder_cache'][(string) ($_SESSION['account_id'] ?? 0)] = $out;
 		return $this->folderRows = $out;
 	}
 
 	/**
 	 * Lignes folders() depuis le cache session écrit à chaque calcul réel
-	 * (GET /api/folders, donc rafraîchi par le poll list_refresh) ; absent →
+	 * (GET /api/folders, donc rafraîchi par le poll list_refresh) ; absent >
 	 * folders() le peuple. Pour la résolution de rôles uniquement.
 	 */
 	private function cachedFolders(): array
@@ -188,8 +209,8 @@ final class MailService
 	/**
 	 * Cache fichier MailSo (UIDs de listes indexés sur l'etag du dossier,
 	 * maps THREAD). Les clés embarquent déjà ImapClient::Hash()
-	 * (user@host:port) — l'index '_default_' partagé est sans collision.
-	 * cache.enabled=false → client sans driver (Get/Set no-op natifs).
+	 * (user@host:port) - l'index '_default_' partagé est sans collision.
+	 * cache.enabled=false > client sans driver (Get/Set no-op natifs).
 	 */
 	private function cacher(): \MailSo\Cache\CacheClient
 	{
@@ -271,7 +292,7 @@ final class MailService
 	public function message(string $folder, int $uid): ?array
 	{
 		// FolderExamine avant Message() : la re-sélection interne saute
-		// (bForceReselect=false) — l'UIDVALIDITY revient quasi gratuitement
+		// (bForceReselect=false) - l'UIDVALIDITY revient quasi gratuitement
 		// pour le paramètre &uv= des URLs de PJ (clé de cache P0-3).
 		$imap = $this->client()->ImapClient();
 		$msg = $this->client()->Message($folder, $uid, true);
@@ -288,14 +309,14 @@ final class MailService
 	 * Métadonnées des pièces jointes d'un message : FETCH restreint à
 	 * BODYSTRUCTURE + champs minimum exigés par fromFetchResponse
 	 * (INTERNALDATE non-nullable, UID). Message() enchaînait un second
-	 * FETCH de toutes les parties texte (body_text_limit=0 → corps
+	 * FETCH de toutes les parties texte (body_text_limit=0 > corps
 	 * entier) pour ne lire que les PJ.
 	 */
 	public function attachmentList(string $folder, int $uid): ?array
 	{
 		$imap = $this->client()->ImapClient();
 		// EXAMINE comme Message()/MessageMimeStream() : Fetch exige une
-		// mailbox sélectionnée — attachmentList court-circuite MailClient
+		// mailbox sélectionnée - attachmentList court-circuite MailClient
 		// qui la fait en interne.
 		$imap->FolderExamine($folder);
 		$fetch = $imap->Fetch(
@@ -320,7 +341,7 @@ final class MailService
 		$this->client()->MessageSetFlag($folder, $range, $flag, $set);
 	}
 
-	/** Variante multi-UIDs : un seul STORE sur la sequence « 1,5,9 ». */
+	/** Variante multi-UIDs : un seul STORE sur la sequence "1,5,9". */
 	public function flagsMany(string $folder, array $uids, string $flag, bool $set): void
 	{
 		$this->client()->MessageSetFlag($folder,
@@ -360,7 +381,7 @@ final class MailService
 	}
 
 	/**
-	 * « Supprimer » déplace vers la corbeille ; suppression définitive
+	 * "Supprimer" déplace vers la corbeille ; suppression définitive
 	 * (flag \Deleted + expunge) uniquement depuis la corbeille ou sans
 	 * dossier corbeille détecté.
 	 */
@@ -399,9 +420,9 @@ final class MailService
 	 */
 	public function markSpam(string $folder, int $uid, bool $spam): array
 	{
-		// Hook : apprentissage antispam (plugin spam-learn) — émis avant le
+		// Hook : apprentissage antispam (plugin spam-learn) - émis avant le
 		// move : le nouvel UID n'est pas remonté, le FETCH doit viser la
-		// source. Tire aussi si l'action échoue ensuite (409) — accepté.
+		// source. Tire aussi si l'action échoue ensuite (409) - accepté.
 		$this->app->hooks()->run('message.spam', $folder, $uid, $spam);
 
 		$junk = $this->junkFolder();
@@ -477,7 +498,7 @@ final class MailService
 	public function quota(): ?array
 	{
 		// GETQUOTAROOT INBOX : forme compatible Dovecot (GETQUOTA "" reçoit
-		// souvent « NO Quota root doesn't exist »). Un NO = quota absent →
+		// souvent "NO Quota root doesn't exist"). Un NO = quota absent >
 		// silencieux, la barre est masquée côté UI.
 		try {
 			return $this->client()->ImapClient()->QuotaRoot('INBOX');
@@ -490,11 +511,30 @@ final class MailService
 
 	private const FOLDER_FALLBACKS = [
 		'drafts'  => ['Drafts', 'Brouillons', 'Draft'],
-		'sent'    => ['Sent', 'Sent Items', 'Envoyés', 'Courrier envoyé'],
-		'trash'   => ['Trash', 'Deleted', 'Corbeille', 'Deleted Items'],
+		'sent'    => ['Sent', 'Sent Items', 'Envoyés', 'Courrier envoyé', 'Envoyé', 'Éléments envoyés', 'Éléments envoyes'],
+		'trash'   => ['Trash', 'Deleted', 'Corbeille', 'Deleted Items', 'Éléments supprimés', 'Éléments supprimes'],
 		'junk'    => ['Junk', 'Spam', 'Courrier indésirable'],
 		'archive' => ['Archive', 'Archives', 'All Mail'],
 	];
+
+	/**
+	 * Position "racine ou enfant direct de INBOX" - seules ces places
+	 * peuvent prétendre à un rôle par nom usuel (un "Foo/Trash" personnel
+	 * n'est pas la corbeille ; "INBOX.Trash" des préfixes Courier/Dovecot
+	 * l'est). Le préfixe inclut le délimiteur : "INBOXES.Trash" ne matche
+	 * pas ; la casse du nom INBOX est ignorée (RFC 3501).
+	 */
+	private static function isRoleCandidate(array $f): bool
+	{
+		$delim = (string) ($f['delimiter'] ?? '');
+		$full  = (string) $f['fullName'];
+		if ($delim === '' || !str_contains($full, $delim)) {
+			return true; // racine
+		}
+		$prefix = 'INBOX' . $delim;
+		return stripos($full, $prefix) === 0
+			&& !str_contains(substr($full, strlen($prefix)), $delim);
+	}
 
 	/**
 	 * Assignations des dossiers système du compte actif :
@@ -503,9 +543,7 @@ final class MailService
 	public function specialFolderMap(): array
 	{
 		if ($this->specialMap === null) {
-			$raw = $this->app->settings()->get(
-				(int) $_SESSION['user_id'], 'special_folders', []);
-			$all = is_array($raw) ? $raw : (json_decode((string) $raw, true) ?: []);
+			$all = $this->decodeSetting($this->folderPrefs()['special_folders'] ?? null);
 			$this->specialMap = (array) ($all[(string) ($_SESSION['account_id'] ?? 0)] ?? []);
 		}
 		return $this->specialMap;
@@ -514,7 +552,7 @@ final class MailService
 	public function setSpecialFolderMap(array $map): void
 	{
 		// Ne stocker que les overrides : 'auto' = pas d'assignation, filtré pour
-		// que isset($map[$role]) signifie « override explicite ».
+		// que isset($map[$role]) signifie "override explicite".
 		$map = array_filter($map,
 			fn($v) => is_string($v) && $v !== '' && $v !== 'auto');
 		$uid = (int) $_SESSION['user_id'];
@@ -523,25 +561,82 @@ final class MailService
 		$all[(string) ($_SESSION['account_id'] ?? 0)] = $map;
 		$this->app->settings()->set($uid, 'special_folders', $all);
 		$this->specialMap = $map;
+		$this->folderPrefs = null; // réglage réécrit : cache de lecture périmé
 		$this->invalidateFolderCache(); // rôles effectifs recalculés
 	}
 
 	/**
 	 * Set des fullName des dossiers créés via l'interface (compte actif) :
-	 * exemptés du repli par nom usuel dans folders() — un « Archives » créé
+	 * exemptés du repli par nom usuel dans folders() - un "Archives" créé
 	 * à la main reste un dossier personnel, pas un dossier de base.
 	 */
 	public function userFolderSet(): array
 	{
 		if ($this->userFolderSet === null) {
-			$raw = $this->app->settings()->get(
-				(int) $_SESSION['user_id'], 'user_folders', []);
-			$all = is_array($raw) ? $raw : (json_decode((string) $raw, true) ?: []);
+			$all = $this->decodeSetting($this->folderPrefs()['user_folders'] ?? null);
 			$names = array_map('strval',
 				(array) ($all[(string) ($_SESSION['account_id'] ?? 0)] ?? []));
 			$this->userFolderSet = array_fill_keys($names, true);
 		}
 		return $this->userFolderSet;
+	}
+
+	/**
+	 * Réglages dossiers de l'utilisateur en une seule requête (getMany) -
+	 * mutualisé entre specialFolderMap() et userFolderSet() qui lisaient
+	 * chacun leur clé (2 SELECT avant). Mémoïsé par requête, invalidé sur
+	 * écriture (setSpecialFolderMap, updateUserFolders).
+	 */
+	private ?array $folderPrefs = null;
+
+	private function folderPrefs(): array
+	{
+		return $this->folderPrefs ??= $this->app->settings()->getMany(
+			(int) ($_SESSION['user_id'] ?? 0), ['special_folders', 'user_folders', 'collapsed_folders']);
+	}
+
+	/** Réglage JSON stocké > tableau (accepte tableau natif ou chaîne). */
+	private function decodeSetting(mixed $raw): array
+	{
+		return is_array($raw) ? $raw : (json_decode((string) $raw, true) ?: []);
+	}
+
+	/**
+	 * Set des fullName des dossiers repliés dans la colonne latérale
+	 * (compte actif) - état UI persisté par compte, même stockage que
+	 * special_folders / notify_folders.
+	 */
+	private function collapsedFolderSet(): array
+	{
+		$all = $this->decodeSetting($this->folderPrefs()['collapsed_folders'] ?? null);
+		$names = array_map('strval',
+			(array) ($all[(string) ($_SESSION['account_id'] ?? 0)] ?? []));
+		return array_fill_keys($names, true);
+	}
+
+	/**
+	 * Dossiers repliés du compte actif : intersectés avec l'existant (purge
+	 * des dossiers disparus) ; vide pour le compte = clé supprimée.
+	 */
+	public function setCollapsedFolders(array $names): void
+	{
+		$existing = array_fill_keys(
+			array_column($this->cachedFolders(), 'fullName'), true);
+		$names = array_values(array_filter(array_map('strval', $names),
+			fn($n) => isset($existing[$n])));
+		$uid = (int) $_SESSION['user_id'];
+		$all = $this->decodeSetting(
+			$this->app->settings()->get($uid, 'collapsed_folders', []));
+		$key = (string) ($_SESSION['account_id'] ?? 0);
+		if ($names === []) {
+			unset($all[$key]);
+		} else {
+			$all[$key] = $names;
+		}
+		$this->app->settings()->set($uid, 'collapsed_folders',
+			array_filter($all) === [] ? null : $all);
+		$this->folderPrefs = null;
+		$this->invalidateFolderCache(); // flag 'collapsed' des lignes recalculé
 	}
 
 	/** Trace des dossiers créés via l'interface (une écriture pour le lot). */
@@ -566,7 +661,7 @@ final class MailService
 			=> array_values(array_filter($names, fn($n) => isset($existing[$n]))));
 	}
 
-	/** Provenance conservée au renommage : $from et ses descendants → $to. */
+	/** Provenance conservée au renommage : $from et ses descendants > $to. */
 	public function renameUserFolder(string $from, string $to, string $delimiter): void
 	{
 		if ($this->userFolderSet() === []) {
@@ -588,10 +683,11 @@ final class MailService
 		$key = (string) ($_SESSION['account_id'] ?? 0);
 		$names = array_map('strval', (array) ($all[$key] ?? []));
 		$all[$key] = array_values(array_unique(array_map('strval', $fn($names))));
-		// array_filter vide = plus aucun compte tracké → ligne supprimée.
+		// array_filter vide = plus aucun compte tracké > ligne supprimée.
 		$this->app->settings()->set($uid, 'user_folders',
 			array_filter($all) === [] ? null : $all);
 		$this->userFolderSet = null;
+		$this->folderPrefs = null; // réglage réécrit : cache de lecture périmé
 		$this->invalidateFolderCache(); // exemptions de fallback modifiées
 	}
 
@@ -675,7 +771,7 @@ final class MailService
 
 	/**
 	 * Dossier du rôle résolu par la seule détection (special-use puis noms
-	 * usuels), en ignorant toute assignation utilisateur — ce que « auto »
+	 * usuels), en ignorant toute assignation utilisateur - ce que "auto"
 	 * utiliserait. Retourne un nom deviné si rien n'existe encore. $folders
 	 * = lignes à scanner (défaut : folders() live).
 	 */
@@ -688,11 +784,14 @@ final class MailService
 				return $f['fullName'];
 			}
 		}
-		$names = array_map('mb_strtolower', array_column($folders, 'fullName'));
 		foreach (self::FOLDER_FALLBACKS[$role] ?? [] as $candidate) {
-			$idx = array_search(mb_strtolower($candidate), $names, true);
-			if ($idx !== false) {
-				return $folders[$idx]['fullName'];
+			$c = mb_strtolower($candidate);
+			foreach ($folders as $f) {
+				if (($f['isSelectable'] ?? true) !== false
+					&& self::isRoleCandidate($f)
+					&& mb_strtolower((string) $f['name']) === $c) {
+					return $f['fullName'];
+				}
 			}
 		}
 		return self::FOLDER_FALLBACKS[$role][0] ?? 'INBOX';
@@ -716,7 +815,8 @@ final class MailService
 		}
 		$junkNames = array_map('mb_strtolower', self::FOLDER_FALLBACKS['junk']);
 		foreach ($folders as $f) {
-			if (in_array(mb_strtolower((string) $f['name']), $junkNames, true)) {
+			if (($f['isSelectable'] ?? true) !== false && self::isRoleCandidate($f)
+				&& in_array(mb_strtolower((string) $f['name']), $junkNames, true)) {
 				return $f['fullName'];
 			}
 		}
@@ -725,7 +825,7 @@ final class MailService
 
 	/**
 	 * Dossier Corbeille réellement existant (assignation, special-use \trash
-	 * ou nom usuel), sinon null — jamais de nom deviné.
+	 * ou nom usuel), sinon null - jamais de nom deviné.
 	 */
 	public function trashFolder(): ?string
 	{
@@ -740,7 +840,8 @@ final class MailService
 		}
 		$trashNames = array_map('mb_strtolower', self::FOLDER_FALLBACKS['trash']);
 		foreach ($folders as $f) {
-			if (in_array(mb_strtolower((string) $f['name']), $trashNames, true)) {
+			if (($f['isSelectable'] ?? true) !== false && self::isRoleCandidate($f)
+				&& in_array(mb_strtolower((string) $f['name']), $trashNames, true)) {
 				return $f['fullName'];
 			}
 		}
@@ -748,8 +849,8 @@ final class MailService
 	}
 
 	/**
-	 * 'inbox'  → le nom désigne la boîte de réception ;
-	 * 'system' → dossier « par défaut » (INBOX, rôle effectif ou assigné)
+	 * 'inbox'  > le nom désigne la boîte de réception ;
+	 * 'system' > dossier "par défaut" (INBOX, rôle effectif ou assigné)
 	 * sur lequel renommage, ACL et suppression sont interdits.
 	 */
 	public function folderFlags(string $name): array
@@ -783,8 +884,8 @@ final class MailService
 
 	/**
 	 * Remplace le message $uid par $rawMessage dans $folder (RFC 8508
-	 * UID REPLACE ; sinon append + expunge ciblé — MessageReplaceStream
-	 * gère le fallback). $uid < 1 → simple APPEND. Retourne l'UID du
+	 * UID REPLACE ; sinon append + expunge ciblé - MessageReplaceStream
+	 * gère le fallback). $uid < 1 > simple APPEND. Retourne l'UID du
 	 * message résultant, ou null si le serveur ne le publie pas (pas de
 	 * UIDPLUS sur le chemin append).
 	 */
@@ -798,8 +899,8 @@ final class MailService
 		try {
 			$imap = $this->client()->ImapClient();
 			$new = $imap->MessageReplaceStream($folder, $uid, $fp, filesize($tmp), $flags);
-			// REPLACE conserve l'UID ; fallback append → nouvel UID (ou
-			// null sans UIDPLUS → la réf client n'est juste pas mise à jour).
+			// REPLACE conserve l'UID ; fallback append > nouvel UID (ou
+			// null sans UIDPLUS > la réf client n'est juste pas mise à jour).
 			return $new ?? ($uid > 0 && $imap->hasCapability('REPLACE') ? $uid : null);
 		} finally {
 			is_resource($fp) && fclose($fp);
@@ -810,7 +911,7 @@ final class MailService
 	/**
 	 * Suppression définitive sans sémantique corbeille (contrairement à
 	 * delete()) : flag \Deleted + UID EXPUNGE ciblé. Pour les brouillons
-	 * consommés par un envoi — une copie en corbeille serait du bruit.
+	 * consommés par un envoi - une copie en corbeille serait du bruit.
 	 */
 	public function deletePermanent(string $folder, int $uid): void
 	{
@@ -862,7 +963,7 @@ final class MailService
 		$this->sieve()->CheckScript($source);
 	}
 
-	/** $oldName non null ≠ $name : renommage (PUT nouveau + DELETE ancien —
+	/** $oldName non null ≠ $name : renommage (PUT nouveau + DELETE ancien -
 	 *  ne dépend pas de la capacité RENAMESCRIPT, optionnelle). SETACTIVE
 	 *  avant DELETE si l'ancien était actif : DELETESCRIPT refuse un script
 	 *  actif et l'état actif est ainsi conservé. */
@@ -897,7 +998,7 @@ final class MailService
 	/**
 	 * Configuration du répondeur d'absence (Sieve vacation) : lue dans le
 	 * doc géré (marqueur MXWM-RULES) du script actif. 'managed' indique si
-	 * le script actif est géré par l'assistant — un script externe n'est
+	 * le script actif est géré par l'assistant - un script externe n'est
 	 * jamais réécrit silencieusement.
 	 */
 	public function vacationGet(): array
@@ -933,7 +1034,7 @@ final class MailService
 	/**
 	 * Écrit la config vacation dans le document géré : script actif géré
 	 * s'il existe, sinon premier script géré activé, sinon nouveau script
-	 * 'mxwebmail' activé. Script actif non géré → refus (409).
+	 * 'mxwebmail' activé. Script actif non géré > refus (409).
 	 */
 	public function vacationSave(array $vacation): void
 	{
@@ -978,7 +1079,7 @@ final class MailService
 	// ─── ACL dossiers ───
 
 	/** 400 explicite si le serveur n'a pas la capacité ACL (sinon réponse vide
-	 *  indistinguable de « aucun droit »). */
+	 *  indistinguable de "aucun droit"). */
 	private function requireAcl(): void
 	{
 		if (!$this->client()->ImapClient()->hasCapability('ACL')) {
@@ -1054,25 +1155,33 @@ final class MailService
 			$smtp->DataWithStream($stream);
 		} catch (\MailSo\Smtp\Exceptions\ResponseException $e) {
 			// Réponse brute du serveur utile au diagnostic (quota, adresse
-			// refusée) — n'affichée que si labs.smtp_show_server_errors l'active.
+			// refusée) - n'affichée que si labs.smtp_show_server_errors l'active.
 			$msg = $this->t('errors.send_failed');
 			if ($settings->viewErrors) {
 				$msg .= ' : ' . $e->getMessage();
 			} else {
 				$this->app->log('error', 'Envoi SMTP refusé : ' . $e->getMessage());
 			}
-			throw new \RuntimeException($msg, 502, $e);
+			throw new UserFacingException($msg, 502, $e);
+		} catch (\MailSo\Net\Exceptions\ConnectionException
+			| \MailSo\Net\Exceptions\SocketReadException
+			| \MailSo\Net\Exceptions\SocketReadTimeoutException
+			| \MailSo\Net\Exceptions\SocketWriteException $e) {
+			// Panne amont : remonter brut - le dispatcher mappe en 503 +
+			// message "serveur injoignable / connexion interrompue".
+			$this->app->log('error', 'Envoi SMTP impossible : ' . $e->getMessage());
+			throw $e;
 		} catch (\Throwable $e) {
-			// Connexion, timeout, socket… : ne pas fuiter le détail technique.
+			// Refus protocolaire inattendu ou bug : pas de détail technique.
 			$this->app->log('error', 'Envoi SMTP échoué : ' . $e->getMessage());
-			throw new \RuntimeException($this->t('errors.send_failed'), 502, $e);
+			throw new UserFacingException($this->t('errors.send_failed'), 502, $e);
 		} finally {
 			// En cas d'exception mid-dialogue la socket resterait ouverte.
 			try { $smtp->Disconnect(); } catch (\Throwable) {}
 		}
 
 		// Copie dans le dossier Éléments envoyés (l'échec ne doit pas faire
-		// échouer l'envoi). Bcc conservé ici — ToString(false) : l'expéditeur
+		// échouer l'envoi). Bcc conservé ici - ToString(false) : l'expéditeur
 		// doit retrouver ses destinataires Cci dans sa copie.
 		try {
 			$sent = $this->specialFolder('sent');
@@ -1146,14 +1255,14 @@ final class MailService
 		];
 	}
 
-	/** Métadonnées PJ aplaties — partagé par messageFull et attachmentMeta. */
+	/** Métadonnées PJ aplaties - partagé par messageFull et attachmentMeta. */
 	private static function attachmentsOf(\MailSo\Mail\Message $msg): array
 	{
 		$d = $msg->jsonSerialize();
 		$attachments = [];
 		foreach ($d['attachments'] ?? [] as $att) {
 			// Attachment est JsonSerializable : (array) exposerait les props
-			// privées sous des clés mangled (« \0Class\0prop ») — toutes les
+			// privées sous des clés mangled ("\0Class\0prop") - toutes les
 			// métadonnées (mimeIndex, cId, fileName) deviendraient null.
 			$att = is_array($att) ? $att
 				: ($att instanceof \JsonSerializable ? $att->jsonSerialize() : (array) $att);

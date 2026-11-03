@@ -9,7 +9,7 @@ use MXWebMail\Plugin\PluginBase;
 /**
  * Scan antiviral ClamAV (clamd, protocole zINSTREAM) des pièces jointes
  * uploadées (compose + import .eml/.mbox via le hook attachment.upload).
- * FOUND → rejet de l'upload. clamd indisponible → on_error (allow = log
+ * FOUND > rejet de l'upload. clamd indisponible > on_error (allow = log
  * + passage, deny = 503 fail-closed).
  */
 final class AttachmentsClamav extends PluginBase
@@ -52,7 +52,7 @@ final class AttachmentsClamav extends PluginBase
 			fwrite($fp, "zINSTREAM\0");
 			$in = fopen($path, 'rb');
 			if (!$in) {
-				// Un stream vide donnerait « stream: OK » — l'échec de lecture
+				// Un stream vide donnerait "stream: OK" - l'échec de lecture
 				// locale suit on_error comme toute erreur clamd (pas un pass).
 				throw new \RuntimeException(
 					$this->t('plugin.attachments-clamav.read_failed',
@@ -69,7 +69,7 @@ final class AttachmentsClamav extends PluginBase
 		}
 		if (str_ends_with($resp, 'FOUND')) {
 			$this->app->log('warning',
-				"attachments-clamav: « {$name} » → {$resp}");
+				"attachments-clamav: \"{$name}\" > {$resp}");
 			throw new \RuntimeException(
 				$this->t('plugin.attachments-clamav.virus_found',
 					['name' => $name]), 422);

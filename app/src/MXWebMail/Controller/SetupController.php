@@ -8,12 +8,12 @@ use MXWebMail\Http\Request;
 use MXWebMail\Http\Response;
 
 /**
- * Installeur web MXWebMail — wizard multi-étapes (état en session
- * « mxwm_setup »). Servi par App::run() tant que storage/INSTALLED est
- * absent ; une fois installé, /setup retombe sur le routing normal → 404.
+ * Installeur web MXWebMail - wizard multi-étapes (état en session
+ * "mxwm_setup"). Servi par App::run() tant que storage/INSTALLED est
+ * absent ; une fois installé, /setup retombe sur le routing normal > 404.
  *
  * Autonome par conception : ne s'appuie ni sur config.php (peut être absent)
- * ni sur les services applicatifs — la config et la base sont créées par
+ * ni sur les services applicatifs - la config et la base sont créées par
  * doInstall() qui instancie un App frais après écriture de config.php.
  */
 final class SetupController
@@ -52,13 +52,13 @@ final class SetupController
 	public function handle(Request $request): Response
 	{
 		// Garde défensive : le dispatch a déjà exclu les instances installées,
-		// mais le verrou a pu être posé entre-temps — avant tout session_start.
+		// mais le verrou a pu être posé entre-temps - avant tout session_start.
 		if (is_file($this->lockFile)) {
 			return Response::notFound();
 		}
 
 		// Slash final manquant : mod_dir ne joue plus (plus de dossier réel).
-		// $request->path normalise le '/' final — il faut l'URI brute pour
+		// $request->path normalise le '/' final - il faut l'URI brute pour
 		// distinguer /setup de /setup/ (une détection sur le path bouclerait).
 		$uriPath = (string) parse_url(
 			(string) ($request->server['REQUEST_URI'] ?? ''), PHP_URL_PATH);
@@ -71,7 +71,7 @@ final class SetupController
 		$this->nonce = base64_encode(random_bytes(16));
 
 		session_name('mxwm_setup');
-		// Mêmes flags que la session applicative (App::startSession) —
+		// Mêmes flags que la session applicative (App::startSession) -
 		// Lax suffit : le wizard n'a pas de retour cross-site.
 		session_set_cookie_params([
 			'httponly' => true,
@@ -90,7 +90,7 @@ final class SetupController
 			? (array) require $this->root . '/config/config.example.php'
 			: [];
 
-		// DSN d'exemple → champs « Base de données » du formulaire
+		// DSN d'exemple > champs "Base de données" du formulaire
 		$this->exDb = ['driver' => 'sqlite', 'host' => 'localhost',
 			'port' => '3306', 'name' => 'mxwebmail'];
 		$exDsn = $this->ex('db_dsn', 'sqlite');
@@ -215,7 +215,7 @@ final class SetupController
 
 	/**
 	 * Page de réponse : le HTML bufférisé + les en-têtes propres du wizard
-	 * (CSP à nonce pour le script inline, sans passer par Headers::send —
+	 * (CSP à nonce pour le script inline, sans passer par Headers::send -
 	 * le dispatch en amont court-circuite les en-têtes applicatifs).
 	 */
 	private function page(): Response
@@ -264,8 +264,8 @@ final class SetupController
 		return $host !== '' && preg_match('/^[A-Za-z0-9.\-:\[\]]+$/', $host) === 1;
 	}
 
-	// ini en Mio ; illimité (post_max_size=0/-1) ou illisible → -1 (ignoré) ;
-	// upload_max_filesize ≤ 0 = uploads impossibles → 0 (le champ planchera à 1)
+	// ini en Mio ; illimité (post_max_size=0/-1) ou illisible > -1 (ignoré) ;
+	// upload_max_filesize ≤ 0 = uploads impossibles > 0 (le champ planchera à 1)
 	private function iniToMb(string $key): int
 	{
 		$raw = ini_get($key);
@@ -280,7 +280,7 @@ final class SetupController
 	}
 
 	// Défaut du champ : plafond d'upload PHP le plus restrictif, borné à la
-	// recommandation (min 1 — upload_max_filesize < 1 Mio donne 0).
+	// recommandation (min 1 - upload_max_filesize < 1 Mio donne 0).
 	private function defaultAttachTotal(): int
 	{
 		$default = self::RECOMMENDED_TOTAL_MB;
@@ -303,7 +303,7 @@ final class SetupController
 
 	// ─── Vérifications des prérequis ───
 	// 4e élément : soft = avertissement non bloquant (ldap optionnel,
-	// config/ non inscriptible → le config.php peut être créé à la main).
+	// config/ non inscriptible > le config.php peut être créé à la main).
 	private function requirements(): array
 	{
 		$checks = [];
@@ -343,7 +343,7 @@ final class SetupController
 		$lang = $this->app->locale()->lang();
 		echo '<!doctype html><html lang="', $this->h($lang), '"><head><meta charset="utf-8">',
 			'<meta name="viewport" content="width=device-width, initial-scale=1">',
-			"<title>MXWebMail — " . $this->h($title) . "</title>",
+			"<title>MXWebMail - " . $this->h($title) . "</title>",
 			'<style>',
 			'body{font-family:system-ui,sans-serif;background:#f0f2f5;margin:0;padding:2rem}',
 			'.card{max-width:760px;margin:0 auto;background:#fff;border-radius:.5rem;padding:2rem;box-shadow:0 2px 8px rgba(0,0,0,.08)}',
@@ -373,7 +373,7 @@ final class SetupController
 			'.busy a{pointer-events:none}',
 			'.spin{display:inline-block;width:.9em;height:.9em;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;vertical-align:-.12em;margin-right:.4em;animation:spin .7s linear infinite}',
 			// Grande variante du spinner pour le voile : le .spin bouton est pensé
-			// pour fond bleu (bord blanc) — sur la boîte blanche il faut du bleu.
+			// pour fond bleu (bord blanc) - sur la boîte blanche il faut du bleu.
 			'.spin-lg{width:2.2em;height:2.2em;border-width:3px;border-color:rgba(13,110,253,.25);border-top-color:#0d6efd;display:block;vertical-align:baseline;margin:0 auto .8rem}',
 			'@keyframes spin{to{transform:rotate(360deg)}}',
 			'@media (prefers-reduced-motion:reduce){.spin{animation-duration:2s}}',
@@ -383,7 +383,7 @@ final class SetupController
 			'.veil-box{background:#fff;border-radius:.5rem;padding:2rem 3rem;text-align:center;box-shadow:0 4px 20px rgba(0,0,0,.15);max-width:min(90vw,26rem)}',
 			'.veil-box p{margin:.3rem 0}.veil-hint{color:#666;font-size:.85rem}',
 			'</style></head><body><div class="card">',
-			"<h1>MXWebMail — " . $this->h($title) . "</h1>";
+			"<h1>MXWebMail - " . $this->h($title) . "</h1>";
 
 		if ($step > 0) {
 			echo '<ol class="steps">';
@@ -427,8 +427,8 @@ document.addEventListener('submit', (e) => {
 		spin.className = 'spin';
 		btn.append(spin, ' ', label);
 	}
-	// data-busy n'existe que sur « Installer » : en plus du spinner bouton,
-	// un voile bloquant — l'install peut durer ~2 min (détection de domaine).
+	// data-busy n'existe que sur "Installer" : en plus du spinner bouton,
+	// un voile bloquant - l'install peut durer ~2 min (détection de domaine).
 	if (btn && btn.dataset.busy) {
 		const veil = document.createElement('div');
 		veil.className = 'veil';
@@ -450,8 +450,8 @@ JS
 			, '</script></body></html>';
 	}
 
-	// « Suivant »/« Installer » en premier dans le DOM (Entrée = avancer) ;
-	// « Précédent » est replacé à gauche en CSS (.btn-secondary{order:-1}).
+	// "Suivant"/"Installer" en premier dans le DOM (Entrée = avancer) ;
+	// "Précédent" est replacé à gauche en CSS (.btn-secondary{order:-1}).
 	private function stepNav(int $step): void
 	{
 		echo '<div class="nav">',
@@ -473,8 +473,8 @@ JS
 	{
 		foreach (self::STEP_FIELDS[$step] ?? [] as $f) {
 			$v = $this->post($f);
-			// admin_pass : vide → conserver la valeur en session ;
-			// trop court → ignorer (la session ne contient que du validé)
+			// admin_pass : vide > conserver la valeur en session ;
+			// trop court > ignorer (la session ne contient que du validé)
 			if ($f === 'admin_pass' && strlen($v) < 8) {
 				continue;
 			}
@@ -501,7 +501,7 @@ JS
 				$e[] = $this->t('setup.err_attach_total');
 			}
 		} elseif ($step === 3 && $this->post('db_driver') === 'mysql') {
-			// Test de connexion seule — CREATE DATABASE uniquement à l'installation
+			// Test de connexion seule - CREATE DATABASE uniquement à l'installation
 			$host = $this->post('db_host', $this->exDb['host']);
 			if (!$this->validDbHost($host)) {
 				$e[] = $this->t('errors.invalid_value', ['key' => 'db_host']);
@@ -554,15 +554,15 @@ JS
 			(int) ($d['attachments_max_total'] ?? $this->defaultAttachTotal()));
 
 		// Aucun paramètre serveur en config : les domaines vivent en table
-		// (admin → Domaines). Les défauts de résolution sont ceux de
-		// config.example.php — source unique ('auto', restriction, détection).
+		// (admin > Domaines). Les défauts de résolution sont ceux de
+		// config.example.php - source unique ('auto', restriction, détection).
 		$config = [
 			'app_name' => $d['app_name'] ?? $this->ex('app_name', 'MXWebMail'),
 			'admin_path' => preg_replace('/[^a-z0-9\-_]/i', '', $d['admin_path'] ?? '') ?: 'admin',
 			'admin_user' => $d['admin_user'] ?? '',
 			'admin_password_hash' => password_hash($d['admin_pass'] ?? '', PASSWORD_DEFAULT),
 			// Par fichier : borné au total choisi (au-delà, la limite serait
-			// sans effet — l'upload applique déjà le min des deux).
+			// sans effet - l'upload applique déjà le min des deux).
 			'attachment_max_size' => min(
 				(int) $this->ex('attachment_max_size', '25'), $attachTotal),
 			'attachments_max_total' => $attachTotal,
@@ -604,7 +604,7 @@ JS
 		if (!$errors) {
 			// Écriture du config.php. Un fichier existant est archivé en .bak
 			// horodaté puis remplacé (relancer l'installeur = intention claire,
-			// cf. notice « config_exists » du récapitulatif) — sauf si config/
+			// cf. notice "config_exists" du récapitulatif) - sauf si config/
 			// n'est pas inscriptible : le fichier a alors été créé à la main et
 			// est conservé tel quel.
 			$php = "<?php\n// Généré par l'installeur le " . date('Y-m-d H:i:s') . "\nreturn "
@@ -625,7 +625,7 @@ JS
 
 		if (!$errors && $manual === null) {
 			try {
-				// Migrations sur la base configurée — Config/App frais :
+				// Migrations sur la base configurée - Config/App frais :
 				// $this->app est figé sur les défauts de l'exemple (config.php
 				// n'existait pas encore à sa construction).
 				$cfg = new \MXWebMail\Config\Config($root);
@@ -640,7 +640,7 @@ JS
 				if ($app) {
 					// Domaines publics pré-autorisés en comptes secondaires
 					// (options.secondary_only + oauth) : hors réseau, avant la
-					// détection — la partie déterministe d'abord. Une ligne
+					// détection - la partie déterministe d'abord. Une ligne
 					// existante n'est jamais écrasée (l'admin a pu l'ajuster) ;
 					// non bloquant, comme la détection.
 					try {
@@ -658,18 +658,18 @@ JS
 										'oauth' => $provider],
 								]);
 								$app->log('info',
-									"domaine secondaire « $name » pré-autorisé ($provider)");
+									"domaine secondaire \"$name\" pré-autorisé ($provider)");
 							}
 							$presetOk[] = $name;
 						}
 					} catch (\Throwable) {}
 
 					// Domaine de l'hébergement : le vhost peut être un sous-domaine
-					// du domaine mail — hôte puis parents (w.mxrelay.fr →
+					// du domaine mail - hôte puis parents (w.mxrelay.fr >
 					// mxrelay.fr). Détection forcée (ISPDB + sondage, comme le
-					// bouton « Détecter » de l'admin ; ignore le cache négatif).
+					// bouton "Détecter" de l'admin ; ignore le cache négatif).
 					// Une preuve SRV/autoconfig/MX arrête au premier candidat ;
-					// un succès par sondage seul n'est qu'un repli — un vhost
+					// un succès par sondage seul n'est qu'un repli - un vhost
 					// colocalisé avec l'IMAP n'est pas forcément le domaine mail,
 					// le parent le plus haut qui répond est alors préféré. Un
 					// échec ou un hôte non-domaine n'ajoute rien, non bloquant.
@@ -687,7 +687,7 @@ JS
 							}
 						}
 						// Garde exists() : le vhost peut être un nom de preset
-						// (hébergement sur gmail.com…) — l'INSERT violerait
+						// (hébergement sur gmail.com…) - l'INSERT violerait
 						// l'UNIQUE et le domaine détecté serait perdu ici.
 						if ($dom && !$app->domains()->exists($dom['name'])) {
 							$app->domains()->save($dom);
@@ -714,7 +714,7 @@ JS
 		foreach ($checks as [$label, $ok, $note, $soft]) {
 			$cls = $ok ? 'ok' : ($soft ? 'warn' : 'ko');
 			echo '<li class="', $cls, '">', $ok ? '✓' : '✗', ' ', $this->h($label),
-				$note ? ' <small>— ' . $this->h($note) . '</small>' : '', '</li>';
+				$note ? ' <small>- ' . $this->h($note) . '</small>' : '', '</li>';
 		}
 		echo '</ul>';
 		if (is_file($this->configFile)) {
@@ -831,9 +831,9 @@ JS
 		$this->stepNav(self::STEP_LAST);
 	}
 
-	// Écran « installation terminée » : $doneInfo = [admin_path, admin_user,
+	// Écran "installation terminée" : $doneInfo = [admin_path, admin_user,
 	// config remplacé, domaine détecté, presets]. Base publique via
-	// Request::basePath() (sous-dossier supporté — le fichier servi devait
+	// Request::basePath() (sous-dossier supporté - le fichier servi devait
 	// déduire sa propre base de l'URI).
 	private function renderDone(array $doneInfo): void
 	{

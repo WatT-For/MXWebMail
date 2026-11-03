@@ -6,19 +6,19 @@ namespace MXWebMail\Service;
 use MXWebMail\Application\App;
 
 /**
- * Détection de la configuration mail d'un domaine (format table « domains »).
+ * Détection de la configuration mail d'un domaine (format table "domains").
  * Sources, dans l'ordre : DNS SRV (RFC 6186), autoconfig Mozilla (+ ISPDB),
  * heuristique MX, sondage de ports. Quelle que soit la source, ManageSieve
- * (4190) est sondé en repli sur l'hôte IMAP — et sieve.<d> quand le sondage
+ * (4190) est sondé en repli sur l'hôte IMAP - et sieve.<d> quand le sondage
  * est admis. Chaque sonde est bornée à ~3 s ; les échecs sont mis en cache
- * négatif 24 h (les succès sont persistés en table par l'appelant — pas de
+ * négatif 24 h (les succès sont persistés en table par l'appelant - pas de
  * cache positif).
  */
 final class DomainDetector
 {
 	private const OK_PORTS = [143, 993, 465, 587, 25, 4190];
 
-	/** Suffixe MX → [imap_host, smtp_host, smtp_port, smtp_encryption]. */
+	/** Suffixe MX > [imap_host, smtp_host, smtp_port, smtp_encryption]. */
 	private const MX_PROVIDERS = [
 		'google.com'         => ['imap.gmail.com', 'smtp.gmail.com', 465, 'ssl'],
 		'googlemail.com'     => ['imap.gmail.com', 'smtp.gmail.com', 465, 'ssl'],
@@ -44,7 +44,7 @@ final class DomainDetector
 	 * $force = action admin explicite : ignore le cache négatif et active
 	 * toutes les sources (ISPDB, sondage) même si désactivées en config.
 	 * $source (sortie) reçoit la source gagnante : srv | autoconfig |
-	 * mx | probe — 'probe' est la seule preuve « faible » (un hôte
+	 * mx | probe - 'probe' est la seule preuve "faible" (un hôte
 	 * colocalisé avec l'IMAP répond sans être le domaine mail visé).
 	 */
 	public function detect(string $domain, bool $force = false, ?string &$source = null): ?array
@@ -69,7 +69,7 @@ final class DomainDetector
 		}
 		$res = $res ? $this->normalizeResult($res, $domain) : null;
 		// ManageSieve : presque toujours sur l'hôte IMAP (Dovecot). sieve.<d>
-		// n'est tenté que quand le sondage est admis (force|probe) — pas de
+		// n'est tenté que quand le sondage est admis (force|probe) - pas de
 		// scan non sollicité au login. Sondes TCP bornées à ~3 s chacune.
 		if ($res !== null && empty($res['sieve_host'])) {
 			$candidates = ($force || !empty($cfg['probe']))
@@ -92,8 +92,8 @@ final class DomainDetector
 	/**
 	 * Domaines mail probables d'un hôte HTTP : l'hôte lui-même puis ses
 	 * parents en retirant le label le plus à gauche (un vhost peut être
-	 * un sous-domaine du domaine mail, ex. w.mxrelay.fr → mxrelay.fr).
-	 * Borné à 4 candidats ; hôte vide, IP ou sans point → [].
+	 * un sous-domaine du domaine mail, ex. w.mxrelay.fr > mxrelay.fr).
+	 * Borné à 4 candidats ; hôte vide, IP ou sans point > [].
 	 */
 	public static function hostCandidates(string $httpHost): array
 	{
@@ -144,7 +144,7 @@ final class DomainDetector
 		return $out;
 	}
 
-	/** Premier enregistrement SRV (déjà trié par priorité) → [host, port, enc]. */
+	/** Premier enregistrement SRV (déjà trié par priorité) > [host, port, enc]. */
 	private static function srvFirst(string $name, string $enc): ?array
 	{
 		$recs = \MXWebMailLib\DNS::SRV($name);
@@ -192,7 +192,7 @@ final class DomainDetector
 		}
 	}
 
-	/** Parse clientConfig Mozilla — namespaces ignorés via local-name(). */
+	/** Parse clientConfig Mozilla - namespaces ignorés via local-name(). */
 	private function parseAutoconfig(string $xml): ?array
 	{
 		$prev = libxml_use_internal_errors(true);
@@ -318,8 +318,8 @@ final class DomainDetector
 
 	/**
 	 * Bannière ManageSieve (RFC 5804) : le serveur émet ses capacités en
-	 * lignes « "CLE" ["val"] » (IMPLEMENTATION, SIEVE, SASL, STARTTLS…)
-	 * terminées par OK/NO/BYE — un refus identifie quand même le service.
+	 * lignes ""CLE" ["val"]" (IMPLEMENTATION, SIEVE, SASL, STARTTLS…)
+	 * terminées par OK/NO/BYE - un refus identifie quand même le service.
 	 */
 	private static function bannerSieve(string $host, int $port = 4190): bool
 	{
@@ -338,7 +338,7 @@ final class DomainDetector
 				break;
 			}
 			$data .= $line;
-			// Statut final lu ou lecture expirée → inutile d'attendre
+			// Statut final lu ou lecture expirée > inutile d'attendre
 			if (preg_match('/^(OK|NO|BYE)\b/i', $line)
 				|| stream_get_meta_data($fp)['timed_out']) {
 				break;
@@ -348,7 +348,7 @@ final class DomainDetector
 		return self::sieveGreetingOk($data);
 	}
 
-	/** Bannière ManageSieve valide : ≥ 1 capacité « "CLE" » + statut OK/NO/BYE. */
+	/** Bannière ManageSieve valide : ≥ 1 capacité ""CLE"" + statut OK/NO/BYE. */
 	private static function sieveGreetingOk(string $data): bool
 	{
 		$capa = $status = false;
@@ -405,7 +405,7 @@ final class DomainDetector
 		return in_array($e, ['ssl', 'tls', 'none'], true) ? $e : 'ssl';
 	}
 
-	/** Section « cache » — enabled=false court-circuite le cache négatif. */
+	/** Section "cache" - enabled=false court-circuite le cache négatif. */
 	private function cacheCfg(): array
 	{
 		$c = $this->app->config()->get('cache', []);

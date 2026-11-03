@@ -8,7 +8,7 @@ Options -Indexes
 <IfModule mod_rewrite.c>
 	RewriteEngine On
 
-	# Assets versionnés /assets/vX.Y.Z/… → fichier réel (le segment de
+	# Assets versionnés /assets/vX.Y.Z/… > fichier réel (le segment de
 	# version bust le cache navigateur à chaque release)
 	RewriteRule ^assets/v[0-9]+\.[0-9]+\.[0-9]+/(.*)$ assets/$1 [L]
 
@@ -17,13 +17,13 @@ Options -Indexes
 	RewriteCond %{REQUEST_FILENAME} -d
 	RewriteRule ^ - [L]
 
-	# Tout le reste → front controller
+	# Tout le reste > front controller
 	RewriteRule ^ index.php [L]
 </IfModule>
 
 # TTL : uniquement les fichiers réellement statiques de /assets (img|js|vendor)
-# et les URLs versionnées. /assets/theme|plugin/ sont servis par PHP → leurs
-# en-têtes (config « http ») restent intacts. Motifs non ancrés (^ absent) :
+# et les URLs versionnées. /assets/theme|plugin/ sont servis par PHP > leurs
+# en-têtes (config "http") restent intacts. Motifs non ancrés (^ absent) :
 # compatibles avec une installation en sous-dossier.
 SetEnvIf Request_URI "/assets/v[0-9]+\.[0-9]+\.[0-9]+/" MXWM_ASSET_1Y
 SetEnvIf Request_URI "/assets/(img|js|vendor)/" MXWM_ASSET_1H

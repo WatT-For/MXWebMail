@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * MXWebMail — front controller.
+ * MXWebMail - front controller.
  * Toutes les requêtes non-statiques arrivent ici (rewrite dans .htaccess).
  */
 

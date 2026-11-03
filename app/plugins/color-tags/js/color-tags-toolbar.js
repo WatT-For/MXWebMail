@@ -1,5 +1,5 @@
 /**
- * Bouton « Étiquettes » de la barre d'actions groupées (plugin color-tags).
+ * Bouton "Étiquettes" de la barre d'actions groupées (plugin color-tags).
  * Monté via pluginMount dans le slot messageToolbar. La liste des couleurs
  * (noms définis par l'utilisateur) vient de /api/plugin/color-tags/state.
  */
@@ -20,7 +20,7 @@ export default function mount(el, ctx) {
 	menu.className = 'dropdown-menu dropdown-menu-end';
 	el.append(btn, menu);
 
-	// Désactivé tant qu'aucun mail coché (isChecked observables → réactif)
+	// Désactivé tant qu'aucun mail coché (isChecked observables > réactif)
 	if (window.ko && ctx.list) {
 		const c = ko.computed(() => ctx.list.checked().length === 0);
 		c.subscribe(v => { btn.disabled = v; });

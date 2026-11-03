@@ -38,7 +38,7 @@ class Response
 		$this->request_uri = $request_uri;
 		$this->final_uri   = $request_uri;
 		$this->status      = (int) $status;
-		// Un en-tête dupliqué produit un array — stripos exige une string.
+		// Un en-tête dupliqué produit un array - stripos exige une string.
 		$encoding = $this->headers['content-encoding'] ?? '';
 		if (\is_array($encoding)) {
 			$encoding = \implode(',', $encoding);
@@ -47,7 +47,7 @@ class Response
 		 && (false !== \stripos($encoding, 'gzip'))) {
 			// En-tête réel : 10 octets fixes puis champs optionnels selon FLG
 			// (FEXTRA u16+données, FNAME/FCOMMENT chaînes \0, FHCRC 2 octets).
-			// Trailer = 8 octets (CRC32 + ISIZE) — un décalage fixe casserait
+			// Trailer = 8 octets (CRC32 + ISIZE) - un décalage fixe casserait
 			// un membre à en-tête étendu.
 			$off = 10;
 			$flg = \ord($body[3] ?? "\0");

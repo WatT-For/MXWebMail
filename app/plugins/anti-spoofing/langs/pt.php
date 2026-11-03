@@ -4,14 +4,17 @@ declare(strict_types=1);
 /** Dictionnaire portugais du plugin anti-spoofing. */
 return [
 	'plugin.anti-spoofing.description'        => 'Detecção de falsificação de endereços e domínios no leitor de mensagens',
-	'plugin.anti-spoofing.title'              => 'Aviso — possível falsificação',
+	'plugin.anti-spoofing.title'              => 'Aviso - possível falsificação',
 	'plugin.anti-spoofing.clean'              => 'Nenhuma falsificação detectada',
 
 	'plugin.anti-spoofing.alert.envelope_mismatch'  => 'O endereço de envio ({return_path}) não corresponde ao remetente exibido ({from}).',
 	'plugin.anti-spoofing.alert.reply_to_mismatch'  => 'As respostas serão enviadas para {reply_to} em vez do remetente exibido ({from}).',
 	'plugin.anti-spoofing.alert.sender_mismatch'    => 'Esta mensagem foi enviada por {sender} em nome de {from}.',
-	'plugin.anti-spoofing.alert.display_name_spoof' => 'O nome de exibição «{name}» se passa por um remetente conhecido, mas o endereço real é {email}.',
+	'plugin.anti-spoofing.alert.display_name_spoof' => 'O nome de exibição "{name}" se passa por um remetente conhecido, mas o endereço real é {email}.',
+	'plugin.anti-spoofing.alert.display_name_homoglyph' => 'O nome de exibição "{name}" usa caracteres enganosos para se passar por um remetente conhecido; o endereço real é {email}.',
 	'plugin.anti-spoofing.alert.lookalike_domain'   => 'O domínio {domain} imita o domínio legítimo {protected}.',
+	'plugin.anti-spoofing.alert.lookalike_subdomain'    => 'O domínio {domain} faz {protected} passar por um subdomínio.',
+	'plugin.anti-spoofing.alert.lookalike_tld'          => 'O domínio {domain} reutiliza abusivamente o nome "{protected}".',
 
 	'plugin.anti-spoofing.f.protected_domains'      => 'Domínios protegidos',
 	'plugin.anti-spoofing.f.protected_domains.help' => 'Domínios legítimos a proteger, além do seu próprio domínio e dos domínios do servidor (protegidos automaticamente).',
@@ -27,5 +30,6 @@ return [
 	'plugin.anti-spoofing.alert.auth_dkim_fail'    => 'A verificação da assinatura DKIM falhou',
 	'plugin.anti-spoofing.alert.auth_dmarc_fail'   => 'A verificação DMARC falhou',
 	'plugin.anti-spoofing.alert.auth_spf_softfail' => 'SPF softfail (remetente não autorizado)',
-	'plugin.anti-spoofing.alert.auth_pass_all'     => 'SPF, DKIM e DMARC verificados (pass)',
+	'plugin.anti-spoofing.alert.auth_dkim_fail_thirdparty' => 'Assinatura DKIM de terceiros inválida ({domain}) - provável retransmissor.',
+	'plugin.anti-spoofing.alert.auth_pass'         => 'Autenticação verificada: {mechs}',
 ];

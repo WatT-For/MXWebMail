@@ -12,7 +12,7 @@ use MXWebMail\Compat\ConfigBridge;
  * MailSo appelle encore l'ancienne façade \MXWebMail\API :
  *  - API::Config()->Get('ssl', 'verify_certificate', true)   (Net\SSLContext, Smtp\Settings)
  *  - API::Actions()->Plugins()->RunHook('imap.message-headers', [&$headers])
- * Toute nouvelle fonctionnalité ne doit PAS utiliser cette façade —
+ * Toute nouvelle fonctionnalité ne doit PAS utiliser cette façade -
  * elle n'existe que pour garder MailSo byte-identique (resync upstream).
  */
 final class API
@@ -44,7 +44,7 @@ final class API
 
 	/**
 	 * Logger MailSo (MXWebMailLib\Log y délègue). Écrit app/storage/logs/mail.log.
-	 * Niveau/config : config.php section 'logs' — enabled (def. true), level (def. WARNING).
+	 * Niveau/config : config.php section 'logs' - enabled (def. true), level (def. WARNING).
 	 */
 	public static function Logger(): \MailSo\Log\Logger
 	{

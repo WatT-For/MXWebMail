@@ -7,12 +7,12 @@ use MXWebMail\Application\App;
 use MXWebMail\Security\CredentialCrypt;
 
 /**
- * OAuth2 « authorization code + PKCE » pour les comptes secondaires des
+ * OAuth2 "authorization code + PKCE" pour les comptes secondaires des
  * domaines marqués options.oauth (google, microsoft, yahoo).
  *
  * Les identifiants d'application (client_id/secret/tenant) sont propres à
  * chaque utilisateur : table oauth_apps, saisis au premier ajout ou dans
- * Réglages → Applications OAuth2.
+ * Réglages > Applications OAuth2.
  *
  * Le flow ne produit jamais de mot de passe IMAP : accounts.imap_pass stocke
  * le refresh token chiffré (CredentialCrypt) ; chaque connexion échange un
@@ -20,7 +20,7 @@ use MXWebMail\Security\CredentialCrypt;
  */
 final class OAuthService
 {
-	/** Endpoints/scopes provider — '{tenant}' = tenant de l'app utilisateur. */
+	/** Endpoints/scopes provider - '{tenant}' = tenant de l'app utilisateur. */
 	private const PROVIDERS = [
 		'google' => [
 			'auth_url'  => 'https://accounts.google.com/o/oauth2/v2/auth',
@@ -68,7 +68,7 @@ final class OAuthService
 
 	/**
 	 * Endpoints du provider ; $tenant = tenant Microsoft de l'app utilisateur.
-	 * Slug/domaine/GUID uniquement — jamais de caractères d'URL.
+	 * Slug/domaine/GUID uniquement - jamais de caractères d'URL.
 	 */
 	private function provider(string $name, string $tenant = 'common'): array
 	{
@@ -132,8 +132,8 @@ final class OAuthService
 	}
 
 	/**
-	 * Échange code → tokens. Retourne {access_token, refresh_token, email}.
-	 * email = claim id_token si présent (sinon '' — la preuve d'appartenance
+	 * Échange code > tokens. Retourne {access_token, refresh_token, email}.
+	 * email = claim id_token si présent (sinon '' - la preuve d'appartenance
 	 * est alors la connexion IMAP XOAUTH2 elle-même).
 	 */
 	public function exchangeCode(array $pending, string $code, array $app): array
@@ -157,7 +157,7 @@ final class OAuthService
 
 	/**
 	 * Access token frais pour le compte (grant refresh_token). Rotation :
-	 * Microsoft et Yahoo réémettent un refresh_token à chaque usage — l'ancien
+	 * Microsoft et Yahoo réémettent un refresh_token à chaque usage - l'ancien
 	 * est alors révoqué, il faut le remplacer en base et en session.
 	 */
 	public function accessToken(int $accountId, int $userId): string
@@ -198,7 +198,7 @@ final class OAuthService
 
 	// ─── internes ───
 
-	/** POST form-urlencoded sur l'endpoint token du provider → JSON décodé. */
+	/** POST form-urlencoded sur l'endpoint token du provider > JSON décodé. */
 	private function tokenRequest(string $provider, array $app, array $params): array
 	{
 		$p = $this->provider($provider, (string) ($app['tenant'] ?? ''));
@@ -208,8 +208,8 @@ final class OAuthService
 		$req->timeout = 15;
 		$headers = ['Content-Type: application/x-www-form-urlencoded'];
 		// Credentials en Basic (RFC 6749 §2.3.1) : exigé par Yahoo, accepté
-		// par Google et le endpoint v2.0 Microsoft. En-tête direct — le
-		// transport « socket » n'envoie setAuth() qu'après un challenge 401.
+		// par Google et le endpoint v2.0 Microsoft. En-tête direct - le
+		// transport "socket" n'envoie setAuth() qu'après un challenge 401.
 		$secret = (string) ($app['secret'] ?? '');
 		if ($secret !== '') {
 			$headers[] = 'Authorization: Basic ' . base64_encode($clientId . ':' . $secret);

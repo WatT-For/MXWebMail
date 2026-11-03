@@ -1,4 +1,4 @@
-/* MXWebMail — layout application.
+/* MXWebMail - layout application.
    Couleurs configurées injectées via variables --mxwm-* (voir ThemeManager). */
 
 :root {
@@ -6,6 +6,88 @@
 	--bs-primary-rgb: var(--mxwm-primary-rgb, 13,110,253);
 	--bs-link-color: var(--mxwm-link, #0d6efd);
 	--bs-link-color-rgb: var(--mxwm-link-rgb, 13,110,253);
+	--bs-link-hover-color: var(--mxwm-primary-active, #0a58ca);
+	--bs-link-hover-color-rgb: var(--mxwm-primary-active-rgb, 10,88,202);
+}
+
+/* Composants Bootstrap : le CSS compilé embarque des couleurs littérales
+   (#0d6efd, rgba(13,110,253,.25), #86b7fe…) - redéclaration des variables
+   --bs-* vers --mxwm-primary (boutons, cases, focus) et --mxwm-folder-active
+   (éléments "sélectionnés"). Teintes calculées côté serveur : vars résolues
+   au point d'usage, les variantes [data-bs-theme=dark] suivent d'elles-mêmes. */
+.btn-primary {
+	--bs-btn-color: var(--mxwm-primary-text, #fff);
+	--bs-btn-bg: var(--mxwm-primary, #0d6efd);
+	--bs-btn-border-color: var(--mxwm-primary, #0d6efd);
+	--bs-btn-hover-color: var(--mxwm-primary-text, #fff);
+	--bs-btn-hover-bg: var(--mxwm-primary-hover, #0b5ed7);
+	--bs-btn-hover-border-color: var(--mxwm-primary-active, #0a58ca);
+	--bs-btn-focus-shadow-rgb: var(--mxwm-primary-focus-rgb, 49,132,253);
+	--bs-btn-active-color: var(--mxwm-primary-text, #fff);
+	--bs-btn-active-bg: var(--mxwm-primary-active, #0a58ca);
+	--bs-btn-active-border-color: var(--mxwm-primary-active-border, #0a53be);
+	--bs-btn-disabled-color: var(--mxwm-primary-text, #fff);
+	--bs-btn-disabled-bg: var(--mxwm-primary, #0d6efd);
+	--bs-btn-disabled-border-color: var(--mxwm-primary, #0d6efd);
+}
+.btn-outline-primary {
+	--bs-btn-color: var(--mxwm-primary, #0d6efd);
+	--bs-btn-border-color: var(--mxwm-primary, #0d6efd);
+	--bs-btn-hover-color: var(--mxwm-primary-text, #fff);
+	--bs-btn-hover-bg: var(--mxwm-primary, #0d6efd);
+	--bs-btn-hover-border-color: var(--mxwm-primary, #0d6efd);
+	--bs-btn-focus-shadow-rgb: var(--mxwm-primary-rgb, 13,110,253);
+	--bs-btn-active-color: var(--mxwm-primary-text, #fff);
+	--bs-btn-active-bg: var(--mxwm-primary, #0d6efd);
+	--bs-btn-active-border-color: var(--mxwm-primary, #0d6efd);
+	--bs-btn-disabled-color: var(--mxwm-primary, #0d6efd);
+	--bs-btn-disabled-border-color: var(--mxwm-primary, #0d6efd);
+}
+/* Élément "sélectionné" : couleur folder_active, texte par contraste serveur.
+   Vars posées sur les conteneurs : Bootstrap les définit là, pas sur les items. */
+.dropdown-menu {
+	--bs-dropdown-link-active-bg: var(--mxwm-folder-active, var(--bs-primary));
+	--bs-dropdown-link-active-color: var(--mxwm-folder-active-text, #fff);
+}
+.list-group {
+	--bs-list-group-active-bg: var(--mxwm-folder-active, var(--bs-primary));
+	--bs-list-group-active-color: var(--mxwm-folder-active-text, #fff);
+	--bs-list-group-active-border-color: var(--mxwm-folder-active, var(--bs-primary));
+}
+.nav-pills {
+	--bs-nav-pills-link-active-bg: var(--mxwm-folder-active, var(--bs-primary));
+	--bs-nav-pills-link-active-color: var(--mxwm-folder-active-text, #fff);
+}
+.pagination {
+	--bs-pagination-active-bg: var(--mxwm-folder-active, var(--bs-primary));
+	--bs-pagination-active-border-color: var(--mxwm-folder-active, var(--bs-primary));
+	--bs-pagination-active-color: var(--mxwm-folder-active-text, #fff);
+	--bs-pagination-focus-box-shadow: 0 0 0 .25rem rgba(var(--mxwm-primary-rgb, 13,110,253), .25);
+}
+/* Cases à cocher, interrupteurs et anneaux de focus. */
+.form-check-input:checked,
+.form-check-input[type=checkbox]:indeterminate {
+	background-color: var(--mxwm-primary, #0d6efd);
+	border-color: var(--mxwm-primary, #0d6efd);
+}
+.form-check-input:focus {
+	border-color: var(--mxwm-primary-tint, #86b7fe);
+	box-shadow: 0 0 0 .25rem rgba(var(--mxwm-primary-rgb, 13,110,253), .25);
+}
+.form-control:focus, .form-select:focus {
+	border-color: var(--mxwm-primary-tint, #86b7fe);
+	box-shadow: 0 0 0 .25rem rgba(var(--mxwm-primary-rgb, 13,110,253), .25);
+}
+.btn-close {
+	--bs-btn-close-focus-shadow: 0 0 0 .25rem rgba(var(--mxwm-primary-rgb, 13,110,253), .25);
+}
+.progress {
+	--bs-progress-bar-bg: var(--mxwm-primary, #0d6efd);
+}
+.link-primary:hover, .link-primary:focus {
+	color: rgba(var(--mxwm-primary-active-rgb, 10,88,202), var(--bs-link-opacity, 1)) !important;
+	-webkit-text-decoration-color: rgba(var(--mxwm-primary-active-rgb, 10,88,202), var(--bs-link-underline-opacity, 1)) !important;
+	text-decoration-color: rgba(var(--mxwm-primary-active-rgb, 10,88,202), var(--bs-link-underline-opacity, 1)) !important;
 }
 
 /* Mode sombre : surcharges des classes utilitaires que Bootstrap ne bascule
@@ -25,9 +107,6 @@
 	--bs-table-hover-bg: rgba(var(--bs-emphasis-color-rgb), .075);
 	--bs-table-hover-color: var(--bs-emphasis-color);
 }
-
-/* Icônes : style « regular » (graisse 400) au lieu du solid (900) */
-html[data-icon-style="regular"] [class*="fa-"] { font-weight: 400; }
 
 html, body { height: 100%; }
 
@@ -83,7 +162,7 @@ html, body { height: 100%; }
 }
 
 /* min-width:auto (défaut grid) laisserait un contenu large forcer la piste
-   1fr au-delà du partage → déborde .app-main. 0 = les panneaux débordent en
+   1fr au-delà du partage > déborde .app-main. 0 = les panneaux débordent en
    interne (overflow déjà géré) sans casser les largeurs/hauteurs. */
 .app-main > * { min-width: 0; min-height: 0; }
 
@@ -149,12 +228,8 @@ body.pane-resizing-v iframe { pointer-events: none; }
 	flex: 1 1 auto;
 	min-height: 0;
 	overflow-y: auto;
-	/* Dossier actif : couleur configurable (--mxwm-folder-active) ; texte via
-	   le contraste calculé côté serveur. Vars posées ici (et non sur
-	   .folder-pane) : Bootstrap les définit sur .list-group elle-même. */
-	--bs-list-group-active-bg: var(--mxwm-folder-active, var(--bs-primary));
-	--bs-list-group-active-color: var(--mxwm-folder-active-text, #fff);
-	--bs-list-group-active-border-color: var(--mxwm-folder-active, var(--bs-primary));
+	/* L'actif prend --bs-list-group-active-* de la règle .list-group en tête
+	   (couleur "sélection" configurée) - plus rien de spécifique ici. */
 }
 .folder-pane .list-group-item {
 	border: 0;
@@ -165,13 +240,23 @@ body.pane-resizing-v iframe { pointer-events: none; }
 	align-items: center;
 }
 .folder-pane .list-group-item.active { font-weight: 600; }
+/* Chevron repli/extension des sous-dossiers : slot fixe même sans enfant
+   (.invisible) pour l'alignement des icônes. */
+.folder-pane .folder-caret {
+	width: 14px;
+	margin-right: 3px;
+	text-align: center;
+	font-size: .75rem;
+	color: var(--bs-secondary-color);
+}
+.folder-pane .list-group-item.active .folder-caret { color: inherit; }
 /* Séparation entre dossiers de base et dossiers utilisateur */
 .folder-pane .list-group-item.folder-sep {
 	border-top: 1px solid var(--bs-border-color);
 	margin-top: 6px;
 }
-/* Le survol pose z-index:1 (Bootstrap) → contexte d'empilement qui
-   emprisonnerait le menu « ⋮ » (fixed via Popper) sous l'item .active voisin
+/* Le survol pose z-index:1 (Bootstrap) > contexte d'empilement qui
+   emprisonnerait le menu "⋮" (fixed via Popper) sous l'item .active voisin
    (z-index:2). Inutile ici : bordures et rayons de la liste sont à 0. */
 .folder-pane .list-group-item-action:not(.active):hover,
 .folder-pane .list-group-item-action:not(.active):focus {
@@ -224,15 +309,23 @@ body.pane-resizing-v iframe { pointer-events: none; }
    survivant serait recalé dans la boîte). */
 #mail-body { contain: paint; overflow-wrap: break-word; }
 
-/* display:flex SANS !important — à utiliser sur les éléments liés à un
+/* display:flex SANS !important - à utiliser sur les éléments liés à un
    binding KO visible: (d-flex en !important empêche KO de les masquer). */
 .ko-flex { display: flex; }
 
 /* Bouton icône seule : carré (largeur = hauteur), quelle que soit la
-   largeur du glyphe Font Awesome. */
-.btn-icon { aspect-ratio: 1; flex-shrink: 0; }
+   largeur du glyphe Font Awesome. aspect-ratio ne suffit pas : dans un
+   .btn-group (flex) la taille principale reste pilotée par le contenu -
+   on fixe donc la largeur à la hauteur calculée du bouton. */
+.btn-icon {
+	width: calc(var(--bs-btn-line-height) * 1em + 2 * var(--bs-btn-padding-y)
+		+ 2 * var(--bs-btn-border-width));
+	padding-right: 0;
+	padding-left: 0;
+	flex-shrink: 0;
+}
 
-/* Réglages → Dossiers : hauteur de ligne uniforme avec ou sans boutons
+/* Réglages > Dossiers : hauteur de ligne uniforme avec ou sans boutons
    d'action (height = min-height en contexte table). */
 .settings-folders tbody tr { height: 2.5rem; }
 
@@ -242,13 +335,13 @@ body.pane-resizing-v iframe { pointer-events: none; }
 .col-form-label:has(> .help-icon) { display: flex; align-items: center; justify-content: space-between; gap: .25rem; }
 
 /* Tooltip multi-lignes (verdict anti-spoofing) : les '\n' du title cassent
-   les lignes ; titre texte brut (pas de html:true) → aucun risque XSS avec
+   les lignes ; titre texte brut (pas de html:true) > aucun risque XSS avec
    les adresses/domaines injectés dans les alertes. */
 .mxwm-tooltip-pre .tooltip-inner { white-space: pre-line; text-align: left; max-width: 26rem; }
 
 .reader-pane .mail-body img { max-width: 100%; }
 
-/* Menus latéraux (admin + paramètres) — groupes */
+/* Menus latéraux (admin + paramètres) - groupes */
 .side-menu-group {
 	font-size: .75rem;
 	text-transform: uppercase;
@@ -298,7 +391,7 @@ body.pane-resizing-v iframe { pointer-events: none; }
 	min-height: 3rem;
 }
 /* Enfant flex, .progress prendrait la largeur de son contenu (labels en
-   position absolute → 0) : on l'étire sur toute la largeur. */
+   position absolute > 0) : on l'étire sur toute la largeur. */
 .pane-footer > .quota-progress { flex: 1 1 auto; }
 
 /* Modale de composition redimensionnable */
@@ -314,28 +407,83 @@ body.pane-resizing-v iframe { pointer-events: none; }
 }
 #compose-modal .modal-body > * { flex: 0 0 auto; }
 /* TinyMCE suit la hauteur de la modale : le height:320px inline sert de
-   flex-basis — ne pas l'écraser (height:auto effondrerait l'iframe). */
+   flex-basis - ne pas l'écraser (height:auto effondrerait l'iframe). */
 #compose-modal .tox-tinymce { flex: 1 1 auto; min-height: 220px; }
 /* Panneaux d'onglets de la modale de composition : chacun remplit le corps
-   flex → pas de saut de hauteur au switch quand la modale est redimensionnée.
-   visible: KO pose display:none inline → prioritaire sur le display:flex. */
+   flex > pas de saut de hauteur au switch quand la modale est redimensionnée.
+   visible: KO pose display:none inline > prioritaire sur le display:flex. */
 #compose-modal .modal-body > .compose-tab { flex: 1 1 auto; min-height: 0; }
 /* L'éditeur n'est plus enfant direct de .modal-body : la chaîne flex est
    reportée sur le panneau pour que .tox-tinymce{flex:1} suive la hauteur. */
 #compose-modal .compose-tab-msg { display: flex; flex-direction: column; }
 /* Même spécificité (1 id + 2 classes) que la règle .compose-tab ci-dessus
-   et déclarée après → son min-height:340px bat le min-height:0 générique.
-   ⚠️ NE PAS écrire « #compose-modal .compose-tab-pj » (1 id + 1 classe) :
+   et déclarée après > son min-height:340px bat le min-height:0 générique.
+   ⚠️ NE PAS écrire "#compose-modal .compose-tab-pj" (1 id + 1 classe) :
    il perdrait contre .modal-body > .compose-tab. */
 #compose-modal .modal-body > .compose-tab-pj { min-height: 340px; overflow-y: auto; }
 /* Les suggestions seules restent bornées (la liste PJ utilise .list-group
-   aussi — ne pas la brider à 160px). */
+   aussi - ne pas la brider à 160px). */
 #compose-modal .modal-body .list-group.compose-suggestions {
 	max-height: 160px;
 	overflow-y: auto;
 }
 
-/* Sous-menu « Réponses types » du menu options de composition — Bootstrap ne
+/* Champs destinataires en pastilles : le conteneur reprend le style
+   .form-control, l'input interne n'a ni bordure ni outline. */
+#compose-modal .addr-field {
+	min-height: calc(1.5em + .5rem + 2px);
+	cursor: text;
+}
+/* L'input interne étant sans bordure, l'anneau de focus est reporté sur le
+   conteneur (valeurs = .form-control:focus de Bootstrap). */
+#compose-modal .addr-field:focus-within {
+	color: var(--bs-body-color);
+	background-color: var(--bs-body-bg);
+	border-color: var(--mxwm-primary-tint, #86b7fe);
+	outline: 0;
+	box-shadow: 0 0 0 .25rem rgba(var(--mxwm-primary-rgb, 13,110,253), .25);
+}
+#compose-modal .addr-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: .3rem;
+	padding: 0 .4rem;
+	font-size: .8em;
+	line-height: 1.7;
+	border-radius: var(--bs-border-radius-sm);
+	background: var(--bs-tertiary-bg);
+	max-width: 100%;
+}
+#compose-modal .addr-chip > span {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+#compose-modal .addr-chip-invalid {
+	background: rgba(var(--bs-danger-rgb), .2);
+	color: var(--bs-danger-text-emphasis);
+}
+#compose-modal .addr-chip-x {
+	border: 0;
+	background: transparent;
+	padding: 0 .1rem;
+	line-height: 1;
+	color: inherit;
+	opacity: .6;
+}
+#compose-modal .addr-chip-x:hover { opacity: 1; }
+#compose-modal .addr-input {
+	border: 0;
+	outline: 0;
+	background: transparent;
+	color: inherit;
+	flex: 1;
+	min-width: 8ch;
+	padding: .1rem 0;
+}
+#compose-modal .addr-input:focus { box-shadow: none; }
+
+/* Sous-menu "Réponses types" du menu options de composition - Bootstrap ne
    gère pas les dropdowns imbriqués : affichage CSS au survol/focus.
    right:100% (ouverture à gauche) : le parent est dropdown-menu-end au bord
    droit et .modal-content{overflow:hidden} clipperait l'ouverture à droite. */
@@ -350,7 +498,7 @@ body.pane-resizing-v iframe { pointer-events: none; }
 }
 .dropdown-submenu:hover > .dropdown-menu,
 .dropdown-submenu:focus-within > .dropdown-menu { display: block; }
-/* Noms de réponses longs (≤100 car. côté API) : borne + ellipsis —
+/* Noms de réponses longs (≤100 car. côté API) : borne + ellipsis -
    .dropdown-item est déjà en white-space:nowrap (sinon retour à la ligne). */
 .dropdown-submenu .dropdown-menu { max-width: 18rem; }
 .dropdown-submenu .dropdown-item { overflow: hidden; text-overflow: ellipsis; }
@@ -397,7 +545,7 @@ body.modal-resizing iframe { pointer-events: none; }
 
 @media (max-width: 575.98px) { .modal-resize-grip { display: none; } }
 
-/* Réglages → Comptes : glisser-déposer des comptes secondaires */
+/* Réglages > Comptes : glisser-déposer des comptes secondaires */
 tr.mx-drag { cursor: grab; }
 tr.mx-drag:active { cursor: grabbing; }
 tr.mx-dragging { opacity: .5; }
@@ -405,3 +553,28 @@ tr.mx-dragging { opacity: .5; }
 tr.mx-dragover > td { box-shadow: inset 0 2px 0 var(--bs-primary); }
 tr.mx-dragover-after > td { box-shadow: inset 0 -2px 0 var(--bs-primary); }
 td.mx-grip { width: 1%; color: var(--bs-secondary-color); }
+
+/* Glisser-déposer de messages vers les dossiers : surlignage de la cible.
+   inset box-shadow : reste visible aussi sur l'item .active. */
+.folder-pane .list-group-item.mx-drop {
+	background: var(--bs-primary-bg-subtle);
+	box-shadow: inset 0 0 0 2px var(--bs-primary);
+}
+.folder-pane .list-group-item.mx-drop-danger {
+	background: var(--bs-danger-bg-subtle);
+	box-shadow: inset 0 0 0 2px var(--bs-danger);
+}
+/* Fantôme compteur affiché pendant le drag - hors-écran : setDragImage()
+   n'accepte qu'un élément rendu dans le document. */
+.msg-drag-ghost {
+	position: fixed;
+	left: -10000px;
+	top: -10000px;
+	padding: .3rem .7rem;
+	border-radius: 1rem;
+	background: var(--bs-primary);
+	color: var(--mxwm-primary-text, #fff);
+	font-size: .8rem;
+	font-weight: 600;
+	white-space: nowrap;
+}

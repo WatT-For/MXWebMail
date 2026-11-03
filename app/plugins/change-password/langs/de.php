@@ -31,7 +31,7 @@ return [
 	'plugin.change-password.mailcow_unconfigured' => 'Mailcow-API nicht konfiguriert',
 	'plugin.change-password.mailcow_failed'   => 'Mailcow: Fehler ({status})',
 
-	// Schéma de configuration (admin → Extensions → Configurer)
+	// Schéma de configuration (admin > Extensions > Configurer)
 	'plugin.change-password.f.driver'         => 'Treiber',
 	'plugin.change-password.f.driver.help'    => 'Backend zum Anwenden des neuen Passworts',
 	'plugin.change-password.f.allowed_emails'       => 'Erlaubte E-Mails',

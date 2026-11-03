@@ -38,7 +38,7 @@ final class CredentialCrypt
 	public static function decrypt(string $encoded, string $storageDir): ?string
 	{
 		// PHP 8 : sodium_hex2bin lève SodiumException sur hex invalide
-		// (jamais false) — un credential corrompu doit rendre null, pas 500.
+		// (jamais false) - un credential corrompu doit rendre null, pas 500.
 		try {
 			$raw = sodium_hex2bin($encoded);
 		} catch (\SodiumException) {

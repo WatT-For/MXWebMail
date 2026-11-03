@@ -2,7 +2,7 @@
 	"name": "anti-spoofing",
 	"class": "AntiSpoofing",
 	"main": "AntiSpoofing.php",
-	"version": "0.13.2",
+	"version": "0.14.0",
 	"description": "plugin.anti-spoofing.description",
 	"hooks": ["imap.message-headers", "message.view"]
 }

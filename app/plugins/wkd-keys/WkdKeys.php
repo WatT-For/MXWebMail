@@ -9,8 +9,8 @@ use MXWebMail\Plugin\PluginBase;
 
 /**
  * Récupération des clés publiques PGP des correspondants :
- *  - WKD (Web Key Directory) : formes « advanced » (openpgpkey.<d>) puis
- *    « direct » (<d>) — RFC draft-koch-openpgp-webkey-service ;
+ *  - WKD (Web Key Directory) : formes "advanced" (openpgpkey.<d>) puis
+ *    "direct" (<d>) - RFC draft-koch-openpgp-webkey-service ;
  *  - récolte des en-têtes Autocrypt (keydata=) des messages reçus ;
  *  - secours keys.openpgp.org (optionnel).
  * Anti-SSRF : hôtes validés via App::isPublicHost(), pas de suivi de
@@ -30,7 +30,7 @@ final class WkdKeys extends PluginBase
 			return $data;
 		});
 		$hooks->on('message.view', function (&$data, $msg) {
-			// config.schema défaut true ; getConfig() = sauvegardé seul → ?? true
+			// config.schema défaut true ; getConfig() = sauvegardé seul > ?? true
 			if ((bool) ($this->config['autocrypt'] ?? true)) {
 				$this->harvestAutocrypt($msg);
 			}
@@ -38,9 +38,9 @@ final class WkdKeys extends PluginBase
 	}
 
 	/**
-	 * GET /api/plugin/wkd-keys/lookup?email=a@b.c →
+	 * GET /api/plugin/wkd-keys/lookup?email=a@b.c >
 	 * {found:true, armored, source} ou {found:false}.
-	 * L'utilisateur authentifié consulte pour SES destinataires — pas de
+	 * L'utilisateur authentifié consulte pour SES destinataires - pas de
 	 * donnée privée exposée (les clés publiques le sont par nature).
 	 */
 	public function apiLookup(Request $request, ?array $user): array
@@ -49,7 +49,7 @@ final class WkdKeys extends PluginBase
 		if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
 			throw new \RuntimeException($this->t('plugin.wkd-keys.bad_email'), 400);
 		}
-		// 1. Magasin Autocrypt récolté (message.view) — gratuit, aucun réseau.
+		// 1. Magasin Autocrypt récolté (message.view) - gratuit, aucun réseau.
 		$uid = (int) ($user['id'] ?? $_SESSION['user_id'] ?? 0);
 		$stored = $this->app->settings()->get(
 			$uid, 'plugin.wkd.ac.' . $email, null);
@@ -85,8 +85,8 @@ final class WkdKeys extends PluginBase
 	}
 
 	/**
-	 * Récolte Autocrypt : si le message porte « Autocrypt: addr=X;
-	 * keydata=Y » avec X == From, la clé est mémorisée pour l'utilisateur
+	 * Récolte Autocrypt : si le message porte "Autocrypt: addr=X;
+	 * keydata=Y" avec X == From, la clé est mémorisée pour l'utilisateur
 	 * (dernier gagne). La garde addr==From empêche de planter une clé
 	 * sous une adresse qui n'est pas l'expéditeur.
 	 */
@@ -154,7 +154,7 @@ final class WkdKeys extends PluginBase
 			. "-----END PGP PUBLIC KEY BLOCK-----\r\n";
 	}
 
-	/** z-base-32 de SHA-1(local part minuscule) — 32 caractères. */
+	/** z-base-32 de SHA-1(local part minuscule) - 32 caractères. */
 	private static function zhash(string $local): string
 	{
 		$bin = sha1(mb_strtolower($local), true);

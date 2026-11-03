@@ -15,7 +15,7 @@ final class DomainRepository
 		return $row ?: null;
 	}
 
-	/** Existence sans filtre active (garde anti-doublon — name est UNIQUE). */
+	/** Existence sans filtre active (garde anti-doublon - name est UNIQUE). */
 	public function exists(string $name): bool
 	{
 		$stmt = $this->db->pdo()->prepare('SELECT 1 FROM domains WHERE name = :n');
@@ -26,7 +26,7 @@ final class DomainRepository
 	/**
 	 * Noms de domaine toujours en minuscules : la comparaison SQLite est
 	 * binaire (Example.COM ≠ example.com) alors que utf8mb4_unicode_ci est
-	 * insensible à la casse — sans normalisation le comportement diverge
+	 * insensible à la casse - sans normalisation le comportement diverge
 	 * selon le driver.
 	 */
 	private static function normalizeName(string $name): string
@@ -76,7 +76,7 @@ final class DomainRepository
 	/**
 	 * Ne conserve que les clés d'options connues, avec types vérifiés.
 	 * Structure : {imap:{…}, smtp:{…}, sieve:{…}, whitelist:"…",
-	 * secondary_only:bool, oauth:"google|microsoft|yahoo", detected:bool} —
+	 * secondary_only:bool, oauth:"google|microsoft|yahoo", detected:bool} -
 	 * les sous-objets sont passés à Settings::fromArray (MailSo).
 	 */
 	private static function sanitizeOptions(mixed $options): ?string
@@ -93,8 +93,8 @@ final class DomainRepository
 		if ($whiteList !== '') {
 			$out['whitelist'] = mb_substr($whiteList, 0, 2000);
 		}
-		// Marqueur « domaine auto-détecté » (badge admin ; perdu à la
-		// prochaine sauvegarde manuelle — la ligne devient administrée).
+		// Marqueur "domaine auto-détecté" (badge admin ; perdu à la
+		// prochaine sauvegarde manuelle - la ligne devient administrée).
 		if (!empty($options['detected'])) {
 			$out['detected'] = true;
 		}

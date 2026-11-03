@@ -1,5 +1,5 @@
 /**
- * MXWebMail — client API.
+ * MXWebMail - client API.
  * Réponse uniforme { ok, data | error }. CSRF en header X-CSRF-Token.
  */
 import { t } from './i18n.js';
@@ -16,7 +16,7 @@ export class ApiError extends Error {
 }
 
 // Mode maintenance : le serveur répond 503 {code:'maintenance'} sur /api/*.
-// On recharge — le serveur sert alors la page maintenance sur '/'. Un seul
+// On recharge - le serveur sert alors la page maintenance sur '/'. Un seul
 // reload même si plusieurs requêtes échouent en parallèle.
 let maintenanceRedirect = false;
 function maintenanceReload() {
@@ -40,7 +40,7 @@ async function request(method, path, body = null, formData = null) {
 	const res = await fetch(cfg.base + '/api' + path, opts);
 	const json = await res.json().catch(() => ({ ok: false, error: { code: 'http', message: 'HTTP ' + res.status } }));
 	if (!json.ok) {
-		// 'updating' : mise à jour en cours — reload vers la page maintenance
+		// 'updating' : mise à jour en cours - reload vers la page maintenance
 		// (qui sonde /api/ping et revient seule à la fin de l'opération).
 		if (json.error?.code === 'maintenance' || json.error?.code === 'updating') { maintenanceReload(); }
 		throw new ApiError(json.error?.code || 'error', json.error?.message || t('errors.generic'), res.status);
@@ -49,7 +49,7 @@ async function request(method, path, body = null, formData = null) {
 }
 
 /**
- * Upload multipart via XHR — seul moyen d'avoir la progression
+ * Upload multipart via XHR - seul moyen d'avoir la progression
  * (xhr.upload.onprogress) : fetch ne l'expose pas. La promesse retournée
  * expose .abort() pour annuler le transfert en cours.
  */
@@ -107,8 +107,8 @@ export function base() { return cfg.base; }
 export function csrf() { return cfg.csrf; }
 
 // Rejets non gérés (méthode save*/delete* sans catch) : signaler plutôt
-// que silence. api.js est chargé partout — y compris login/admin-login
-// qui n'ont pas le bundle JS Bootstrap → console dans ce cas.
+// que silence. api.js est chargé partout - y compris login/admin-login
+// qui n'ont pas le bundle JS Bootstrap > console dans ce cas.
 // 'aborted' = annulation volontaire (api.upload abort), jamais une erreur.
 window.addEventListener('unhandledrejection', (e) => {
 	const reason = e.reason;

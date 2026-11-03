@@ -21,7 +21,7 @@ const safeDecode = (s) => { try { return decodeURIComponent(s); } catch { return
 
 /**
  * ViewModel racine de l'application mail.
- * Hash routing : #/{dossier} | #/@settings[/<onglet>] — le serveur ne rend que la page shell.
+ * Hash routing : #/{dossier} | #/@settings[/<onglet>] - le serveur ne rend que la page shell.
  */
 class AppVM {
 	constructor() {
@@ -74,12 +74,13 @@ class AppVM {
 		this._logoutTimer = null;
 		this._logoutReset = null;
 		this._refreshTimer = null;
+		this._polling = false;      // anti-recouvrement des ticks poll()
 		// Détection nouveaux mails : fullName => { unread, lastUid } (seedé au boot)
 		this._watch = {};
 		this.notifyFolders = ko.observableArray([]); // surveillés, INBOX incluse
 		this.notifyEnabled = ko.observable(false);   // réglage notify_new_mail
 
-		// Badge non-lus de l'INBOX dans le titre d'onglet (« (3) MXWebMail ») —
+		// Badge non-lus de l'INBOX dans le titre d'onglet ("(3) MXWebMail") -
 		// computed en effet de bord : retracke chaque unread() (poll, lectures,
 		// bulk ops) sans site d'appel à maintenir.
 		this._baseTitle = document.title;
@@ -91,7 +92,7 @@ class AppVM {
 
 		this.quota = {
 			used: ko.observable(0),   // Ko
-			limit: ko.observable(0),  // Ko — 0 = pas de quota / non supporté
+			limit: ko.observable(0),  // Ko - 0 = pas de quota / non supporté
 		};
 		this.quota.pct = ko.pureComputed(() =>
 			this.quota.limit() ? Math.min(100, Math.round(this.quota.used() / this.quota.limit() * 100)) : 0);
@@ -142,7 +143,7 @@ class AppVM {
 		// Thème valide uniquement : repli sur 'default' comme côté serveur (current())
 		this.theme((data.themes || []).some(x => x.name === data.settings?.theme)
 			? data.settings.theme : 'default');
-		// Changement de thème → swap CSS + config à chaud
+		// Changement de thème > swap CSS + config à chaud
 		this.theme.subscribe(name => this.applyTheme(name));
 		this.applyTheme(this.theme()); // état initial (idempotent avec le rendu serveur)
 		// Largeurs des panneaux (bornes identiques à la validation admin)
@@ -162,7 +163,7 @@ class AppVM {
 		// Déconnexion après inactivité (minutes, 0 = jamais)
 		const autologout = parseInt(data.settings?.autologout, 10) || 0;
 		if (autologout > 0) { this.armAutologout(autologout); }
-		// Identité incomplète au premier login → popup réglages.
+		// Identité incomplète au premier login > popup réglages.
 		// Passe par le loader du SettingsVM : promesse mémoïsée, pas de doublon.
 		if (data.features?.popup_identity) {
 			const ids = await this.settings.loadIdentities();
@@ -170,7 +171,7 @@ class AppVM {
 			if (def && !(def.name || '').trim()) { this.popupIdentityPending = true; }
 		}
 		// Dossiers + liste initiale en parallèle : routeFromHash déclenche
-		// selectFolder→load() pendant que le LIST-STATUS est encore en vol
+		// selectFolder>load() pendant que le LIST-STATUS est encore en vol
 		// (requêtes GET concurrentes libérées par la fermeture de session).
 		const foldersP = this.folderList.load();
 		// Dossiers surveillés (données du boot appdata, pas de RTT dédié) +
@@ -202,7 +203,7 @@ class AppVM {
 
 	routeFromHash() {
 		// Le test de vue se fait sur le hash BRUT : '@settings' ne peut pas
-		// être produit par encodeURIComponent d'un nom de dossier ('@' → %40),
+		// être produit par encodeURIComponent d'un nom de dossier ('@' > %40),
 		// donc un dossier nommé 'settings' (ou '@settings') ne masque pas la vue.
 		const raw = location.hash.replace(/^#\//, '') || 'INBOX';
 		const [page, sub, detail] = raw.split('/');
@@ -210,7 +211,7 @@ class AppVM {
 			const entering = this.view() !== 'settings';
 			this.view('settings');
 			// init() seede depuis les données du boot (aucun réseau, sauf
-			// popup_identity) ; activate() attend sa résolution — la whitelist
+			// popup_identity) ; activate() attend sa résolution - la whitelist
 			// dépend de pluginTabs (deep-link onglet plugin).
 			(entering ? this.settings.init().catch(() => {}) : Promise.resolve())
 				.then(() => this.settings.activate(
@@ -231,22 +232,22 @@ class AppVM {
 		if (a.active) { return; }
 		await api.post(`/accounts/${a.id}/switch`);
 		// Retour systématique sur INBOX : un dossier est propre à un compte.
-		// replaceState (pas de hashchange → pas de selectFolder fantôme sur
+		// replaceState (pas de hashchange > pas de selectFolder fantôme sur
 		// l'ancien compte) puis reload : l'ancien dossier disparaît aussi de
-		// l'historique — « retour » ne peut pas retomber sur le hash périmé.
+		// l'historique - "retour" ne peut pas retomber sur le hash périmé.
 		history.replaceState(null, '', '#/INBOX');
 		location.reload();
 	}
 
 	/**
 	 * Ajout de compte secondaire ; arg = email pré-rempli (ré-édition des
-	 * identifiants depuis Réglages → Comptes) — KO passe $data au handler
-	 * click, seule une chaîne déclenche le mode « édition ».
+	 * identifiants depuis Réglages > Comptes) - KO passe $data au handler
+	 * click, seule une chaîne déclenche le mode "édition".
 	 */
 	async addAccount(arg) {
 		const preset = typeof arg === 'string' ? arg.trim() : '';
 		const title = preset ? t('settings.account_edit') : t('app.add_account');
-		// Domaine OAuth2 (gmail, outlook…) → consentement provider en popup ;
+		// Domaine OAuth2 (gmail, outlook…) > consentement provider en popup ;
 		// sinon ajout classique par mot de passe IMAP. needs_app : l'utilisateur
 		// n'a pas encore enregistré d'application OAuth2 pour ce provider.
 		let oauth = null; // réponse /accounts/oauth si handoff vers le flow OAuth
@@ -282,7 +283,7 @@ class AppVM {
 					r = await api.post('/accounts/oauth', { email: v.email.trim().toLowerCase() });
 				}
 				if (r.url) { this.openOauthPopup(r.url, title); return; }
-				// url toujours null après retry needs_app → garde-fou serveur.
+				// url toujours null après retry needs_app > garde-fou serveur.
 				await dialog.alert(t('errors.oauth_required'), { title, variant: 'danger' });
 			} catch (e) {
 				await dialog.alert(t('errors.failed', { msg: e.message }),
@@ -346,7 +347,7 @@ class AppVM {
 			}
 		};
 		window.addEventListener('message', onMsg);
-		// Popup fermée sans message (fermeture manuelle) → refresh quand même
+		// Popup fermée sans message (fermeture manuelle) > refresh quand même
 		const timer = setInterval(() => { if (w.closed) { done(); } }, 500);
 	}
 
@@ -369,50 +370,73 @@ class AppVM {
 
 	/**
 	 * Tick de réactualisation : badges de tous les dossiers, détection de
-	 * nouveaux mails (dossiers surveillés) puis reload de la liste courante.
-	 * load() catch en interne (erreur affichée) — on ne peut donc pas
+	 * nouveaux mails (dossiers surveillés) puis reload de la liste courante -
+	 * effectué même avec un message affiché ; sauté seulement en
+	 * multi-sélection manuelle ou marquage "lu" différé en vol (les
+	 * MessageModel sont recréés : coches perdues / marquage annulé).
+	 * load() catch en interne (erreur affichée) - on ne peut donc pas
 	 * distinguer une session expirée ; le timer continue jusqu'au re-login.
+	 * _polling : un tick n'en chevauche pas un autre encore en vol.
 	 */
 	async poll() {
-		await this.folderList.load();
-		for (const f of this.folderList.folders()) {
-			if (!f.isInbox && !this.notifyFolders().includes(f.fullName)) { continue; }
-			// ??= : un dossier abonné après le boot se seede sans notifier
-			const prev = this._watch[f.fullName] ??= { unread: f.unread(), lastUid: 0 };
-			if (f.unread() <= prev.unread) {
-				prev.unread = f.unread();
-				continue;
-			}
-			try {
-				const d = await api.get('/messages?folder=' + encodeURIComponent(f.fullName)
-					+ '&page=1&limit=1&sort=' + encodeURIComponent('REVERSE DATE'));
-				const msg = d.messages?.[0];
-				if (msg && msg.uid !== prev.lastUid) {
-					prev.lastUid = msg.uid;
-					if (this.notifyEnabled()) {
-						notify.newMail({
-							folderLabel: f.isInbox ? '' : f.label,
-							from: msg.from || '', subject: msg.subject || '',
-							uid: msg.uid, folder: f.fullName,
-							onOpen: (uid, folder) => this.openMail(uid, folder),
-						});
-					}
+		if (this._polling) { return; }
+		this._polling = true;
+		try {
+			await this.folderList.load();
+			for (const f of this.folderList.folders()) {
+				if (!f.isInbox && !this.notifyFolders().includes(f.fullName)) { continue; }
+				// ??= : un dossier abonné après le boot se seede sans notifier
+				const prev = this._watch[f.fullName] ??= { unread: f.unread(), lastUid: 0 };
+				if (f.unread() <= prev.unread) {
+					prev.unread = f.unread();
+					continue;
 				}
-				prev.unread = f.unread();
-			} catch (e) {
-				// Fetch impossible (IMAP) : prev.unread n'est pas mis à jour,
-				// la détection sera retentée au prochain tick.
+				try {
+					const d = await api.get('/messages?folder=' + encodeURIComponent(f.fullName)
+						+ '&page=1&limit=1&sort=' + encodeURIComponent('REVERSE DATE'));
+					const msg = d.messages?.[0];
+					if (msg && msg.uid !== prev.lastUid) {
+						prev.lastUid = msg.uid;
+						if (this.notifyEnabled()) {
+							notify.newMail({
+								folderLabel: f.isInbox ? '' : f.label,
+								from: msg.from || '', subject: msg.subject || '',
+								uid: msg.uid, folder: f.fullName,
+								onOpen: (uid, folder) => this.openMail(uid, folder),
+							});
+						}
+					}
+					prev.unread = f.unread();
+				} catch (e) {
+					// Fetch impossible (IMAP) : prev.unread n'est pas mis à jour,
+					// la détection sera retentée au prochain tick.
+				}
 			}
-		}
-		// Liste du dossier courant — sautée si une sélection est en cours
-		// (les MessageModel sont recréés, les cases cochées seraient perdues).
-		if (this.view() === 'mail' && this.messageList.checkedMessages().length === 0) {
-			await this.messageList.load(true);
-			// Les modèles sont recréés : re-poser la pastille sur le mail affiché.
-			const uid = this.messageView.requestedUid;
-			if (uid) {
-				this.messageList.messages().forEach(m => m.isSelected(m.uid === uid));
+			const ml = this.messageList;
+			// Le mail visionné est auto-coché par select() : "sélection en
+			// cours" = uniquement les coches manuelles (non sélectionnées).
+			// dragItems() : un reload en plein glisser-déposer remplacerait les
+			// MessageModel sous le pointeur (retrait optimiste par identité).
+			const busy = ml.checkedMessages().some(m => !m.isSelected())
+				|| ml._readTimer !== null
+				|| ml.dragItems() !== null;
+			if (this.view() === 'mail' && !busy) {
+				// Restauration après reload : pastille du mail affiché (uid par
+				// dossier) + coches telles qu'elles étaient - coche auto du
+				// visionné et décochage manuel tous deux préservés. Clé
+				// folder+uid : en recherche multi-dossiers les UID se percutent.
+				const checkedKeys = new Set(
+					ml.checkedMessages().map(m => ml.goneKey(m.folder, m.uid)));
+				const uid = this.messageView.requestedUid;
+				const fld = this.messageView.requestedFolder;
+				await ml.load(true);
+				ml.messages().forEach(m => {
+					m.isSelected(m.uid === uid && m.folder === fld);
+					m.isChecked(checkedKeys.has(ml.goneKey(m.folder, m.uid)));
+				});
 			}
+		} finally {
+			this._polling = false;
 		}
 	}
 
@@ -427,7 +451,7 @@ class AppVM {
 		if (msg) { await this.messageList.select(msg); }
 	}
 
-	/** Timer d'inactivité → logout automatique (réglage autologout, minutes).
+	/** Timer d'inactivité > logout automatique (réglage autologout, minutes).
 	 *  Ré-armable sans duplication de listeners ; 0 = désarmé. */
 	armAutologout(minutes) {
 		this.disarmAutologout();
@@ -463,7 +487,7 @@ class AppVM {
 	applyTheme(name) {
 		const link = document.getElementById('theme-css');
 		// Swap uniquement sur vrai changement : le ?v= du rendu serveur est un
-		// mtime, celui calculé ici la version du manifeste — une comparaison
+		// mtime, celui calculé ici la version du manifeste - une comparaison
 		// d'URL complète serait toujours fausse, on teste le nom dans le path.
 		if (link && !link.href.includes(`/assets/theme/${name}/`)) {
 			const v = this.themeOptions().find(t => t.name === name)?.version || window.MXWM.ver;
@@ -477,7 +501,6 @@ class AppVM {
 				|| (d.darkMode === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
 			document.documentElement.setAttribute('data-bs-theme', dark ? 'dark' : 'light');
 			document.documentElement.setAttribute('data-dark-mode', d.darkMode || 'auto');
-			document.documentElement.setAttribute('data-icon-style', d.iconStyle || 'solid');
 		}
 	}
 
@@ -503,8 +526,8 @@ const vm = new AppVM();
 ko.applyBindings(vm);
 
 // Splash de démarrage (HTML/CSS pur, visible avant knockout) : retiré en
-// fondu quand l'interface est prête — fin d'init() + 1er chargement de
-// liste — avec durée minimale d'affichage pour éviter le clignotement.
+// fondu quand l'interface est prête - fin d'init() + 1er chargement de
+// liste - avec durée minimale d'affichage pour éviter le clignotement.
 const splash = document.getElementById('app-splash');
 let splashHidden = false;
 const hideSplash = () => {
@@ -513,11 +536,11 @@ const hideSplash = () => {
 	clearTimeout(splashGuard);
 	splash.classList.add('done');
 	// remove() différé d'une frame : le navigateur commite d'abord une frame
-	// où l'élément est déjà invisible (opacity:0 + visibility:hidden) — sinon
+	// où l'élément est déjà invisible (opacity:0 + visibility:hidden) - sinon
 	// le compositeur peut repeindre une frame à pleine opacité (flash fantôme).
 	splash.addEventListener('transitionend',
 		() => requestAnimationFrame(() => splash.remove()), { once: true });
-	// transitionend non garanti (prefers-reduced-motion → transition:none)
+	// transitionend non garanti (prefers-reduced-motion > transition:none)
 	// et rAF suspendu en onglet caché : repli à 600 ms (> 250 ms de fondu).
 	setTimeout(() => splash.remove(), 600);
 };
@@ -525,7 +548,7 @@ const hideSplash = () => {
 const splashGuard = setTimeout(hideSplash, 20000);
 
 // Résout quand le 1er chargement de liste se termine ; en vue settings
-// aucun load() n'est lancé → promesse déjà résolue.
+// aucun load() n'est lancé > promesse déjà résolue.
 const firstListLoaded = () => {
 	if (vm.view() !== 'mail' || !vm.messageList.loading()) { return Promise.resolve(); }
 	return new Promise(res => {

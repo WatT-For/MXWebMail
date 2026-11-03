@@ -49,7 +49,7 @@ final class Pwa extends PluginBase
 
 	/**
 	 * Manifest Web App (JSON dynamique) : start_url/scope dépendent du base path
-	 * (installations en sous-dossier). Public — aucune donnée sensible.
+	 * (installations en sous-dossier). Public - aucune donnée sensible.
 	 */
 	public function manifest(Request $request): Response
 	{
@@ -108,7 +108,7 @@ final class Pwa extends PluginBase
 	/**
 	 * Service worker minimal : satisfait le critère d'installabilité Chrome
 	 * (un listener `fetch` doit exister) sans intercepter ni mettre en cache
-	 * quoi que ce soit — aucun respondWith, le navigateur gère tout nativement
+	 * quoi que ce soit - aucun respondWith, le navigateur gère tout nativement
 	 * (un respondWith(fetch()) transformerait toute coupure réseau transitoire
 	 * en erreur console + échec opaque sur tous les onglets de l'origine).
 	 * Service-Worker-Allowed élargit le scope par défaut ({base}/pwa/) à la
@@ -118,7 +118,7 @@ final class Pwa extends PluginBase
 	{
 		$base = Request::basePath() . '/';
 		$sw = <<<'JS'
-/* PWA — service worker minimal (installabilité uniquement, aucune interception). */
+/* PWA - service worker minimal (installabilité uniquement, aucune interception). */
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', (e) => e.waitUntil(self.clients.claim()));
 self.addEventListener('fetch', () => {});

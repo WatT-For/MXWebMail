@@ -1,13 +1,13 @@
 /**
- * Toasts Bootstrap — notifications éphémères (remplacement des alertes
+ * Toasts Bootstrap - notifications éphémères (remplacement des alertes
  * inline). Conteneur position-fixed créé à la demande en haut à droite ;
  * chaque toast s'autodétruit à hidden.bs.toast.
  *
- * toast.show(message, opts) → void
+ * toast.show(message, opts) > void
  * opts : { variant: info|success|warning|danger, delay: 5000, title }
  *
  * Aucune référence à `bootstrap` au top-level : les tests jsdom n'ont
- * qu'un stub Modal — usage uniquement dans show().
+ * qu'un stub Modal - usage uniquement dans show().
  */
 const ICONS = {
 	info:    'fa-circle-info',

@@ -25,7 +25,7 @@ final class ColorTags extends PluginBase
 	private const MAX_PALETTE = 16;
 	private const MAX_RULES   = 100;
 
-	/** Palette par défaut — labels localisés via langs/defaults.<id>. */
+	/** Palette par défaut - labels localisés via langs/defaults.<id>. */
 	private const DEFAULTS = [
 		'urgent'    => '#e53935',
 		'important' => '#fb8c00',
@@ -122,7 +122,7 @@ final class ColorTags extends PluginBase
 		$palette = $this->palette($uid);
 		$id      = null;
 
-		// 1. Tag manuel (keyword IMAP) — prioritaire sur les règles
+		// 1. Tag manuel (keyword IMAP) - prioritaire sur les règles
 		foreach ($palette as $entry) {
 			if (in_array(self::KW_PREFIX . $entry['id'], $flags, true)) {
 				$id = $entry['id'];
@@ -130,7 +130,7 @@ final class ColorTags extends PluginBase
 			}
 		}
 
-		// 2. Règles automatiques — ordre = priorité, premier match gagne
+		// 2. Règles automatiques - ordre = priorité, premier match gagne
 		if ($id === null) {
 			$email = self::firstEmail($msg->From())?->GetEmail() ?? '';
 			foreach ($this->rules($uid) as $rule) {

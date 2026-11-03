@@ -19,7 +19,7 @@ return [
 	'plugin.change-password.too_short'        => 'Yeni parola çok kısa',
 	'plugin.change-password.too_weak'         => 'Yeni parola çok zayıf',
 	'plugin.change-password.pwned'            => 'Bu parola bilinen bir veri ihlalinde yer alıyor',
-	'plugin.change-password.driver_unknown'   => 'Bilinmeyen sürücü «{driver}»',
+	'plugin.change-password.driver_unknown'   => 'Bilinmeyen sürücü "{driver}"',
 	'plugin.change-password.poppassd_down'    => 'poppassd erişilemiyor ({host}:{port})',
 	'plugin.change-password.poppassd_failed'  => 'poppassd hatası: {msg}',
 	'plugin.change-password.sql_missing'      => 'PDO sürücüsünün SQL sorgusu yapılandırılmamış',
@@ -31,7 +31,7 @@ return [
 	'plugin.change-password.mailcow_unconfigured' => 'Mailcow API yapılandırılmamış',
 	'plugin.change-password.mailcow_failed'   => 'Mailcow: hata ({status})',
 
-	// Schéma de configuration (admin → Extensions → Configurer)
+	// Schéma de configuration (admin > Extensions > Configurer)
 	'plugin.change-password.f.driver'         => 'Sürücü',
 	'plugin.change-password.f.driver.help'    => 'Yeni parolayı uygulamak için kullanılan arka uç',
 	'plugin.change-password.f.allowed_emails'       => 'İzin verilen e-postalar',

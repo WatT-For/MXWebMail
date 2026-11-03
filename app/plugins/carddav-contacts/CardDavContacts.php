@@ -10,7 +10,7 @@ use MXWebMail\Security\CredentialCrypt;
 use MXWebMailLib\DAV\Client as DavClient;
 
 /**
- * Synchronisation CardDAV → contacts locaux (table contacts, source='carddav').
+ * Synchronisation CardDAV > contacts locaux (table contacts, source='carddav').
  * Config par utilisateur dans user_settings : url / user / pass (chiffré sodium).
  * API : /api/plugin/carddav-contacts/{config|save|test|sync}
  */
@@ -59,15 +59,15 @@ final class CardDavContacts extends PluginBase
 		$pass = (string) $request->input('password', '');
 
 		// Validation immédiate : HTTPS + hôte public (la config est utilisée
-		// pour des requêtes authentifiées — pas de http ni d'IP privée).
+		// pour des requêtes authentifiées - pas de http ni d'IP privée).
 		if ($url !== '') {
 			$this->assertDavUrl($url);
 		}
 
 		$s->set($uid, self::K_URL, $url !== '' ? $url : null);
 		$s->set($uid, self::K_USER, $login !== '' ? $login : null);
-		// Effacement explicite via password_reset ; vide = conserver —
-		// pas de mot sentinelle (« reset » serait un mot de passe valide).
+		// Effacement explicite via password_reset ; vide = conserver -
+		// pas de mot sentinelle ("reset" serait un mot de passe valide).
 		if ($request->input('password_reset')) {
 			$s->set($uid, self::K_PASS, null);
 		} elseif ($pass !== '') {
@@ -150,7 +150,7 @@ final class CardDavContacts extends PluginBase
 
 	/**
 	 * Normalise et valide l'URL saisie : HTTPS obligatoire (les credentials
-	 * Basic/Digest transitent en clair sinon) et hôte public uniquement —
+	 * Basic/Digest transitent en clair sinon) et hôte public uniquement -
 	 * l'URL vient des réglages utilisateur, une IP privée/réservée serait
 	 * un SSRF authentifié. Retourne les parts de l'URL normalisée.
 	 */
@@ -172,7 +172,7 @@ final class CardDavContacts extends PluginBase
 	private function isAddressbook(DavClient $client, string $path): bool
 	{
 		try {
-			// Depth 0 → propFind renvoie directement les props de la ressource
+			// Depth 0 > propFind renvoie directement les props de la ressource
 			$props = $client->propFind($path, ['{DAV:}resourcetype'], 0);
 			$rt = $props['{DAV:}resourcetype'] ?? [];
 			return is_array($rt)
@@ -182,7 +182,7 @@ final class CardDavContacts extends PluginBase
 		}
 	}
 
-	/** Découverte : current-user-principal → addressbook-home-set → carnets. */
+	/** Découverte : current-user-principal > addressbook-home-set > carnets. */
 	private function discoverAddressbook(DavClient $client, string $path): ?string
 	{
 		$props = [
@@ -260,7 +260,7 @@ final class CardDavContacts extends PluginBase
 		if (!$card instanceof \Sabre\VObject\Component\VCard) {
 			return null;
 		}
-		// Mapping vCard → item partagé (import /api/contacts, plugin webmail-migration)
+		// Mapping vCard > item partagé (import /api/contacts, plugin webmail-migration)
 		$item = \MXWebMail\Service\VCardContacts::fromVCard($card);
 		if ($item !== null && $item['source_uid'] === '') {
 			$item['source_uid'] = $uid;

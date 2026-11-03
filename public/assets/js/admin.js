@@ -1,6 +1,6 @@
 /**
- * MXWebMail — panneau d'administration (/admin).
- * Données initiales : une seule requête /admin/bootstrap — évite la rafale
+ * MXWebMail - panneau d'administration (/admin).
+ * Données initiales : une seule requête /admin/bootstrap - évite la rafale
  * d'appels sérialisés (verrou de session FPM / serveur dev mono-thread).
  */
 import { api, base } from './api.js';
@@ -30,7 +30,7 @@ class AdminVM {
 		this.pluginBusy = ko.observable('');      // nom du plugin en cours d'opération
 		this.catalogAvailable = ko.pureComputed(() =>
 			(this.pluginCatalog()?.plugins || []).filter(p => !p.installed));
-		// Blocs UI déclarés par les plugins (hook admin.mounts → bootstrap)
+		// Blocs UI déclarés par les plugins (hook admin.mounts > bootstrap)
 		this.adminMounts = ko.observableArray([]);
 		this.logs = ko.observableArray([]);
 		this.logFile = ko.observable('app');
@@ -100,7 +100,7 @@ class AdminVM {
 			}
 		}
 		// Modales de config plugin / template : l'observable est reset à la
-		// fermeture (Échap, backdrop, boutons) → état propre à la réouverture.
+		// fermeture (Échap, backdrop, boutons) > état propre à la réouverture.
 		const pluginModalEl = document.getElementById('plugin-config-modal');
 		const themeModalEl = document.getElementById('theme-config-modal');
 		const userModalEl = document.getElementById('user-modal');
@@ -141,7 +141,7 @@ class AdminVM {
 		if (this.tab() === 'plugins') { this.ensurePluginsCatalog(); }
 		this.adminMounts(b.adminMounts || []);
 		// Les sous-onglets de plugins n'étaient pas connus au syncFromHash()
-		// du constructeur — re-sync pour les deep-links (#/security/2fa…).
+		// du constructeur - re-sync pour les deep-links (#/security/2fa…).
 		this.syncFromHash();
 		this.themeDefault(b.themes?.default || 'default');
 		this.themes(this.mapThemes(b.themes?.items));
@@ -150,10 +150,10 @@ class AdminVM {
 		this.loadLogs();
 	}
 	// notice('') puis notice(msg) : le binding toast n'est re-notifié que
-	// sur changement — deux succès identiques consécutifs doivent re-toaster.
+	// sur changement - deux succès identiques consécutifs doivent re-toaster.
 	ok(msg) { this.notice(''); this.notice(msg); }
 
-	// Favicon : upload multipart (champ 'file') → storage/branding + config.
+	// Favicon : upload multipart (champ 'file') > storage/branding + config.
 	async uploadFavicon() {
 		const f = this.faviconFile();
 		if (!f) { return; }
@@ -178,7 +178,7 @@ class AdminVM {
 		} catch (e) { this.error(e.message); }
 	}
 
-	// Taille lisible (octets → o/Ko/Mo/Go, unités binaires).
+	// Taille lisible (octets > o/Ko/Mo/Go, unités binaires).
 	formatSize(bytes) {
 		if (bytes === null || bytes === undefined) { return ''; }
 		const b = Number(bytes);
@@ -206,7 +206,7 @@ class AdminVM {
 			if (sec === 'domains' && key === 'default_domain') {
 				// Select alimenté par les domaines de la table ; la valeur
 				// courante est conservée si le domaine n'y figure plus.
-				// peek() : ne pas dépendre de value — sinon chaque sélection
+				// peek() : ne pas dépendre de value - sinon chaque sélection
 				// recrée les options et KO réécrit le modèle (childrenComplete).
 				field.optionsList = ko.pureComputed(() => {
 					const cur = field.value.peek();
@@ -225,7 +225,7 @@ class AdminVM {
 	adminMountsIn(section) {
 		return this.adminMounts().filter(m => m.section === section);
 	}
-	// Sous-onglets déclarés par les plugins (mounts avec « tab ») — filtrés aux
+	// Sous-onglets déclarés par les plugins (mounts avec "tab") - filtrés aux
 	// plugins activés pour que le hash routing rejette les onglets disparus.
 	adminTabsIn(page) {
 		return this.adminMounts().filter(m =>
@@ -280,7 +280,7 @@ class AdminVM {
 		const list = f.value() ? f.value().split(',').map(s => s.trim()) : [];
 		if (!list.includes(ip)) { f.value([...list, ip].join(', ')); }
 	}
-	// Onglet Compte : « Enregistrer » applique les champs ET le mot de passe
+	// Onglet Compte : "Enregistrer" applique les champs ET le mot de passe
 	// si les deux champs sont remplis (validation avant tout envoi).
 	async saveAccount() {
 		this.error('');
@@ -297,7 +297,7 @@ class AdminVM {
 		} catch (e) { this.error(e.message); }
 	}
 
-	// options JSON de la ligne → flags dérivés pour les badges.
+	// options JSON de la ligne > flags dérivés pour les badges.
 	mapDomain(d) {
 		const o = typeof d.options === 'string' ? JSON.parse(d.options || '{}') : (d.options || {});
 		return { ...d, detected: !!o.detected, secondary_only: !!o.secondary_only };
@@ -328,8 +328,8 @@ class AdminVM {
 		try {
 			await api.post('/admin/logs/clear', { file });
 			// Recharge l'état réel (vide + nouvelles lignes éventuelles) :
-			// le bump seq invalide les GET en vol — le contenu vidé ne
-			// ressuscite pas — et si la sélection a changé pendant la
+			// le bump seq invalide les GET en vol - le contenu vidé ne
+			// ressuscite pas - et si la sélection a changé pendant la
 			// modale c'est le bon fichier qui est affiché.
 			await this.loadLogs();
 			this.ok(t('admin.log_cleared'));
@@ -466,11 +466,11 @@ class AdminVM {
 		this.domainModalTab('general');
 		this.domainModal?.show();
 	}
-	// Options avancées du formulaire domaine → JSON {imap, smtp, sieve,
+	// Options avancées du formulaire domaine > JSON {imap, smtp, sieve,
 	// whitelist, secondary_only, oauth}. Fusionné avec les options stockées :
 	// les clés hors formulaire (imap.sasl, spam_headers…) doivent survivre à
 	// une sauvegarde ; vider un champ du formulaire retire sa clé. Le marqueur
-	// « detected » est retiré : une sauvegarde manuelle = domaine administré.
+	// "detected" est retiré : une sauvegarde manuelle = domaine administré.
 	buildDomainOptions(d) {
 		let stored = d.options;
 		if (typeof stored === 'string') {
@@ -503,10 +503,10 @@ class AdminVM {
 	}
 	async testDomain() {
 		// Protocole testé = onglet actif de la modale (imap|smtp|sieve) ;
-		// onglets général/avancé → imap par défaut.
+		// onglets général/avancé > imap par défaut.
 		const proto = ['imap', 'smtp', 'sieve'].includes(this.domainModalTab())
 			? this.domainModalTab() : 'imap';
-		const title = t('admin.test_domain_title') + ' — ' + proto.toUpperCase();
+		const title = t('admin.test_domain_title') + ' - ' + proto.toUpperCase();
 		// options en dernier : écrase le JSON stocké présent dans editingDomain
 		const d = { ...this.editingDomain(), options: this.buildDomainOptions(this.editingDomain()) };
 		try { const r = await api.post('/admin/test-connexion', { type: proto, ...d });
@@ -579,7 +579,7 @@ class AdminVM {
 		this.userModalTab('profile');
 		this.userModal?.show();
 	}
-	// Identités d'un compte (listes plates côté VM → filtre par account_id)
+	// Identités d'un compte (listes plates côté VM > filtre par account_id)
 	identitiesFor(account) {
 		const eu = this.editingUser();
 		return eu ? eu.identities.filter(i => Number(i.account_id) === Number(account.id)) : [];
@@ -616,8 +616,8 @@ class AdminVM {
 	async saveUserSettings() {
 		const eu = this.editingUser();
 		eu.error('');
-		// Types natifs JSON (user_settings est (dé)sérialisé en JSON) —
-		// pas la conversion bool→1/0 des configs plugin.
+		// Types natifs JSON (user_settings est (dé)sérialisé en JSON) -
+		// pas la conversion bool>1/0 des configs plugin.
 		const values = {};
 		for (const f of eu.settingsFields()) {
 			values[f.key] = f.type === 'bool' ? !!f.value()
@@ -694,14 +694,20 @@ class AdminVM {
 	catalogFor(name) {
 		return (this.pluginCatalog()?.plugins || []).find(p => p.name === name) || null;
 	}
-	// Chargement paresseux à la première ouverture de l'onglet Extensions —
+	// Chargement paresseux à la première ouverture de l'onglet Extensions -
 	// le cache release est partagé avec le check cœur (gratuit si récent).
 	async ensurePluginsCatalog() {
 		if (this.catalogLoaded() || this.catalogBusy()) { return; }
 		this.catalogLoaded(true); this.catalogBusy(true);
+		// KO ne re-notifie pas une primitive identique : le reset permet de
+		// re-toaster un échec répété (même logique que notice('') de ok()).
+		this.pluginsErr('');
 		try {
 			this.pluginCatalog(await api.get('/admin/plugins/catalog'));
-		} catch (e) { /* silencieux — non bloquant à l'ouverture */ }
+		} catch (e) {
+			this.catalogLoaded(false); // retenter à la prochaine ouverture de l'onglet
+			this.pluginsErr(e.message); // toast (binding admin.php)
+		}
 		finally { this.catalogBusy(false); }
 	}
 	async checkPluginsCatalog(force = false) {
@@ -781,7 +787,8 @@ class AdminVM {
 	}
 	async editPluginConfig(p) {
 		if (!p.has_schema) { return; }
-		const r = await api.get(`/admin/plugins/${p.name}/config`).catch(() => null);
+		const r = await api.get(`/admin/plugins/${p.name}/config`)
+			.catch(e => { this.error(e.message); return null; });
 		if (!r) { this.editingPlugin(null); return; }
 		this.editingPlugin({
 			name: p.name,
@@ -790,7 +797,7 @@ class AdminVM {
 				Object.entries(r.schema || {}).map(([key, f]) => {
 					let v = r.values?.[key] ?? f.default ?? '';
 					if (f.type === 'bool') { v = !!(v === true || v === 1 || v === '1' || v === 'true'); }
-					// « options » objet {v:label} ou liste [v] — normalisé en paires
+					// "options" objet {v:label} ou liste [v] - normalisé en paires
 					const opts = f.options || {};
 					const field = {
 						key, label: f.label || key, type: f.type || 'string',
@@ -798,7 +805,7 @@ class AdminVM {
 						optionsList: Array.isArray(opts) ? opts.map(v => [v, v]) : Object.entries(opts),
 					};
 					if (f.type === 'list') {
-						// items observables : sinon « value: $data » ne remonte pas l'édition
+						// items observables : sinon "value: $data" ne remonte pas l'édition
 						const items = String(v).split(',').map(s => s.trim()).filter(Boolean);
 						const arr = ko.observableArray(items.map(s => ko.observable(s)));
 						field.value = arr;
@@ -824,12 +831,13 @@ class AdminVM {
 		}
 		try {
 			await api.post(`/admin/plugins/${p.name}/config`, values);
-			this.pluginConfigModal?.hide(); // hidden.bs.modal → editingPlugin(null)
+			this.pluginConfigModal?.hide(); // hidden.bs.modal > editingPlugin(null)
 			this.ok(t('settings.saved'));
 		} catch (e) { p.error(e.message); }
 	}
 	async editThemeConfig(t) {
-		const r = await api.get(`/admin/themes/${t.name}/config`).catch(() => null);
+		const r = await api.get(`/admin/themes/${t.name}/config`)
+			.catch(e => { this.error(e.message); return null; });
 		if (!r) { this.editingTheme(null); return; }
 		this.editingTheme({
 			name: t.name,
@@ -867,8 +875,8 @@ class AdminVM {
 	mapThemes(items) {
 		return (items || []).map(t => ({ ...t, allowed: ko.observable(!!t.selectable) }));
 	}
-	// Resync complet : changer le défaut change aussi le « selectable » forcé
-	// de l'ancien/nouveau défaut — les observables seuls ne suffisent pas.
+	// Resync complet : changer le défaut change aussi le "selectable" forcé
+	// de l'ancien/nouveau défaut - les observables seuls ne suffisent pas.
 	async loadThemes() {
 		const r = await api.get('/admin/themes');
 		this.themeDefault(r.default || 'default');

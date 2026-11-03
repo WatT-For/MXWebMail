@@ -100,7 +100,7 @@ abstract class SecFetch
 		}
 
 		// Navigation top-level vers un document : entrée légitime même sans
-		// activation utilisateur — le navigateur retire Sec-Fetch-User après
+		// activation utilisateur - le navigateur retire Sec-Fetch-User après
 		// chaque redirection (portails, liens réécrits, méta refresh,
 		// prerender). Les POST/fetch/sous-ressources cross-site restent
 		// filtrés par matchAnyRule() + le jeton CSRF.

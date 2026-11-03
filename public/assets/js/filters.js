@@ -1,5 +1,5 @@
 /**
- * Filtres Sieve — document « règles » porté par le marqueur MARKER en
+ * Filtres Sieve - document "règles" porté par le marqueur MARKER en
  * première ligne du script (miroir de MXWebMail\Sieve\ScriptBuilder).
  * Module pur (pas de Knockout) : descripteurs, gabarits, lecture du marqueur.
  */
@@ -17,7 +17,7 @@ export function parseMarker(source) {
 }
 
 // Descripteurs : key = clé i18n ; module = extension Sieve requise
-// (capacité « SIEVE » du serveur, minuscules — SieveClient::Modules()).
+// (capacité "SIEVE" du serveur, minuscules - SieveClient::Modules()).
 export const FIELDS = [
 	{ value: 'from',    key: 'settings.filters.field_from' },
 	{ value: 'to',      key: 'settings.filters.field_to' },

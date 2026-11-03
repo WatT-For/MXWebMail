@@ -5,7 +5,7 @@ return [
 	'plugin.announcement.description'         => 'Yönetici tarafından belirlenen duyuru bandı (uygulama sayfası, isteğe bağlı giriş)',
 	'plugin.announcement.f.enabled'           => 'Etkin',
 	'plugin.announcement.f.text'              => 'Bant metni',
-	'plugin.announcement.f.text.help'         => 'Tüm kullanıcılara gösterilen düz metin — HTML yorumlanmaz',
+	'plugin.announcement.f.text.help'         => 'Tüm kullanıcılara gösterilen düz metin - HTML yorumlanmaz',
 	'plugin.announcement.f.level'             => 'Seviye',
 	'plugin.announcement.f.level.info'         => 'Info',
 	'plugin.announcement.f.level.success'      => 'Başarı',

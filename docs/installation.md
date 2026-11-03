@@ -5,7 +5,7 @@
 - **PHP ≥ 8.4** avec les extensions : `sodium`, `mbstring`, `intl`, `openssl`, `ctype`,
   `json`, `iconv`, `zlib`, `xml`, `dom`, et `pdo_sqlite` **ou** `pdo_mysql`.
   `ldap` est optionnel (plugins LDAP uniquement).
-  **`opcache` fortement recommandé en production** (`opcache.enable=1`) —
+  **`opcache` fortement recommandé en production** (`opcache.enable=1`) -
   l'application charge des dizaines de fichiers PHP par requête.
 - Un serveur **IMAP** accessible (et SMTP, ManageSieve en option) pour le courrier.
 - **Aucune dépendance à installer** : le dépôt est autosuffisant (autoloader maison,
@@ -15,13 +15,13 @@
 ## 2. Structure des dossiers
 
 ```
-public/            racine web — index.php, define.php, assets/, .htaccess
+public/            racine web - index.php, define.php, assets/, .htaccess
 app/               tout le non-public (peut être déplacé hors racine web)
 app/src/           code applicatif + bibliothèques vendorées
 app/config/        config.php (non versionné) + config.example.php
-app/plugins/       extensions (vide à l'installation — plugins du catalogue GitHub)
+app/plugins/       extensions (vide à l'installation - plugins du catalogue GitHub)
 app/templates/     thèmes/pages
-app/storage/       runtime : db, cache, logs, tmp, app.key, INSTALLED — jamais en webroot
+app/storage/       runtime : db, cache, logs, tmp, app.key, INSTALLED - jamais en webroot
 ```
 
 `public/define.php` définit `MXWM_APP_DIR` (chemin du dossier `app/`). Pour sortir `app/`
@@ -31,11 +31,11 @@ de la racine web, déplacez le dossier puis adaptez ce chemin (absolu ou relatif
 
 1. Pointez le vhost sur `public/`.
 2. Ouvrez `https://webmail.example.com/`. Tant que le verrou `app/storage/INSTALLED`
-   n'existe pas, toute URL est redirigée vers `/setup/` — l'assistant est servi
+   n'existe pas, toute URL est redirigée vers `/setup/` - l'assistant est servi
    par l'application elle-même (aucun fichier d'installation dans le webroot).
 3. L'assistant se déroule en 5 étapes :
    - **Prérequis** : vérifie PHP, les extensions, la présence des fichiers vendorés et
-     l'écriture de `app/storage/` (bloquant) et `app/config/` (non bloquant — le
+     l'écriture de `app/storage/` (bloquant) et `app/config/` (non bloquant - le
      `config.php` peut être créé à la main).
    - **Application** : nom affiché (`app_name`), chemin d'admin (`admin_path`), taille
      cumulée maximale des pièces jointes (`attachments_max_total`, plafonnée à 25 Mo par
@@ -49,14 +49,14 @@ de la racine web, déplacez le dossier puis adaptez ce chemin (absolu ou relatif
    - **Récapitulatif** : contrôle des valeurs puis bouton **Installer**.
 4. L'installation écrit `app/config/config.php` (un fichier existant est archivé en
    `config.<horodatage>.bak`), applique les migrations, tente de **détecter le domaine
-   d'hébergement** (SRV → autoconfig Mozilla → MX → sondage) et l'ajoute en table
+   d'hébergement** (SRV > autoconfig Mozilla > MX > sondage) et l'ajoute en table
    `domains`, puis pose le verrou `app/storage/INSTALLED`.
    Au clic sur **Installer**, un écran de progression pleine page s'affiche :
-   la détection de domaine peut faire durer l'opération jusqu'à ~2 minutes —
+   la détection de domaine peut faire durer l'opération jusqu'à ~2 minutes -
    ne fermez pas la page (l'installation se terminerait malgré tout côté serveur).
-   Trois domaines publics sont aussi **pré-autorisés en comptes secondaires** —
+   Trois domaines publics sont aussi **pré-autorisés en comptes secondaires** -
    `gmail.com`, `outlook.com`, `yahoo.com` (OAuth2 requis, login primaire refusé ;
-   voir [domaines.md](domaines.md) §8). Supprimables dans admin → *Domaines*.
+   voir [domaines.md](domaines.md) §8). Supprimables dans admin > *Domaines*.
 5. **Après l'installation** : `/setup` répond désormais 404 (rien à supprimer)
    et **sauvegardez `app/storage/app.key`** (voir §6).
 
@@ -114,10 +114,10 @@ server {
     # Filet : dossier privé refusé même si le root pointe par erreur sur la racine
     location ~ ^/(app|dist)(/|$) { return 404; }
 
-    # Assets versionnés /assets/vX.Y.Z/… → fichier réel (équivalent du
+    # Assets versionnés /assets/vX.Y.Z/… > fichier réel (équivalent du
     # RewriteRule du .htaccess d'Apache). TTL long : la version change à
     # chaque release. Les URLs /assets/theme|plugin/ passent par try_files
-    # → PHP (leurs en-têtes restent gérés par la config « http »).
+    # > PHP (leurs en-têtes restent gérés par la config "http").
     location ~ ^/assets/v[0-9.]+/ {
         rewrite ^/assets/v[0-9.]+/(.*)$ /assets/$1 last;
     }
@@ -155,7 +155,7 @@ Remarques :
    `restrict_domains = true` (défaut), aucun login n'est possible sans domaine configuré.
    L'installeur tente de le détecter automatiquement.
 3. **Installez les plugins** depuis l'admin, onglet *Extensions* :
-   le zip de release n'embarque plus les plugins — ils se téléchargent, se mettent à
+   le zip de release n'embarque plus les plugins - ils se téléchargent, se mettent à
    jour et se désinstallent depuis ce catalogue (voir
    [administration.md](administration.md#extensions-plugins) et
    [plugins.md](plugins.md)). À la mise à jour du cœur, les plugins déjà installés
@@ -164,14 +164,14 @@ Remarques :
    [securite.md](securite.md) pour `trusted_proxies`).
 5. Positionnez `admin_ip_allowlist` si le panneau admin doit être restreint à certaines IP.
 6. **Mises à jour** : elles se font depuis l'admin (*À propos*) via les GitHub
-   Releases — vérification `files.sha256` par fichier, sauvegarde fichiers +
+   Releases - vérification `files.sha256` par fichier, sauvegarde fichiers +
    base SQLite, rollback assisté et migrations de base orchestrées. Détail dans
    [administration.md](administration.md#à-propos) et procédures de secours dans
    [depannage.md](depannage.md#mises-à-jour).
 
 ## 7. URLs principales
 
-- `/` — webmail (login → dossiers → messages)
-- `/{admin_path}` — panneau d'administration (défaut `/admin`)
-- `#/@settings/<onglet>` — paramètres utilisateur (général, identités, contacts, filtres
+- `/` - webmail (login > dossiers > messages)
+- `/{admin_path}` - panneau d'administration (défaut `/admin`)
+- `#/@settings/<onglet>` - paramètres utilisateur (général, identités, contacts, filtres
   Sieve, OpenPGP, onglets de plugins)

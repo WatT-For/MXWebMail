@@ -8,8 +8,8 @@ import { loadOpenPgp } from '../lazy.js';
  * Ouvert dans la modale Bootstrap #compose-modal.
  */
 export class ComposeVM {
-	// Mention d'une pièce jointe dans le corps/sujet (fr/en) — rappel pré-envoi.
-	// « attach » couvre attacher/attaché(e)(s) et attached/attachment.
+	// Mention d'une pièce jointe dans le corps/sujet (fr/en) - rappel pré-envoi.
+	// "attach" couvre attacher/attaché(e)(s) et attached/attachment.
 	static RE_ATTACH = /(ci[-\s]?(?:jointe?s?|inclus)|pi[eè]ce\s+jointe|document\s+joint|en\s+annexe|j'ai\s+joint|je\s+(?:t'?envoie|joins)|\battach\w*|please\s+find\s+(?:\w+\s+)?(?:attach|enclos))/i;
 
 	constructor(app) {
@@ -20,9 +20,15 @@ export class ComposeVM {
 
 		this.identities = ko.observableArray([]);
 		this.identity = ko.observable('');
-		this.to = ko.observable('');
-		this.cc = ko.observable('');
-		this.bcc = ko.observable('');
+		// Destinataires : pastilles validées ({name,email,invalid}) + texte en
+		// cours de frappe (≤1 fragment, cf. onAddrInput). La chaîne n'existe
+		// qu'au payload() via addrString().
+		this.to = ko.observableArray([]);
+		this.cc = ko.observableArray([]);
+		this.bcc = ko.observableArray([]);
+		this.toText = ko.observable('');
+		this.ccText = ko.observable('');
+		this.bccText = ko.observable('');
 		this.subject = ko.observable('');
 		this.html = ko.observable('');
 		this.attachments = ko.observableArray([]);
@@ -38,12 +44,14 @@ export class ComposeVM {
 		this.draftFolder = '';
 		this.modal = null;
 		this.pgpEncrypt = ko.observable(false);
-		this.priority = ko.observable(false);  // « Priorité haute » → X-Priority: 1
-		this.mdn = ko.observable(false);       // « Accusé de réception » → Disposition-Notification-To
+		this.priority = ko.observable(false);  // "Priorité haute" > X-Priority: 1
+		this.mdn = ko.observable(false);       // "Accusé de réception" > Disposition-Notification-To
 		this.showCc = ko.observable(false);   // champ Cc déplié (menu options du header)
 		this.showBcc = ko.observable(false);  // champ Cci déplié
-		this.suggestField = ko.observable(''); // 'to'|'cc'|'bcc' — champ sous lequel afficher les suggestions
+		this.suggestField = ko.observable(''); // 'to'|'cc'|'bcc' - champ sous lequel afficher les suggestions
+		this.suggestIndex = ko.observable(-1); // suggestion surlignée au clavier
 		this._suggestTimer = null; // debounce des suggestions (1 requête / frappe sinon)
+		this._focusToInput = false; // openNew : focus "À" quand pas de marqueur caret signature
 		// Garde de fermeture : _dirty suit les saisies utilisateur (suspendu
 		// pendant les remplissages programmatiques des open*/placeCaretAtMarker).
 		this._dirty = false;
@@ -55,14 +63,15 @@ export class ComposeVM {
 		this._autosaveTimer = null;
 		this._autoSaving = false;     // anti-chevauchement des ticks
 		this.savedAt = ko.observable(null); // Date du dernier enregistrement auto
-		for (const o of [this.to, this.cc, this.bcc, this.subject, this.html, this.attachments]) {
+		for (const o of [this.to, this.cc, this.bcc, this.toText, this.ccText,
+			this.bccText, this.subject, this.html, this.attachments]) {
 			o.subscribe(() => { if (!this._suspendDirty) { this._dirty = true; } });
 		}
 		// Taille persistée de la modale (px ; 0 = défaut Bootstrap)
 		this.composeW = ko.observable(0);
 		this.composeH = ko.observable(0);
 
-		// Changement d'identité → remplacer le bloc signature (modale déjà ouverte)
+		// Changement d'identité > remplacer le bloc signature (modale déjà ouverte)
 		this.identity.subscribe(() => {
 			this.rebuildSignature();
 			this.placeCaretAtMarker();
@@ -89,7 +98,7 @@ export class ComposeVM {
 	}
 
 	/** Applique la liste brute des identités : filtre le compte actif et
-	 *  (ré)sélectionne l'identité par défaut — aussi après un changement de
+	 *  (ré)sélectionne l'identité par défaut - aussi après un changement de
 	 *  défaut ou une édition de signature dans Paramètres. */
 	setIdentities(list) {
 		const active = this.app.accounts().find(a => a.active);
@@ -114,7 +123,7 @@ export class ComposeVM {
 		if (!this.modal) {
 			const el = document.getElementById('compose-modal');
 			this.modal = new bootstrap.Modal(el);
-			// Garde de fermeture : contenu saisi non envoyé/enregistré →
+			// Garde de fermeture : contenu saisi non envoyé/enregistré >
 			// confirmation (couvre ×, Échap, backdrop et hide() programmatique).
 			el.addEventListener('hide.bs.modal', e => this.guardClose(e));
 			el.addEventListener('hidden.bs.modal', () => {
@@ -125,13 +134,19 @@ export class ComposeVM {
 		this.visible(true);
 		this.modal.show();
 		this.startAutosave();
-		// Réponses types : préchargement lazy pour le sous-menu « Options »
+		// Réponses types : préchargement lazy pour le sous-menu "Options"
 		// (no-op si déjà chargée, refetch après édition dans Paramètres).
 		this.app.settings.loadResponses();
-		// Le focus avant la fin de la transition est volé par Bootstrap →
+		// Le focus avant la fin de la transition est volé par Bootstrap >
 		// le caret du marqueur de signature est placé une fois la modale visible.
-		document.getElementById('compose-modal').addEventListener(
-			'shown.bs.modal', () => this.placeCaretAtMarker(), { once: true });
+		// Sans marqueur, openNew pose le focus sur le champ "À".
+		document.getElementById('compose-modal').addEventListener('shown.bs.modal', () => {
+			const placed = this.placeCaretAtMarker();
+			if (this._focusToInput && !placed) {
+				document.getElementById('compose-to-input')?.focus();
+			}
+			this._focusToInput = false;
+		}, { once: true });
 	}
 
 	hide() {
@@ -150,7 +165,7 @@ export class ComposeVM {
 		], { title: t('compose.confirm_close') }).then(choice => {
 			this._prompting = false;
 			if (choice === 'draft') {
-				this.saveDraft(); // succès → ferme via _closeConfirmed ; échec → modale + erreur
+				this.saveDraft(); // succès > ferme via _closeConfirmed ; échec > modale + erreur
 			} else if (choice === 'discard') {
 				this._closeConfirmed = true;
 				this.modal.hide();
@@ -161,7 +176,8 @@ export class ComposeVM {
 
 	reset() {
 		this.error('');
-		this.to(''); this.cc(''); this.bcc('');
+		this.to([]); this.cc([]); this.bcc([]);
+		this.toText(''); this.ccText(''); this.bccText('');
 		this.showCc(false); this.showBcc(false);
 		this.subject(''); this.html('');
 		this.priority(false); // intention par message, contrairement à pgpEncrypt
@@ -178,11 +194,9 @@ export class ComposeVM {
 		}
 		this.attachments([]);
 		this.tab('message');
-		this.suggestions([]);
-		this.suggestField('');
+		this.closeSuggestions();
 		this.inReplyTo = ''; this.references = '';
 		this.draftUid = null; this.draftFolder = '';
-		clearTimeout(this._suggestTimer);
 		this._dirty = false;
 		this._closeConfirmed = false;
 		this.savedAt(null);
@@ -208,7 +222,7 @@ export class ComposeVM {
 	}
 
 	/** Enregistrement silencieux : jamais de fermeture ni d'erreur affichée
-	 *  (contrairement à saveDraft) — un échec est réessayé au prochain tick. */
+	 *  (contrairement à saveDraft) - un échec est réessayé au prochain tick. */
 	async autoSave() {
 		if (!this.visible() || this._autoSaving || this.sending()
 			|| this.uploadPending() || !this._dirty || this.bodyEmpty()) {
@@ -229,6 +243,7 @@ export class ComposeVM {
 		this.reset();
 		this.applySignature();
 		this._dirty = false;
+		this._focusToInput = true; // pastilles : la saisie commence par "À"
 		this.show();
 	}
 
@@ -251,7 +266,7 @@ export class ComposeVM {
 	}
 
 	/** Remplace le bloc .mxwm-signature du corps par celui de l'identité
-	 *  courante — avant la citation (blockquote/hr) s'il y en a une. */
+	 *  courante - avant la citation (blockquote/hr) s'il y en a une. */
 	rebuildSignature() {
 		const doc = new DOMParser().parseFromString(this.html() || '<p><br></p>', 'text/html');
 		doc.querySelector('.mxwm-signature')?.remove();
@@ -264,15 +279,16 @@ export class ComposeVM {
 		this.html(doc.body.innerHTML);
 	}
 
-	/** Place le caret sur le marqueur .mxwm-sig-caret puis le retire. */
+	/** Place le caret sur le marqueur .mxwm-sig-caret puis le retire.
+	 *  Retourne true quand un marqueur a été trouvé (focus éditeur). */
 	placeCaretAtMarker() {
 		const ed = window.tinymce?.get('compose-body');
-		if (!ed) { return; }
+		if (!ed) { return false; }
 		// tinymce chargé en lazy (applyBindings) : l'éditeur peut exister sans
-		// être initialisé au shown.bs.modal → retry borné au init (idempotent).
-		if (!ed.initialized) { ed.once('init', () => this.placeCaretAtMarker()); return; }
+		// être initialisé au shown.bs.modal > retry borné au init (idempotent).
+		if (!ed.initialized) { ed.once('init', () => this.placeCaretAtMarker()); return false; }
 		const marker = ed.getBody().querySelector('span.mxwm-sig-caret');
-		if (!marker) { return; }
+		if (!marker) { return false; }
 		const parent = marker.parentNode;
 		const next = marker.nextSibling;
 		const rng = ed.dom.createRng();
@@ -285,22 +301,23 @@ export class ComposeVM {
 			if (!next.data) { next.remove(); }
 		}
 		// Un bloc vidé par le retrait du marqueur garderait hauteur 0 et serait
-		// droppé par le sérialiseur — <br> = ligne vide adressable au caret.
+		// droppé par le sérialiseur - <br> = ligne vide adressable au caret.
 		if (parent?.nodeType === 1 && !parent.textContent
 			&& !parent.querySelector('br,img,hr,iframe,object,embed,video,audio')) {
 			parent.appendChild(ed.dom.create('br'));
 		}
 		ed.selection.setRng(rng);
-		// dom.remove ne déclenche ni change ni keyup → resync explicite de
-		// l'observable (update() voit le contenu identique → caret préservé).
-		// Écriture programmatique : ne doit pas marquer le brouillon « dirty ».
+		// dom.remove ne déclenche ni change ni keyup > resync explicite de
+		// l'observable (update() voit le contenu identique > caret préservé).
+		// Écriture programmatique : ne doit pas marquer le brouillon "dirty".
 		this._suspendDirty = true;
 		this.html(ed.getContent());
 		this._suspendDirty = false;
 		if (this.visible()) { ed.focus(); }
+		return true;
 	}
 
-	/** HTML → texte brut (citation d'un mail sans part text/plain). */
+	/** HTML > texte brut (citation d'un mail sans part text/plain). */
 	htmlToText(html) {
 		if (!html) { return ''; }
 		return new DOMParser().parseFromString(html, 'text/html').body.textContent || '';
@@ -313,7 +330,7 @@ export class ComposeVM {
 			? (list[0].email || list[0])
 			: '';
 		const replyTo = first(msg.replyTo) || first(msg.from);
-		this.to(replyTo);
+		this.to(replyTo ? [this.normChip(replyTo)] : []);
 		if (all) {
 			// Exclure toutes les adresses du compte (identités + email de
 			// session) et l'adresse déjà placée en To ; dédoublonnage par Set.
@@ -326,8 +343,8 @@ export class ComposeVM {
 				[...(msg.to || []), ...(msg.cc || [])]
 					.map(e => (e.email || e || '').toLowerCase())
 					.filter(e => e && !mine.has(e)))];
-			this.cc(others.join(', '));
-			this.showCc(!!this.cc());
+			this.cc(others.map(e => ({ name: '', email: e, invalid: false })));
+			this.showCc(!!this.cc().length);
 		}
 		const subject = msg.subject || '';
 		this.subject(/^\s*re\s*:/i.test(subject) ? subject : 'Re: ' + subject);
@@ -353,7 +370,7 @@ export class ComposeVM {
 			const sig = this.signatureBlock();
 			this.html(`${this.sigLead(sig)}${sig}<p><i>${t('compose.forwarded_attach')}</i></p>`);
 			const base = (subject || 'message').replace(/[\\/:*?"<>|\x00-\x1F]/g, '').trim();
-			const name = (base || 'message') + '.eml'; // sujet entièrement filtré → « message.eml »
+			const name = (base || 'message') + '.eml'; // sujet entièrement filtré > "message.eml"
 			this.attachments.push({ token: null,
 				msgref: { folder: msg.folder, uid: msg.uid, eml: true },
 				name, size: msg.size || 0,
@@ -369,7 +386,7 @@ export class ComposeVM {
 	}
 
 	/** Insère la réponse type `r` à la position du curseur (TinyMCE
-	 *  insertContent), puis ferme le menu options (auto-close « outside »). */
+	 *  insertContent), puis ferme le menu options (auto-close "outside"). */
 	applyResponse(r) {
 		const ed = window.tinymce?.get('compose-body');
 		if (ed?.initialized) {
@@ -399,11 +416,11 @@ export class ComposeVM {
 		this.reset();
 		this.draftUid = msg.uid || null;
 		this.draftFolder = msg.folder || '';
-		this.to(this.headerList(msg.to));
-		this.cc(this.headerList(msg.cc));
-		this.bcc(this.headerList(msg.bcc));
-		this.showCc(!!this.cc());
-		this.showBcc(!!this.bcc());
+		this.to((msg.to || []).map(this.normChip));
+		this.cc((msg.cc || []).map(this.normChip));
+		this.bcc((msg.bcc || []).map(this.normChip));
+		this.showCc(!!this.cc().length);
+		this.showBcc(!!this.bcc().length);
 		this.subject(msg.subject || '');
 		// Le brouillon d'une réponse conserve son threading.
 		this.inReplyTo = msg.inReplyTo || '';
@@ -414,16 +431,188 @@ export class ComposeVM {
 		this.show();
 	}
 
-	headerList(list) {
-		return (list || []).map(e => this.formatAddr(e.name, e.email)).join(', ');
+	/** "Nom <a@b>" ou adresse brute > pastille {name,email,invalid}. */
+	normChip(e) {
+		if (e && typeof e === 'object') {
+			return { name: e.name || '', email: e.email || '', invalid: false };
+		}
+		return { name: '', email: String(e || ''), invalid: false };
 	}
 
-	/** « Nom <a@b> » — le display-name est systématiquement quoté : un nom
+	/** "Nom <a@b>" - le display-name est systématiquement quoté : un nom
 	 *  contenant , ; ou " casserait sinon la liste à la relecture serveur. */
 	formatAddr(name, email) {
 		if (!name) { return email || ''; }
 		return '"' + String(name).replace(/\\/g, '\\\\').replace(/"/g, '\\"')
 			+ '" <' + email + '>';
+	}
+
+	/** Pastilles + texte en cours > chaîne du payload (contrat serveur
+	 *  identique à l'ancien champ texte libre). */
+	addrString(field) {
+		return [...this[field]().map(c => this.formatAddr(c.name, c.email)),
+			this[field + 'Text']().trim()].filter(Boolean).join(', ');
+	}
+
+	/** Découpe une liste d'adresses sur , ; en dehors des guillemets -
+	 *  ""Dupont, Jean" <a@b>" reste un seul fragment. */
+	splitAddrList(s) {
+		const out = [];
+		let cur = '', inQ = false;
+		for (let i = 0; i < s.length; i++) {
+			const ch = s[i];
+			if (ch === '\\' && inQ) { cur += ch + (s[++i] || ''); continue; }
+			if (ch === '"') { inQ = !inQ; }
+			if ((ch === ',' || ch === ';') && !inQ) { out.push(cur); cur = ''; }
+			else { cur += ch; }
+		}
+		out.push(cur);
+		return out;
+	}
+
+	/** Fragment d'adresse > pastille : priorité à "Nom <a@b>", email nu
+	 *  validé par regex souple ; sinon pastille marquée invalide (le serveur
+	 *  rejettera à l'envoi, comme un texte libre auparavant). */
+	parseAddr(s) {
+		s = (s || '').trim();
+		if (!s) { return null; }
+		const m = s.match(/^(?:"((?:[^"\\]|\\.)*)"|(.*?))?\s*<([^<>\s]+)>\s*$/);
+		if (m && m[3].includes('@')) {
+			return { name: (m[1] ?? m[2] ?? '').replace(/\\(.)/g, '$1').trim(),
+				email: m[3], invalid: false };
+		}
+		const ok = /^[^\s@,;<>]+@[^\s@,;<>]+$/.test(s);
+		return { name: '', email: s, invalid: !ok };
+	}
+
+	/** Fragment > pastille si non-doublon (insensible à la casse, dans le
+	 *  champ concerné uniquement). Retourne la pastille ou null. */
+	commitFragment(field, frag) {
+		const chip = this.parseAddr(frag);
+		if (!chip) { return null; }
+		const lower = chip.email.toLowerCase();
+		if (this[field]().some(c => (c.email || '').toLowerCase() === lower)) {
+			return null;
+		}
+		this[field].push(chip);
+		return chip;
+	}
+
+	/** Commit d'une liste de fragments ; retourne les adresses valides
+	 *  effectivement ajoutées. */
+	commitParts(field, parts) {
+		const added = [];
+		for (const p of parts) {
+			const c = this.commitFragment(field, p);
+			if (c && !c.invalid) { added.push(c); }
+		}
+		return added;
+	}
+
+	/** Valide tout le texte en cours en pastilles. wkdLookup uniquement sur
+	 *  commit unitaire : un collage massif ne doit pas déclencher une tempête
+	 *  de dialogues d'import de clé. */
+	commitInput(field) {
+		const added = this.commitParts(field,
+			this.splitAddrList(this[field + 'Text']()));
+		this[field + 'Text']('');
+		if (added.length === 1) { this.wkdLookup(added[0].email); }
+	}
+
+	/** Saisie : les fragments terminés par , ; deviennent des pastilles - le
+	 *  reste (≤1 fragment) sert de requête de suggestion. */
+	onAddrInput(field) {
+		const parts = this.splitAddrList(this[field + 'Text']());
+		if (parts.length > 1) {
+			const added = this.commitParts(field, parts.slice(0, -1));
+			this[field + 'Text'](parts[parts.length - 1].trim());
+			if (added.length === 1) { this.wkdLookup(added[0].email); }
+		}
+		this.suggest(field);
+	}
+
+	/** Clavier : navigation suggestions (↑↓), validation (Entrée/Tab),
+	 *  fermeture (Échap, sans fermer la modale), récupération de la dernière
+	 *  pastille (Backspace sur champ vide). */
+	onAddrKey(field, e) {
+		const open = this.suggestOpen(field);
+		const idx = this.suggestIndex();
+		switch (e.key) {
+		case 'ArrowDown':
+			if (open) { this.navSuggest(1, e.target); }
+			else { this.suggest(field); }
+			e.preventDefault();
+			break;
+		case 'ArrowUp':
+			if (open) { this.navSuggest(-1, e.target); }
+			e.preventDefault();
+			break;
+		case 'Enter':
+			// Pas d'auto-pick du 1er item : un index est exigé, sinon le
+			// texte est validé (jamais de surprise).
+			if (open && idx >= 0) {
+				this.applySuggestion(field, this.suggestions()[idx]);
+			} else {
+				this.commitInput(field);
+			}
+			e.preventDefault();
+			break;
+		case 'Tab':
+			if (open && idx >= 0) {
+				this.applySuggestion(field, this.suggestions()[idx]);
+				e.preventDefault(); // reste dans le champ pour l'adresse suivante
+			} else {
+				this.commitInput(field); // propagation : focus suivant
+			}
+			break;
+		case 'Escape':
+			if (open) {
+				this.closeSuggestions();
+				e.stopPropagation(); // la modale écoute keydown > ne pas la fermer
+			}
+			break;
+		case 'Backspace':
+			if (!this[field + 'Text']() && this[field]().length) {
+				const chip = this[field].pop();
+				this[field + 'Text'](chip.email);
+				e.preventDefault();
+			}
+			break;
+		}
+		return true;
+	}
+
+	/** ↑/↓ : index cyclique + item actif ramené dans le viewport. */
+	navSuggest(dir, inputEl) {
+		const n = this.suggestions().length;
+		if (!n) { return; }
+		const i = this.suggestIndex();
+		this.suggestIndex(dir === 1 ? (i + 1) % n : (i <= 0 ? n - 1 : i - 1));
+		inputEl?.closest('.position-relative')
+			?.querySelector('.compose-suggestions')
+			?.children[this.suggestIndex()]
+			?.scrollIntoView({ block: 'nearest' });
+	}
+
+	removeChip(field, chip) {
+		this[field].remove(chip);
+	}
+
+	suggestOpen(field) {
+		return this.suggestField() === field && this.suggestions().length > 0;
+	}
+
+	closeSuggestions() {
+		clearTimeout(this._suggestTimer);
+		this.suggestions([]);
+		this.suggestField('');
+		this.suggestIndex(-1);
+	}
+
+	/** Blur : ferme la liste uniquement - le texte en cours reste éditable
+	 *  et part quand même dans le payload (addrString). */
+	onAddrBlur() {
+		this.closeSuggestions();
 	}
 
 	/** Debounce : une frappe = un timer, la requête ne part qu'au calme. */
@@ -433,25 +622,33 @@ export class ComposeVM {
 	}
 
 	async fetchSuggestions(field) {
-		const value = this[field]();
-		const last = value.split(/[,;]/).pop().trim();
+		const q = this[field + 'Text']().trim();
 		// Contacts désactivés : pas d'appel voué à un 403
-		if (last.length < 2 || this.app.features().contacts === false) {
-			this.suggestions([]);
-			this.suggestField('');
+		if (q.length < 2 || this.app.features().contacts === false) {
+			this.closeSuggestions();
 			return;
 		}
+		const have = new Set(this[field]()
+			.map(c => (c.email || '').toLowerCase()));
+		const list = await api.get('/contacts?q=' + encodeURIComponent(q))
+			.catch(() => []);
+		// Réponse arrivée après une nouvelle frappe : périmée > ignorée.
+		if (this[field + 'Text']().trim() !== q) { return; }
 		this.suggestField(field);
-		this.suggestions(await api.get('/contacts?q=' + encodeURIComponent(last)).catch(() => []));
+		this.suggestIndex(-1);
+		this.suggestions((list || []).filter(
+			c => !have.has((c.email || '').toLowerCase())));
 	}
 
 	applySuggestion(field, contact) {
-		const parts = this[field]().split(/[,;]/);
-		parts[parts.length - 1] = ' ' + this.formatAddr(contact.name, contact.email);
-		this[field](parts.join(','));
-		clearTimeout(this._suggestTimer);
-		this.suggestions([]);
-		this.suggestField('');
+		this[field + 'Text']('');
+		if (!this[field]().some(c => (c.email || '').toLowerCase()
+			=== (contact.email || '').toLowerCase())) {
+			this[field].push({ name: contact.name || '',
+				email: contact.email || '', invalid: false });
+		}
+		this.closeSuggestions();
+		document.getElementById(`compose-${field}-input`)?.focus();
 		this.wkdLookup(contact.email); // recherche PGP en arrière-plan
 	}
 
@@ -479,7 +676,7 @@ export class ComposeVM {
 				await dialog.alert(t('plugin.wkd-keys.imported'),
 					{ variant: 'success' });
 			}
-		} catch { /* lookup échouée : clé optionnelle → silencieux */ }
+		} catch { /* lookup échouée : clé optionnelle > silencieux */ }
 	}
 
 	async upload(files) {
@@ -503,7 +700,7 @@ export class ComposeVM {
 				continue;
 			}
 			// Placeholder immédiat : la PJ et sa barre de progression sont
-			// visibles dès le début du transfert (size déjà connue → le
+			// visibles dès le début du transfert (size déjà connue > le
 			// contrôle de cumul des fichiers suivants reste correct).
 			const att = { token: null, name: file.name, size: file.size,
 				progress: ko.observable(0), uploading: ko.observable(true), req: null };
@@ -516,7 +713,7 @@ export class ComposeVM {
 				att.req = req;
 				const r = await req;
 				if (gen !== this.uploadGen) {
-					// reset() entre-temps : liste vidée → token orphelin
+					// reset() entre-temps : liste vidée > token orphelin
 					api.post(`/compose/upload/${r.token}/delete`).catch(() => {});
 					break;
 				}
@@ -534,11 +731,11 @@ export class ComposeVM {
 	}
 
 	/**
-	 * Pièce trop grosse pour le SMTP → envoi « par lien » (plugin
+	 * Pièce trop grosse pour le SMTP > envoi "par lien" (plugin
 	 * filelink) : upload sur storage/filelink + insertion du lien de
 	 * téléchargement expirable dans le corps du message.
 	 * Retourne true si le fichier a été pris en charge (succès ou erreur
-	 * déjà affichée), false si le plugin est absent → erreur too_big.
+	 * déjà affichée), false si le plugin est absent > erreur too_big.
 	 */
 	async filelink(file) {
 		if (!this.app.features().filelink) { return false; }
@@ -587,7 +784,7 @@ export class ComposeVM {
 	}
 
 	/** Texte du corps hors citations (réponses : l'original en <blockquote>
-	 *  ne doit pas déclencher le rappel « pièce jointe oubliée »). */
+	 *  ne doit pas déclencher le rappel "pièce jointe oubliée"). */
 	bodyText() {
 		const doc = new DOMParser().parseFromString(this.bodyHtml(), 'text/html');
 		doc.body.querySelectorAll('blockquote').forEach(el => el.remove());
@@ -605,7 +802,8 @@ export class ComposeVM {
 	payload() {
 		return {
 			from: this.identity(),
-			to: this.to(), cc: this.cc(), bcc: this.bcc(),
+			to: this.addrString('to'), cc: this.addrString('cc'),
+			bcc: this.addrString('bcc'),
 			subject: this.subject(),
 			priority: this.priority(),
 			mdn: this.mdn(),
@@ -625,11 +823,11 @@ export class ComposeVM {
 			.join(',').split(/[,;]/).map(s => s.trim()).filter(Boolean).map(extract);
 		const keys = await api.get('/pgp/keys/lookup?emails=' + encodeURIComponent(rcpts.join(',')));
 		const missing = [...new Set(rcpts)].filter(r => !keys.find(k => k.email === r));
-		// openpgp chargé à la demande (lazy.js) — ~540K hors du boot.
+		// openpgp chargé à la demande (lazy.js) - ~540K hors du boot.
 		const openpgp = await loadOpenPgp();
 		// La clé publique de l'expéditeur est exigée (le message lui est aussi
 		// chiffré) : si seule sa clé privée est importée, la partie publique
-		// s'en déduit côté client — sinon no_pubkey pointerait son propre From.
+		// s'en déduit côté client - sinon no_pubkey pointerait son propre From.
 		let selfPub = null;
 		if (missing.length) {
 			const selfEmail = extract(payload.from);
@@ -665,10 +863,10 @@ export class ComposeVM {
 		// Validé avant le POST : ces erreurs rendraient la requête vouée à
 		// une 400 (miroir du contrat serveur : corps puis aucun destinataire).
 		if (this.bodyEmpty()) { this.error(t('errors.empty_body')); return; }
-		const hasRcpt = [this.to(), this.cc(), this.bcc()]
-			.some(v => v.split(/[,;]/).some(s => s.trim()));
+		const hasRcpt = ['to', 'cc', 'bcc']
+			.some(f => this[f]().length || this[f + 'Text']().trim());
 		if (!hasRcpt) { this.error(t('errors.no_rcpt')); return; }
-		// Chiffrement = corps seul : une PJ partirait en clair → refusé
+		// Chiffrement = corps seul : une PJ partirait en clair > refusé
 		// plutôt qu'un envoi partiellement chiffré.
 		if (this.pgpEncrypt() && this.attachments().length) {
 			this.error(t('compose.encrypt_no_attach')); return;
@@ -677,9 +875,9 @@ export class ComposeVM {
 			&& !(await dialog.confirm(t('compose.empty_subject'), { variant: 'warning' }))) {
 			return;
 		}
-		// Rappel « pièce jointe oubliée » : le corps/sujet annonce une PJ mais
+		// Rappel "pièce jointe oubliée" : le corps/sujet annonce une PJ mais
 		// rien n'est joint. Citations (<blockquote>) exclues du texte testé ;
-		// PGP exclu (les PJ y sont déjà refusées — encrypt_no_attach).
+		// PGP exclu (les PJ y sont déjà refusées - encrypt_no_attach).
 		if (!this.attachments().length && !this.pgpEncrypt()
 			&& ComposeVM.RE_ATTACH.test(this.bodyText() + ' ' + this.subject())
 			&& !(await dialog.confirm(t('compose.attach_reminder'), { variant: 'warning' }))) {
@@ -708,9 +906,9 @@ export class ComposeVM {
 		if (this.uploadPending()) { this.error(t('compose.wait_upload')); return; }
 		this.error('');
 		// Validé avant le POST : un brouillon exige un corps (le reste est
-		// optionnel, sujet compris) — même contrat que le serveur.
+		// optionnel, sujet compris) - même contrat que le serveur.
 		if (this.bodyEmpty()) { this.error(t('errors.empty_body')); return; }
-		// Le chiffrement ne s'applique qu'à l'envoi : un brouillon « chiffré »
+		// Le chiffrement ne s'applique qu'à l'envoi : un brouillon "chiffré"
 		// serait stocké en clair sur le serveur IMAP sans que l'on s'en rende compte.
 		if (this.pgpEncrypt()) {
 			await dialog.alert(t('compose.draft_not_encrypted'),
@@ -719,7 +917,7 @@ export class ComposeVM {
 		this.sending(true);
 		try {
 			const r = await api.post('/compose/save-draft', this.payload());
-			// Nouvel UID (append sans UIDPLUS → null : la réf n'est juste
+			// Nouvel UID (append sans UIDPLUS > null : la réf n'est juste
 			// pas suivie, prochain enregistrement ajoutera un doublon).
 			this.draftUid = r?.uid ?? null;
 			this.draftFolder = r?.folder || '';

@@ -15,16 +15,16 @@ final class PluginRepository
 	}
 
 	/**
-	 * « Utilisable par les utilisateurs » : plugin activé chargé uniquement en
+	 * "Utilisable par les utilisateurs" : plugin activé chargé uniquement en
 	 * contexte admin quand le flag est faux (miroir de themes.allowed).
-	 * Défaut : refusé — l'admin autorise explicitement dans l'onglet Extensions.
+	 * Défaut : refusé - l'admin autorise explicitement dans l'onglet Extensions.
 	 */
 	public function isUserAllowed(string $name): bool
 	{
 		return $this->states()[$name]['user_allowed'] ?? false;
 	}
 
-	/** États enabled/user_allowed de tous les plugins — une requête par instance. */
+	/** États enabled/user_allowed de tous les plugins - une requête par instance. */
 	private function states(): array
 	{
 		if ($this->stateMap === null) {
@@ -73,7 +73,7 @@ final class PluginRepository
 	}
 
 	/**
-	 * INSERT complet (enabled/user_allowed à 0 par défaut — le DEFAULT du
+	 * INSERT complet (enabled/user_allowed à 0 par défaut - le DEFAULT du
 	 * schéma, historiquement 1, devient inerte) + UPDATE ciblé sur les seules
 	 * clés de $data.
 	 * @param array<string, int|string> $data colonnes à écrire

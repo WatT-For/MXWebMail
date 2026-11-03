@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /**
- * Migrations post-update — CLI uniquement.
+ * Migrations post-update - CLI uniquement.
  *
  * Usage : php app/bin/post-update.php [chemin-vers-app]
  *
@@ -60,7 +60,7 @@ foreach (glob($storage . '/db/users/*.sqlite') ?: [] as $f) {
 
 @unlink($storage . '/cache/classmap.php');
 
-// Reliquat des installs ≤ 0.44 : l'assistant /setup est intégré au cœur —
+// Reliquat des installs ≤ 0.44 : l'assistant /setup est intégré au cœur -
 // le fichier standalone ne doit pas rester dans le webroot. installDir()
 // peut être deviné faux si app/ est relocalisé : non bloquant.
 try {
@@ -68,7 +68,7 @@ try {
 	if (is_dir($setupDir)) {
 		$ok = true;
 		// Récursif (même motif qu'UpdateService::rmrf) : glob('*') raterait
-		// les fichiers cachés (.htaccess) et les sous-dossiers → rmdir échoue.
+		// les fichiers cachés (.htaccess) et les sous-dossiers > rmdir échoue.
 		foreach (new \RecursiveIteratorIterator(
 				new \RecursiveDirectoryIterator($setupDir,
 					\FilesystemIterator::SKIP_DOTS),
@@ -89,5 +89,5 @@ foreach ($result['errors'] as $e) {
 	fwrite(STDERR, "ERREUR $e\n");
 }
 echo ($result['ok'] ? 'ok' : 'échec')
-	. ' — v' . APP_VERSION . ', schéma ' . ($result['schema_version'] ?? '?') . "\n";
+	. ' - v' . APP_VERSION . ', schéma ' . ($result['schema_version'] ?? '?') . "\n";
 exit($result['ok'] ? 0 : 1);

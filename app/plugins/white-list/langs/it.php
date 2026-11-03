@@ -10,5 +10,5 @@ return [
 	'plugin.white-list.f.exceptions'     => 'Eccezioni',
 	'plugin.white-list.f.exceptions.help' => 'Tra le email fuori dalla whitelist, solo queste vengono rifiutate (vuoto = tutte rifiutate). Es.: demo@domain1.com *@domain2.com admin@*',
 	'plugin.white-list.f.auth_error'     => 'Errore di autenticazione',
-	'plugin.white-list.f.auth_error.help' => 'Restituisce un errore generico di credenziali invece di «account non consentito»',
+	'plugin.white-list.f.auth_error.help' => 'Restituisce un errore generico di credenziali invece di "account non consentito"',
 ];

@@ -10,7 +10,7 @@ return [
 	'plugin.attachments-clamav.f.on_error.allow'   => 'Permitir envio (aviso no log)',
 	'plugin.attachments-clamav.f.on_error.deny'    => 'Rejeitar envio (fail-closed)',
 	'plugin.attachments-clamav.f.on_error.help'    => 'deny bloqueia todos os envios enquanto o clamd estiver em baixo',
-	'plugin.attachments-clamav.virus_found'        => 'Vírus detetado em «{name}»',
+	'plugin.attachments-clamav.virus_found'        => 'Vírus detetado em "{name}"',
 	'plugin.attachments-clamav.unavailable'        => 'Antivírus inacessível',
 	'plugin.attachments-clamav.bad_response'       => 'Resposta inesperada do scanner: {msg}',
 	'plugin.attachments-clamav.read_failed'         => 'Não é possível ler o ficheiro “{name}”',

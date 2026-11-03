@@ -49,7 +49,7 @@ final class Router
 		return null;
 	}
 
-	/** Compile le motif en regex : {param} → groupe nommé, reste échappé. */
+	/** Compile le motif en regex : {param} > groupe nommé, reste échappé. */
 	private static function compile(string $pattern): string
 	{
 		return '#^' . preg_replace_callback(

@@ -4,14 +4,14 @@ declare(strict_types=1);
 namespace MXWebMail\Service;
 
 /**
- * Conversion CSV → items de contacts, miroir de VCardContacts::parse
+ * Conversion CSV > items de contacts, miroir de VCardContacts::parse
  * (même format de sortie : {name, emails, properties, source_uid, frequency})
  * pour réutiliser ContactRepository::import() tel quel.
  *
  * Heuristique de mapping (pas de mapping interactif) :
  * - ligne d'en-tête reconnue (email|e-mail|courriel|mail, name|nom,
- *   phone|tel|téléphone, org|société|company…) → colonnes nommées ;
- * - sans en-tête → colonne contenant des emails valides = emails,
+ *   phone|tel|téléphone, org|société|company…) > colonnes nommées ;
+ * - sans en-tête > colonne contenant des emails valides = emails,
  *   première colonne = nom.
  * Séparateur auto-détecté (, ; ou tab).
  */
@@ -89,7 +89,7 @@ final class CsvContacts
 		return (string) array_key_first($counts);
 	}
 
-	/** En-tête reconnue → indices de colonnes ; null sinon. */
+	/** En-tête reconnue > indices de colonnes ; null sinon. */
 	private static function columnMap(array $header): ?array
 	{
 		$map = ['name' => null, 'email' => null, 'tel' => null, 'org' => null, 'note' => null];

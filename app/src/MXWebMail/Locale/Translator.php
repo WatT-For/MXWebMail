@@ -4,13 +4,13 @@ declare(strict_types=1);
 namespace MXWebMail\Locale;
 
 /**
- * Traduction minimaliste : dictionnaires PHP « clé => texte ».
+ * Traduction minimaliste : dictionnaires PHP "clé => texte".
  * - Cœur      : app/src/MXWebMail/Locale/<lang>.php
- * - Plugins   : app/plugins/<name>/langs/<lang>.php (clés « plugin.<name>.* »)
- * - Templates : app/templates/<name>/langs/<lang>.php (clés « theme.<name>.* »)
+ * - Plugins   : app/plugins/<name>/langs/<lang>.php (clés "plugin.<name>.*")
+ * - Templates : app/templates/<name>/langs/<lang>.php (clés "theme.<name>.*")
  *
- * Fallback : langue de base 'en' → clé brute si absente (pass-through :
- * un texte non catalogué — ex. label de plugin sans dictionnaire — est
+ * Fallback : langue de base 'en' > clé brute si absente (pass-through :
+ * un texte non catalogué - ex. label de plugin sans dictionnaire - est
  * affiché tel quel).
  */
 final class Translator
@@ -18,6 +18,7 @@ final class Translator
 	public const FALLBACK = 'en';
 
 	private array $dict = [];
+	private array $files = [];
 
 	/**
 	 * @param string[] $dirs dossiers contenant des fichiers <lang>.php
@@ -35,6 +36,7 @@ final class Translator
 				}
 			}
 		}
+		$this->files = $files;
 		if ($cacheFile !== null && is_file($cacheFile)) {
 			$c = require $cacheFile;
 			if (is_array($c) && ($c['files'] ?? null) === $files
@@ -64,6 +66,16 @@ final class Translator
 	public function dict(): array
 	{
 		return $this->dict;
+	}
+
+	/**
+	 * Signature de contenu des sources (chemin => mtime) : change dès qu'un
+	 * fichier de langue cœur/plugin/template bouge - utilisée en ?v= de
+	 * l'URL du dict servi (/assets/i18n/{lang}.js) pour un cache immutable sûr.
+	 */
+	public function signature(): string
+	{
+		return substr(sha1(json_encode($this->files)), 0, 16);
 	}
 
 	/** Traduction de $key ; {param} interpolés via strtr ; clé brute si inconnue. */
@@ -97,7 +109,7 @@ final class Translator
 	}
 
 	/**
-	 * Meilleure langue d'après Accept-Language (« fr-FR,fr;q=0.9,en;q=0.8 »),
+	 * Meilleure langue d'après Accept-Language ("fr-FR,fr;q=0.9,en;q=0.8"),
 	 * restreinte aux $available ; fallback sur FALLBACK.
 	 */
 	public static function detect(array $available, ?string $header = null): string

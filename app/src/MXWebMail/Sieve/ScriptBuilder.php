@@ -4,7 +4,7 @@ declare(strict_types=1);
 namespace MXWebMail\Sieve;
 
 /**
- * Compilateur « assistant » de filtres : un document de règles JSON → source
+ * Compilateur "assistant" de filtres : un document de règles JSON > source
  * Sieve. Le document est sérialisé en tête du script via le marqueur
  * self::MARKER, ce qui rend le script auto-porteur (ré-éditable dans
  * l'assistant, lisible tel quel par tout client ManageSieve).
@@ -20,7 +20,7 @@ namespace MXWebMail\Sieve;
  *                "from":"AAAA-MM-JJ"?,"to":"AAAA-MM-JJ"?,"addresses":[…]} }
  *
  * La validation du schéma est stricte (whitelist champs/ops/actions) : elle
- * fait foi côté serveur — CHECKSCRIPT reste le filet syntaxique final avant
+ * fait foi côté serveur - CHECKSCRIPT reste le filet syntaxique final avant
  * PUTSCRIPT (ApiController::filterSave).
  */
 final class ScriptBuilder
@@ -33,7 +33,7 @@ final class ScriptBuilder
 	];
 	private const OPS = ['contains', 'is', 'not_contains', 'starts_with', 'regex'];
 	private const ACTIONS = ['fileinto', 'redirect', 'discard', 'keep', 'seen', 'reject', 'stop'];
-	/** Extension Sieve requise par action (capacité « SIEVE » du serveur). */
+	/** Extension Sieve requise par action (capacité "SIEVE" du serveur). */
 	private const ACTION_MODULE = [
 		'fileinto' => 'fileinto', 'seen' => 'imap4flags', 'reject' => 'reject',
 	];
@@ -118,7 +118,7 @@ final class ScriptBuilder
 	}
 
 	/**
-	 * Normalise+valide le bloc « vacation » du doc (répondeur d'absence) :
+	 * Normalise+valide le bloc "vacation" du doc (répondeur d'absence) :
 	 * enabled, subject ≤200c sans CRLF, message ≤8K (requis si enabled),
 	 * days 1-30, bornes AAAA-MM-JJ (from ≤ to), addresses = emails valides.
 	 */
@@ -252,7 +252,7 @@ final class ScriptBuilder
 		if (!in_array($op, self::OPS, true)) {
 			throw new \InvalidArgumentException("opérateur inconnu : {$op}");
 		}
-		// :regex appartient à l'extension « regex » — la déclarer, sinon un
+		// :regex appartient à l'extension "regex" - la déclarer, sinon un
 		// serveur strict (Dovecot) rejette le script au CHECKSCRIPT.
 		if ($op === 'regex') {
 			$require[] = 'regex';
@@ -269,7 +269,7 @@ final class ScriptBuilder
 			'is'           => "header :is {$h} {$v}",
 			'not_contains' => "not header :contains {$h} {$v}",
 			// :matches = glob : les métacaractères de la valeur sont échappés
-			// avant d'ajouter le « * » de suffixe.
+			// avant d'ajouter le "*" de suffixe.
 			'starts_with'  => 'header :matches ' . $h . ' "'
 				. addcslashes($value, '\\"*?') . '*"',
 			'regex'        => "header :regex {$h} {$v}",

@@ -10,7 +10,7 @@ return [
 	'plugin.attachments-clamav.f.on_error.allow'   => 'Consenti upload (avviso nel log)',
 	'plugin.attachments-clamav.f.on_error.deny'    => 'Rifiuta upload (fail-closed)',
 	'plugin.attachments-clamav.f.on_error.help'    => 'deny blocca ogni upload finché clamd è giù',
-	'plugin.attachments-clamav.virus_found'        => 'Virus rilevato in «{name}»',
+	'plugin.attachments-clamav.virus_found'        => 'Virus rilevato in "{name}"',
 	'plugin.attachments-clamav.unavailable'        => 'Antivirus non raggiungibile',
 	'plugin.attachments-clamav.bad_response'       => 'Risposta imprevista dello scanner: {msg}',
 	'plugin.attachments-clamav.read_failed'         => 'Impossibile leggere il file “{name}”',

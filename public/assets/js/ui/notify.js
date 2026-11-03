@@ -3,7 +3,7 @@ import { t } from '../i18n.js';
 
 /**
  * Notifications navigateur (API Notification) pour l'arrivée de mails.
- * Actif tant que l'onglet webmail est ouvert — la permission navigateur est
+ * Actif tant que l'onglet webmail est ouvert - la permission navigateur est
  * requise en plus du réglage utilisateur notify_new_mail.
  */
 export const notify = {
@@ -18,7 +18,7 @@ export const notify = {
 	},
 
 	/**
-	 * Affiche une notification « nouveau message ».
+	 * Affiche une notification "nouveau message".
 	 * folderLabel : nom du dossier pour les surveillés ≠ INBOX (titre enrichi).
 	 * onOpen(uid, folder) : callback au clic (focus + navigation vers le mail).
 	 */

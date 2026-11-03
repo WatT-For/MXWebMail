@@ -1,5 +1,5 @@
 /**
- * Traductions côté client — dictionnaire injecté dans window.MXWM.i18n
+ * Traductions côté client - dictionnaire injecté dans window.MXWM.i18n
  * par PageController ({lang, dict}). t() retourne la clé si absente
  * (pass-through : les textes non catalogués s'affichent tels quels).
  */

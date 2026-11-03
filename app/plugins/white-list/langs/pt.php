@@ -10,5 +10,5 @@ return [
 	'plugin.white-list.f.exceptions'     => 'Exceções',
 	'plugin.white-list.f.exceptions.help' => 'Entre os e-mails fora da lista de permissões, apenas estes são rejeitados (vazio = todos rejeitados). Ex.: demo@domain1.com *@domain2.com admin@*',
 	'plugin.white-list.f.auth_error'     => 'Erro de autenticação',
-	'plugin.white-list.f.auth_error.help' => 'Retorna um erro de credenciais genérico em vez de «conta não permitida»',
+	'plugin.white-list.f.auth_error.help' => 'Retorna um erro de credenciais genérico em vez de "conta não permitida"',
 ];

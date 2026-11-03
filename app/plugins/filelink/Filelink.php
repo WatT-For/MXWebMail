@@ -11,10 +11,10 @@ use MXWebMail\Plugin\HookRegistry;
 use MXWebMail\Plugin\PluginBase;
 
 /**
- * « Pièce jointe par lien » : les fichiers trop gros pour le SMTP sont
+ * "Pièce jointe par lien" : les fichiers trop gros pour le SMTP sont
  * hébergés sous storage/filelink/<token> et le corps du message reçoit un
  * lien de téléchargement expirable. Sécurité : token 128 bits non
- * listable, TTL, download toujours « attachment » + nosniff (un .html
+ * listable, TTL, download toujours "attachment" + nosniff (un .html
  * uploadé ne s'exécute jamais sur l'origine du webmail), noindex.
  */
 final class Filelink extends PluginBase
@@ -50,7 +50,7 @@ final class Filelink extends PluginBase
 		return max(1, (int) ($this->config['ttl_days'] ?? 30)) * 86400;
 	}
 
-	/** POST /api/plugin/filelink/upload — fichier → {url,name,size}. */
+	/** POST /api/plugin/filelink/upload - fichier > {url,name,size}. */
 	public function apiUpload(Request $request, ?array $user): array
 	{
 		$f = $request->files['file'] ?? null;
@@ -79,7 +79,7 @@ final class Filelink extends PluginBase
 			'ts'   => time(), 'user_id' => (int) $user['id'],
 		]));
 		// URL absolue : le lien part dans le corps du mail chez le
-		// destinataire — scheme + host courants + sous-chemin éventuel.
+		// destinataire - scheme + host courants + sous-chemin éventuel.
 		$http = Http::SingletonInstance();
 		$base = ($http->IsSecure() ? 'https' : 'http') . '://'
 			. $http->GetHost(false, false) . Request::basePath();
@@ -87,7 +87,7 @@ final class Filelink extends PluginBase
 			'name' => $name, 'size' => $size];
 	}
 
-	/** GET /filelink/{token} — public, stream attachment forcé. */
+	/** GET /filelink/{token} - public, stream attachment forcé. */
 	public function download(Request $request): Response
 	{
 		$token = (string) ($request->params['token'] ?? '');

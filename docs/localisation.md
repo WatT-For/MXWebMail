@@ -8,7 +8,7 @@ La localisation repose sur des dictionnaires PHP `clé => texte` :
 - plugins : `app/plugins/<name>/langs/<lang>.php` (clés préfixées `plugin.<name>.`) ;
 - thèmes : `app/templates/<name>/langs/<lang>.php` (clés préfixées `theme.<name>.`).
 
-Le traducteur fusionne ces sources (le cœur d'abord, puis plugins, puis thèmes — ces
+Le traducteur fusionne ces sources (le cœur d'abord, puis plugins, puis thèmes - ces
 derniers écrasent en cas de collision), avec l'anglais (`en`) comme **langue de base**
 (fallback) puis la langue active. `t('cle', $params)` fait l'interpolation `{param}` ;
 une clé inconnue est renvoyée telle quelle.
@@ -20,7 +20,7 @@ base (fallback) est **l'anglais** : `app/src/MXWebMail/Locale/en.php` doit reste
 
 ## 3. Choix de la langue
 
-`language` dans `config.php` (ou admin → *Général*) :
+`language` dans `config.php` (ou admin > *Général*) :
 
 - `auto` (défaut) : en-tête `Accept-Language` du navigateur ;
 - sinon le code d'une langue installée (`fr`, `en`…).

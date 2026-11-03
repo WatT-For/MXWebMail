@@ -5,7 +5,7 @@ par `db_dsn` dans `config.php`.
 
 ## 1. Connexion
 
-- `db_dsn = 'sqlite'` → `app/storage/db/webmail.sqlite` (mode WAL + `foreign_keys`).
+- `db_dsn = 'sqlite'` > `app/storage/db/webmail.sqlite` (mode WAL + `foreign_keys`).
 - Sinon un DSN PDO complet (ex. `mysql:host=localhost;dbname=mxwebmail;charset=utf8mb4`)
   avec `db_user`/`db_pass`.
 
@@ -23,7 +23,7 @@ contexte admin, puis les bases contacts par utilisateur sont migrées à leur to
 (une base en échec est consignée et retentée à son prochain accès). En secours :
 `php app/bin/post-update.php` rejoue les migrations en CLI. Si le schéma est plus
 récent que le code (rollback fichiers sans restauration de la base), `meta.schema_ahead`
-est posé et signalé dans *À propos* — les migrations sont alors suspendues.
+est posé et signalé dans *À propos* - les migrations sont alors suspendues.
 
 ## 3. Tables globales
 
@@ -31,15 +31,15 @@ est posé et signalé dans *À propos* — les migrations sont alors suspendues.
 |---|---|
 | `meta` | paires clé/valeur (`schema_version`, `contacts_moved`, …). |
 | `users` | `username` (unique), `display_name`, `is_admin`, `disabled`, `created_at`, `last_login_at`. |
-| `accounts` | comptes IMAP des utilisateurs : `email`, `imap_user`, `imap_pass` (chiffré), `is_default` (compte principal, modifiable dans Réglages → Comptes), `position` (ordre d'affichage des comptes secondaires, réordonnable par glisser-déposer dans Réglages → Comptes), `auth` (`password`, `google`, `microsoft`, `yahoo` — OAuth2 : `imap_pass` stocke alors le *refresh token* chiffré). |
-| `oauth_apps` | applications OAuth2 par utilisateur : `provider`, `client_id`, `secret` (chiffré), `tenant` — une app par `(user_id, provider)` (voir [domaines.md](domaines.md) §8). |
+| `accounts` | comptes IMAP des utilisateurs : `email`, `imap_user`, `imap_pass` (chiffré), `is_default` (compte principal, modifiable dans Réglages > Comptes), `position` (ordre d'affichage des comptes secondaires, réordonnable par glisser-déposer dans Réglages > Comptes), `auth` (`password`, `google`, `microsoft`, `yahoo` - OAuth2 : `imap_pass` stocke alors le *refresh token* chiffré). |
+| `oauth_apps` | applications OAuth2 par utilisateur : `provider`, `client_id`, `secret` (chiffré), `tenant` - une app par `(user_id, provider)` (voir [domaines.md](domaines.md) §8). |
 | `user_settings` | réglages utilisateur (clé/valeur), PK `(user_id, key)`. |
 | `identities` | identités d'envoi : `name`, `email`, `reply_to`, `bcc`, `signature`, `is_default`. |
 | `domains` | serveurs mail par domaine (voir [domaines.md](domaines.md)) + `options` JSON. |
-| `plugins` | `enabled`, `user_allowed` (réservé admin si 0 — défaut), `config` (JSON) par plugin. |
+| `plugins` | `enabled`, `user_allowed` (réservé admin si 0 - défaut), `config` (JSON) par plugin. |
 | `themes` | `config` (JSON) et `allowed` par thème. |
 | `pgp_keys` | keyring OpenPGP (`key_data` armored, `is_private`). |
-| `auth_tokens` | jetons « Rester connecté » : `selector` (unique), `token` (SHA-256 du validator, tourné à chaque usage), `agent` (User-Agent), `ip` (à l'émission), `last_ip` (dernière restauration), `created_at`, `last_used_at`, `expires_at`. |
+| `auth_tokens` | jetons "Rester connecté" : `selector` (unique), `token` (SHA-256 du validator, tourné à chaque usage), `agent` (User-Agent), `ip` (à l'émission), `last_ip` (dernière restauration), `created_at`, `last_used_at`, `expires_at`. |
 
 Les anciennes tables `contacts` / `contact_emails` ont été déplacées hors de la base
 globale (voir §5).
@@ -74,7 +74,7 @@ globales.
    collation `utf8mb4_unicode_ci`) si elle n'existe pas.
 2. Les migrations rejouent le schéma sur la nouvelle base.
 
-> **Important** : le changement de `db_dsn` repart sur un **schéma vierge** — les données
+> **Important** : le changement de `db_dsn` repart sur un **schéma vierge** - les données
 > (utilisateurs, domaines, réglages) **ne sont pas migrées**. Il n'existe pas d'outil
 > d'export. Les fichiers contacts par utilisateur, eux, restent inchangés.
 

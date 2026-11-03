@@ -5,8 +5,8 @@
  * w/h : observables en px ; 0 = taille Bootstrap par défaut (pas d'inline).
  * Double-clic sur la poignée = retour à la taille par défaut (détecté via
  * e.detail === 2 : preventDefault supprime les mouse events, dont dblclick).
- * Pendant le drag, <body> reçoit la classe « modal-resizing » (neutralise les
- * iframes — TinyMCE — et la sélection de texte).
+ * Pendant le drag, <body> reçoit la classe "modal-resizing" (neutralise les
+ * iframes - TinyMCE - et la sélection de texte).
  */
 ko.bindingHandlers.modalResize = {
 	init(element, valueAccessor) {

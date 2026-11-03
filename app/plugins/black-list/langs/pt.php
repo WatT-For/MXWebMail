@@ -10,5 +10,5 @@ return [
 	'plugin.black-list.f.exceptions'     => 'Exceções',
 	'plugin.black-list.f.exceptions.help' => 'E-mails da lista negra que permanecem permitidos. Ex.: admin@domain1.com',
 	'plugin.black-list.f.auth_error'     => 'Erro de autenticação',
-	'plugin.black-list.f.auth_error.help' => 'Retorna um erro de credenciais genérico em vez de «conta não permitida»',
+	'plugin.black-list.f.auth_error.help' => 'Retorna um erro de credenciais genérico em vez de "conta não permitida"',
 ];

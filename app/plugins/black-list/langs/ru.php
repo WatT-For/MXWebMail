@@ -10,5 +10,5 @@ return [
 	'plugin.black-list.f.exceptions'     => 'Исключения',
 	'plugin.black-list.f.exceptions.help' => 'Адреса из чёрного списка, которые остаются разрешёнными. Напр.: admin@domain1.com',
 	'plugin.black-list.f.auth_error'     => 'Ошибка аутентификации',
-	'plugin.black-list.f.auth_error.help' => 'Возвращает общую ошибку учётных данных вместо «учётная запись не разрешена»',
+	'plugin.black-list.f.auth_error.help' => 'Возвращает общую ошибку учётных данных вместо "учётная запись не разрешена"',
 ];

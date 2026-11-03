@@ -1,10 +1,10 @@
 /**
- * link-confirmation — modale de confirmation avant ouverture d'un lien du
+ * link-confirmation - modale de confirmation avant ouverture d'un lien du
  * corps d'un message (#mail-body) ou d'un .eml aperçu (#eml-preview-body).
  * Config injectée par le hook app.head du plugin (window.MXWM_LINKCONFIRM).
  * Chargé en defer : document.body et bootstrap existent déjà ; en revanche
  * window.MXWM.t (module ES i18n.js, après nous dans le document) n'est pas
- * encore posé → les libellés sont résolus paresseusement à l'affichage.
+ * encore posé > les libellés sont résolus paresseusement à l'affichage.
  */
 (function () {
 	'use strict';
@@ -30,7 +30,7 @@
 	var TEXT_URL = /^(?:https?:\/\/)?(?:[\w-]+\.)+[a-z]{2,}(?:[/?:#]\S*)?$/i;
 	var HTTP = /^https?:$/;
 
-	/** host === domaine ou sous-domaine — suffixe « point collé » uniquement. */
+	/** host === domaine ou sous-domaine - suffixe "point collé" uniquement. */
 	function hostIn(host, domain) {
 		return host === domain || host.slice(-domain.length - 1) === '.' + domain;
 	}
@@ -44,12 +44,12 @@
 		return false;
 	}
 
-	/** Signaux de leurre → clés de raisons (vide = bénin). */
+	/** Signaux de leurre > clés de raisons (vide = bénin). */
 	function suspicion(a, url) {
 		var proto = url.protocol.toLowerCase();
 		if (!HTTP.test(proto)) {
 			// Schéma non filtré par le sanitizer (défense en profondeur) ;
-			// mailto:/tel: ne sont pas « inhabituels ».
+			// mailto:/tel: ne sont pas "inhabituels".
 			return proto === 'mailto:' || proto === 'tel:' ? [] : ['reason_scheme'];
 		}
 		var r = [], host = url.hostname.toLowerCase();
@@ -177,7 +177,7 @@
 	document.addEventListener('click', function (e) {
 		if (e.button === 0) { inspect(e); }
 	});
-	// auxclick : clic milieu — preventDefault annule l'ouverture d'onglet.
+	// auxclick : clic milieu - preventDefault annule l'ouverture d'onglet.
 	document.addEventListener('auxclick', function (e) {
 		if (e.button === 1) { inspect(e); }
 	});

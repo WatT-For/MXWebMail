@@ -5,7 +5,7 @@ namespace MXWebMail\Compat;
 
 use MXWebMail\Config\Config;
 
-/** Compat MailSo : Get('ssl', 'verify_certificate', true) → section[key] puis «section_key» à plat. */
+/** Compat MailSo : Get('ssl', 'verify_certificate', true) > section[key] puis "section_key" à plat. */
 final class ConfigBridge
 {
 	public function __construct(private Config $config) {}

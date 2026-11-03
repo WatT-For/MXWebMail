@@ -2,16 +2,16 @@
 
 ## 1. Modèle de sécurité intégré
 
-### « Rester connecté » (jetons persistants)
+### "Rester connecté" (jetons persistants)
 
-La case « Rester connecté » émet un cookie `mxwm_remember` (`selector:validator`,
+La case "Rester connecté" émet un cookie `mxwm_remember` (`selector:validator`,
 HttpOnly, Secure, SameSite=Lax, 30 jours). La table `auth_tokens` ne stocke que le
 **hash SHA-256** du validator ; celui-ci est **tourné à chaque usage** (un cookie
 volé déjà présenté est détectable et invalidé). La restauration re-déchiffre le mot
-de passe IMAP (`CredentialCrypt`) et re-vérifie les identifiants — un échec supprime
+de passe IMAP (`CredentialCrypt`) et re-vérifie les identifiants - un échec supprime
 le jeton. Chaque jeton enregistre l'**IP à l'émission** (`ip`), la **dernière IP**
-connue (`last_ip`, à chaque restauration) et le User-Agent — visibles dans
-Paramètres → Sessions pour repérer une session inconnue. Les jetons y sont listés
+connue (`last_ip`, à chaque restauration) et le User-Agent - visibles dans
+Paramètres > Sessions pour repérer une session inconnue. Les jetons y sont listés
 et révocables, et le jeton courant est révoqué à la déconnexion.
 
 ### CSRF
@@ -19,7 +19,7 @@ et révocables, et le jeton courant est révoqué à la déconnexion.
 Tout POST exige un jeton CSRF de session (`X-CSRF-Token`, champ de formulaire ou clé JSON) ;
 les API des plugins (`/api/plugin/…`) l'exigent quelle que soit la méthode HTTP.
 Une seconde couche, basée sur les en-têtes **`Sec-Fetch-*`**, rejette les requêtes
-cross-site sauf navigation GET vers un document — y compris sans activation
+cross-site sauf navigation GET vers un document - y compris sans activation
 utilisateur, car le navigateur retire `Sec-Fetch-User` après chaque redirection
 (portails, liens réécrits) (`secfetch_allow` permet d'étendre ces règles).
 
@@ -39,7 +39,7 @@ en session et en base. Voir
 
 ### Comptes secondaires OAuth2
 
-Les domaines publics (Gmail, Outlook, Yahoo — voir [domaines.md](domaines.md))
+Les domaines publics (Gmail, Outlook, Yahoo - voir [domaines.md](domaines.md))
 s'ajoutent par **authorization code + PKCE** : l'anti-CSRF `state` et le
 verifier sont tenus en session, le `redirect_uri` est reconstruit côté serveur
 (hôte filtré comme `force_https`). Seul le *refresh token* est persisté, chiffré
@@ -48,7 +48,7 @@ temps de la connexion (XOAUTH2/OAUTHBEARER). La rotation de refresh token
 (Microsoft, Yahoo) est réappliquée en base à chaque échange. L'email de
 l'`id_token` sert de contrôle de cohérence ; la preuve d'appartenance reste la
 connexion IMAP OAuth elle-même. Le callback (`/api/oauth/callback`) ne renvoie
-qu'une mini-page `postMessage`→`window.close()` pour la popup de consentement.
+qu'une mini-page `postMessage`>`window.close()` pour la popup de consentement.
 
 Les identifiants d'application OAuth2 sont **par utilisateur** (table
 `oauth_apps`, saisis au premier ajout de compte ou dans les réglages) : le
@@ -76,19 +76,19 @@ schémas `javascript:`/`vbscript:`/`data:`, neutralisation des styles piégeux
 
 ### Envoi de messages
 
-- **From** : whitelist stricte — l'adresse du compte ou une identité déclarée
+- **From** : whitelist stricte - l'adresse du compte ou une identité déclarée
   (IDN accepté sous ses deux formes) ; toute autre valeur est refusée (403).
-- **Destinataires** : les champs To/Cc/Bcc passent par un parse strict — un
+- **Destinataires** : les champs To/Cc/Bcc passent par un parse strict - un
   segment invalide n'est pas silencieusement écarté, l'envoi est refusé (400)
   avec la liste des adresses incomprises.
 - **CR/LF** : neutralisés dans le sujet, les en-têtes de threading
   (In-Reply-To, References), les noms de dossiers référencés et les paramètres
   MIME des pièces jointes (`filename=`).
 - **Bcc** : l'en-tête est retiré des données envoyées au serveur SMTP mais
-  conservé dans la copie « Éléments envoyés » (visible par l'expéditeur
+  conservé dans la copie "Éléments envoyés" (visible par l'expéditeur
   uniquement).
 - **Éditeur** : l'iframe TinyMCE porte une `Content-Security-Policy` bloquant
-  tout chargement distant — le contenu d'un message transféré/collé ne peut
+  tout chargement distant - le contenu d'un message transféré/collé ne peut
   pas exfiltrer d'accusé de lecture à l'ouverture.
 - **Pièces jointes temporaires** : tokens scopés à l'utilisateur, nom
   assaini (`basename` + caractères de contrôle supprimés), purge à 24 h.
@@ -108,9 +108,9 @@ partiraient en clair).
 
 Les images distantes passent par `/api/proxy` : uniquement `http(s)`, allowlist optionnelle
 (wildcards), **anti-SSRF** (refus des IP privées/réservées, revalidé à **chaque**
-redirection — 3 maximum), timeout, taille bornée. Le MIME réel du corps est vérifié contre
-une **allowlist bitmap** (png, jpeg, gif, webp, avif, bmp, ico) — SVG et tout type actif
-sont refusés — et la réponse porte `Content-Security-Policy: sandbox` +
+redirection - 3 maximum), timeout, taille bornée. Le MIME réel du corps est vérifié contre
+une **allowlist bitmap** (png, jpeg, gif, webp, avif, bmp, ico) - SVG et tout type actif
+sont refusés - et la réponse porte `Content-Security-Policy: sandbox` +
 `nosniff`. Les journaux ne conservent que scheme+hôte+chemin (jamais la query, qui peut
 contenir des tokens).
 
@@ -136,7 +136,7 @@ dans `trusted_proxies` (CIDR). La détection HTTPS (`isHttps`) suit la même rè
 - **Sauvegardez `app.key`** hors du webroot ; ne le versionnez jamais.
 - **`debug = false`** en production (ne pas exposer les erreurs internes).
 - **L'assistant `/setup`** est intégré au cœur : il répond 404 une fois le
-  verrou `app/storage/INSTALLED` posé — plus aucun fichier d'installation à
+  verrou `app/storage/INSTALLED` posé - plus aucun fichier d'installation à
   supprimer dans le webroot.
 - Vérifiez `ssl.verify_certificate` : `false` n'est acceptable que pour des certificats
   auto-signés maîtrisés.
@@ -149,19 +149,19 @@ dans `trusted_proxies` (CIDR). La détection HTTPS (`isHttps`) suit la même rè
 - Le dépôt `GitHubClient::REPO` est verrouillé sur `WatT-For/MXWebMail` : les
   paquets installés (zip cœur de la release, fichiers plugins lus dans le dépôt au
   ref `update.plugins_ref` via l'API git + `raw.githubusercontent.com`, chacun
-  vérifié par sha1 de blob git) ne proviennent que de ce dépôt — aucune URL
+  vérifié par sha1 de blob git) ne proviennent que de ce dépôt - aucune URL
   arbitraire configurable. Le paquet cœur est vérifié en deux niveaux : somme
   sha256 de l'asset (fichier `<zip>.sha256` de la release) puis `files.sha256`
   (manifeste par fichier embarqué, contrôlé après extraction) ; les constantes
   `APP_REQ_PHP`/`APP_REQ_FROM` du `App.php` du paquet déclarent les prérequis
   (version PHP, version source minimale) appliqués avant copie. Tant que le dépôt reste **privé**, `PAT GitHub` (PAT
   avec accès `Contents: Read` au dépôt) est requis : l'API, les assets (servis via
-  l'endpoint `releases/assets/<id>` — le `browser_download_url` renvoie 404 sur
+  l'endpoint `releases/assets/<id>` - le `browser_download_url` renvoie 404 sur
   dépôt privé même authentifié) et les `raw` en dépendent. `update.plugins_local`
   et `update.manifest_url` (manifeste de release alternatif) sont réservés au
-  dev/tests — modifiables uniquement via `config.php`, jamais via l'API admin.
+  dev/tests - modifiables uniquement via `config.php`, jamais via l'API admin.
   Pendant la copie des fichiers, le flag `storage/update/applying` coupe l'API
   utilisateur (503, expire après 15 min).
-- Le changement SQLite → MariaDB ne migre pas les données (schéma vierge).
+- Le changement SQLite > MariaDB ne migre pas les données (schéma vierge).
 - Les clés privées OpenPGP sont stockées armored côté serveur (la passphrase protège la
   clé elle-même, pas d'encapsulation supplémentaire).

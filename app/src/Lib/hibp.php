@@ -3,7 +3,7 @@
 namespace MXWebMailLib;
 
 /**
- * Have I Been Pwned — vérification k-anonymity des mots de passe.
+ * Have I Been Pwned - vérification k-anonymity des mots de passe.
  * Seuls les 5 premiers caractères du SHA-1 partent sur le réseau ;
  * le suffixe est comparé localement. https://haveibeenpwned.com/API/v3
  */

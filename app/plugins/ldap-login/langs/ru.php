@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /** Dictionnaire russe du plugin ldap-login. */
 return [
-	'plugin.ldap-login.description'    => 'Определение логина через LDAP: uid/короткий адрес → полный IMAP-адрес',
+	'plugin.ldap-login.description'    => 'Определение логина через LDAP: uid/короткий адрес > полный IMAP-адрес',
 	'plugin.ldap-login.starttls_denied' => 'STARTTLS отклонён',
 	'plugin.ldap-login.bind_denied'    => 'Привязка LDAP отклонена',
 	'plugin.ldap-login.f.host'         => 'Хост LDAP',

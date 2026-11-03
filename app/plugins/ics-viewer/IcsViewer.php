@@ -9,8 +9,8 @@ use MXWebMail\Plugin\PluginBase;
 
 /**
  * Aperçu des pièces jointes iCalendar (.ics / text/calendar).
- * Le parsing se fait côté serveur via Sabre VObject (vendored) —
- * pas de lib JS externe. Le reader affiche un bouton « Calendrier »
+ * Le parsing se fait côté serveur via Sabre VObject (vendored) -
+ * pas de lib JS externe. Le reader affiche un bouton "Calendrier"
  * sur les PJ concernées (features.ics_viewer).
  * API : /api/plugin/ics-viewer/event?folder=&uid=&mime=
  */
@@ -24,7 +24,7 @@ final class IcsViewer extends PluginBase
 		});
 	}
 
-	/** VCALENDAR d'une pièce jointe .ics — partagé apiEvent/apiReply. */
+	/** VCALENDAR d'une pièce jointe .ics - partagé apiEvent/apiReply. */
 	private function fetchIcs(Request $request): \Sabre\VObject\Component\VCalendar
 	{
 		$folder = (string) $request->input('folder', 'INBOX');
@@ -81,7 +81,7 @@ final class IcsViewer extends PluginBase
 
 	/**
 	 * Réponse iTIP à une invitation (METHOD:REQUEST) : ACCEPTED /
-	 * DECLINED / TENTATIVE — VCALENDAR REPLY envoyé par SMTP à
+	 * DECLINED / TENTATIVE - VCALENDAR REPLY envoyé par SMTP à
 	 * l'organisateur. Répondre sans client agenda.
 	 */
 	public function apiReply(Request $request, ?array $user): array

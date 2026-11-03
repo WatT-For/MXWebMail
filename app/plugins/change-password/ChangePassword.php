@@ -11,7 +11,7 @@ use MXWebMail\Security\Wildcard;
 use MXWebMail\Service\AuthService;
 
 /**
- * Changement de mot de passe — drivers : poppassd, pdo, ldap, mailcow.
+ * Changement de mot de passe - drivers : poppassd, pdo, ldap, mailcow.
  * Vérifie l'ancien mot de passe contre le credential IMAP de session,
  * applique pass_min_length / pass_min_strength / check_hibp,
  * puis délègue au driver configuré. Hook password.change + onglet Paramètres.
@@ -106,7 +106,7 @@ final class ChangePassword extends PluginBase
 
 	/**
 	 * poppassd (port 106) :
-	 *   200 hello → "user <login>" → 200 → "pass <old>" → 200 → "newpass <new>" → 200
+	 *   200 hello > "user <login>" > 200 > "pass <old>" > 200 > "newpass <new>" > 200
 	 */
 	private function poppassd(string $login, string $old, string $new): bool
 	{

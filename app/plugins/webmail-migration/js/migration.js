@@ -1,6 +1,6 @@
 /**
- * Page admin du plugin webmail-migration (hook admin.mounts, section « page »).
- * Chargé dynamiquement par le binding pluginMount — ctx.admin = true.
+ * Page admin du plugin webmail-migration (hook admin.mounts, section "page").
+ * Chargé dynamiquement par le binding pluginMount - ctx.admin = true.
  * API : /api/admin/plugin/webmail-migration/{upload|scan|run|reset}
  */
 export default function mount(el, ctx) {
@@ -74,7 +74,7 @@ export default function mount(el, ctx) {
 				h.push(`<tr><td>${esc(u.email)}</td>
 					<td>${badge(u.exists, t(K + 'user_exists'), t(K + 'user_missing'))}</td>
 					<td>${u.contacts}</td><td>${u.identities}</td><td>${u.pgp}</td>
-					<td>${u.settings ? '✓' : '—'}</td>
+					<td>${u.settings ? '✓' : '-'}</td>
 					<td class="small text-muted">${u.additional && u.additional.length
 						? esc(t(K + 'additional_accounts', { n: u.additional.length })) : ''}</td></tr>`);
 			}
@@ -86,7 +86,7 @@ export default function mount(el, ctx) {
 	}
 
 	function contactCell(c) {
-		if (!c) { return '—'; }
+		if (!c) { return '-'; }
 		return esc(t(K + 'contacts_report', { imported: c.imported, merged: c.merged, skipped: c.skipped }));
 	}
 
@@ -106,7 +106,7 @@ export default function mount(el, ctx) {
 				h.push(`<tr><td>${esc(u.email)}</td>
 					<td class="small">${contactCell(u.contacts)}</td>
 					<td>${u.identities}</td>
-					<td class="small">${esc((u.settings || []).join(', ')) || '—'}</td>
+					<td class="small">${esc((u.settings || []).join(', ')) || '-'}</td>
 					<td>${u.pgp}</td>
 					<td class="small text-warning">${esc((u.warnings || []).join(' ; '))}</td></tr>`);
 			}
@@ -131,7 +131,7 @@ export default function mount(el, ctx) {
 		try {
 			const r = await ctx.api.upload('/admin/plugin/webmail-migration/upload', fd);
 			uploadId = r.upload;
-			$('sm-upload-info').textContent = `${r.files} fichiers → ${r.root}`;
+			$('sm-upload-info').textContent = `${r.files} fichiers > ${r.root}`;
 			$('sm-path').value = '';
 		} catch (e) { err(e.message); }
 	};

@@ -1,9 +1,9 @@
 /**
  * Chargement paresseux des libs lourdes vendorées : openpgp (~540 K) et
- * tinymce (~500 K) ne servent qu'à la crypto PGP et à l'éditeur riche —
+ * tinymce (~500 K) ne servent qu'à la crypto PGP et à l'éditeur riche -
  * hors du chemin critique du boot (elles étaient chargées par <script>
  * systématique dans app.php). Promesse mutualisée par URL : appels
- * concurrents dédupliqués, échec → retry possible au prochain appel.
+ * concurrents dédupliqués, échec > retry possible au prochain appel.
  */
 const pending = {};
 

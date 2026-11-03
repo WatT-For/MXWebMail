@@ -24,7 +24,7 @@ final class Utils
 		$path = \strtolower(\str_replace('\\', '/', $path));
 		foreach (\explode(\PATH_SEPARATOR, $base) as $dir) {
 			$dir = \strtolower(\str_replace('\\', '/', \rtrim($dir, '/\\')));
-			// Borne de segment : « /var/wwwevil » ne doit pas matcher « /var/www ».
+			// Borne de segment : "/var/wwwevil" ne doit pas matcher "/var/www".
 			if ($dir !== '' && ($path === $dir || \str_starts_with($path, $dir . '/'))) {
 				return true;
 			}

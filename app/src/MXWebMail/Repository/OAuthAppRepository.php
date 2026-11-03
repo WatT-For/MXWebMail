@@ -9,7 +9,7 @@ use MXWebMail\Service\AuthService;
 /**
  * Applications OAuth2 enregistrées par utilisateur (table oauth_apps) :
  * les identifiants d'app des providers (google, microsoft, yahoo) sont
- * propres à chaque utilisateur — l'admin n'autorise que le provider sur
+ * propres à chaque utilisateur - l'admin n'autorise que le provider sur
  * le domaine (options.oauth). secret = CredentialCrypt, jamais renvoyé
  * au frontend (allFor ne le sélectionne pas).
  */
@@ -37,7 +37,7 @@ final class OAuthAppRepository
 
 	/**
 	 * Liste pour l'UI : jamais le secret. 'accounts' = nb de comptes du
-	 * provider — l'app sert au refresh de leurs tokens (suppression cassante).
+	 * provider - l'app sert au refresh de leurs tokens (suppression cassante).
 	 */
 	public function allFor(int $userId): array
 	{
@@ -88,7 +88,7 @@ final class OAuthAppRepository
 
 	/**
 	 * Providers autorisés : ceux référencés par options.oauth des domaines
-	 * actifs (y compris '*' — fallback de resolveDomain). Borne
+	 * actifs (y compris '*' - fallback de resolveDomain). Borne
 	 * l'enregistrement : une app sans domaine qui l'autorise est inutilisable.
 	 */
 	public function allowedProviders(): array

@@ -18,7 +18,7 @@ return [
 	'plugin.carddav-contacts.saved'          => 'Ayarlar kaydedildi.',
 	'plugin.carddav-contacts.testing'        => 'Test ediliyor…',
 	'plugin.carddav-contacts.syncing'        => 'Senkronize ediliyor…',
-	'plugin.carddav-contacts.test_ok'        => 'Bağlantı OK — «{book}» adres defteri, {n} kart.',
+	'plugin.carddav-contacts.test_ok'        => 'Bağlantı OK - "{book}" adres defteri, {n} kart.',
 	'plugin.carddav-contacts.imported'       => '{n} kişi içe aktarıldı.',
 	'plugin.carddav-contacts.not_configured' => 'CardDAV yapılandırılmamış',
 	'plugin.carddav-contacts.no_addressbook' => 'Bu URL\'de CardDAV adres defteri bulunamadı',

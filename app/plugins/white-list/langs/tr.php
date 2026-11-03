@@ -10,5 +10,5 @@ return [
 	'plugin.white-list.f.exceptions'     => 'İstisnalar',
 	'plugin.white-list.f.exceptions.help' => 'Beyaz liste dışındaki e-postalardan yalnızca bunlar reddedilir (boş = tümü reddedilir). Örn.: demo@domain1.com *@domain2.com admin@*',
 	'plugin.white-list.f.auth_error'     => 'Kimlik doğrulama hatası',
-	'plugin.white-list.f.auth_error.help' => '«Hesaba izin verilmiyor» yerine genel bir kimlik bilgisi hatası döndürür',
+	'plugin.white-list.f.auth_error.help' => '"Hesaba izin verilmiyor" yerine genel bir kimlik bilgisi hatası döndürür',
 ];

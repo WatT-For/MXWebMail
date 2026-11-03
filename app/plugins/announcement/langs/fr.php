@@ -5,7 +5,7 @@ return [
 	'plugin.announcement.description'          => 'Bannière d\'annonce définie par l\'administrateur (page app, optionnellement login)',
 	'plugin.announcement.f.enabled'            => 'Activée',
 	'plugin.announcement.f.text'               => 'Texte de la bannière',
-	'plugin.announcement.f.text.help'          => 'Texte brut affiché à tous les utilisateurs — le HTML n\'est pas interprété',
+	'plugin.announcement.f.text.help'          => 'Texte brut affiché à tous les utilisateurs - le HTML n\'est pas interprété',
 	'plugin.announcement.f.level'              => 'Niveau',
 	'plugin.announcement.f.level.info'         => 'Info',
 	'plugin.announcement.f.level.success'      => 'Succès',

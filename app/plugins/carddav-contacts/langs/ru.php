@@ -18,7 +18,7 @@ return [
 	'plugin.carddav-contacts.saved'          => 'Настройки сохранены.',
 	'plugin.carddav-contacts.testing'        => 'Проверка…',
 	'plugin.carddav-contacts.syncing'        => 'Синхронизация…',
-	'plugin.carddav-contacts.test_ok'        => 'Подключение OK — адресная книга «{book}», карточек: {n}.',
+	'plugin.carddav-contacts.test_ok'        => 'Подключение OK - адресная книга "{book}", карточек: {n}.',
 	'plugin.carddav-contacts.imported'       => 'Импортировано контактов: {n}.',
 	'plugin.carddav-contacts.not_configured' => 'CardDAV не настроен',
 	'plugin.carddav-contacts.no_addressbook' => 'По этому URL адресная книга CardDAV не найдена',

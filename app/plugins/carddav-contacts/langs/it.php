@@ -18,7 +18,7 @@ return [
 	'plugin.carddav-contacts.saved'          => 'Impostazioni salvate.',
 	'plugin.carddav-contacts.testing'        => 'Test…',
 	'plugin.carddav-contacts.syncing'        => 'Sincronizzazione…',
-	'plugin.carddav-contacts.test_ok'        => 'Connessione OK — rubrica «{book}», {n} scheda/e.',
+	'plugin.carddav-contacts.test_ok'        => 'Connessione OK - rubrica "{book}", {n} scheda/e.',
 	'plugin.carddav-contacts.imported'       => '{n} contatto/i importati.',
 	'plugin.carddav-contacts.not_configured' => 'CardDAV non configurato',
 	'plugin.carddav-contacts.no_addressbook' => 'Nessuna rubrica CardDAV trovata a questo URL',

@@ -8,8 +8,8 @@ final class JsonResponse extends Response
 	public function __construct(array $payload, int $status = 200)
 	{
 		parent::__construct(
-			// UTF-8 invalide → U+FFFD plutôt que false ; le reste des erreurs
-			// (récursion, type non sérialisable) lève JsonException → 500 propre.
+			// UTF-8 invalide > U+FFFD plutôt que false ; le reste des erreurs
+			// (récursion, type non sérialisable) lève JsonException > 500 propre.
 			json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
 				| JSON_INVALID_UTF8_SUBSTITUTE | JSON_THROW_ON_ERROR),
 			$status,

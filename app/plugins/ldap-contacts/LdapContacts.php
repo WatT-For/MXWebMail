@@ -9,7 +9,7 @@ use MXWebMail\Plugin\PluginBase;
 /**
  * Suggestions de contacts depuis un annuaire LDAP (hook contacts.provider).
  * Config administrateur : host/port/bind/base_dn/filtre/attributs.
- * Interrogé à la volée — aucune donnée LDAP n'est stockée.
+ * Interrogé à la volée - aucune donnée LDAP n'est stockée.
  */
 final class LdapContacts extends PluginBase
 {

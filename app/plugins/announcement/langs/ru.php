@@ -5,7 +5,7 @@ return [
 	'plugin.announcement.description'         => 'Баннер объявления, задаваемый администратором (страница приложения, опционально вход)',
 	'plugin.announcement.f.enabled'           => 'Включено',
 	'plugin.announcement.f.text'              => 'Текст баннера',
-	'plugin.announcement.f.text.help'         => 'Обычный текст для всех пользователей — HTML не интерпретируется',
+	'plugin.announcement.f.text.help'         => 'Обычный текст для всех пользователей - HTML не интерпретируется',
 	'plugin.announcement.f.level'             => 'Уровень',
 	'plugin.announcement.f.level.info'         => 'Info',
 	'plugin.announcement.f.level.success'      => 'Успех',

@@ -4,14 +4,17 @@ declare(strict_types=1);
 /** Dictionnaire polonais du plugin anti-spoofing. */
 return [
 	'plugin.anti-spoofing.description'        => 'Wykrywanie fałszowania adresów e-mail i domen w czytniku wiadomości',
-	'plugin.anti-spoofing.title'              => 'Ostrzeżenie — możliwe fałszowanie',
+	'plugin.anti-spoofing.title'              => 'Ostrzeżenie - możliwe fałszowanie',
 	'plugin.anti-spoofing.clean'              => 'Nie wykryto fałszowania',
 
 	'plugin.anti-spoofing.alert.envelope_mismatch'  => 'Adres wysyłki ({return_path}) nie pasuje do wyświetlanego nadawcy ({from}).',
 	'plugin.anti-spoofing.alert.reply_to_mismatch'  => 'Odpowiedzi zostaną wysłane do {reply_to} zamiast do wyświetlanego nadawcy ({from}).',
 	'plugin.anti-spoofing.alert.sender_mismatch'    => 'Ta wiadomość została wysłana przez {sender} w imieniu {from}.',
-	'plugin.anti-spoofing.alert.display_name_spoof' => 'Nazwa wyświetlana «{name}» podszywa się pod znanego nadawcę, ale prawdziwy adres to {email}.',
+	'plugin.anti-spoofing.alert.display_name_spoof' => 'Nazwa wyświetlana "{name}" podszywa się pod znanego nadawcę, ale prawdziwy adres to {email}.',
+	'plugin.anti-spoofing.alert.display_name_homoglyph' => 'Nazwa wyświetlana "{name}" używa mylących znaków, by podszywać się pod znanego nadawcę; prawdziwy adres to {email}.',
 	'plugin.anti-spoofing.alert.lookalike_domain'   => 'Domena {domain} imituje prawdziwą domenę {protected}.',
+	'plugin.anti-spoofing.alert.lookalike_subdomain'    => 'Domena {domain} podszywa {protected} pod subdomenę.',
+	'plugin.anti-spoofing.alert.lookalike_tld'          => 'Domena {domain} nadużywa nazwy "{protected}".',
 
 	'plugin.anti-spoofing.f.protected_domains'      => 'Chronione domeny',
 	'plugin.anti-spoofing.f.protected_domains.help' => 'Prawdziwe domeny do ochrony, oprócz własnej domeny i domen serwera (chronionych automatycznie).',
@@ -27,5 +30,6 @@ return [
 	'plugin.anti-spoofing.alert.auth_dkim_fail'    => 'Sprawdzanie podpisu DKIM nie powiodło się',
 	'plugin.anti-spoofing.alert.auth_dmarc_fail'   => 'Sprawdzanie DMARC nie powiodło się',
 	'plugin.anti-spoofing.alert.auth_spf_softfail' => 'SPF softfail (nadawca nieautoryzowany)',
-	'plugin.anti-spoofing.alert.auth_pass_all'     => 'SPF, DKIM i DMARC zweryfikowane (pass)',
+	'plugin.anti-spoofing.alert.auth_dkim_fail_thirdparty' => 'Obcy podpis DKIM nieprawidłowy ({domain}) - prawdopodobnie przekaźnik.',
+	'plugin.anti-spoofing.alert.auth_pass'         => 'Uwierzytelnienie zweryfikowane: {mechs}',
 ];

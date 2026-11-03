@@ -19,7 +19,7 @@ return [
 	'plugin.change-password.too_short'        => 'La nuova password è troppo corta',
 	'plugin.change-password.too_weak'         => 'La nuova password è troppo debole',
 	'plugin.change-password.pwned'            => 'Questa password compare in una violazione nota',
-	'plugin.change-password.driver_unknown'   => 'Driver sconosciuto «{driver}»',
+	'plugin.change-password.driver_unknown'   => 'Driver sconosciuto "{driver}"',
 	'plugin.change-password.poppassd_down'    => 'poppassd non raggiungibile ({host}:{port})',
 	'plugin.change-password.poppassd_failed'  => 'Errore poppassd: {msg}',
 	'plugin.change-password.sql_missing'      => 'Query SQL del driver PDO non configurata',
@@ -31,7 +31,7 @@ return [
 	'plugin.change-password.mailcow_unconfigured' => 'API Mailcow non configurata',
 	'plugin.change-password.mailcow_failed'   => 'Mailcow: errore ({status})',
 
-	// Schéma de configuration (admin → Extensions → Configurer)
+	// Schéma de configuration (admin > Extensions > Configurer)
 	'plugin.change-password.f.driver'         => 'Driver',
 	'plugin.change-password.f.driver.help'    => 'Backend usato per applicare la nuova password',
 	'plugin.change-password.f.allowed_emails'       => 'Email consentite',

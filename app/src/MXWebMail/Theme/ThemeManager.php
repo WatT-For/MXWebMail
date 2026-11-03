@@ -9,20 +9,23 @@ use MXWebMail\Application\App;
  * Templates d'interface : app/templates/<name>/{theme.json, config.schema.json, pages/*, assets/*, langs/*}.
  * Héritage par override : un template ne contient que les fichiers qu'il
  * modifie ; tout fichier absent (pages/*, assets/*, config.schema.json) est
- * résolu dans la chaîne name → theme.json « extends » → … → « default »
- * (implicite si extends absent ; « default » est la racine, toujours en
+ * résolu dans la chaîne name > theme.json "extends" > … > "default"
+ * (implicite si extends absent ; "default" est la racine, toujours en
  * dernier recours). theme.json et langs/* ne sont jamais hérités :
  * le manifeste est l'identité du template et les dicts sont namespacés
- * « theme.<name>.* ». « default » doit rester complet.
+ * "theme.<name>.*". "default" doit rester complet.
  *
  * Config par template : le schéma (config.schema.json résolu, format plat)
  * décrit les champs ; les valeurs sont stockées en base (table themes).
- * L'interface expose ces valeurs via des variables CSS « --mxwm-* » + des
- * attributs data-* sur <html> (mode sombre, style d'icônes). Les clés
- * « X_color » produisent « --mxwm-X » (+ -rgb/-text) ; les clés « X_color_dark »
- * les déclinent en variante sombre, émise sous « [data-bs-theme=dark] »
- * (vide = défaut du champ ; sans défaut, la couleur claire s'applique aussi
- * en sombre).
+ * L'interface expose ces valeurs via des variables CSS "--mxwm-*" + des
+ * attributs data-* sur <html> (mode sombre). Les clés
+ * "X_color" produisent "--mxwm-X" (+ -rgb, -text/-text-rgb pour le contraste
+ * et les teintes dérivées -hover/-active/-active-rgb/-active-border/-tint/
+ * -focus-rgb, équivalents PHP des shade-color/tint-color de Sass - Bootstrap
+ * compile ses composants avec des couleurs littérales que les templates
+ * redéclarent vers ces variables) ; les clés "X_color_dark" les déclinent en
+ * variante sombre, émise sous "[data-bs-theme=dark]" (vide = défaut du champ ;
+ * sans défaut, la couleur claire s'applique aussi en sombre).
  */
 final class ThemeManager
 {
@@ -40,7 +43,7 @@ final class ThemeManager
 
 	private ?array $installedCache = null;
 
-	/** Noms des templates installés (dossiers avec theme.json valide) — mémoïsé par requête. */
+	/** Noms des templates installés (dossiers avec theme.json valide) - mémoïsé par requête. */
 	public function installed(): array
 	{
 		if ($this->installedCache !== null) {
@@ -57,7 +60,7 @@ final class ThemeManager
 		return $this->installedCache = $out;
 	}
 
-	/** Version du template (manifeste, repli APP_VERSION) — pour le ?v= des assets. */
+	/** Version du template (manifeste, repli APP_VERSION) - pour le ?v= des assets. */
 	public function version(string $name): string
 	{
 		$v = (string) ($this->manifest($name)['version'] ?? '');
@@ -66,7 +69,7 @@ final class ThemeManager
 
 	/**
 	 * Version de busting d'un asset du template : mtime du fichier résolu
-	 * (héritage inclus) — une édition du fichier sans bump de theme.json change
+	 * (héritage inclus) - une édition du fichier sans bump de theme.json change
 	 * l'URL. Repli sur la version du manifeste si le fichier est absent.
 	 */
 	public function assetVersion(string $name, string $file): string
@@ -75,7 +78,7 @@ final class ThemeManager
 		return $m !== false ? (string) $m : $this->version($name);
 	}
 
-	/** Liste [{name, label, version}] des templates utilisables — pour le frontend (appdata → <select> KO). */
+	/** Liste [{name, label, version}] des templates utilisables - pour le frontend (appdata > <select> KO). */
 	public function list(): array
 	{
 		$out = [];
@@ -89,7 +92,7 @@ final class ThemeManager
 		return $out;
 	}
 
-	/** Map name => label — pour l'admin (enum de settingsSchema, Object.entries). */
+	/** Map name => label - pour l'admin (enum de settingsSchema, Object.entries). */
 	public function options(): array
 	{
 		$out = [];
@@ -99,7 +102,7 @@ final class ThemeManager
 		return $out;
 	}
 
-	/** Liste [{name, label, version, selectable}] — pour l'onglet Templates de l'admin. */
+	/** Liste [{name, label, version, selectable}] - pour l'onglet Templates de l'admin. */
 	public function details(): array
 	{
 		$out = [];
@@ -117,7 +120,7 @@ final class ThemeManager
 		return in_array($name, $this->installed(), true);
 	}
 
-	/** Template par défaut : user_defaults.theme si installé, sinon « default ». */
+	/** Template par défaut : user_defaults.theme si installé, sinon "default". */
 	public function defaultTheme(): string
 	{
 		$defaults = (array) $this->app->config()->get('user_defaults', []);
@@ -133,9 +136,9 @@ final class ThemeManager
 	}
 
 	/**
-	 * Chaîne d'héritage : [name, extends, …, 'default']. « default » est
+	 * Chaîne d'héritage : [name, extends, …, 'default']. "default" est
 	 * toujours en dernier recours, même si la chaîne est cassée (extends
-	 * absent/invalide → manifeste vide → default ; cycle/profondeur > 8 →
+	 * absent/invalide > manifeste vide > default ; cycle/profondeur > 8 >
 	 * coupure + base). Les erreurs sont signalées par tools.ps1 check.
 	 */
 	public function chain(string $name): array
@@ -207,7 +210,7 @@ final class ThemeManager
 	private array $schemas = [];
 	private array $configs = [];
 
-	/** Schéma plat des champs configurables — hérité du parent si absent (ou [] si invalide). */
+	/** Schéma plat des champs configurables - hérité du parent si absent (ou [] si invalide). */
 	public function schema(string $name): array
 	{
 		if (isset($this->schemas[$name])) {
@@ -224,9 +227,9 @@ final class ThemeManager
 	 */
 	public function config(string $name): array
 	{
-		// Mémoïsé par requête : darkMode/iconStyle/varsCss/themeData lisaient
-		// chacun getConfig + schema (4 requêtes + 4 lectures par template).
-		// Périmé après un setConfig dans la même requête — aucun endpoint ne
+		// Mémoïsé par requête : darkMode/varsCss/themeData lisaient
+		// chacun getConfig + schema (3 requêtes + 3 lectures par template).
+		// Périmé après un setConfig dans la même requête - aucun endpoint ne
 		// fait ce read-after-write (themeConfigSet ne relit pas).
 		if (isset($this->configs[$name])) {
 			return $this->configs[$name];
@@ -263,19 +266,14 @@ final class ThemeManager
 		return in_array($v, ['auto', 'light', 'dark'], true) ? (string) $v : 'auto';
 	}
 
-	public function iconStyle(string $name): string
-	{
-		$v = $this->config($name)['icon_style'] ?? 'solid';
-		return in_array($v, ['solid', 'regular'], true) ? (string) $v : 'solid';
-	}
-
 	/**
 	 * ':root{--mxwm-*}' + bloc '[data-bs-theme=dark]{…}' pour les variantes
-	 * *_dark. Chaque clé « X_color » du schéma (type color) produit
-	 * --mxwm-X, -rgb, -text (contraste auto) et -text-rgb ; la couleur claire
-	 * s'applique dans les deux modes. Si « X_color_dark » est déclarée et a une
-	 * valeur (enregistrée ou défaut du champ), la variante est émise sous
-	 * [data-bs-theme=dark] ; sinon la couleur claire persiste en sombre.
+	 * *_dark. Chaque clé "X_color" du schéma (type color) produit --mxwm-X
+	 * et ses déclinaisons (voir colorVars : -rgb, -text, teintes dérivées) ;
+	 * la couleur claire s'applique dans les deux modes. Si "X_color_dark"
+	 * est déclarée et a une valeur (enregistrée ou défaut du champ), la
+	 * variante est émise sous [data-bs-theme=dark] ; sinon la couleur claire
+	 * persiste en sombre.
 	 * Ordre d'émission = ordre des clés claires du schéma.
 	 */
 	public function varsCss(string $name): string
@@ -310,8 +308,7 @@ final class ThemeManager
 	/** Attributs à poser sur la balise <html> des vues du template. */
 	public function htmlAttrs(string $name): string
 	{
-		return ' data-dark-mode="' . $this->darkMode($name) . '"'
-			. ' data-icon-style="' . $this->iconStyle($name) . '"';
+		return ' data-dark-mode="' . $this->darkMode($name) . '"';
 	}
 
 	/** Bloc <style id="theme-config"> à injecter après le <link> du template. */
@@ -320,7 +317,7 @@ final class ThemeManager
 		return '<style id="theme-config">' . $this->varsCss($name) . '</style>';
 	}
 
-	/** Map name => {darkMode, iconStyle, varsCss, config} — pour appdata (switch à chaud). */
+	/** Map name => {darkMode, varsCss, config} - pour appdata (switch à chaud). */
 	public function themeData(): array
 	{
 		// Cache disque (storage/cache/themedata.php) : le bloc est identique pour
@@ -340,7 +337,6 @@ final class ThemeManager
 		foreach ($this->installed() as $name) {
 			$out[$name] = [
 				'darkMode'  => $this->darkMode($name),
-				'iconStyle' => $this->iconStyle($name),
 				'varsCss'   => $this->varsCss($name),
 				'config'    => $this->config($name),
 			];
@@ -352,7 +348,7 @@ final class ThemeManager
 
 	/**
 	 * Signature d'invalidation du cache themeData : mtime des theme.json et
-	 * config.schema.json résolus (héritage) + configs de la table themes —
+	 * config.schema.json résolus (héritage) + configs de la table themes -
 	 * un setConfig/setAllowed admin ou un fichier modifié change la signature.
 	 */
 	private function themeDataSignature(): string
@@ -363,6 +359,9 @@ final class ThemeManager
 				. ':' . (int) @filemtime($this->resolve($name, 'config.schema.json'));
 		}
 		$parts[] = json_encode($this->app->themeRepo()->allConfigs());
+		// Le contenu émis dépend aussi du code de varsCss : mtime de ce fichier
+		// dans la signature > toute modification des variables invalide le cache.
+		$parts[] = 'code:' . (int) @filemtime(__FILE__);
 		return sha1(implode('|', $parts));
 	}
 
@@ -426,12 +425,38 @@ JS;
 		]);
 	}
 
-	/** Déclarations CSS d'une couleur : var + -rgb + -text (contraste) + -text-rgb. */
+	/**
+	 * Déclarations CSS d'une couleur : var + -rgb + -text/-text-rgb (contraste)
+	 * + teintes dérivées reproduisant les shade-color/tint-color Sass de
+	 * Bootstrap (-hover −15 %, -active −20 %, -active-border −25 %, -tint +50 %
+	 * pour les bordures de focus, -focus-rgb +15 % pour les halos de boutons,
+	 * -active-rgb = -active en triplet rgb pour les rgba()).
+	 */
 	private function colorVars(string $var, string $hex): string
 	{
 		$text = $this->contrast($hex);
+		$active = $this->mixTint($hex, 20);
 		return $var . ':' . $hex . ';' . $var . '-rgb:' . $this->hexToRgb($hex)
-			. ';' . $var . '-text:' . $text . ';' . $var . '-text-rgb:' . $this->hexToRgb($text) . ';';
+			. ';' . $var . '-text:' . $text . ';' . $var . '-text-rgb:' . $this->hexToRgb($text)
+			. ';' . $var . '-hover:' . $this->mixTint($hex, 15)
+			. ';' . $var . '-active:' . $active . ';' . $var . '-active-rgb:' . $this->hexToRgb($active)
+			. ';' . $var . '-active-border:' . $this->mixTint($hex, 25)
+			. ';' . $var . '-tint:' . $this->mixTint($hex, 50, true)
+			. ';' . $var . '-focus-rgb:' . $this->hexToRgb($this->mixTint($hex, 15, true)) . ';';
+	}
+
+	/** mix() de Sass : $pct % de noir (défaut, shade-color) ou de blanc (tint-color). */
+	private function mixTint(string $hex, int $pct, bool $toWhite = false): string
+	{
+		$hex = ltrim($hex, '#');
+		$t = $toWhite ? 255 : 0;
+		$out = '#';
+		foreach ([0, 2, 4] as $i) {
+			$v = (int) round($t * $pct / 100
+				+ hexdec(substr($hex, $i, 2)) * (100 - $pct) / 100);
+			$out .= str_pad(dechex($v), 2, '0', STR_PAD_LEFT);
+		}
+		return $out;
 	}
 
 	/** Texte lisible sur $hex : noir Bootstrap ou blanc selon la luminance perçue. */

@@ -10,7 +10,7 @@ use MXWebMail\Plugin\PluginBase;
  * Apprentissage antispam : sur marquage spam/ham d'un message, transmet
  * le .eml à un programme d'apprentissage (rspamc, sa-learn) ou le copie
  * dans un dossier dovecot-antispam. Jamais bloquant : toute erreur est
- * loggée et avalée — l'action spam doit rester fiable.
+ * loggée et avalée - l'action spam doit rester fiable.
  */
 final class SpamLearn extends PluginBase
 {
@@ -56,14 +56,14 @@ final class SpamLearn extends PluginBase
 	private function learnExec(string $folder, int $uid, bool $spam): void
 	{
 		$cmd = trim((string) ($this->config[$spam ? 'command_spam' : 'command_ham'] ?? ''));
-		// Binaire + args uniquement : pas de ; | & > < $ ( ` — interdit tout
+		// Binaire + args uniquement : pas de ; | & > < $ ( ` - interdit tout
 		// chaînage/substitution shell.
 		if ($cmd === ''
 			|| !preg_match('/^[\w\/.-]+(\s+[\w\/.=-]+)*$/', $cmd)) {
 			throw new \RuntimeException('spam-learn: commande invalide');
 		}
 		$max = max(1, (int) ($this->config['max_bytes'] ?? 5120)) * 1024;
-		// stdout/stderr → fichiers temporaires : des pipes non drainés pendant
+		// stdout/stderr > fichiers temporaires : des pipes non drainés pendant
 		// l'écriture de stdin (jusqu'à $max) interbloqueraient le processus dès
 		// que le fils produit plus que le buffer (~64 Ko).
 		$outFile = tempnam(sys_get_temp_dir(), 'slout');
@@ -94,7 +94,7 @@ final class SpamLearn extends PluginBase
 		}
 		if ($code !== 0) {
 			throw new \RuntimeException(
-				"spam-learn: sortie {$code} — " . trim($err . $out));
+				"spam-learn: sortie {$code} - " . trim($err . $out));
 		}
 	}
 }

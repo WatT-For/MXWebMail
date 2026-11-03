@@ -3,7 +3,7 @@
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title><?= htmlspecialchars($app->config()->get('app_name')) ?> — <?= $t('maintenance.title') ?></title>
+	<title><?= htmlspecialchars($app->config()->get('app_name')) ?> - <?= $t('maintenance.title') ?></title>
 	<link rel="icon" href="<?= $faviconUrl ?>">
 	<link rel="stylesheet" href="<?= $assets ?>/vendor/bootstrap/css/bootstrap.min.css">
 	<link rel="stylesheet" href="<?= $assets ?>/vendor/fontawesome/css/all.min.css">
@@ -28,9 +28,10 @@
 <script nonce="<?= $nonce ?>">
 	window.MXWM = <?= $mxwmJson ?>;
 </script>
+<script src="<?= $i18nUrl ?>"></script>
 <script nonce="<?= $nonce ?>">
 	// Sonde /api/ping : la page se recharge dès que la maintenance se termine.
-	// Erreur réseau → on retente au prochain tour (jamais de reload en boucle).
+	// Erreur réseau > on retente au prochain tour (jamais de reload en boucle).
 	(function () {
 		const poll = async () => {
 			try {

@@ -7,19 +7,19 @@ use MXWebMail\Plugin\HookRegistry;
 use MXWebMail\Plugin\PluginBase;
 
 /**
- * Décorations saisonnières « paysage » : silhouettes monochromes posées dans
+ * Décorations saisonnières "paysage" : silhouettes monochromes posées dans
  * le bandeau de l'app (.navbar) et en haut de la carte login/maintenance
- * (.login-card) — bas des headers = sol. Zéro JS, zéro animation : un <style>
+ * (.login-card) - bas des headers = sol. Zéro JS, zéro animation : un <style>
  * inline via app.head applique un SVG par événement en mask-image ; la couleur
  * visible vient d'un background-color contrasté avec le fond (variables du
  * thème), le SVG n'est qu'un masque d'alpha.
  * Date de référence = horloge serveur ; Pâques calculé par computus grégorien
- * maison — easter_date() de PHP est décalée par le fuseau horaire.
+ * maison - easter_date() de PHP est décalée par le fuseau horaire.
  */
 final class SeasonalDecorations extends PluginBase
 {
 	/**
-	 * Événements — ordre = priorité (premier actif gagnant ; easter avant
+	 * Événements - ordre = priorité (premier actif gagnant ; easter avant
 	 * aprilfools : Pâques tombe parfois un 1er avril, ex. 2029).
 	 * 'on' = clé booléenne du schéma ; 'from'/'to' = clés de fenêtre MM-DD ;
 	 * 'before'/'after' = clés d'offsets en jours (Pâques) ; 'f'/'t'/'b'/'a' =
@@ -41,7 +41,7 @@ final class SeasonalDecorations extends PluginBase
 	}
 
 	/**
-	 * <style> injecté dans <head> — émis uniquement par app.php, login.php et
+	 * <style> injecté dans <head> - émis uniquement par app.php, login.php et
 	 * maintenance.php : la surface admin n'atteint jamais ce code.
 	 */
 	private function head(string $base): string
@@ -60,7 +60,7 @@ final class SeasonalDecorations extends PluginBase
 		if ($layers === '') {
 			return '';
 		}
-		// ::before positionné peint après le texte non positionné → les
+		// ::before positionné peint après le texte non positionné > les
 		// enfants directs passent en relative pour rester au-dessus du paysage.
 		$css = '.app-shell>.navbar{position:relative}'
 			. '.app-shell>.navbar::before{content:"";position:absolute;inset:0;'
@@ -79,8 +79,8 @@ final class SeasonalDecorations extends PluginBase
 
 	/**
 	 * Couches mask-* de la scène de $event depuis scenes.json
-	 * ({svg, pos, size} par objet — assets/<svg>.svg). Entrée invalide ou
-	 * fichier absent → ignorée ; rien de valide → ''.
+	 * ({svg, pos, size} par objet - assets/<svg>.svg). Entrée invalide ou
+	 * fichier absent > ignorée ; rien de valide > ''.
 	 */
 	private function layers(string $event, string $base): string
 	{
@@ -144,7 +144,7 @@ final class SeasonalDecorations extends PluginBase
 			: ($day >= $from || $day <= $to);
 	}
 
-	/** 'MM-DD' valide → entier MMDD ; invalide → défaut. */
+	/** 'MM-DD' valide > entier MMDD ; invalide > défaut. */
 	private function md(mixed $v, string $default): int
 	{
 		$v = is_string($v) ? $v : '';

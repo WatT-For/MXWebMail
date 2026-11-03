@@ -9,7 +9,7 @@ final class PluginsBridge
 {
 	public function __construct(private HookRegistry $hooks) {}
 
-	/** Les args peuvent contenir des références (ex. [&$headers]) — call_user_func_array les préserve. */
+	/** Les args peuvent contenir des références (ex. [&$headers]) - call_user_func_array les préserve. */
 	public function RunHook(string $name, array $args = []): void
 	{
 		$this->hooks->runArgs($name, $args);

@@ -3,7 +3,7 @@
 <head>
 	<meta charset="utf-8">
 	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title><?= htmlspecialchars($app->config()->get('app_name')) ?> — <?= $t('admin.administration') ?></title>
+	<title><?= htmlspecialchars($app->config()->get('app_name')) ?> - <?= $t('admin.administration') ?></title>
 	<link rel="icon" href="<?= $faviconUrl ?>">
 	<link rel="stylesheet" href="<?= $assets ?>/vendor/bootstrap/css/bootstrap.min.css">
 	<link rel="stylesheet" href="<?= $assets ?>/vendor/fontawesome/css/all.min.css">
@@ -13,7 +13,7 @@
 </head>
 <body>
 <nav class="navbar navbar-dark bg-dark px-3">
-	<span class="navbar-brand mb-0"><?= htmlspecialchars($app->config()->get('app_name')) ?> — <?= $t('admin.administration') ?></span>
+	<span class="navbar-brand mb-0"><?= htmlspecialchars($app->config()->get('app_name')) ?> - <?= $t('admin.administration') ?></span>
 	<div>
 		<?php if ($sponsorUrl !== ''): ?>
 		<a class="btn btn-sm btn-outline-light me-2" href="<?= htmlspecialchars($sponsorUrl) ?>" target="_blank" rel="noopener"><i class="fa-solid fa-heart"></i> <?= $t('common.sponsor') ?></a>
@@ -62,7 +62,7 @@
 			<a class="list-group-item list-group-item-action" href="#/themes"
 				data-bind="css:{active: tab()==='themes'}">
 				<i class="fa-solid fa-palette fa-fw me-2"></i><?= $t('admin.themes') ?></a>
-			<!-- Pages de niveau supérieur déclarées par les plugins (admin.mounts, section « page ») -->
+			<!-- Pages de niveau supérieur déclarées par les plugins (admin.mounts, section "page") -->
 			<!-- ko foreach: adminTabsIn('page') -->
 			<a class="list-group-item list-group-item-action"
 				data-bind="attr: { href: '#/' + $data.tab }, css: { active: $root.tab() === $data.tab }">
@@ -228,8 +228,8 @@
 					<td><span class="badge text-bg-secondary" data-bind="text: accounts_count || 0"></span></td>
 					<td><i class="fa-solid" data-bind="css: Number(is_admin) ? 'fa-check text-success' : 'fa-xmark text-muted'"></i></td>
 					<td><span class="badge text-bg-danger" data-bind="visible: Number(disabled), text: $root.t('admin.user_disabled')" style="display:none"></span></td>
-					<td data-bind="text: last_login_at ? new Date(last_login_at * 1000).toLocaleString($root.lang) : '—'"></td>
-					<td data-bind="text: created_at ? new Date(created_at * 1000).toLocaleDateString($root.lang) : '—'"></td>
+					<td data-bind="text: last_login_at ? new Date(last_login_at * 1000).toLocaleString($root.lang) : '-'"></td>
+					<td data-bind="text: created_at ? new Date(created_at * 1000).toLocaleDateString($root.lang) : '-'"></td>
 					<td class="text-end">
 						<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: $parent.editUser, tooltip: 'admin.user_edit'"><i class="fa-solid fa-pen"></i></button>
 						<button class="btn btn-sm btn-icon btn-outline-danger" data-bind="click: $parent.deleteUser, tooltip: 'common.delete'"><i class="fa-solid fa-trash"></i></button>
@@ -276,7 +276,7 @@
 								data-bind="checked: user_allowed, event: { change: $parent.togglePluginAllowed }, enable: enabled()">
 						</div>
 						<!-- /ko -->
-						<!-- ko if: admin_only --><span class="text-muted">—</span><!-- /ko -->
+						<!-- ko if: admin_only --><span class="text-muted">-</span><!-- /ko -->
 					</td>
 					<td class="text-end text-nowrap">
 						<!-- ko if: $root.catalogFor(name)?.update_available -->
@@ -371,7 +371,7 @@
 		<ul class="nav nav-tabs mb-3">
 			<li class="nav-item"><a class="nav-link" href="#/security/account"
 				data-bind="css:{active: subtabs.security()==='account'}"><?= $t('admin.subtab.account') ?></a></li>
-			<!-- Sous-onglets déclarés par les plugins (hook admin.mounts + « tab ») -->
+			<!-- Sous-onglets déclarés par les plugins (hook admin.mounts + "tab") -->
 			<!-- ko foreach: adminTabsIn('security') -->
 			<li class="nav-item"><a class="nav-link"
 				data-bind="attr: { href: '#/security/' + $data.tab },
@@ -398,7 +398,7 @@
 				</div>
 				<div class="form-text mt-1"><?= $t('admin.change_password_hint') ?></div>
 			</div></div>
-			<!-- Blocs inline déclarés par les plugins (hook admin.mounts, sans « tab ») -->
+			<!-- Blocs inline déclarés par les plugins (hook admin.mounts, sans "tab") -->
 			<!-- ko foreach: adminMountsIn('security-account') -->
 				<!-- ko if: $root.pluginEnabled($data.plugin) -->
 				<div data-bind="pluginMount: { js: $data.js, plugin: $data.plugin, admin: true }"></div>
@@ -529,7 +529,7 @@
 					<tr><th class="text-muted fw-normal" style="width:40%">PHP</th>
 						<td><span data-bind="text: php"></span> <span class="text-muted small">(<span data-bind="text: php_sapi"></span>)</span></td></tr>
 					<tr><th class="text-muted fw-normal"><?= $t('admin.about.db_driver') ?></th>
-						<td><code data-bind="text: db_driver || '—'"></code></td></tr>
+						<td><code data-bind="text: db_driver || '-'"></code></td></tr>
 					<tr><th class="text-muted fw-normal">memory_limit</th>
 						<td><code data-bind="text: memory_limit"></code></td></tr>
 					<tr><th class="text-muted fw-normal">upload_max_filesize</th>
@@ -713,7 +713,7 @@
 		<!-- /ko -->
 	</div>
 
-	<!-- Pages de niveau supérieur déclarées par les plugins (admin.mounts, section « page ») -->
+	<!-- Pages de niveau supérieur déclarées par les plugins (admin.mounts, section "page") -->
 	<!-- ko foreach: adminTabsIn('page') -->
 	<div data-bind="visible: $root.tab() === $data.tab" style="display:none">
 		<div data-bind="pluginMount: { js: $data.js, plugin: $data.plugin, admin: true }"></div>
@@ -892,11 +892,11 @@
 					</div>
 					<div class="row align-items-center mb-2">
 						<label class="col-md-4 col-form-label col-form-label-sm"><?= $t('admin.user_created') ?></label>
-						<div class="col-md-8"><span class="text-muted small" data-bind="text: created_at ? new Date(created_at * 1000).toLocaleString($root.lang) : '—'"></span></div>
+						<div class="col-md-8"><span class="text-muted small" data-bind="text: created_at ? new Date(created_at * 1000).toLocaleString($root.lang) : '-'"></span></div>
 					</div>
 					<div class="row align-items-center mb-3">
 						<label class="col-md-4 col-form-label col-form-label-sm"><?= $t('admin.last_login') ?></label>
-						<div class="col-md-8"><span class="text-muted small" data-bind="text: last_login_at ? new Date(last_login_at * 1000).toLocaleString($root.lang) : '—'"></span></div>
+						<div class="col-md-8"><span class="text-muted small" data-bind="text: last_login_at ? new Date(last_login_at * 1000).toLocaleString($root.lang) : '-'"></span></div>
 					</div>
 					<button class="btn btn-primary btn-sm" data-bind="click: $root.saveUser"><?= $t('common.save') ?></button>
 					<hr>
@@ -904,7 +904,7 @@
 						<i class="fa-solid fa-trash"></i> <?= $t('admin.user_delete') ?></button>
 				</div>
 
-				<!-- Paramètres utilisateur (user_settings — schéma partagé user_defaults) -->
+				<!-- Paramètres utilisateur (user_settings - schéma partagé user_defaults) -->
 				<div data-bind="visible: $root.userModalTab()==='settings'" style="display:none">
 					<div class="row" data-bind="template: {name:'fields-tpl', foreach: settingsFields}"></div>
 					<button class="btn btn-primary btn-sm" data-bind="click: $root.saveUserSettings"><?= $t('common.save') ?></button>
@@ -1184,8 +1184,9 @@
 <script nonce="<?= $nonce ?>">
 	window.MXWM = <?= $mxwmJson ?>;
 </script>
+<script src="<?= $i18nUrl ?>"></script>
 <script src="<?= $assets ?>/vendor/knockout/knockout.js"></script>
 <script src="<?= $assets ?>/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
-<script type="module" src="<?= $assets ?>/js/admin.js"></script>
+<script type="module" src="<?= $assets ?>/js/dist/admin.js"></script>
 </body>
 </html>

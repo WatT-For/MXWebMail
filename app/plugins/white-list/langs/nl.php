@@ -10,5 +10,5 @@ return [
 	'plugin.white-list.f.exceptions'     => 'Uitzonderingen',
 	'plugin.white-list.f.exceptions.help' => 'Van de e-mails buiten de whitelist worden alleen deze geweigerd (leeg = alle geweigerd). Bijv.: demo@domain1.com *@domain2.com admin@*',
 	'plugin.white-list.f.auth_error'     => 'Authenticatiefout',
-	'plugin.white-list.f.auth_error.help' => 'Geeft een algemene inlogfout in plaats van «account niet toegestaan»',
+	'plugin.white-list.f.auth_error.help' => 'Geeft een algemene inlogfout in plaats van "account niet toegestaan"',
 ];

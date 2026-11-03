@@ -9,7 +9,7 @@ import { parseMarker, FIELDS, OPS, ACTIONS, TEMPLATES, templateRules } from '../
 // nom réservé par le protocole IMAP, toujours la boîte de réception).
 const SPECIAL_ROLES = ['sent', 'drafts', 'trash', 'junk', 'archive'];
 
-// Libellés d'affichage des providers OAuth2 (noms de marque, non traduits —
+// Libellés d'affichage des providers OAuth2 (noms de marque, non traduits -
 // même liste que la modale domaine de l'admin).
 const OAUTH_PROVIDERS = {
 	google: 'Google (Gmail)', microsoft: 'Microsoft (Outlook)', yahoo: 'Yahoo',
@@ -41,11 +41,24 @@ export class SettingsVM {
 		this.editingContact = ko.observable(null);
 		this.contactsLoading = ko.observable(false);
 		this._contactsReq = null;
+		// Pagination côté client : le carnet est déjà chargé en entier
+		// (GET /contacts > all()), inutile de requêter par page.
+		this.contactsPage = ko.observable(1);
+		this.contactsPerPage = 25;
+		this.contactsTotalPages = ko.pureComputed(() =>
+			Math.max(1, Math.ceil(this.contacts().length / this.contactsPerPage)));
+		// Page bornée : suppression du dernier contact d'une page, carnet
+		// rechargé plus court > la page courante se replie sans reset brutal.
+		this.contactsPageEff = ko.pureComputed(() =>
+			Math.min(this.contactsPage(), this.contactsTotalPages()));
+		this.pagedContacts = ko.pureComputed(() => this.contacts().slice(
+			(this.contactsPageEff() - 1) * this.contactsPerPage,
+			this.contactsPageEff() * this.contactsPerPage));
 
 		// Comptes : id du compte en cours de glisser-déposer
 		this._dragId = null;
 
-		// Sessions « se souvenir de moi » (jetons persistants)
+		// Sessions "se souvenir de moi" (jetons persistants)
 		this.sessions = ko.observableArray([]);
 		this._sessionsLoaded = false;
 		this.sessionDetail = ko.observable(null); // session affichée dans la modale
@@ -53,18 +66,17 @@ export class SettingsVM {
 		// Dossiers système (assignation par compte : auto | none | fullName ;
 		// /folders/special renvoie {assigned, detected} par rôle)
 		this.foldersTab = ko.observable('manage'); // sous-onglet : manage | roles | import
-		// Import .eml (sous-onglet « Importer » de l'onglet Dossiers)
+		// Import .eml (sous-onglet "Importer" de l'onglet Dossiers)
 		this.importFolder = ko.observable('INBOX');
 		this.importProgress = ko.observable(null);
 		this.importBusy = ko.observable(false);
 		this.folderRoles = ko.observableArray([]);
 		this.folderRolesLoaded = false;
 
-		// Dossiers surveillés (notifications) — abonnement par compte, INBOX
-		// toujours incluse côté serveur → cochée + désactivée ici.
+		// Dossiers surveillés (notifications) - abonnement par compte, INBOX
+		// toujours incluse côté serveur > cochée + désactivée ici.
 		this._notifySel = {};              // fullName => observable bool
 		this.notifyFoldersLoaded = false;
-		this.notifyPermission = ko.observable(notify.permission());
 		// Valeurs en chaînes comme messages_per_page : évite le mismatch
 		// number/string du binding value (user_defaults renvoie un int).
 		this.refreshOptions = [
@@ -82,10 +94,10 @@ export class SettingsVM {
 				folder: f,
 				checked: this._notifySel[f.fullName] ??= ko.observable(!!f.isInbox),
 			})));
-		// Colonne « Taille » masquée si le serveur ne remonte aucune taille
+		// Colonne "Taille" masquée si le serveur ne remonte aucune taille
 		// (STATUS=SIZE non annoncé, RFC 8438).
 		this.hasFolderSize = ko.pureComputed(() =>
-			this.app.folderList.folders().some(f => f.size != null));
+			this.app.folderList.folders().some(f => f.size() != null));
 
 		// Filtres Sieve
 		this.filtersTab = ko.observable('list'); // sous-onglet : list | vacation
@@ -108,7 +120,7 @@ export class SettingsVM {
 				label: '  '.repeat(f.depth) + f.label, value: f.fullName })));
 
 		// Modale d'édition : l'observable est reset à la fermeture (Échap,
-		// backdrop, boutons) → état propre à la réouverture.
+		// backdrop, boutons) > état propre à la réouverture.
 		const filterModalEl = document.getElementById('filter-modal');
 		this.filterModal = filterModalEl ? new bootstrap.Modal(filterModalEl) : null;
 		filterModalEl?.addEventListener('hidden.bs.modal', () => {
@@ -116,13 +128,18 @@ export class SettingsVM {
 			this.compiledSource('');
 		});
 
-		// Modale identité : même pattern — l'observable est reset à la
-		// fermeture (Échap, backdrop, boutons) → état propre à la réouverture.
+		// Modale identité : même pattern - l'observable est reset à la
+		// fermeture (Échap, backdrop, boutons) > état propre à la réouverture.
 		const identityModalEl = document.getElementById('identity-modal');
 		this.identityModal = identityModalEl ? new bootstrap.Modal(identityModalEl) : null;
 		identityModalEl?.addEventListener('hidden.bs.modal', () => this.editingIdentity(null));
 
-		// Modale détails session : même pattern — reset à la fermeture.
+		// Modale contact : même pattern - reset à la fermeture.
+		const contactModalEl = document.getElementById('contact-modal');
+		this.contactModal = contactModalEl ? new bootstrap.Modal(contactModalEl) : null;
+		contactModalEl?.addEventListener('hidden.bs.modal', () => this.editingContact(null));
+
+		// Modale détails session : même pattern - reset à la fermeture.
 		const sessionModalEl = document.getElementById('session-modal');
 		this.sessionModal = sessionModalEl ? new bootstrap.Modal(sessionModalEl) : null;
 		sessionModalEl?.addEventListener('hidden.bs.modal', () => this.sessionDetail(null));
@@ -138,7 +155,7 @@ export class SettingsVM {
 		// Répondeur d'absence (Sieve vacation)
 		this.vacation = ko.observable(null);
 		this.vacationManaged = ko.observable(true);
-		// Choix « :addresses » : email du compte actif + ses identités (le
+		// Choix ":addresses" : email du compte actif + ses identités (le
 		// serveur n'accepte de toute façon que ce sous-ensemble).
 		this.vacationAddressChoices = ko.pureComputed(() => {
 			const acct = this.app.accounts().find(a => a.active);
@@ -178,7 +195,7 @@ export class SettingsVM {
 	}
 
 	/**
-	 * Entrée dans la vue : seed depuis les données du boot (/appdata) — les
+	 * Entrée dans la vue : seed depuis les données du boot (/appdata) - les
 	 * requêtes /settings et /appdata étaient des doublons qui se sérialisaient
 	 * (verrou de session FPM / php -S mono-thread) et vidaient la vue pendant
 	 * leur attente. Identités/contacts : lazy-load par onglet (activate()).
@@ -186,12 +203,12 @@ export class SettingsVM {
 	async init() {
 		this.saved(false);
 		this.error('');
-		// Copie : les bindings « value: values().x » écrivent dans l'objet —
+		// Copie : les bindings "value: values().x" écrivent dans l'objet -
 		// sans spread, on muterait app.userSettings avant tout save.
 		this.values({ ...this.app.userSettings });
 		this.pluginTabs(this.app.pluginTabs || []);
-		// popup_identity : identité par défaut sans nom → édition forcée.
-		// await AVANT le hash : sinon (fetch lent) hashchange → activate('identities')
+		// popup_identity : identité par défaut sans nom > édition forcée.
+		// await AVANT le hash : sinon (fetch lent) hashchange > activate('identities')
 		// puis le .then du routeFromHash initial ferait activate('general').
 		if (this.app.popupIdentityPending) {
 			this.app.popupIdentityPending = false;
@@ -221,6 +238,7 @@ export class SettingsVM {
 		this.tab(known.includes(name) ? name : 'general');
 		if (this.tab() !== 'filters') { this.filterModal?.hide(); }
 		if (this.tab() !== 'identities') { this.identityModal?.hide(); }
+		if (this.tab() !== 'contacts') { this.contactModal?.hide(); }
 		if (this.tab() === 'identities') { this.loadIdentities(); }
 		if (this.tab() === 'contacts') { this.loadContacts(); }
 		if (this.tab() === 'sessions') { this.loadSessions(); }
@@ -278,7 +296,7 @@ export class SettingsVM {
 
 	/** La permission navigateur se demande au geste du checkbox. */
 	async toggleNotify() {
-		this.notifyPermission(await notify.request());
+		await notify.request();
 		return true; // laisser le binding checked écrire la valeur
 	}
 
@@ -311,7 +329,7 @@ export class SettingsVM {
 	}
 
 	// Glisser-déposer des comptes secondaires : réordonne app.accounts puis
-	// POST l'ordre complet — le principal (is_default) reste épingle en tête.
+	// POST l'ordre complet - le principal (is_default) reste épingle en tête.
 
 	/** Zone de dépose : 'before' | 'after' selon la moitié de ligne survolée. */
 	_dropZone(e) {
@@ -339,7 +357,7 @@ export class SettingsVM {
 		const tr = e.currentTarget;
 		this._accountDragClear(tr);
 		// Cible non valide (principal ou ligne source) : pas de preventDefault
-		// → le navigateur affiche le curseur « interdit » et refuse le drop.
+		// > le navigateur affiche le curseur "interdit" et refuse le drop.
 		if (this._dragId === null || Number(a.is_default) || Number(a.id) === this._dragId) {
 			return true;
 		}
@@ -381,7 +399,7 @@ export class SettingsVM {
 	// ─── Identités ───
 
 	/** Lazy-load onglet identités. Promesse mémoïsée : appels concurrents
-	 *  dédupliqués, erreur → reset pour retry à la prochaine visite. */
+	 *  dédupliqués, erreur > reset pour retry à la prochaine visite. */
 	loadIdentities() {
 		if (!this._identitiesReq) {
 			this.identitiesLoading(true);
@@ -395,7 +413,7 @@ export class SettingsVM {
 
 	editIdentity(i) {
 		const s = i || {};
-		// Signature legacy texte brut → HTML (sinon affichée sur une ligne)
+		// Signature legacy texte brut > HTML (sinon affichée sur une ligne)
 		let sig = s.signature || '';
 		if (sig && !/<[a-z!][^>]*>/i.test(sig)) {
 			sig = sig.replace(/&/g, '&amp;').replace(/</g, '&lt;')
@@ -419,7 +437,7 @@ export class SettingsVM {
 	async saveIdentity() {
 		const i = this.editingIdentity();
 		await api.post('/identities', ko.toJS(i));
-		this.identityModal?.hide(); // hidden.bs.modal → editingIdentity(null)
+		this.identityModal?.hide(); // hidden.bs.modal > editingIdentity(null)
 		this._identitiesReq = null;
 		await this.loadIdentities();
 		this._syncComposeIdentities();
@@ -461,21 +479,35 @@ export class SettingsVM {
 		return this._contactsReq || Promise.resolve(this.contacts());
 	}
 
+	contactsPrevPage() {
+		this.contactsPage(Math.max(1, this.contactsPageEff() - 1));
+	}
+
+	contactsNextPage() {
+		this.contactsPage(Math.min(this.contactsTotalPages(), this.contactsPageEff() + 1));
+	}
+
 	editContact(c) {
 		const cats = (c?.properties?.categories || []).join(', ');
-		this.editingContact({ ...(c || { name: '', emails: '' }), categories: cats });
+		// id toujours présent (null à la création) : le titre de la modale
+		// teste "id ? contact_edit : contact_new" - clé absente > ReferenceError KO.
+		this.editingContact({ ...(c || { id: null, name: '', emails: '' }), categories: cats });
+		this.contactModal?.show();
+		// Focus du champ nom une fois la modale affichée (pattern identity-modal)
+		document.getElementById('contact-modal')?.addEventListener('shown.bs.modal',
+			() => document.getElementById('contact-name')?.focus(), { once: true });
 	}
 
 	async saveContact() {
 		const c = this.editingContact();
-		// Champ « Groupes » (CSV) → properties.categories, les autres clés
+		// Champ "Groupes" (CSV) > properties.categories, les autres clés
 		// de properties (org/tel/…) sont préservées.
 		const cats = (c.categories || '').split(',').map(s => s.trim()).filter(Boolean);
 		c.properties = { ...(c.properties || {}), categories: cats };
 		if (!cats.length) { delete c.properties.categories; }
 		delete c.categories;
 		await api.post('/contacts', c);
-		this.editingContact(null);
+		this.contactModal?.hide(); // hidden.bs.modal > editingContact(null)
 		this._contactsReq = null;
 		await this.loadContacts();
 	}
@@ -488,7 +520,7 @@ export class SettingsVM {
 		await this.loadContacts();
 	}
 
-	/** Import .vcf (dédup côté serveur sur les emails existants). */
+	/** Import .vcf/.csv/.sqlite (carnet RainLoop/SnappyMail) - dédup serveur. */
 	async importContacts(vm, e) {
 		const input = e.target;
 		const file = input.files && input.files[0];
@@ -508,7 +540,7 @@ export class SettingsVM {
 		}
 	}
 
-	/** Export du carnet en .vcf — navigation GET, téléchargement direct. */
+	/** Export du carnet en .vcf - navigation GET, téléchargement direct. */
 	exportContacts() {
 		location.href = base() + '/api/contacts/export';
 	}
@@ -516,8 +548,8 @@ export class SettingsVM {
 	// ─── Dossiers système ───
 
 	/**
-	 * Options du select d'un rôle : « Automatique (<détecté>) » +
-	 * « Désactivé » + dossiers existants. Une assignation hors liste
+	 * Options du select d'un rôle : "Automatique (<détecté>)" +
+	 * "Désactivé" + dossiers existants. Une assignation hors liste
 	 * (dossier disparu) est ajoutée pour afficher la valeur courante.
 	 */
 	roleOptions(r) {
@@ -568,7 +600,7 @@ export class SettingsVM {
 	}
 
 	/** Import de fichiers .eml/.mbox dans le dossier choisi (IMAP APPEND
-	 *  serveur, un fichier par requête — progression n/N affichée ; la
+	 *  serveur, un fichier par requête - progression n/N affichée ; la
 	 *  réponse d'un .mbox compte ses messages : {imported, failed}). */
 	async importEmlFiles(d, e) {
 		const files = [...e.target.files];
@@ -582,7 +614,7 @@ export class SettingsVM {
 			fd.append('file', file);
 			try {
 				const r = await api.upload(`/folders/${b64url(this.importFolder())}/import`, fd);
-				msgs += r?.imported ?? 1; // .eml → {uid}, pas de compteur ; 0 réel = échec total mbox
+				msgs += r?.imported ?? 1; // .eml > {uid}, pas de compteur ; 0 réel = échec total mbox
 				failed += r?.failed ?? 0;
 				skipped += r?.skipped ?? 0; // plafonnés côté serveur (non importés, non échoués)
 				done++;
@@ -592,8 +624,8 @@ export class SettingsVM {
 		this.importProgress(null);
 		if (done) {
 			toast.success(t('app.import_done', { n: msgs })
-				+ (failed ? ' — ' + t('app.import_failed', { n: failed }) : '')
-				+ (skipped ? ' — ' + t('app.import_skipped', { n: skipped }) : ''));
+				+ (failed ? ' - ' + t('app.import_failed', { n: failed }) : '')
+				+ (skipped ? ' - ' + t('app.import_skipped', { n: skipped }) : ''));
 			this.app.folderList.load();
 			if (this.app.messageList.folder() === this.importFolder()) {
 				this.app.messageList.load();
@@ -604,7 +636,7 @@ export class SettingsVM {
 	// ─── Sessions ───
 
 	fmtTs(ts) {
-		return ts ? new Date(Number(ts) * 1000).toLocaleString() : '—';
+		return ts ? new Date(Number(ts) * 1000).toLocaleString() : '-';
 	}
 
 	async loadSessions() {
@@ -613,12 +645,12 @@ export class SettingsVM {
 		this._sessionsLoaded = true;
 	}
 
-	/** Résumé « Navigateur · OS » d'un User-Agent (parse léger, affichage). */
+	/** Résumé "Navigateur · OS" d'un User-Agent (parse léger, affichage). */
 	agentInfo(ua) {
 		ua = String(ua || '');
-		if (!ua) { return '—'; }
+		if (!ua) { return '-'; }
 		const has = (re) => re.test(ua);
-		// Ordre significatif : les UA Chrome/Edge/Opera contiennent aussi « Safari ».
+		// Ordre significatif : les UA Chrome/Edge/Opera contiennent aussi "Safari".
 		const browser = has(/Edg(e|A|iOS)?\//) ? 'Edge'
 			: has(/OPR\/|Opera/) ? 'Opera'
 			: has(/Firefox\//) ? 'Firefox'
@@ -687,7 +719,7 @@ export class SettingsVM {
 	// ─── Répondeur d'absence ───
 
 	async loadVacation() {
-		this.loadIdentities(); // mémoïsé — peuple vacationAddressChoices
+		this.loadIdentities(); // mémoïsé - peuple vacationAddressChoices
 		try {
 			const r = await api.get('/filters/vacation');
 			if (r.modules) { this.sieveModules(r.modules); }
@@ -714,7 +746,7 @@ export class SettingsVM {
 				addresses: v.addresses(),
 			});
 			this.saved(true);
-			// Relecture : reflète la normalisation serveur (tout décoché →
+			// Relecture : reflète la normalisation serveur (tout décoché >
 			// repli sur l'email du compte, adresses hors whitelist purgées).
 			await this.loadVacation();
 		} catch (e) { this.filtersError(e.message); }
@@ -834,7 +866,7 @@ export class SettingsVM {
 			} else {
 				await api.post('/filters/script', { ...payload, source: f.source });
 			}
-			this.filterModal?.hide(); // hidden.bs.modal → editingFilter(null)
+			this.filterModal?.hide(); // hidden.bs.modal > editingFilter(null)
 			this.filtersLoaded = false;
 			await this.loadFilters();
 		} catch (e) { f.error(e.message); }
@@ -872,7 +904,7 @@ export class SettingsVM {
 		} catch (e) { this.filtersError(e.message); }
 	}
 
-	// f = item de ligne {name, active} ou objet d'édition (footer de la modale —
+	// f = item de ligne {name, active} ou objet d'édition (footer de la modale -
 	// originalName y est un observable, absent des items de ligne).
 	async deleteFilter(f) {
 		const name = f.originalName?.() ?? f.name;
@@ -880,7 +912,7 @@ export class SettingsVM {
 			{ variant: 'danger', okLabel: t('common.delete') }))) { return; }
 		try {
 			await api.post('/filters/delete', { name });
-			this.filterModal?.hide(); // hidden.bs.modal → editingFilter(null)
+			this.filterModal?.hide(); // hidden.bs.modal > editingFilter(null)
 			this.filtersLoaded = false;
 			await this.loadFilters();
 		} catch (e) {

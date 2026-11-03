@@ -13,7 +13,7 @@ return [
 	'plugin.pwa.f.background_color'      => 'Couleur de fond',
 	'plugin.pwa.f.background_color.help' => "Écran de démarrage (splash) de l'application",
 	'plugin.pwa.f.display'               => "Mode d'affichage",
-	'plugin.pwa.f.display.help'          => '« standalone » = fenêtre autonome (recommandé)',
+	'plugin.pwa.f.display.help'          => '"standalone" = fenêtre autonome (recommandé)',
 	'plugin.pwa.f.icon_url'              => "URL de l'icône",
 	'plugin.pwa.f.icon_url.help'         => 'PNG carré ≥512px ; vide = icônes par défaut embarquées',
 ];

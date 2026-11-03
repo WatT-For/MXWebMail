@@ -1,5 +1,5 @@
 /**
- * PWA — enregistre le service worker sur le scope racine de l'application.
+ * PWA - enregistre le service worker sur le scope racine de l'application.
  * Chargé en defer dans le <head> de la page app (manifest linké à côté).
  * window.MXWM.base est déjà défini à ce stade (script inline du template).
  */

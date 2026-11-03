@@ -33,7 +33,7 @@ final class AuthService
 
 		$this->checkRateLimit($email);
 
-		// Résolution du domaine : table domains → wildcard '*' → détection.
+		// Résolution du domaine : table domains > wildcard '*' > détection.
 		// Login sans @domaine : 'auto' déduit le suffixe de HTTP_HOST
 		// (sans www. ni :port), sinon suffixe fixe default_domain.
 		// Un domaine vide reste possible : un '*' peut servir les logins courts.
@@ -66,8 +66,8 @@ final class AuthService
 		}
 
 		// Hook post-mapping : contrôles de login sur l'email résolu
-		// (black-list/white-list — émis aussi sans mapping : $email = saisi).
-		// Un « run » : tous les listeners s'exécutent, contrairement à « first »
+		// (black-list/white-list - émis aussi sans mapping : $email = saisi).
+		// Un "run" : tous les listeners s'exécutent, contrairement à "first"
 		// qui court-circuiterait un contrôle placé après un provider de mapping.
 		$this->app->hooks()->run('auth.login.mapped', $email, $domain);
 
@@ -78,14 +78,14 @@ final class AuthService
 			throw new \RuntimeException($this->t('errors.account_disabled'), 403);
 		}
 
-		// Option de domaine « whitelist » : emails autorisés (wildcards)
+		// Option de domaine "whitelist" : emails autorisés (wildcards)
 		$whiteList = trim((string) (self::domainOptions($domain)['whitelist'] ?? ''));
 		if ($whiteList !== '' && !\MXWebMail\Security\Wildcard::match($email, $whiteList)) {
 			throw new \RuntimeException($this->t('errors.account_not_allowed'), 403);
 		}
 
-		// Option « secondary_only » : le domaine ne sert qu'aux comptes
-		// secondaires — jamais de login primaire dessus (ex. gmail.com).
+		// Option "secondary_only" : le domaine ne sert qu'aux comptes
+		// secondaires - jamais de login primaire dessus (ex. gmail.com).
 		if (!empty(self::domainOptions($domain)['secondary_only'])) {
 			throw new \RuntimeException($this->t('errors.domain_secondary_only'), 403);
 		}
@@ -120,7 +120,7 @@ final class AuthService
 		$this->app->users()->touchLastLogin((int) $user['id']);
 
 		// Hook post-login AVANT la session : un plugin (2FA…) peut refuser
-		// en levant une exception → aucune session n'est alors établie.
+		// en levant une exception > aucune session n'est alors établie.
 		$this->app->hooks()->run('auth.post-login', $user, $totpCode);
 
 		// Session
@@ -129,7 +129,7 @@ final class AuthService
 		$_SESSION['account_id'] = $accountId;
 		$_SESSION['email']      = $email;
 		$_SESSION['imap_pass']  = CredentialCrypt::encrypt($password, $this->app->storageDir());
-		// Post-mapping : auth.login.mapping peut substituer le domaine — la
+		// Post-mapping : auth.login.mapping peut substituer le domaine - la
 		// session doit porter le domaine résolu, pas la forme pré-mapping.
 		$_SESSION['domain']     = (string) ($domain['name'] ?? $domainName);
 		$_SESSION['acct_auth']      = 'password';
@@ -140,7 +140,7 @@ final class AuthService
 		return ['email' => $email];
 	}
 
-	// ─── Jetons « se souvenir de moi » (cookie mxwm_remember = selector:validator) ───
+	// ─── Jetons "se souvenir de moi" (cookie mxwm_remember = selector:validator) ───
 
 	private const REMEMBER_DAYS = 30;
 
@@ -178,7 +178,7 @@ final class AuthService
 		$this->setRememberCookie('', time() - 42000);
 	}
 
-	/** Selector du jeton présenté (pour marquer « session courante »). */
+	/** Selector du jeton présenté (pour marquer "session courante"). */
 	public function currentTokenSelector(): ?string
 	{
 		$c = (string) ($_COOKIE['mxwm_remember'] ?? '');
@@ -188,8 +188,8 @@ final class AuthService
 	/**
 	 * Restaure une session depuis le cookie mxwm_remember : jeton vérifié,
 	 * validator **tourné** à chaque usage, compte is_default (toujours
-	 * password — OAuth n'existe que pour les comptes secondaires), mot de
-	 * passe IMAP déchiffré puis re-vérifié. Tout échec → jeton + cookie
+	 * password - OAuth n'existe que pour les comptes secondaires), mot de
+	 * passe IMAP déchiffré puis re-vérifié. Tout échec > jeton + cookie
 	 * supprimés, pas de session (le visiteur retombe sur le login).
 	 */
 	public function resumeFromRemember(): void
@@ -249,7 +249,7 @@ final class AuthService
 		$_SESSION['user_id']    = (int) $row['user_id'];
 		$_SESSION['account_id'] = (int) $account['id'];
 		$_SESSION['email']      = (string) $account['email'];
-		// Copie du ciphertext — même schéma CredentialCrypt (comme accountSwitch).
+		// Copie du ciphertext - même schéma CredentialCrypt (comme accountSwitch).
 		$_SESSION['imap_pass']  = (string) $account['imap_pass'];
 		$_SESSION['domain']     = $domainName;
 		$_SESSION['acct_auth']      = 'password';
@@ -289,7 +289,7 @@ final class AuthService
 		if (!empty($_SESSION['admin'])) {
 			// Session admin active : on ne purge que les clés webmail.
 			// 'csrf_token' (Csrf::SESSION_KEY, const privée) est conservé :
-			// l'onglet admin partage ce jeton — le purger casserait ses POST.
+			// l'onglet admin partage ce jeton - le purger casserait ses POST.
 			$_SESSION = array_intersect_key($_SESSION,
 				array_flip(['admin', 'csrf_token']));
 			session_regenerate_id(true);
@@ -317,7 +317,7 @@ final class AuthService
 		$settings->passphrase = $password;
 		if ($oauth) {
 			// Passphrase = access token ; les mécanismes par défaut (PLAIN,
-			// LOGIN) l'échoueraient — OAuth2 explicite.
+			// LOGIN) l'échoueraient - OAuth2 explicite.
 			$settings->SASLMechanisms = ['OAUTHBEARER', 'XOAUTH2'];
 		}
 
@@ -328,13 +328,13 @@ final class AuthService
 			$client->Connect($settings);
 			$client->Login($settings);
 		} catch (\MailSo\Imap\Exceptions\LoginBadCredentialsException $e) {
-			// NO/BAD du serveur sur les credentials → 401 métier.
-			// En OAuth (XOAUTH2), « bad_credentials » serait trompeur.
+			// NO/BAD du serveur sur les credentials > 401 métier.
+			// En OAuth (XOAUTH2), "bad_credentials" serait trompeur.
 			throw new \RuntimeException($this->t(
 				$oauth ? 'errors.oauth_failed' : 'errors.bad_credentials'), 401, $e);
 		} catch (\Throwable $e) {
 			// Réseau, TLS, méthode de login refusée, SASL, protocole : injoignable
-			// ou mal configuré — détail déjà dans app.log (écrit par MailSo).
+			// ou mal configuré - détail déjà dans app.log (écrit par MailSo).
 			// Code 4xx obligatoire : tout status ≥ 500 est masqué en errors.internal.
 			throw new \RuntimeException($this->t('errors.imap_unreachable',
 				['host' => $settings->host]), 400, $e);
@@ -373,7 +373,7 @@ final class AuthService
 	public static function smtpSettings(array $domain): \MailSo\Smtp\Settings
 	{
 		$options = (array) (self::domainOptions($domain)['smtp'] ?? []);
-		// fromArray() met useAuth à false par défaut — le mail sortant
+		// fromArray() met useAuth à false par défaut - le mail sortant
 		// s'authentifie sauf si l'option le désactive explicitement.
 		$s = \MailSo\Smtp\Settings::fromArray(array_merge(['useAuth' => true], $options, [
 			'host' => (string) ($domain['smtp_host'] ?? ''),
@@ -390,7 +390,7 @@ final class AuthService
 	{
 		$options = (array) (self::domainOptions($domain)['sieve'] ?? []);
 		$enc = (string) ($options['encryption'] ?? '');
-		// fromArray exige 'type' (ou 'secure') — AUTO_DETECT résout via le port.
+		// fromArray exige 'type' (ou 'secure') - AUTO_DETECT résout via le port.
 		$options['type'] = $enc !== ''
 			? self::securityType($enc)
 			: \MailSo\Net\Enumerations\ConnectionSecurityType::AUTO_DETECT;
@@ -402,8 +402,8 @@ final class AuthService
 	}
 
 	/**
-	 * Hôte loopback : pas de vérification de certificat — les certs locaux
-	 * n'ont généralement pas « localhost » en SAN (comportement SnappyMail).
+	 * Hôte loopback : pas de vérification de certificat - les certs locaux
+	 * n'ont généralement pas "localhost" en SAN (comportement SnappyMail).
 	 */
 	private static function relaxLoopbackSsl(\MailSo\Net\ConnectSettings $s): void
 	{
@@ -423,7 +423,7 @@ final class AuthService
 	}
 
 	/**
-	 * Résolution d'un domaine : table domains → wildcard '*' → détection
+	 * Résolution d'un domaine : table domains > wildcard '*' > détection
 	 * automatique (autodetect.enabled ; le résultat est persisté en table
 	 * pour que MailService le retrouve via domainFor()). null si rien.
 	 */
@@ -455,7 +455,7 @@ final class AuthService
 					$detected['options'] = $opts;
 				}
 				$detected['id'] = $this->app->domains()->save($detected);
-				$this->app->log('info', "domaine « {$name} » auto-détecté et créé");
+				$this->app->log('info', "domaine \"{$name}\" auto-détecté et créé");
 				return $detected;
 			}
 		}
@@ -498,7 +498,7 @@ final class AuthService
 		$stmt = $pdo->prepare('SELECT id FROM accounts WHERE user_id = :u AND email = :e');
 		$stmt->execute(['u' => $userId, 'e' => $email]);
 		if ($row = $stmt->fetch()) {
-			// Compte déjà connu → on met à jour le mot de passe stocké
+			// Compte déjà connu > on met à jour le mot de passe stocké
 			// (auth='password' : couvre un domaine repassé d'OAuth à mot de passe)
 			$enc = CredentialCrypt::encrypt($password, $this->app->storageDir());
 			$pdo->prepare("UPDATE accounts SET imap_pass = :ip, auth = 'password' WHERE id = :id")
@@ -516,7 +516,7 @@ final class AuthService
 	/**
 	 * Provisionne un compte secondaire OAuth2 (callback du flow provider) :
 	 * la preuve d'appartenance est la connexion IMAP XOAUTH2 avec l'access
-	 * token frais — l'email saisi est ainsi validé par le provider lui-même.
+	 * token frais - l'email saisi est ainsi validé par le provider lui-même.
 	 */
 	public function addAccountOauth(int $userId, string $email, string $accessToken,
 		string $refreshToken, string $provider): array
@@ -537,7 +537,7 @@ final class AuthService
 		$stmt->execute(['u' => $userId, 'e' => $email]);
 		$enc = CredentialCrypt::encrypt($refreshToken, $this->app->storageDir());
 		if ($row = $stmt->fetch()) {
-			// Compte déjà connu → nouveau refresh token + provider à jour
+			// Compte déjà connu > nouveau refresh token + provider à jour
 			$pdo->prepare('UPDATE accounts SET imap_pass = :ip, auth = :a WHERE id = :id')
 				->execute(['ip' => $enc, 'a' => $provider, 'id' => $row['id']]);
 			// Compte actif : la session suit les nouveaux identifiants.
@@ -617,7 +617,7 @@ final class AuthService
 	}
 
 	/**
-	 * Réordonne les comptes secondaires (glisser-déposer de Réglages →
+	 * Réordonne les comptes secondaires (glisser-déposer de Réglages >
 	 * Comptes) : $ids doit être exactement l'ensemble des secondaires.
 	 */
 	public function reorderAccounts(int $userId, array $ids): void
@@ -718,7 +718,7 @@ final class AuthService
 		$this->withAttemptsLock(function (array &$attempts) use ($email): void {
 			$key = $this->attemptKey($email);
 			$entry = $attempts[$key] ?? ['count' => 0, 'until' => 0];
-			// Verrou expiré → nouveau cycle : l'utilisateur légitime récupère
+			// Verrou expiré > nouveau cycle : l'utilisateur légitime récupère
 			// login_max_attempts essais au lieu d'être reverrouillé au 1er échec.
 			if (($entry['until'] ?? 0) > 0 && $entry['until'] <= time()) {
 				$entry['count'] = 0;
@@ -742,13 +742,13 @@ final class AuthService
 
 	private function attemptKey(string $email): string
 	{
-		// Normalisation identique à login() : sinon une saisie « User@x » ou
-		// « user » (espace) est comptée sous une clé différente de celle
-		// vérifiée — le verrou n'était jamais atteint (tentatives illimitées).
+		// Normalisation identique à login() : sinon une saisie "User@x" ou
+		// "user" (espace) est comptée sous une clé différente de celle
+		// vérifiée - le verrou n'était jamais atteint (tentatives illimitées).
 		$e = mb_strtolower(trim($email));
-		// Le suffixe default_domain est reproduit : « user » et
-		// « user@domaine » résolvent le même compte et doivent partager le
-		// compteur — sinon chaque variante dispose de son propre quota.
+		// Le suffixe default_domain est reproduit : "user" et
+		// "user@domaine" résolvent le même compte et doivent partager le
+		// compteur - sinon chaque variante dispose de son propre quota.
 		if (!str_contains($e, '@')) {
 			$dd = strtolower(trim(
 				(string) $this->app->config()->get('default_domain', '')));
@@ -774,7 +774,7 @@ final class AuthService
 			return [];
 		}
 		// Lecture sous verrou partagé : un withAttemptsLock() concurrent fait
-		// ftruncate+fwrite — sans LOCK_SH on pourrait lire un fichier vide.
+		// ftruncate+fwrite - sans LOCK_SH on pourrait lire un fichier vide.
 		$fp = fopen($file, 'rb');
 		if (!$fp) {
 			return [];
@@ -785,7 +785,7 @@ final class AuthService
 		fclose($fp);
 		$all = json_decode($raw, true) ?: [];
 		// Purge : un verrou expiré depuis > 1 h ou une tentative inactive
-		// depuis > 1 h disparaît — sans quoi le fichier grossit sans borne.
+		// depuis > 1 h disparaît - sans quoi le fichier grossit sans borne.
 		return array_filter($all, fn($e) => ($e['until'] ?? 0) > time() - 3600
 			|| ($e['last'] ?? 0) > time() - 3600);
 	}

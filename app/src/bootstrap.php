@@ -2,10 +2,10 @@
 declare(strict_types=1);
 
 /**
- * MXWebMail — bootstrap : autoloader maison, remplace Composer.
+ * MXWebMail - bootstrap : autoloader maison, remplace Composer.
  *
- * - PSR-4 : MXWebMail\ → app/src/MXWebMail, Sabre\ → app/src/Sabre (vendoré)
- * - Classmap insensible à la casse : MailSo\ → app/src/MailSo, MXWebMailLib\ → app/src/Lib
+ * - PSR-4 : MXWebMail\ > app/src/MXWebMail, Sabre\ > app/src/Sabre (vendoré)
+ * - Classmap insensible à la casse : MailSo\ > app/src/MailSo, MXWebMailLib\ > app/src/Lib
  *   (code hérité : noms de fichiers en minuscules, multi-classes par fichier).
  *   Générée par scan token_get_all, cachée dans app/storage/cache/classmap.php,
  *   reconstruite automatiquement sur miss (une fois par requête).
@@ -14,7 +14,7 @@ declare(strict_types=1);
 
 $root = dirname(__DIR__);
 
-// Fichiers de fonctions sabre (hors classes → pas d'autoload possible).
+// Fichiers de fonctions sabre (hors classes > pas d'autoload possible).
 foreach ([
 	'src/Sabre/Uri/functions.php',
 	'src/Sabre/Xml/Deserializer/functions.php',
@@ -52,7 +52,7 @@ spl_autoload_register(function (string $class) use ($root): void {
 		return;
 	}
 
-	// Miss : rescan une fois — couvre les classes ajoutées depuis le dernier cache.
+	// Miss : rescan une fois - couvre les classes ajoutées depuis le dernier cache.
 	if (!$rebuilt) {
 		$rebuilt = true;
 		$map = mxwm_build_classmap($root);
@@ -96,7 +96,7 @@ function mxwm_build_classmap(string $root): array
 
 /**
  * Écriture atomique tmp + rename : un lecteur pendant l'écriture ne doit
- * jamais voir de contenu tronqué (classmap, caches « <?php return »,
+ * jamais voir de contenu tronqué (classmap, caches "<?php return",
  * PJ/images cachées). opcache_invalidate : un fichier PHP dont le contenu
  * change peut rester périmé sous opcache.validate_timestamps=0.
  */
@@ -136,7 +136,7 @@ function mxwm_declared_types(string $file): array
 			continue;
 		}
 		if (in_array($t[0], [T_CLASS, T_INTERFACE, T_TRAIT, T_ENUM], true)) {
-			// ::class et new class (anonyme) → ignorer
+			// ::class et new class (anonyme) > ignorer
 			for ($k = $i - 1; $k >= 0 && is_array($tok[$k]) && $tok[$k][0] === T_WHITESPACE; $k--);
 			if ($k >= 0 && ($tok[$k] === ':' || (is_array($tok[$k]) && $tok[$k][0] === T_NEW))) {
 				continue;

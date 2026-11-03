@@ -7,7 +7,7 @@ return [
 	'plugin.avatars.email_invalid'      => 'Недопустимый адрес',
 	'plugin.avatars.not_found'          => 'Нет аватара',
 	'plugin.avatars.f.gravatar'         => 'Gravatar',
-	'plugin.avatars.f.gravatar.help'    => 'Обращается к gravatar.com (MD5-хеш адреса — вопрос конфиденциальности)',
+	'plugin.avatars.f.gravatar.help'    => 'Обращается к gravatar.com (MD5-хеш адреса - вопрос конфиденциальности)',
 	'plugin.avatars.f.favicon'          => 'Favicon домена',
 	'plugin.avatars.f.favicon.help'     => 'Загружает favicon домена отправителя',
 	'plugin.avatars.f.service'          => 'Значки известных сервисов',

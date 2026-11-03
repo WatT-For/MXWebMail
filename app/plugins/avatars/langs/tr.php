@@ -7,7 +7,7 @@ return [
 	'plugin.avatars.email_invalid'      => 'Geçersiz e-posta',
 	'plugin.avatars.not_found'          => 'Avatar yok',
 	'plugin.avatars.f.gravatar'         => 'Gravatar',
-	'plugin.avatars.f.gravatar.help'    => 'gravatar.com sorgular (e-posta MD5 karması — gizlilik hususu)',
+	'plugin.avatars.f.gravatar.help'    => 'gravatar.com sorgular (e-posta MD5 karması - gizlilik hususu)',
 	'plugin.avatars.f.favicon'          => 'Alan adı favicon\'u',
 	'plugin.avatars.f.favicon.help'     => 'Gönderenin alan adının favicon\'unu alır',
 	'plugin.avatars.f.service'          => 'Bilinen hizmet simgeleri',

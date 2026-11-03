@@ -24,13 +24,13 @@ Avec le format par défaut, une ligne ressemble à :
 ```
 
 - `{result}` vaut `AUTH OK`, `AUTH FAILED (<code http>)` ou `AUTH FAILED (totp)`
-  (mauvais code TOTP saisi — la demande initiale de second facteur n'est pas un échec
+  (mauvais code TOTP saisi - la demande initiale de second facteur n'est pas un échec
   et ne journalise rien).
 - Les tentatives sur le **login admin** sont couvertes : le login est préfixé
   `admin:` (ex. `admin:admintest`). Un login IMAP valide mais non admin est
   journalisé `AUTH FAILED (403)`.
 - Les tentatives déjà bloquées par le rate-limit interne sont journalisées
-  `AUTH FAILED (429)` — elles comptent donc aussi pour fail2ban (récidive).
+  `AUTH FAILED (429)` - elles comptent donc aussi pour fail2ban (récidive).
 - Les sauts de ligne sont neutralisés dans le login et le résultat : une entrée
   forgée ne peut pas injecter de fausses lignes dans le fichier.
 
@@ -45,7 +45,7 @@ datepattern = %%Y-%%m-%%d %%H:%%M:%%S
 ```
 
 Si `auth_logging_format` est personnalisé, adapter `failregex` (et `datepattern` si
-le `{date:FMT}` change — fail2ban exige un horodatage reconnaissable en début de
+le `{date:FMT}` change - fail2ban exige un horodatage reconnaissable en début de
 ligne ou identifiable via `datepattern`).
 
 Vérifier que le filtre matche le fichier réel :
@@ -75,10 +75,10 @@ Puis `fail2ban-client reload` et `fail2ban-client status mxwebmail`.
 
 - **Fuseau horaire** : fail2ban compare l'horodatage des lignes à l'heure système.
   Laisser `logs.time_zone` vide (= fuseau du serveur) ou le régler sur le **même**
-  fuseau que le système qui exécute fail2ban — un décalage fausse `findtime` et le
+  fuseau que le système qui exécute fail2ban - un décalage fausse `findtime` et le
   ban.
 - **Reverse proxy** : sans `trusted_proxies` renseigné, le journal contient l'IP du
-  proxy — fail2ban bannirait alors le proxy et couperait l'accès à **tous** les
+  proxy - fail2ban bannirait alors le proxy et couperait l'accès à **tous** les
   utilisateurs. Déclarer les proxies de confiance et vérifier que l'IP journalisée
   est bien celle du client.
 - **Rotation** : le fichier grossit sans limite. Exemple `logrotate` :
@@ -95,6 +95,6 @@ Puis `fail2ban-client reload` et `fail2ban-client status mxwebmail`.
   ```
 
 - **Complément, pas remplacement** : fail2ban agit au niveau réseau, le rate-limit
-  interne (`login_max_attempts`, `login_lock_seconds` — voir
+  interne (`login_max_attempts`, `login_lock_seconds` - voir
   [securite.md](securite.md#rate-limit-du-login)) reste la première ligne de défense
   applicative. Les deux sont indépendants et cumulables.

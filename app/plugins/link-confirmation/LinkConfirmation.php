@@ -9,7 +9,7 @@ use MXWebMail\Plugin\PluginBase;
 /**
  * Confirmation avant ouverture d'un lien contenu dans le corps d'un mail
  * (anti-hameçonnage). Zéro couture cœur : le hook app.head injecte la
- * config (window.MXWM_LINKCONFIRM — global dédié : window.MXWM est
+ * config (window.MXWM_LINKCONFIRM - global dédié : window.MXWM est
  * ré-assigné plus bas dans la page) puis guard.js en defer, qui délègue
  * le clic sur les <a> de #mail-body / #eml-preview-body et ouvre une
  * modale Bootstrap avec la destination réelle + signaux suspects.

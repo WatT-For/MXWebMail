@@ -65,7 +65,7 @@ hors-ligne.
 Les cas de comportements abusifs, harcelants ou tout autre comportement
 inacceptable peuvent être signalés aux dirigeant·e·s de la communauté
 responsables de l’application du code de conduite via le signalement privé de
-GitHub (onglet *Security* → *Report a vulnerability*). Toutes les plaintes
+GitHub (onglet *Security* > *Report a vulnerability*). Toutes les plaintes
 seront examinées et feront l’objet d’une enquête rapide et équitable.
 
 Tou·te·s les dirigeant·e·s de la communauté sont tenu·e·s de respecter la vie

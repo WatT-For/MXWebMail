@@ -121,7 +121,7 @@ class CURL extends \MXWebMailLib\HTTP\Request
 		if ($this->max_response_kb) {
 			$remain = ($this->max_response_kb*1024) - \strlen($this->response_body);
 			if (\strlen($data) > \max(0, $remain)) {
-				// Corps tronqué : signalé via Response::truncated — l'appelant
+				// Corps tronqué : signalé via Response::truncated - l'appelant
 				// ne doit pas traiter un corps incomplet comme complet.
 				$data = \substr($data, 0, \max(0, $remain));
 				$this->response_truncated = true;

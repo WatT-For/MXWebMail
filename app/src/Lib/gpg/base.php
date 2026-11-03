@@ -76,8 +76,8 @@ abstract class Base
 	function __destruct()
 	{
 		$this->proc_close();
-		// Ne PAS tuer gpg-agent ici (« gpgconf --kill gpg-agent ») : c'est un
-		// démon partagé du système, pas un processus lié à cet objet — le tuer
+		// Ne PAS tuer gpg-agent ici ("gpgconf --kill gpg-agent") : c'est un
+		// démon partagé du système, pas un processus lié à cet objet - le tuer
 		// affecte tout autre usage de gpg sur l'hôte.
 	}
 

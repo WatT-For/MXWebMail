@@ -21,7 +21,7 @@ final class Database
 	/** @param array<int, string[]> $migrations index = version de schéma */
 	private function __construct(private PDO $pdo, private array $migrations) {}
 
-	/** Base globale : 'sqlite' → storage/db/webmail.sqlite, sinon DSN PDO complet. */
+	/** Base globale : 'sqlite' > storage/db/webmail.sqlite, sinon DSN PDO complet. */
 	public static function connect(Config $config, string $storageDir): self
 	{
 		$dsn = $config->get('db_dsn', 'sqlite');
@@ -65,31 +65,35 @@ final class Database
 
 	/**
 	 * Migrations : chaque entrée s'applique une fois (suivi dans `meta.schema_version`).
-	 * SQL portable SQLite/MariaDB — pas de type exotique.
+	 * SQL portable SQLite/MariaDB - pas de type exotique.
 	 */
 	public function migrate(): void
 	{
 		try {
-			$version = (int) ($this->meta('schema_version') ?? 0);
+			// Une seule requête pour les deux clés (2 SELECT à chaque connexion
+			// avant, même schéma à jour).
+			$meta = $this->metaMap(['schema_version', 'schema_ahead']);
+			$version = (int) ($meta['schema_version'] ?? 0);
+			$ahead = $meta['schema_ahead'] ?? null;
 			$max = max(array_keys($this->migrations));
 			if ($version > $max) {
 				// Schéma plus récent que le code : rollback fichiers ou branche
 				// plus ancienne. On ne touche à rien ; meta.schema_ahead est
-				// remonté dans l'admin (« À propos ») pour signaler l'écart.
-				if ($this->meta('schema_ahead') !== (string) $version) {
+				// remonté dans l'admin ("À propos") pour signaler l'écart.
+				if ($ahead !== (string) $version) {
 					$this->setMeta('schema_ahead', (string) $version);
 				}
 				return;
 			}
-			// Code revenu au niveau (ou au-delà) du schéma → le flag tombe.
-			if ($this->meta('schema_ahead') !== null) {
+			// Code revenu au niveau (ou au-delà) du schéma > le flag tombe.
+			if ($ahead !== null && $ahead !== '') {
 				$this->setMeta('schema_ahead', '');
 			}
 			if ($version >= $max) {
 				return; // schéma à jour : aucun DDL par requête
 			}
 		} catch (\PDOException) {
-			$version = 0; // table meta absente → migration complète
+			$version = 0; // table meta absente > migration complète
 		}
 
 		$this->pdo->exec(
@@ -131,6 +135,15 @@ final class Database
 		$stmt->execute(['k' => $key]);
 		$v = $stmt->fetchColumn();
 		return $v === false ? null : (string) $v;
+	}
+
+	/** Lecture groupée de clés meta en une seule requête > map key => value. */
+	private function metaMap(array $keys): array
+	{
+		$in = implode(',', array_fill(0, count($keys), '?'));
+		$stmt = $this->pdo->prepare("SELECT `key`, value FROM meta WHERE `key` IN ($in)");
+		$stmt->execute(array_values($keys));
+		return $stmt->fetchAll(\PDO::FETCH_KEY_PAIR);
 	}
 
 	public function setMeta(string $key, string $value): void
@@ -211,7 +224,7 @@ final class Database
 			)",
 
 			// Les tables contacts sont déplacées dans storage/db/users/<id>.sqlite
-			// par App::importLegacyContacts() puis droppées — schéma conservé pour
+			// par App::importLegacyContacts() puis droppées - schéma conservé pour
 			// l'historique des migrations.
 			"CREATE TABLE IF NOT EXISTS contacts (
 				id         $pk,
@@ -228,7 +241,7 @@ final class Database
 				type       VARCHAR(32) DEFAULT NULL
 			)",
 
-			// Jetons « se souvenir de moi » : cookie mxwm_remember =
+			// Jetons "se souvenir de moi" : cookie mxwm_remember =
 			// selector:validator ; seul le sha256 du validator est stocké.
 			"CREATE TABLE IF NOT EXISTS auth_tokens (
 				id           $pk,
@@ -286,13 +299,13 @@ final class Database
 		],
 
 		// Type d'authentification du compte : 'password' ou provider OAuth2
-		// ('google','microsoft','yahoo' — imap_pass = refresh token chiffré)
+		// ('google','microsoft','yahoo' - imap_pass = refresh token chiffré)
 		7 => [
 			"ALTER TABLE accounts $addCol auth VARCHAR(16) NOT NULL DEFAULT 'password'",
 		],
 
 		// Applications OAuth2 par utilisateur : les identifiants d'app
-		// (client_id/secret/tenant) sont saisis et stockés par utilisateur —
+		// (client_id/secret/tenant) sont saisis et stockés par utilisateur -
 		// secret chiffré CredentialCrypt. Une app par (utilisateur, provider).
 		8 => [
 			"CREATE TABLE IF NOT EXISTS oauth_apps (
@@ -306,28 +319,28 @@ final class Database
 			)",
 		],
 
-		// « Utilisable par les utilisateurs » : plugin activé mais non chargé hors
-		// contexte admin — refusé par défaut, à autoriser dans l'onglet Extensions
+		// "Utilisable par les utilisateurs" : plugin activé mais non chargé hors
+		// contexte admin - refusé par défaut, à autoriser dans l'onglet Extensions
 		9 => [
 			"ALTER TABLE plugins $addCol user_allowed INTEGER NOT NULL DEFAULT 0",
 		],
 
 		// IP à l'émission et à la dernière utilisation des jetons
-		// « se souvenir de moi » (45 = IPv6) — affichées dans
-		// Paramètres → Sessions.
+		// "se souvenir de moi" (45 = IPv6) - affichées dans
+		// Paramètres > Sessions.
 		10 => [
 			"ALTER TABLE auth_tokens $addCol ip VARCHAR(45) DEFAULT NULL",
 			"ALTER TABLE auth_tokens $addCol last_ip VARCHAR(45) DEFAULT NULL",
 		],
 
-		// Plugin « admin-stats » retiré du cœur : purge de sa ligne d'état
-		// (enabled/user_allowed/config) sur les instances où il était activé —
+		// Plugin "admin-stats" retiré du cœur : purge de sa ligne d'état
+		// (enabled/user_allowed/config) sur les instances où il était activé -
 		// équivalent de PluginPackageService::remove().
 		11 => [
 			"DELETE FROM plugins WHERE name = 'admin-stats'",
 		],
 
-		// Ordre d'affichage des comptes (réordonnable dans Réglages → Comptes) :
+		// Ordre d'affichage des comptes (réordonnable dans Réglages > Comptes) :
 		// backfill = ordre visuel actuel (principal puis alphabétique). La
 		// table dérivée contourne la contrainte d'auto-référence MySQL/MariaDB.
 		12 => [
@@ -339,11 +352,17 @@ final class Database
 				) r WHERE r.id = accounts.id
 			)',
 		],
+
+		// Index de jointure : chargement des identités par compte et
+		// UserRepository::all balayaient la table sans index dédié.
+		13 => [
+			'CREATE INDEX IF NOT EXISTS identities_account ON identities(account_id)',
+		],
 		];
 	}
 
 	/**
-	 * Schéma des bases par utilisateur (storage/db/users/<id>.sqlite) — SQLite only.
+	 * Schéma des bases par utilisateur (storage/db/users/<id>.sqlite) - SQLite only.
 	 * user_id est conservé pour garder le SQL de ContactRepository identique.
 	 * @return array<int, string[]>
 	 */

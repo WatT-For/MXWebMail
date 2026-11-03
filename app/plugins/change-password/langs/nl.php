@@ -19,7 +19,7 @@ return [
 	'plugin.change-password.too_short'        => 'Het nieuwe wachtwoord is te kort',
 	'plugin.change-password.too_weak'         => 'Het nieuwe wachtwoord is te zwak',
 	'plugin.change-password.pwned'            => 'Dit wachtwoord komt voor in een bekend datalek',
-	'plugin.change-password.driver_unknown'   => 'Onbekende driver «{driver}»',
+	'plugin.change-password.driver_unknown'   => 'Onbekende driver "{driver}"',
 	'plugin.change-password.poppassd_down'    => 'poppassd onbereikbaar ({host}:{port})',
 	'plugin.change-password.poppassd_failed'  => 'poppassd-fout: {msg}',
 	'plugin.change-password.sql_missing'      => 'SQL-query van PDO-driver niet geconfigureerd',
@@ -31,7 +31,7 @@ return [
 	'plugin.change-password.mailcow_unconfigured' => 'Mailcow-API niet geconfigureerd',
 	'plugin.change-password.mailcow_failed'   => 'Mailcow: fout ({status})',
 
-	// Schéma de configuration (admin → Extensions → Configurer)
+	// Schéma de configuration (admin > Extensions > Configurer)
 	'plugin.change-password.f.driver'         => 'Driver',
 	'plugin.change-password.f.driver.help'    => 'Backend dat wordt gebruikt om het nieuwe wachtwoord toe te passen',
 	'plugin.change-password.f.allowed_emails'       => 'Toegestane e-mails',

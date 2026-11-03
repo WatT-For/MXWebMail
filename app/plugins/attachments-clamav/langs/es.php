@@ -10,7 +10,7 @@ return [
 	'plugin.attachments-clamav.f.on_error.allow'   => 'Permitir la subida (aviso en el log)',
 	'plugin.attachments-clamav.f.on_error.deny'    => 'Rechazar la subida (fail-closed)',
 	'plugin.attachments-clamav.f.on_error.help'    => 'deny bloquea toda subida mientras clamd esté caído',
-	'plugin.attachments-clamav.virus_found'        => 'Virus detectado en «{name}»',
+	'plugin.attachments-clamav.virus_found'        => 'Virus detectado en "{name}"',
 	'plugin.attachments-clamav.unavailable'        => 'Antivirus inaccesible',
 	'plugin.attachments-clamav.bad_response'       => 'Respuesta inesperada del escáner: {msg}',
 	'plugin.attachments-clamav.read_failed'         => 'No se puede leer el archivo “{name}”',

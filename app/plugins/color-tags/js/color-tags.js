@@ -1,7 +1,7 @@
 /**
  * Onglet Paramètres du plugin color-tags : deux sous-onglets (palette de
- * couleurs / règles automatiques — sujet / expéditeur / domaine, wildcard
- * « * ») avec deep-link #/@settings/color-tags/{palette|rules}.
+ * couleurs / règles automatiques - sujet / expéditeur / domaine, wildcard
+ * "*") avec deep-link #/@settings/color-tags/{palette|rules}.
  * Chargé dynamiquement par le binding pluginMount.
  */
 export default function mount(el, ctx) {
@@ -63,7 +63,7 @@ export default function mount(el, ctx) {
 	}
 
 	// Les <a> font la navigation hash native ; activate() côté cœur conserve
-	// tab==='color-tags' et ignore le détail — la synchro du sous-onglet se
+	// tab==='color-tags' et ignore le détail - la synchro du sous-onglet se
 	// fait ici. Auto-nettoyage : le plugin est remonté à chaque entrée dans
 	// Paramètres (foreach pluginTabs), le listener d'un div détaché se retire.
 	const onHash = () => {

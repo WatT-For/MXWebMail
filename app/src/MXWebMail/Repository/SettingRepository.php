@@ -16,12 +16,34 @@ final class SettingRepository
 			return $default;
 		}
 		$decoded = json_decode((string) $v, true);
-		// Échec du décodage → chaîne brute historique ; 'null' stocké (ancien bug
+		// Échec du décodage > chaîne brute historique ; 'null' stocké (ancien bug
 		// ou set(null) avant suppression) se comporte comme une clé absente.
 		if (json_last_error() !== JSON_ERROR_NONE) {
 			return $v;
 		}
 		return $decoded ?? $default;
+	}
+
+	/**
+	 * Lecture groupée de plusieurs clés en une seule requête (évite N SELECT
+	 * successifs). Décodage JSON identique à get() ; seules les clés
+	 * présentes sont retournées (pas de valeur par défaut injectée).
+	 */
+	public function getMany(int $userId, array $keys): array
+	{
+		if (!$keys) {
+			return [];
+		}
+		$in = implode(',', array_fill(0, count($keys), '?'));
+		$stmt = $this->db->pdo()->prepare(
+			"SELECT `key`, value FROM user_settings WHERE user_id = ? AND `key` IN ($in)");
+		$stmt->execute(array_merge([$userId], array_values($keys)));
+		$out = [];
+		foreach ($stmt->fetchAll() as $row) {
+			$d = json_decode((string) $row['value'], true);
+			$out[$row['key']] = json_last_error() === JSON_ERROR_NONE ? $d : $row['value'];
+		}
+		return $out;
 	}
 
 	public function set(int $userId, string $key, mixed $value): void
@@ -46,11 +68,11 @@ final class SettingRepository
 
 	/**
 	 * Réinitialisation admin : les préférences repassent aux défauts
-	 * user_defaults (incl. special_folders / notify_folders — retour à
+	 * user_defaults (incl. special_folders / notify_folders - retour à
 	 * l'auto-détection et INBOX). Sont préservées les clés internes :
-	 * « plugin.* » (secrets 2FA, état de sync…) et « user_folders »
-	 * (provenance des dossiers créés via l'UI — sa perte reclasserait
-	 * un dossier manuel nommé « Archives » en dossier système).
+	 * "plugin.*" (secrets 2FA, état de sync…) et "user_folders"
+	 * (provenance des dossiers créés via l'UI - sa perte reclasserait
+	 * un dossier manuel nommé "Archives" en dossier système).
 	 */
 	public function deleteAllFor(int $userId): void
 	{

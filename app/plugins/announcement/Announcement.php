@@ -8,9 +8,9 @@ use MXWebMail\Plugin\PluginBase;
 
 /**
  * Bannière d'annonce administrateur affichée aux utilisateurs (et
- * optionnellement sur la page de login — pertinent pour la maintenance).
+ * optionnellement sur la page de login - pertinent pour la maintenance).
  * Zéro couture cœur : config via config.schema.json, injection par
- * <script nonce> via app.head. Le texte est posé en textContent —
+ * <script nonce> via app.head. Le texte est posé en textContent -
  * jamais de HTML.
  */
 final class Announcement extends PluginBase
@@ -31,7 +31,7 @@ final class Announcement extends PluginBase
 			if (!in_array($level, self::LEVELS, true)) {
 				$level = 'info';
 			}
-			// JSON_HEX_TAG : un « </script> » dans le texte admin ne peut
+			// JSON_HEX_TAG : un "</script>" dans le texte admin ne peut
 			// pas casser le script inline.
 			$payload = json_encode([
 				'text'        => (string) $this->config['text'],

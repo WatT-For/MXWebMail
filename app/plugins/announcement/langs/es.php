@@ -5,7 +5,7 @@ return [
 	'plugin.announcement.description'         => 'Banner de anuncio definido por el administrador (página de la app, opcionalmente login)',
 	'plugin.announcement.f.enabled'           => 'Activado',
 	'plugin.announcement.f.text'              => 'Texto del banner',
-	'plugin.announcement.f.text.help'         => 'Texto plano mostrado a todos los usuarios — el HTML no se interpreta',
+	'plugin.announcement.f.text.help'         => 'Texto plano mostrado a todos los usuarios - el HTML no se interpreta',
 	'plugin.announcement.f.level'             => 'Nivel',
 	'plugin.announcement.f.level.info'         => 'Info',
 	'plugin.announcement.f.level.success'      => 'Éxito',

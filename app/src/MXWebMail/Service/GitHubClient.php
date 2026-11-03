@@ -8,23 +8,23 @@ use MXWebMail\Application\App;
 /**
  * Client GitHub Releases partagé : UpdateService (paquet cœur
  * mxwebmail-*.zip) et PluginPackageService (catalogue lu dans le dépôt au
- * ref update.plugins_ref — tree git + raw.githubusercontent.com) l'utilisent.
+ * ref update.plugins_ref - tree git + raw.githubusercontent.com) l'utilisent.
  *
- * Config : section 'update' de config.php —
+ * Config : section 'update' de config.php -
  *   repo         'owner/mxwebmail' ; vide = vérification désactivée
  *   channel      stable | beta (beta = pré-releases incluses)
  *   token        PAT GitHub optionnel (rate-limit / dépôt privé)
- *   manifest_url dev uniquement : URL d'un manifeste JSON au format « release »,
+ *   manifest_url dev uniquement : URL d'un manifeste JSON au format "release",
  *                bypass l'API GitHub (jamais modifiable via l'API admin).
  *
  * Cache release : app/storage/cache/update-check.json (TTL cache.update_ttl,
- * clé repo+channel+manifest) — partagé : un check cœur suivi d'un catalogue
+ * clé repo+channel+manifest) - partagé : un check cœur suivi d'un catalogue
  * plugins ne coûte qu'un seul appel GitHub.
  */
 final class GitHubClient
 {
-	// Dépôt officiel des releases — à renseigner ici à la publication (sécurité :
-	// un repo éditable via l'admin permettrait de détourner l'updater → RCE).
+	// Dépôt officiel des releases - à renseigner ici à la publication (sécurité :
+	// un repo éditable via l'admin permettrait de détourner l'updater > RCE).
 	// Tant qu'il est vide, update.repo dans config.php fait foi (fallback dev,
 	// non exposé à l'API admin).
 	private const REPO = 'WatT-For/MXWebMail';
@@ -45,12 +45,12 @@ final class GitHubClient
 	private function repo(): ?string
 	{
 		// La constante prime ; update.repo n'est qu'un fallback dev (hors whitelist
-		// d'écriture admin — modifiable uniquement via config.php).
+		// d'écriture admin - modifiable uniquement via config.php).
 		$repo = self::REPO !== '' ? self::REPO : trim((string) ($this->cfg()['repo'] ?? ''));
 		return preg_match('#^[a-z0-9_.-]+/[a-z0-9_.-]+$#i', $repo) ? $repo : null;
 	}
 
-	/** URL publique du dépôt (lien « GitHub » de l'admin) ; null si non résolu. */
+	/** URL publique du dépôt (lien "GitHub" de l'admin) ; null si non résolu. */
 	public function repoUrl(): ?string
 	{
 		$repo = $this->repo();
@@ -137,7 +137,7 @@ final class GitHubClient
 			'assets'       => array_map(fn($a) => [
 				'name'                  => (string) ($a['name'] ?? ''),
 				'browser_download_url'  => (string) ($a['browser_download_url'] ?? ''),
-				// Endpoint API releases/assets/<id> — requis sur dépôt privé
+				// Endpoint API releases/assets/<id> - requis sur dépôt privé
 				// (browser_download_url y renvoie 404 même authentifié).
 				'api_url'               => (string) ($a['url'] ?? ''),
 				'download_url'          => $this->pickUrl($a),
@@ -155,7 +155,7 @@ final class GitHubClient
 
 	/**
 	 * URL de téléchargement d'un asset : endpoint API releases/assets/<id> si
-	 * un token est configuré (dépôt privé — browser_download_url y renvoie 404
+	 * un token est configuré (dépôt privé - browser_download_url y renvoie 404
 	 * même authentifié), sinon l'URL publique. Accepte un asset brut de
 	 * l'API ('url') ou tronqué ('api_url').
 	 */
@@ -170,7 +170,7 @@ final class GitHubClient
 	// ─── Assets ───
 
 	/**
-	 * Paquet cœur : « mxwebmail-*.zip » — jamais un asset plugin-*.zip.
+	 * Paquet cœur : "mxwebmail-*.zip" - jamais un asset plugin-*.zip.
 	 * Fallback (manifeste dev) : premier .zip non préfixé plugin-.
 	 */
 	public function coreAsset(array $rel): ?array
@@ -189,7 +189,7 @@ final class GitHubClient
 		return $fallback;
 	}
 
-	/** Asset « <zip>.sha256 » ou fichier de sommes (SHA256SUMS, checksums.txt…). */
+	/** Asset "<zip>.sha256" ou fichier de sommes (SHA256SUMS, checksums.txt…). */
 	public function sha256Url(array $rel, string $zipName): ?string
 	{
 		foreach ((array) ($rel['assets'] ?? []) as $a) {
@@ -217,7 +217,7 @@ final class GitHubClient
 	// ─── Source plugins : dépôt git (tree + raw) ───
 
 	/**
-	 * Ref git source des plugins : update.plugins_ref — 'release' (défaut) =
+	 * Ref git source des plugins : update.plugins_ref - 'release' (défaut) =
 	 * tag de la dernière release, sinon ref littéral ('main', sha, tag…).
 	 */
 	public function pluginsRef(bool $force = false): string
@@ -233,8 +233,8 @@ final class GitHubClient
 	}
 
 	/**
-	 * Dossier local de plugins (update.plugins_local — dev/tests) : catalogue
-	 * et install hors réseau. Vide → null ; configuré mais absent → erreur.
+	 * Dossier local de plugins (update.plugins_local - dev/tests) : catalogue
+	 * et install hors réseau. Vide > null ; configuré mais absent > erreur.
 	 */
 	public function pluginLocalDir(): ?string
 	{
@@ -249,9 +249,9 @@ final class GitHubClient
 	}
 
 	/**
-	 * Ref → {sha, tree} du commit (GET /repos/<r>/commits/<ref>).
+	 * Ref > {sha, tree} du commit (GET /repos/<r>/commits/<ref>).
 	 * Cache storage/cache/plugins-ref.json à TTL update_ttl : une branche
-	 * bouge, un commit jamais — le sha obtenu épingle ensuite les URLs raw.
+	 * bouge, un commit jamais - le sha obtenu épingle ensuite les URLs raw.
 	 */
 	public function resolveCommit(string $ref, bool $force = false): array
 	{
@@ -268,7 +268,7 @@ final class GitHubClient
 		$sha = (string) ($r['sha'] ?? '');
 		$tree = (string) ($r['commit']['tree']['sha'] ?? '');
 		if (!preg_match('/^[0-9a-f]{40}$/', $sha) || !preg_match('/^[0-9a-f]{40}$/', $tree)) {
-			throw new \RuntimeException("Ref git « $ref » introuvable", 502);
+			throw new \RuntimeException("Ref git \"$ref\" introuvable", 502);
 		}
 		$this->writeJsonCache('plugins-ref.json',
 			['v' => 1, 'at' => time(), 'ref' => $ref, 'sha' => $sha, 'tree' => $tree]);
@@ -276,7 +276,7 @@ final class GitHubClient
 	}
 
 	/**
-	 * Arborescence récursive d'un tree sha → map chemin => {sha, size} limitée
+	 * Arborescence récursive d'un tree sha > map chemin => {sha, size} limitée
 	 * aux blobs réguliers sous app/plugins/ (symlinks 120000, sous-modules
 	 * commit et tree exclus). Cache immutable : un tree sha = contenu figé.
 	 */
@@ -319,7 +319,7 @@ final class GitHubClient
 		return $map;
 	}
 
-	/** URL raw pinnée sur le sha du commit (jamais la branche — pas de course). */
+	/** URL raw pinnée sur le sha du commit (jamais la branche - pas de course). */
 	public function rawUrl(string $commitSha, string $path): string
 	{
 		$repo = $this->repoOrFail();
@@ -413,6 +413,7 @@ final class GitHubClient
 			. '|raw\.githubusercontent\.com)/#i', $url)) {
 			$headers[] = 'Authorization: Bearer ' . $token;
 		}
+		$respHeaders = [];
 		$opts = [
 			CURLOPT_RETURNTRANSFER => true,
 			CURLOPT_FOLLOWLOCATION => true,
@@ -420,6 +421,17 @@ final class GitHubClient
 			CURLOPT_TIMEOUT      => $toFile !== null ? 120 : 15,
 			CURLOPT_USERAGENT    => 'MXWebMail/' . APP_VERSION,
 			CURLOPT_HTTPHEADER   => $headers,
+			// Dernier bloc seulement : FOLLOWLOCATION réémet les headers de
+			// chaque réponse intermédiaire - reset à chaque ligne de statut.
+			CURLOPT_HEADERFUNCTION => static function ($ch, string $line) use (&$respHeaders): int {
+				if (str_starts_with($line, 'HTTP/')) {
+					$respHeaders = [];
+				} elseif (($p = strpos($line, ':')) !== false) {
+					$respHeaders[strtolower(trim(substr($line, 0, $p)))]
+						= trim(substr($line, $p + 1));
+				}
+				return strlen($line);
+			},
 		];
 		$fp = null;
 		if ($toFile !== null) {
@@ -432,7 +444,7 @@ final class GitHubClient
 			$opts[CURLOPT_WRITEFUNCTION] = static function ($ch, string $chunk) use ($fp, &$downloaded, $maxBytes) {
 				$downloaded += strlen($chunk);
 				if ($downloaded > $maxBytes) {
-					return -1; // taille différente de strlen → CURLE_WRITE_ERROR
+					return -1; // taille différente de strlen > CURLE_WRITE_ERROR
 				}
 				return fwrite($fp, $chunk);
 			};
@@ -449,20 +461,63 @@ final class GitHubClient
 			if ($toFile !== null) {
 				@unlink($toFile);
 			}
-			throw new \RuntimeException("Requête échouée : $err", 502);
+			$who = self::isGitHubUrl($url) ? 'GitHub' : 'Serveur distant';
+			throw new \RuntimeException("$who injoignable : $err", 502);
 		}
 		if ($code >= 400) {
 			if ($toFile !== null) {
 				@unlink($toFile);
 			}
-			throw new \RuntimeException("HTTP $code — $url", 502);
+			throw $this->httpError($code, $url, $respHeaders);
 		}
 		return is_string($body) ? $body : '';
 	}
 
+	/** Domaine github.com / githubusercontent.com (sous-domaines inclus). */
+	private static function isGitHubUrl(string $url): bool
+	{
+		return (bool) preg_match(
+			'/(^|\.)github(usercontent)?\.com$/i',
+			(string) parse_url($url, PHP_URL_HOST));
+	}
+
+	/**
+	 * Erreur HTTP ≥ 400 > message explicite orienté remède (remonte via
+	 * errors.failed dans les toasts admin). La query de l'URL n'est jamais
+	 * citée (contexte = host+path ; le token part en header, jamais en URL).
+	 */
+	private function httpError(int $code, string $url, array $h): \RuntimeException
+	{
+		if (!self::isGitHubUrl($url)) {
+			return new \RuntimeException('Réponse distante inattendue (HTTP '
+				. $code . ' - ' . explode('?', $url, 2)[0] . ')', 502);
+		}
+		$token = trim((string) ($this->cfg()['token'] ?? '')) !== '';
+		$rateLimited = ($code === 403 || $code === 429)
+			&& (($h['x-ratelimit-remaining'] ?? '') === '0' || isset($h['retry-after']));
+		$where = (string) parse_url($url, PHP_URL_HOST)
+			. (string) parse_url($url, PHP_URL_PATH);
+		// Un 404 GitHub ne dit pas "dépôt privé" : c'est aussi une release
+		// absente, un plugins_ref inconnu ou un blob raw manquant.
+		$msg = match (true) {
+			$code === 401 => 'Token GitHub (PAT GitHub) invalide ou révoqué',
+			$rateLimited => 'Quota de l\'API GitHub épuisé'
+				. (($r = (int) ($h['x-ratelimit-reset'] ?? 0)) > 0
+					? ' (reset à ' . gmdate('H:i', $r) . ' UTC)' : '')
+				. ($token ? '' : ' - configurez PAT GitHub dans config.php pour relever la limite'),
+			$code === 403 => 'Accès refusé par GitHub (HTTP 403)',
+			$code === 404 => $token
+				? "Introuvable sur GitHub ($where) - ressource absente ou droits insuffisants (vérifiez PAT GitHub)"
+				: "Introuvable sur GitHub ($where) - dépôt privé ou ressource absente ; configurez PAT GitHub dans config.php si le dépôt est privé",
+			$code >= 500 => "GitHub indisponible (HTTP $code)",
+			default => "Réponse GitHub inattendue (HTTP $code)",
+		};
+		return new \RuntimeException($msg, 502);
+	}
+
 	// ─── Cache ───
 
-	/** Section « cache » de la config — enabled=false → cache ignoré. */
+	/** Section "cache" de la config - enabled=false > cache ignoré. */
 	private function cacheCfg(): array
 	{
 		$c = $this->app->config()->get('cache', []);

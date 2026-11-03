@@ -6,11 +6,12 @@ namespace Plugin;
 use MXWebMail\Http\Request;
 use MXWebMail\Plugin\HookRegistry;
 use MXWebMail\Plugin\PluginBase;
+use MXWebMail\Service\RainLoopContacts;
 
 /**
  * Import des données d'une installation RainLoop ou SnappyMail
- * (dossier data/_data_/_default_ — format de stockage RainLoop).
- * Page admin de niveau supérieur (hook admin.mounts, section « page »).
+ * (dossier data/_data_/_default_ - format de stockage RainLoop).
+ * Page admin de niveau supérieur (hook admin.mounts, section "page").
  *
  * Importé : domaines (.ini/.json), contacts (AddressBook.sqlite par compte,
  * globale ou DSN PDO), identités, réglages utilisateur, dossiers spéciaux,
@@ -28,13 +29,6 @@ final class WebmailMigration extends PluginBase
 	private const TMP_PREFIX  = 'webmail-migration-';
 	private const SOURCE      = 'rainloop';
 
-	/** prop_type → clé de properties (hors EMAIL/UID/FN traités à part). */
-	private const PROP_MAP = [
-		15 => 'first', 16 => 'last', 17 => 'middle', 18 => 'nick',
-		20 => 'prefix', 21 => 'suffix', 31 => 'tel', 32 => 'url',
-		40 => 'bday', 110 => 'note',
-	];
-
 	public function register(HookRegistry $hooks): void
 	{
 		$hooks->on('admin.mounts', fn() => [
@@ -49,7 +43,7 @@ final class WebmailMigration extends PluginBase
 
 	// ─── API admin ───
 
-	/** Upload du dossier data en .zip → extraction en storage/tmp. */
+	/** Upload du dossier data en .zip > extraction en storage/tmp. */
 	public function apiAdminUpload(Request $request): array
 	{
 		$this->requireAdmin();
@@ -80,7 +74,7 @@ final class WebmailMigration extends PluginBase
 		$bytes = 0;
 		for ($i = 0; $i < $zip->numFiles; $i++) {
 			$name = str_replace('\\', '/', (string) $zip->getNameIndex($i));
-			// Anti zip-slip : chemins relatifs uniquement, jamais de « .. ».
+			// Anti zip-slip : chemins relatifs uniquement, jamais de "..".
 			if ($name === '' || $name[0] === '/' || str_contains($name, '..')
 				|| preg_match('/^[a-zA-Z]:/', $name)) {
 				continue;
@@ -133,7 +127,7 @@ final class WebmailMigration extends PluginBase
 	public function apiAdminScan(Request $request): array
 	{
 		$this->requireAdmin();
-		// gcTmp() est dans dataDir() — appelé aussi par apiAdminRun.
+		// gcTmp() est dans dataDir() - appelé aussi par apiAdminRun.
 		$dir = $this->dataDir($request);
 		return $this->scan($dir);
 	}
@@ -174,7 +168,7 @@ final class WebmailMigration extends PluginBase
 		return $dir;
 	}
 
-	/** Chemin serveur ou uploadId → racine data SnappyMail. */
+	/** Chemin serveur ou uploadId > racine data SnappyMail. */
 	private function dataDir(Request $request): string
 	{
 		$upload = trim((string) $request->input('upload', ''));
@@ -281,7 +275,10 @@ final class WebmailMigration extends PluginBase
 		];
 		$ab = "$udir/AddressBook.sqlite";
 		if (is_file($ab)) {
-			$u['contacts'] = $this->sqliteContactCount($ab);
+			try {
+				$u['contacts'] = RainLoopContacts::contactCount(
+					$this->abPdo(['kind' => 'sqlite', 'path' => $ab]));
+			} catch (\Throwable) {}
 		}
 		$ids = $this->readJson("$udir/identities");
 		$u['identities'] = is_array($ids) ? count($ids) : 0;
@@ -340,27 +337,14 @@ final class WebmailMigration extends PluginBase
 		return $out;
 	}
 
-	private function abUserCount(string $file): int
+	/** Ouvre le PDO d'un descripteur de carnet (sqlite local ou DSN distant). */
+	private function abPdo(array $ab): \PDO
 	{
-		try {
-			$pdo = new \PDO('sqlite:' . $file, null, null,
-				[\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]);
-			return (int) $pdo->query('SELECT COUNT(*) FROM rainloop_users')->fetchColumn();
-		} catch (\Throwable) {
-			return 0;
-		}
-	}
-
-	private function sqliteContactCount(string $file): int
-	{
-		try {
-			$pdo = new \PDO('sqlite:' . $file, null, null,
-				[\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]);
-			return (int) $pdo->query(
-				'SELECT COUNT(*) FROM rainloop_ab_contacts WHERE deleted = 0')->fetchColumn();
-		} catch (\Throwable) {
-			return 0;
-		}
+		return $ab['kind'] === 'sqlite'
+			? new \PDO('sqlite:' . $ab['path'], null, null,
+				[\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION])
+			: new \PDO((string) $ab['dsn'], (string) ($ab['user'] ?? ''),
+				(string) ($ab['pass'] ?? ''), [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]);
 	}
 
 	/**
@@ -372,96 +356,13 @@ final class WebmailMigration extends PluginBase
 		$out = [];
 		foreach ($this->addressBooks($dir) as $ab) {
 			try {
-				foreach ($this->readAddressBook($ab, null) as $email => $items) {
+				foreach (RainLoopContacts::readAddressBook($this->abPdo($ab))
+						as $email => $items) {
 					$out[$email] = ($out[$email] ?? 0) + count($items);
 				}
 			} catch (\Throwable) {}
 		}
 		return $out;
-	}
-
-	/**
-	 * Lit un carnet et groupe les items par email utilisateur
-	 * (rainloop_users.rl_email). $onlyEmail filtre un seul compte.
-	 * @return array<string, array<int, array>>
-	 */
-	private function readAddressBook(array $ab, ?string $onlyEmail): array
-	{
-		$pdo = $ab['kind'] === 'sqlite'
-			? new \PDO('sqlite:' . $ab['path'], null, null,
-				[\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION])
-			: new \PDO((string) $ab['dsn'], (string) ($ab['user'] ?? ''),
-				(string) ($ab['pass'] ?? ''), [\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]);
-
-		// rainloop_users : id_user → rl_email (association au compte)
-		$emails = [];
-		foreach ($pdo->query('SELECT id_user, rl_email FROM rainloop_users') ?: [] as $r) {
-			$emails[(int) $r['id_user']] = mb_strtolower((string) $r['rl_email']);
-		}
-		$contacts = $pdo->query(
-			'SELECT id_contact, id_user, id_contact_str, display, deleted
-			 FROM rainloop_ab_contacts')->fetchAll(\PDO::FETCH_ASSOC);
-		$props = $pdo->query(
-			'SELECT id_contact, id_user, prop_type, prop_type_str, prop_value,
-				prop_value_custom, prop_frec
-			 FROM rainloop_ab_properties')->fetchAll(\PDO::FETCH_ASSOC);
-
-		$byContact = [];
-		foreach ($props as $p) {
-			$byContact[(int) $p['id_user']][(int) $p['id_contact']][] = $p;
-		}
-
-		$out = [];
-		foreach ($contacts as $c) {
-			if ((int) ($c['deleted'] ?? 0)) {
-				continue;
-			}
-			$email = $emails[(int) $c['id_user']] ?? null;
-			if (!$email || ($onlyEmail !== null && $email !== mb_strtolower($onlyEmail))) {
-				continue;
-			}
-			$item = ['name' => '', 'emails' => [], 'properties' => [],
-				'source_uid' => (string) ($c['id_contact_str'] ?? ''), 'frequency' => 0];
-			foreach ((array) ($byContact[(int) $c['id_user']][(int) $c['id_contact']] ?? []) as $p) {
-				$type = (int) $p['prop_type'];
-				$val  = (string) ($p['prop_value'] ?? '');
-				if ($type === 30) { // EMAIL
-					if (filter_var($val, FILTER_VALIDATE_EMAIL)) {
-						$item['emails'][] = ['email' => $val,
-							'type' => self::propTypeStr($p)];
-						$item['frequency'] = max($item['frequency'], (int) $p['prop_frec']);
-					}
-				} elseif ($type === 10) { // FULLNAME
-					$item['name'] = $item['name'] ?: $val;
-				} elseif ($type === 9) { // UID
-					$item['source_uid'] = $item['source_uid'] ?: $val;
-				} elseif (isset(self::PROP_MAP[$type]) && $val !== '') {
-					$key = self::PROP_MAP[$type];
-					$item['properties'][$key] = $item['properties'][$key] ?? $val;
-				} elseif ($type === 250 && $val !== '') { // CUSTOM
-					$key = trim((string) ($p['prop_value_custom'] ?: $p['prop_type_str']));
-					$item['properties']['x-' . substr(preg_replace('/[^a-z0-9\-]/i', '-',
-						strtolower($key ?: 'custom')), 0, 40)] = $val;
-				}
-				// 251 JCARD : doublon structuré des props — ignoré
-			}
-			$item['name'] = trim((string) ($c['display'] ?? '')) !== ''
-				? trim((string) $c['display']) : $item['name'];
-			$out[$email][] = $item;
-		}
-		return $out;
-	}
-
-	/** prop_type_str « work,home » → premier type significatif. */
-	private static function propTypeStr(array $p): ?string
-	{
-		foreach (preg_split('/[\s,]+/', (string) ($p['prop_type_str'] ?? '')) ?: [] as $t) {
-			$t = strtolower(trim($t));
-			if ($t !== '' && !in_array($t, ['internet', 'pref'], true)) {
-				return substr($t, 0, 32);
-			}
-		}
-		return null;
 	}
 
 	// ─── Domaines ───
@@ -552,11 +453,12 @@ final class WebmailMigration extends PluginBase
 			$report['domains']['added']++;
 		}
 
-		// Phase 2 : carnets globaux → items par email
+		// Phase 2 : carnets globaux > items par email
 		$global = [];
 		foreach ($this->addressBooks($dir) as $ab) {
 			try {
-				foreach ($this->readAddressBook($ab, null) as $email => $items) {
+				foreach (RainLoopContacts::readAddressBook($this->abPdo($ab))
+						as $email => $items) {
 					$global[$email] = array_merge($global[$email] ?? [], $items);
 				}
 			} catch (\Throwable $e) {
@@ -604,36 +506,23 @@ final class WebmailMigration extends PluginBase
 		}
 		$uid = (int) $u['id'];
 
-		// Contacts : carnet du compte + sa part du carnet global
+		// Contacts : carnet du compte + sa part du carnet global.
+		// itemsForUser = filtrage par email + repli mono-utilisateur par carnet
+		// (un carnet par-compte peut ne pas référencer rainloop_users ou porter
+		// une autre adresse - évite d'aspirer les contacts d'autres comptes).
 		$items = $global[mb_strtolower($email)] ?? [];
 		foreach ($this->addressBooks('', $udir) as $ab) {
 			try {
-				foreach ($this->readAddressBook($ab, $email) as $items2) {
-					array_push($items, ...$items2);
-				}
+				array_push($items, ...RainLoopContacts::itemsForUser(
+					$this->abPdo($ab), $email));
 			} catch (\Throwable $e) {
 				$out['warnings'][] = "addressbook: {$e->getMessage()}";
-			}
-		}
-		// Un carnet par-compte peut ne pas référencer rainloop_users :
-		// lecture non filtrée, mais seulement si la base est mono-utilisateur
-		// (évite d'aspirer les contacts d'autres comptes).
-		if (!$items) {
-			foreach ($this->addressBooks('', $udir) as $ab) {
-				if ($ab['kind'] !== 'sqlite' || $this->abUserCount($ab['path']) > 1) {
-					continue;
-				}
-				try {
-					foreach ($this->readAddressBook($ab, null) as $items2) {
-						array_push($items, ...$items2);
-					}
-				} catch (\Throwable) {}
 			}
 		}
 		$out['contacts'] = $items
 			? $this->app->contacts()->import($uid, $items, self::SOURCE) : null;
 
-		// Identités → compte par défaut de l'utilisateur
+		// Identités > compte par défaut de l'utilisateur
 		$accountId = $this->defaultAccountId($uid);
 		foreach ((array) $this->readJson("$udir/identities") as $idn) {
 			if ($this->importIdentity($uid, $accountId, (array) $idn)) {
@@ -669,7 +558,7 @@ final class WebmailMigration extends PluginBase
 	/**
 	 * Identité SnappyMail (JSON stocké, clés capitalisées : Id/Email/Name/
 	 * ReplyTo/Bcc/Signature…). L'identité principale a Id === ''
-	 * (IsAccountIdentities) → is_default côté mxwebmail.
+	 * (IsAccountIdentities) > is_default côté mxwebmail.
 	 */
 	private function importIdentity(int $uid, ?int $accountId, array $idn): bool
 	{
@@ -745,7 +634,7 @@ final class WebmailMigration extends PluginBase
 		return $applied;
 	}
 
-	/** Tout bloc armored d'un fichier .pgp → pgp_keys (dédup sur l'armure). */
+	/** Tout bloc armored d'un fichier .pgp > pgp_keys (dédup sur l'armure). */
 	private function importPgp(int $uid, string $email, string $raw): int
 	{
 		if ($raw === '' || !preg_match_all(

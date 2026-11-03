@@ -5,7 +5,7 @@ return [
 	'plugin.announcement.description'         => 'Ankündigungsbanner, vom Administrator festgelegt (App-Seite, optional Login)',
 	'plugin.announcement.f.enabled'           => 'Aktiviert',
 	'plugin.announcement.f.text'              => 'Bannertext',
-	'plugin.announcement.f.text.help'         => 'Reiner Text für alle Benutzer — HTML wird nicht interpretiert',
+	'plugin.announcement.f.text.help'         => 'Reiner Text für alle Benutzer - HTML wird nicht interpretiert',
 	'plugin.announcement.f.level'             => 'Stufe',
 	'plugin.announcement.f.level.info'         => 'Info',
 	'plugin.announcement.f.level.success'      => 'Erfolg',

@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /** Dictionnaire turc du plugin ldap-login. */
 return [
-	'plugin.ldap-login.description'    => 'LDAP ile giriş çözümleme: uid/kısa e-posta → tam IMAP adresi',
+	'plugin.ldap-login.description'    => 'LDAP ile giriş çözümleme: uid/kısa e-posta > tam IMAP adresi',
 	'plugin.ldap-login.starttls_denied' => 'STARTTLS reddedildi',
 	'plugin.ldap-login.bind_denied'    => 'LDAP bind reddedildi',
 	'plugin.ldap-login.f.host'         => 'LDAP sunucusu',

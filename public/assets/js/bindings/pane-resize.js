@@ -5,7 +5,7 @@
  * `axis` ('x' | 'y'), `min` et `max` sont lus au pointerdown via ko.unwrap :
  * des observables/computed sont acceptés (l'axe change avec le layout).
  * Pointer events : souris + tactile. Pendant le drag, <body> reçoit la classe
- * « pane-resizing » (axe x) ou « pane-resizing-v » (axe y) — neutralise
+ * "pane-resizing" (axe x) ou "pane-resizing-v" (axe y) - neutralise
  * l'iframe du lecteur et la sélection de texte.
  */
 ko.bindingHandlers.paneResize = {

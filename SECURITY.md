@@ -9,18 +9,18 @@
 
 Le projet est en développement (`0.x`) : seule la dernière release publiée
 reçoit les correctifs de sécurité. Maintenez votre installation à jour depuis
-le panneau d'administration (onglet « À propos »).
+le panneau d'administration (onglet "À propos").
 
 ## Signaler une vulnérabilité
 
 **N'ouvrez pas d'issue publique** pour une faille de sécurité.
 
 Utilisez le signalement privé de GitHub :
-[Security → Report a vulnerability](https://github.com/WatT-For/MXWebMail/security/advisories/new)
+[Security > Report a vulnerability](https://github.com/WatT-For/MXWebMail/security/advisories/new)
 
 Indiquez si possible :
 
-- la version concernée (visible dans l'admin, « À propos ») ;
+- la version concernée (visible dans l'admin, "À propos") ;
 - la description de la vulnérabilité et son impact ;
 - un scénario de reproduction (étapes, requête, PoC) ;
 - toute piste de correction.

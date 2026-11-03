@@ -18,7 +18,7 @@ final class ThemeRepository
 
 	/**
 	 * Map name => allowed en une requête par instance (comme
-	 * PluginRepository::states) — isAllowed était sinon une requête par
+	 * PluginRepository::states) - isAllowed était sinon une requête par
 	 * template, multipliée par chaque appel de ThemeManager::isSelectable.
 	 */
 	private function allowed(): array
@@ -52,7 +52,7 @@ final class ThemeRepository
 		}
 	}
 
-	/** Config JSON par template — mémoïsée : ThemeManager::config la lit en boucle. */
+	/** Config JSON par template - mémoïsée : ThemeManager::config la lit en boucle. */
 	public function getConfig(string $name): array
 	{
 		if (!array_key_exists($name, $this->configs)) {
@@ -65,7 +65,7 @@ final class ThemeRepository
 	}
 
 	/**
-	 * name => config décodé pour toute la table, en une requête — utilisé par
+	 * name => config décodé pour toute la table, en une requête - utilisé par
 	 * ThemeManager::themeDataSignature pour invalider le cache themeData quand
 	 * une config admin change (setConfig/setAllowed modifient la table).
 	 */

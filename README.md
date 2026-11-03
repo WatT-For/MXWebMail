@@ -10,7 +10,7 @@ Webmail auto-hébergé en **PHP 8.4**, inspiré de **SnappyMail**, **RainLoop** 
   sélection multiple, suivi, spam, quota, ACL de dossiers.
 - **Composition** : éditeur HTML (TinyMCE) ou texte, identités multiples, signatures,
   brouillons, pièces jointes, comptes IMAP secondaires.
-- **Chiffrement OpenPGP** entièrement côté navigateur (OpenPGP.js) — les clés privées ne
+- **Chiffrement OpenPGP** entièrement côté navigateur (OpenPGP.js) - les clés privées ne
   quittent jamais le poste.
 - **Carnet de contacts** avec autocomplétion, synchronisation CardDAV et annuaire LDAP.
 - **Filtres Sieve** : assistant visuel de règles (modèles dont anti-spam) ou édition
@@ -25,7 +25,7 @@ Webmail auto-hébergé en **PHP 8.4**, inspiré de **SnappyMail**, **RainLoop** 
 
 ## Prérequis
 
-- PHP ≥ 8.4 — extensions : `mbstring`, `intl`, `sodium`, `openssl`, `ctype`, `json`,
+- PHP ≥ 8.4 - extensions : `mbstring`, `intl`, `sodium`, `openssl`, `ctype`, `json`,
   `iconv`, `zlib`, `xml`, `dom`, et `pdo_sqlite` (ou `pdo_mysql`). `ldap` optionnel.
 - Un serveur **IMAP** (+ SMTP, et ManageSieve en option).
 - **Aucune dépendance à installer** : le dépôt est complet (autoloader maison, libs vendorées).
@@ -35,7 +35,7 @@ Webmail auto-hébergé en **PHP 8.4**, inspiré de **SnappyMail**, **RainLoop** 
 1. Pointez le document root du vhost sur `public/`.
 2. Ouvrez `https://webmail.example.com/` : l'assistant `/setup/` se lance (tant que
    `app/storage/INSTALLED` n'existe pas), vérifie les prérequis, écrit la configuration,
-   crée le schéma de base et pose le verrou — `/setup` répond ensuite 404.
+   crée le schéma de base et pose le verrou - `/setup` répond ensuite 404.
 
 Détails (Apache/Nginx, installation manuelle, sortie de `app/` hors racine web) :
 voir **[docs/installation.md](docs/installation.md)**.
@@ -66,7 +66,7 @@ Index complet : [docs/README.md](docs/README.md).
   avec protection anti-SSRF.
 - Durcissement serveur : document root = `public/`, dossiers privés protégés par `.htaccess`.
 
-Signalement de vulnérabilités : **jamais en issue publique** — voir
+Signalement de vulnérabilités : **jamais en issue publique** - voir
 [SECURITY.md](SECURITY.md).
 
 ## Stack technique
@@ -76,11 +76,11 @@ sabre/vobject (vCard) · MariaDB 10.11 / SQLite · Apache ou Nginx.
 
 ## Licence
 
-**GNU AGPL-3.0** (`AGPL-3.0-only`) — voir [LICENSE](LICENSE).
+**GNU AGPL-3.0** (`AGPL-3.0-only`) - voir [LICENSE](LICENSE).
 Copyright (C) 2025-2026 MXWebMail.
 
 Les bibliothèques vendorées conservent leurs licences d'origine
 (MailSo : MIT, Sabre : BSD-3-Clause, TinyMCE : GPL-2.0+).
 
-Contribuer : voir [CONTRIBUTING.md](CONTRIBUTING.md) — toute participation est soumise
+Contribuer : voir [CONTRIBUTING.md](CONTRIBUTING.md) - toute participation est soumise
 au [code de conduite](CODE_OF_CONDUCT.md).

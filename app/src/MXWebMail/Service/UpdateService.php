@@ -7,14 +7,14 @@ use MXWebMail\Application\App;
 use MXWebMail\Repository\Database;
 
 /**
- * Mises à jour depuis GitHub Releases (onglet admin « À propos »).
+ * Mises à jour depuis GitHub Releases (onglet admin "À propos").
  *
  * HTTP/release/config : délégués à GitHubClient (partagé avec
- * PluginPackageService — même dépôt verrouillé, même cache release).
+ * PluginPackageService - même dépôt verrouillé, même cache release).
  *
  * États persistés dans app/storage/update/state.json :
- *   downloaded → extracted → applied → rolled_back ; reset() pour abandonner.
- * La copie est en mode « merge » : les fichiers absents de la release ne sont
+ *   downloaded > extracted > applied > rolled_back ; reset() pour abandonner.
+ * La copie est en mode "merge" : les fichiers absents de la release ne sont
  * pas supprimés ; chaque fichier écrasé est sauvegardé dans
  * app/storage/update/backup-<Ymd-His>/ (rollback via rollback() ou manuel).
  * Le backup contient aussi manifest.json (fichiers + état DB) et, sous SQLite,
@@ -26,8 +26,8 @@ use MXWebMail\Repository\Database;
  * source minimale) sont les constantes APP_REQ_* du App.php du paquet.
  *
  * Pendant apply() le flag storage/update/applying bloque l'API non-admin
- * (503 — voir App::handleRequest). Après apply, migrations_pending=true
- * attend finalize() (requête admin → nouveau code → migrations réelles ;
+ * (503 - voir App::handleRequest). Après apply, migrations_pending=true
+ * attend finalize() (requête admin > nouveau code > migrations réelles ;
  * sinon la migration paresseuse d'App::db() reste le filet de sécurité).
  */
 final class UpdateService
@@ -45,7 +45,7 @@ final class UpdateService
 		$this->gh = new GitHubClient($app);
 	}
 
-	/** État local sans appel réseau — utilisable dans bootstrap(). */
+	/** État local sans appel réseau - utilisable dans bootstrap(). */
 	public function status(): array
 	{
 		$state = $this->readState();
@@ -125,7 +125,7 @@ final class UpdateService
 
 	/**
 	 * Dernière release disponible + comparaison avec APP_VERSION.
-	 * Réponse publique — l'URL de l'asset n'y figure pas (recalculée serveur).
+	 * Réponse publique - l'URL de l'asset n'y figure pas (recalculée serveur).
 	 */
 	public function check(bool $force = false): array
 	{
@@ -202,7 +202,7 @@ final class UpdateService
 			throw new \RuntimeException('Téléchargement vide', 502);
 		}
 
-		// Somme sha256 publiée à côté de l'asset — non bloquante si absente
+		// Somme sha256 publiée à côté de l'asset - non bloquante si absente
 		$verified = false;
 		$sum = $this->gh->assetSha256($rel, (string) $asset['name']);
 		if ($sum !== null) {
@@ -261,7 +261,7 @@ final class UpdateService
 		}
 
 		// Manifeste d'intégrité par fichier (files.sha256, généré au packaging).
-		// Absent sur les anciennes releases → non bloquant ; présent → strict.
+		// Absent sur les anciennes releases > non bloquant ; présent > strict.
 		$integrity = null;
 		if (is_file("$root/files.sha256")) {
 			$integrity = $this->verifyManifest($root);
@@ -348,10 +348,10 @@ final class UpdateService
 
 	/**
 	 * Prérequis du paquet : constantes APP_REQ_PHP / APP_REQ_FROM du App.php
-	 * embarqué, lues par regex (jamais exécuté) — optionnelles :
-	 *   define('APP_REQ_PHP', '>=8.4')     — contraintes version_compare
+	 * embarqué, lues par regex (jamais exécuté) - optionnelles :
+	 *   define('APP_REQ_PHP', '>=8.4')     - contraintes version_compare
 	 *                                        séparées par virgule/espace
-	 *   define('APP_REQ_FROM', '>=0.40.0') — version source minimale
+	 *   define('APP_REQ_FROM', '>=0.40.0') - version source minimale
 	 *                                        autorisée à appliquer ce paquet
 	 */
 	private function checkRequirements(string $root, string $target): void
@@ -367,7 +367,7 @@ final class UpdateService
 				continue;
 			}
 			if (!preg_match('/^(>=|<=|>|<|!=|==|=)?\s*([0-9][0-9a-zA-Z.\-]*)$/', $c, $cm)) {
-				throw new \RuntimeException("APP_REQ_PHP : contrainte invalide « $c »", 502);
+				throw new \RuntimeException("APP_REQ_PHP : contrainte invalide \"$c\"", 502);
 			}
 			$op = ($cm[1] === '' || $cm[1] === '=') ? '==' : $cm[1];
 			if (!version_compare(PHP_VERSION, $cm[2], $op)) {
@@ -385,7 +385,7 @@ final class UpdateService
 
 	/**
 	 * Fichiers installés dont le contenu diffère du manifeste de la version
-	 * courante (files.sha256 à la racine d'installation — baseline posée par
+	 * courante (files.sha256 à la racine d'installation - baseline posée par
 	 * l'update précédent). Liste bornée, affichée comme warning avant apply.
 	 */
 	private function locallyModified(): array
@@ -433,8 +433,8 @@ final class UpdateService
 			ignore_user_abort(true);
 			$version = (string) $state['version'];
 			$backup = $this->dir . '/backup-' . date('Ymd-His');
-			// Sauvegarde DB AVANT l'écrasement des fichiers : SQLite → copie
-			// checkpointée ; MariaDB → manifeste seul (dump externe requis).
+			// Sauvegarde DB AVANT l'écrasement des fichiers : SQLite > copie
+			// checkpointée ; MariaDB > manifeste seul (dump externe requis).
 			$dbInfo = $this->backupDatabase("$backup/db");
 			$files = $this->packageFiles($root);
 			$overwritten = [];
@@ -464,7 +464,7 @@ final class UpdateService
 				}
 			} catch (\Throwable $e) {
 				// Rollback automatique : restaurer les écrasés depuis le backup,
-				// supprimer les créés — jamais d'installation à moitié appliquée.
+				// supprimer les créés - jamais d'installation à moitié appliquée.
 				$failed = [];
 				foreach ($overwritten as $rel) {
 					if (!@copy("$backup/$rel", $this->targetPath($rel))) {
@@ -475,10 +475,10 @@ final class UpdateService
 					@unlink($this->targetPath($rel));
 				}
 				$this->app->log('error', 'update rollback : ' . $e->getMessage()
-					. ($failed ? ' — restaurations échouées : ' . implode(', ', $failed) : ''));
+					. ($failed ? ' - restaurations échouées : ' . implode(', ', $failed) : ''));
 				if ($failed) {
 					throw new \RuntimeException(
-						$e->getMessage() . ' — rollback incomplet : ' . implode(', ', $failed), 500);
+						$e->getMessage() . ' - rollback incomplet : ' . implode(', ', $failed), 500);
 				}
 				throw $e;
 			}
@@ -499,7 +499,7 @@ final class UpdateService
 			if (function_exists('opcache_reset')) {
 				@opcache_reset();
 			}
-			// update.json racine : reliquat des paquets ≤ 0.43.x — les
+			// update.json racine : reliquat des paquets ≤ 0.43.x - les
 			// prérequis sont désormais les constantes APP_REQ_* de App.php.
 			@unlink($this->app->installDir() . '/update.json');
 			$this->rmrf($this->dir . '/extract-' . $this->safeName($version));
@@ -527,8 +527,8 @@ final class UpdateService
 	/**
 	 * Migrations du code fraîchement installé : base globale + bases contacts
 	 * par utilisateur. Appelé par /api/admin/update/finalize juste après apply
-	 * — requête nouvelle → nouveau code chargé → les migrations de la version
-	 * cible s'exécutent réellement. Le fallback paresseux (App::db → migrate)
+	 * - requête nouvelle > nouveau code chargé > les migrations de la version
+	 * cible s'exécutent réellement. Le fallback paresseux (App::db > migrate)
 	 * couvre le cas où finalize n'est jamais appelé.
 	 */
 	public function finalize(): array
@@ -539,7 +539,7 @@ final class UpdateService
 		}
 		$this->runMigrations();
 		// Reliquat des installs ≤ 0.44 : l'assistant /setup est intégré au
-		// cœur — le fichier standalone ne doit pas rester dans le webroot.
+		// cœur - le fichier standalone ne doit pas rester dans le webroot.
 		try {
 			$setupDir = $this->app->installDir() . '/public/setup';
 			if (is_dir($setupDir)) {
@@ -548,7 +548,7 @@ final class UpdateService
 			}
 		} catch (\Throwable $e) {
 			$this->app->log('error',
-				'update : suppression de public/setup échouée — ' . $e->getMessage());
+				'update : suppression de public/setup échouée - ' . $e->getMessage());
 		}
 		$state['migrations_pending'] = false;
 		$this->writeState($state);
@@ -634,9 +634,9 @@ final class UpdateService
 				'step' => 'rolled_back', 'version' => (string) ($manifest['from'] ?? ''),
 				'at' => date('c'), 'from_backup' => basename($backup),
 			]);
-			$this->app->log('info', 'update rollback → v' . ($manifest['from'] ?? '?')
+			$this->app->log('info', 'update rollback > v' . ($manifest['from'] ?? '?')
 				. " : $restored fichiers restaurés"
-				. ($failed ? ' — échecs : ' . implode(', ', $failed) : ''));
+				. ($failed ? ' - échecs : ' . implode(', ', $failed) : ''));
 			return [
 				'rolled_back' => true,
 				'version'     => (string) ($manifest['from'] ?? ''),
@@ -653,7 +653,7 @@ final class UpdateService
 
 	/**
 	 * Migrations post-update : base globale puis chaque base contacts
-	 * (storage/db/users/*.sqlite — SQLite aussi sous MariaDB).
+	 * (storage/db/users/*.sqlite - SQLite aussi sous MariaDB).
 	 */
 	private function runMigrations(): void
 	{
@@ -665,7 +665,7 @@ final class UpdateService
 				// Une base utilisateur en échec n'invalide pas l'update : elle
 				// sera retentée à son prochain accès (migration paresseuse).
 				$this->app->log('error', 'update : migration ' . basename($f)
-					. ' échouée — ' . $e->getMessage());
+					. ' échouée - ' . $e->getMessage());
 			}
 		}
 	}
@@ -675,7 +675,7 @@ final class UpdateService
 	/**
 	 * Sauvegarde pré-update dans $dest. SQLite : wal_checkpoint puis copie des
 	 * fichiers (webmail.sqlite + users/*.sqlite, sidecars -wal/-shm inclus).
-	 * MariaDB : manifeste uniquement — le dump relève de l'admin (mysqldump).
+	 * MariaDB : manifeste uniquement - le dump relève de l'admin (mysqldump).
 	 * Non bloquant : l'échec est consigné dans le manifeste, pas fatal.
 	 */
 	private function backupDatabase(string $dest): array
@@ -714,7 +714,7 @@ final class UpdateService
 				$info['saved'] = $saved > 0;
 				$info['files'] = $saved;
 			} else {
-				// MariaDB : référence pour un rollback ultérieur — liste des
+				// MariaDB : référence pour un rollback ultérieur - liste des
 				// tables + version de schéma. Pas de dump depuis PHP.
 				try {
 					$info['tables'] = $pdo->query('SHOW TABLES')
@@ -724,7 +724,7 @@ final class UpdateService
 			}
 		} catch (\Throwable $e) {
 			$info['error'] = $e->getMessage();
-			$this->app->log('error', 'update : sauvegarde DB échouée — ' . $e->getMessage());
+			$this->app->log('error', 'update : sauvegarde DB échouée - ' . $e->getMessage());
 		}
 		return $info;
 	}
@@ -791,7 +791,7 @@ final class UpdateService
 
 	/**
 	 * Verrou partagé des opérations update : UpdateService (apply/reset) et
-	 * PluginPackageService (install/remove) se mutuellement exclusifs — le code
+	 * PluginPackageService (install/remove) se mutuellement exclusifs - le code
 	 * sous les pieds ne doit jamais être remplacé pendant une opération.
 	 */
 	private function lock()
@@ -813,9 +813,9 @@ final class UpdateService
 	}
 
 	/**
-	 * Chemin cible d'un fichier du paquet : rel « app/… » → dossier privé
+	 * Chemin cible d'un fichier du paquet : rel "app/…" > dossier privé
 	 * (rootDir = MXWM_APP_DIR, possiblement déplacé hors racine web) ;
-	 * tout le reste (public/, .htaccess, README.md…) → racine d'installation.
+	 * tout le reste (public/, .htaccess, README.md…) > racine d'installation.
 	 */
 	private function targetPath(string $rel): string
 	{

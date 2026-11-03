@@ -67,7 +67,7 @@ class Client
 	{
 		if (\preg_match('@^(https?:)?//@', $url)) {
 			// URL absolue (href issu de la réponse du serveur) : on n'en garde
-			// que path+query, ré-ancré sur l'origine configurée — sinon un
+			// que path+query, ré-ancré sur l'origine configurée - sinon un
 			// serveur malveillant enverrait les requêtes authentifiées
 			// (credentials Basic/Digest) vers un hôte arbitraire.
 			$u = \parse_url($url) ?: [];
@@ -101,7 +101,7 @@ class Client
 			throw new \MXWebMailLib\HTTP\Exception("{$method} {$url}", $response->status, $response);
 		}
 		// Corps tronqué par max_response_kb : un PROPFIND/listing incomplet
-		// produirait une sync qui supprime des contacts locaux — échec dur.
+		// produirait une sync qui supprime des contacts locaux - échec dur.
 		if ($response->truncated) {
 			throw new \MXWebMailLib\HTTP\Exception(
 				"{$method} {$url} (response truncated)", $response->status, $response);

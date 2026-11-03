@@ -9,9 +9,9 @@ use MXWebMail\Plugin\PluginBase;
 /**
  * Détection des dossiers systèmes (sent/drafts/junk/trash/archive).
  * La détection par métadonnées SPECIAL-USE et par noms usuels est déjà
- * faite par MailService::specialFolder() — ce plugin ajoute la création
+ * faite par MailService::specialFolder() - ce plugin ajoute la création
  * automatique des dossiers manquants (autocreate_system_folders),
- * une fois par utilisateur (flag user_settings « plugin.mailbox_detect.done »).
+ * une fois par utilisateur (flag user_settings "plugin.mailbox_detect.done").
  * Portage du plugin legacy mailbox-detect.
  */
 final class MailboxDetect extends PluginBase
@@ -65,7 +65,7 @@ final class MailboxDetect extends PluginBase
 			if (!\in_array(strtolower($target), $existing, true)) {
 				$mail->folderCreate($target);
 				$mail->folderSubscribe($target, true);
-				$this->app->log('info', "mailbox-detect: dossier « {$target} » créé ({$role})");
+				$this->app->log('info', "mailbox-detect: dossier \"{$target}\" créé ({$role})");
 				$existing[] = strtolower($target);
 			}
 		}

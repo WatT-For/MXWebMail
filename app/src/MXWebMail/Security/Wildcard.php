@@ -6,7 +6,7 @@ namespace MXWebMail\Security;
 /**
  * Correspondance sur liste de motifs avec wildcard.
  * Format : valeurs séparées par espaces/virgules/point-virgules,
- * « * » = n'importe quelle séquence (ex. *@domain.tld, user*@x.tld).
+ * "*" = n'importe quelle séquence (ex. *@domain.tld, user*@x.tld).
  * Portage de MXWebMail\Plugins\Helper::ValidateWildcardValues (legacy).
  */
 final class Wildcard

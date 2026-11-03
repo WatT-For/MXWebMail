@@ -18,7 +18,7 @@ return [
 	'plugin.carddav-contacts.saved'          => 'Instellingen opgeslagen.',
 	'plugin.carddav-contacts.testing'        => 'Testen…',
 	'plugin.carddav-contacts.syncing'        => 'Synchroniseren…',
-	'plugin.carddav-contacts.test_ok'        => 'Verbinding OK — adresboek «{book}», {n} kaart(en).',
+	'plugin.carddav-contacts.test_ok'        => 'Verbinding OK - adresboek "{book}", {n} kaart(en).',
 	'plugin.carddav-contacts.imported'       => '{n} contact(en) geïmporteerd.',
 	'plugin.carddav-contacts.not_configured' => 'CardDAV niet geconfigureerd',
 	'plugin.carddav-contacts.no_addressbook' => 'Geen CardDAV-adresboek gevonden op deze URL',

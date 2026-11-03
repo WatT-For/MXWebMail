@@ -5,7 +5,7 @@ return [
 	'plugin.announcement.description'         => 'Faixa de anúncio definida pelo administrador (página da app, opcionalmente login)',
 	'plugin.announcement.f.enabled'           => 'Ativado',
 	'plugin.announcement.f.text'              => 'Texto da faixa',
-	'plugin.announcement.f.text.help'         => 'Texto simples mostrado a todos os utilizadores — o HTML não é interpretado',
+	'plugin.announcement.f.text.help'         => 'Texto simples mostrado a todos os utilizadores - o HTML não é interpretado',
 	'plugin.announcement.f.level'             => 'Nível',
 	'plugin.announcement.f.level.info'         => 'Info',
 	'plugin.announcement.f.level.success'      => 'Sucesso',
