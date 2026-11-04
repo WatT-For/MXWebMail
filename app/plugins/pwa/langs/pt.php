@@ -16,4 +16,5 @@ return [
 	'plugin.pwa.f.display.help'          => '"standalone" = janela autônoma (recomendado)',
 	'plugin.pwa.f.icon_url'              => 'URL do ícone',
 	'plugin.pwa.f.icon_url.help'         => 'PNG quadrado ≥512px; vazio = ícones padrão embutidos',
+	'plugin.pwa.label'                  => 'Aplicação web (PWA)',
 ];

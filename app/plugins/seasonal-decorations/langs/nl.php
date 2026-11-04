@@ -3,8 +3,6 @@ declare(strict_types=1);
 
 return [
 	'plugin.seasonal-decorations.description'           => 'Monochrome landschapsdecoratie van kopbalken op datum - Nieuwjaar, Pasen, 1 april, Halloween, Kerstmis',
-	'plugin.seasonal-decorations.f.enabled'             => 'Ingeschakeld',
-	'plugin.seasonal-decorations.f.enabled.help'        => 'Toont niet-interactieve decoratieve deeltjes tijdens de ingeschakelde periodes',
 	'plugin.seasonal-decorations.f.show_on_login'       => 'Tonen zonder sessie',
 	'plugin.seasonal-decorations.f.show_on_login.help'  => 'Decoreert ook de login- en onderhoudspagina',
 
@@ -23,4 +21,5 @@ return [
 	'plugin.seasonal-decorations.f.christmas'           => 'Kerstmis',
 	'plugin.seasonal-decorations.f.christmas_from'      => 'Kerstmis - start (MM-DD)',
 	'plugin.seasonal-decorations.f.christmas_to'        => 'Kerstmis - einde (MM-DD)',
+	'plugin.seasonal-decorations.label'               => 'Seizoensdecoraties',
 ];

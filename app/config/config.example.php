@@ -58,6 +58,7 @@ return [
 	'login_lock_seconds' => 300,    // durée de blocage
 	'admin_ip_allowlist' => '',     // IP/CIDR séparées par virgule pour l'admin ; vide = toutes
 	'session_lifetime'   => 0,      // durée session en heures ; 0 = cookie de session
+	'remember_days'      => 30,     // durée des jetons "Rester connecté" en jours (1-365)
 	'maintenance'        => false,  // page maintenance 503 sur / + /api/* utilisateur en 503
 	                                // (admin + /api/ping restent actifs ; les connectés basculent
 	                                // sur la page maintenance à leur prochaine requête API)
@@ -124,9 +125,14 @@ return [
 		'message_pane_height' => 320,    // hauteur liste des messages en mode vertical (px, 120-1200)
 		'compose_modal_width'  => 0,     // largeur modale composition (px, 0 = défaut Bootstrap)
 		'compose_modal_height' => 0,     // hauteur modale composition (px, 0 = auto)
+		'identity_modal_width'  => 0,    // largeur modale identité (px, 0 = défaut Bootstrap)
+		'identity_modal_height' => 0,    // hauteur modale identité (px, 0 = auto)
 		'empty_trash_on_logout' => false, // vider la corbeille à la déconnexion
 		'empty_junk_on_logout'  => false, // vider le dossier spam à la déconnexion
 		'list_threads'        => false,   // grouper la liste des messages en conversations (IMAP THREAD)
+		'after_delete'        => 'next',  // après suppression/déplacement du mail affiché :
+		                                  // next = lire le suivant, prev = le précédent, close = fermer
+		'keyboard_shortcuts'  => true,    // raccourcis clavier (aide via la touche ?)
 		'theme'             => 'default', // template d'interface (dossier app/templates/<name>)
 	],
 

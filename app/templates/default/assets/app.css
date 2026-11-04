@@ -578,3 +578,16 @@ td.mx-grip { width: 1%; color: var(--bs-secondary-color); }
 	font-weight: 600;
 	white-space: nowrap;
 }
+
+/* Voile "déposer pour joindre" de la modale de composition (P4) */
+#compose-modal .modal-content { position: relative; }
+#compose-modal .modal-content.mx-dropzone { outline: 2px dashed var(--bs-primary); outline-offset: -4px; }
+#compose-modal .compose-drop-hint {
+	position: absolute; inset: 0; z-index: 10; pointer-events: none;
+	display: flex; flex-direction: column; align-items: center; justify-content: center;
+	color: var(--bs-primary); background: rgba(255,255,255,.82);
+}
+[data-bs-theme="dark"] #compose-modal .compose-drop-hint { background: rgba(33,37,41,.85); }
+
+/* Surbrillance du bouton "Nouveau message" pendant un drag de mails */
+.btn.mx-drop { outline: 2px dashed var(--bs-light); outline-offset: -4px; }

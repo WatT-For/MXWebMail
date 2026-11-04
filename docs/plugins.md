@@ -152,6 +152,7 @@ app/plugins/mon-plugin/
 ```json
 {
 	"name": "mon-plugin",
+	"label": "plugin.mon-plugin.label",
 	"class": "MonPlugin",
 	"main": "MonPlugin.php",
 	"version": "0.1.0",
@@ -161,6 +162,10 @@ app/plugins/mon-plugin/
 	"max_app": "0.99.0"
 }
 ```
+
+`label` (optionnel) est le nom d'affichage du plugin dans Admin > Extensions
+(clé i18n `plugin.<name>.label` recommandée, texte littéral accepté ; le nom
+technique `name` reste affiché à côté et sert d'identifiant).
 
 `min_app`/`max_app` (optionnels, semver `x.y.z`) bornent la compatibilité avec
 `APP_VERSION` - l'installation ou la mise à jour est refusée hors plage, et le

@@ -48,6 +48,15 @@ function initTiny(element, accessor, extra = {}) {
 		// en <link> - 'unsafe-inline' seul les bloquait (zone non stylée).
 		content_security_policy:
 			"default-src 'none'; img-src 'self' data: cid: blob:; style-src 'self' 'unsafe-inline'; font-src data:",
+		// Marqueur .mxwm-sig-caret : ruban dessiné en CSS (clip-path), même
+		// silhouette que l'icône bookmark de la toolbar - le glyphe U+2316
+		// contenu est masqué (couverture de police insuffisante, rendu de
+		// secours incorrect).
+		content_style:
+			'.mxwm-sig-caret{display:inline-block;width:11px;height:15px;'
+			+ 'vertical-align:-2px;font-size:0;color:transparent;'
+			+ 'background:#343a40;clip-path:polygon('
+			+ '0 0,100% 0,100% 100%,50% 74%,0 100%)}',
 		plugins: 'autolink link lists image',
 		toolbar: 'undo redo | bold italic underline | forecolor | bullist numlist | link | removeformat',
 		...extra,
@@ -132,7 +141,7 @@ ko.bindingHandlers.signatureEditor = {
 						editor.dom.select('span.mxwm-sig-caret')
 							.forEach(n => editor.dom.remove(n));
 						editor.insertContent(
-							'<span class="mxwm-sig-caret">&#8982;</span>');
+							'<span class="mxwm-sig-caret" contenteditable="false">&#8982;</span>');
 					},
 				});
 			},

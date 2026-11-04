@@ -14,4 +14,5 @@ return [
 	'plugin.attachments-clamav.unavailable'        => 'Антивирус недоступен',
 	'plugin.attachments-clamav.bad_response'       => 'Неожиданный ответ сканера: {msg}',
 	'plugin.attachments-clamav.read_failed'         => 'Не удаётся прочитать файл "{name}"',
+	'plugin.attachments-clamav.label'           => 'Антивирус ClamAV',
 ];

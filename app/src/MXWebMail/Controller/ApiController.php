@@ -76,8 +76,12 @@ final class ApiController extends Api\BaseController
 		// réglages sont lus et les dossiers purgés AVANT auth()->logout().
 		// Jamais bloquant : un échec IMAP n'empêche pas la déconnexion.
 		// Le jeton "se souvenir de moi" courant est révoqué à la déconnexion
-		// (le cookie expire aussi côté client).
-		if (!empty($_SESSION['user_id'])) {
+		// manuelle (le cookie expire aussi côté client), mais pas sur une
+		// déconnexion d'inactivité (idle=true, timer autologout) - la session
+		// se restaure alors silencieusement à la prochaine requête.
+		$idle = $request->input('idle') === true || $request->input('idle') === '1'
+			|| $request->input('idle') === 1;
+		if (!empty($_SESSION['user_id']) && !$idle) {
 			$sel = $this->app->auth()->currentTokenSelector();
 			if ($sel !== null) {
 				$this->app->db()->pdo()->prepare(

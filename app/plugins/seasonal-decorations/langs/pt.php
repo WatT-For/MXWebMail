@@ -3,8 +3,6 @@ declare(strict_types=1);
 
 return [
 	'plugin.seasonal-decorations.description'           => 'Decoração de paisagem monocromática dos cabeçalhos conforme a data - Ano Novo, Páscoa, Dia das Mentiras, Halloween, Natal',
-	'plugin.seasonal-decorations.f.enabled'             => 'Ativado',
-	'plugin.seasonal-decorations.f.enabled.help'        => 'Mostra partículas decorativas não interativas nos períodos ativados',
 	'plugin.seasonal-decorations.f.show_on_login'       => 'Mostrar sem sessão',
 	'plugin.seasonal-decorations.f.show_on_login.help'  => 'Também decora as páginas de login e manutenção',
 
@@ -23,4 +21,5 @@ return [
 	'plugin.seasonal-decorations.f.christmas'           => 'Natal',
 	'plugin.seasonal-decorations.f.christmas_from'      => 'Natal - início (MM-DD)',
 	'plugin.seasonal-decorations.f.christmas_to'        => 'Natal - fim (MM-DD)',
+	'plugin.seasonal-decorations.label'               => 'Decorações sazonais',
 ];

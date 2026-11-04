@@ -7,4 +7,5 @@ return [
 	'plugin.imap-contacts-suggestions.f.folder'    => 'Dossier IMAP',
 	'plugin.imap-contacts-suggestions.f.folder.help' => 'Dossier dans lequel chercher les expéditeurs (ex. INBOX, Sent)',
 	'plugin.imap-contacts-suggestions.f.max_results' => 'Résultats max',
+	'plugin.imap-contacts-suggestions.label'        => 'Suggestions de contacts',
 ];

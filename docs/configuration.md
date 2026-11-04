@@ -50,6 +50,7 @@ Les serveurs IMAP/SMTP/Sieve se configurent **par domaine** dans l'admin (voir
 | `login_lock_seconds` | `300` | Durée du blocage (secondes). |
 | `admin_ip_allowlist` | `''` | IP/CIDR (CSV) autorisées sur l'admin ; vide = toutes. |
 | `session_lifetime` | `0` | Durée de session en heures ; `0` = cookie de session. |
+| `remember_days` | `30` | Durée de vie des jetons "Rester connecté" en jours (1-365). |
 | `maintenance` | `false` | Mode maintenance : `/` sert une page dédiée en 503 (tous publics, session conservée) et `/api/*` utilisateur répond 503 - `/api/admin/*` et `/api/ping` restent actifs. Les utilisateurs connectés basculent sur la page maintenance à leur prochaine requête API ; celle-ci se recharge seule à la fin. |
 | `force_https` | `false` | Redirige HTTP > HTTPS (301). |
 | `hsts` | `false` | Émet `Strict-Transport-Security` quand la requête est HTTPS. |
@@ -103,7 +104,7 @@ celles-ci + celles déclarées par les plugins (hook `settings.allowed`).
 | `view_images` | `ask` | Images externes : `always` / `ask` / `match` (expéditeur connu). |
 | `msg_default_action` | `reply` | Bouton répondre par défaut : `reply` / `reply_all`. |
 | `mark_read_delay` | `5` | Secondes avant de marquer lu un message ouvert (0 = immédiat). |
-| `autologout` | `30` | Minutes d'inactivité avant déconnexion (0 = jamais). |
+| `autologout` | `30` | Minutes d'inactivité avant déconnexion (0 = jamais). Ne révoque pas le jeton "Rester connecté" : la session est restaurée silencieusement à la visite suivante. |
 | `list_refresh` | `5` | Minutes entre réactualisations auto (0 = jamais). |
 | `notify_new_mail` | `false` | Notification navigateur à l'arrivée d'un mail. |
 | `contacts_autosave` | `true` | Auto-enregistrer le destinataire dans les contacts. |
@@ -113,9 +114,13 @@ celles-ci + celles déclarées par les plugins (hook `settings.allowed`).
 | `message_pane_height` | `320` | Hauteur liste des messages en mode vertical (px, 120-1200). |
 | `compose_modal_width` | `0` | Largeur modale composition (px, 0 = défaut Bootstrap). |
 | `compose_modal_height` | `0` | Hauteur modale composition (px, 0 = auto). |
+| `identity_modal_width` | `0` | Largeur modale identité (px, 0 = défaut Bootstrap). |
+| `identity_modal_height` | `0` | Hauteur modale identité (px, 0 = auto). |
 | `empty_trash_on_logout` | `false` | Vider la corbeille à la déconnexion. |
 | `empty_junk_on_logout` | `false` | Vider le dossier spam à la déconnexion. |
 | `list_threads` | `false` | Grouper les messages en conversations (IMAP THREAD). |
+| `after_delete` | `next` | Après suppression/déplacement du mail affiché : `next` / `prev` / `close`. |
+| `keyboard_shortcuts` | `true` | Raccourcis clavier de la vue mail (aide via la touche `?`). |
 | `theme` | `default` | Template d'interface (dossier `app/templates/<name>`). |
 
 ## TLS (connexions sortantes IMAP/SMTP/Sieve)

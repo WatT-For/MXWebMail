@@ -27,4 +27,5 @@ return [
 	'plugin.ics-viewer.status'                      => 'Durum: {v}',
 	'plugin.ics-viewer.title'                       => 'Takvim etkinliği',
 	'plugin.ics-viewer.attachment'                  => 'Takvim eki',
+	'plugin.ics-viewer.label'                  => 'ICS görüntüleyici',
 ];

@@ -14,4 +14,5 @@ return [
 	'plugin.attachments-clamav.unavailable'        => 'Antivirus injoignable',
 	'plugin.attachments-clamav.bad_response'       => 'Réponse inattendue du scanner : {msg}',
 	'plugin.attachments-clamav.read_failed'         => 'Impossible de lire le fichier "{name}"',
+	'plugin.attachments-clamav.label'           => 'Antivirus ClamAV',
 ];

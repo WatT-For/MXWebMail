@@ -15,4 +15,5 @@ return [
 	'plugin.avatars.f.identicon'        => 'Запасной identicon',
 	'plugin.avatars.f.identicon.help'   => 'Локально создаваемое изображение, когда внешний источник не отвечает',
 	'plugin.avatars.f.identicon.initials' => 'Цветные инициалы',
+	'plugin.avatars.label'               => 'Аватары',
 ];

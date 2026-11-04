@@ -1,8 +1,9 @@
 {
 	"name": "link-confirmation",
+	"label": "plugin.link-confirmation.label",
 	"class": "LinkConfirmation",
 	"main": "LinkConfirmation.php",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "plugin.link-confirmation.description",
 	"hooks": ["app.head"]
 }

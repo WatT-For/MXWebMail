@@ -24,4 +24,5 @@ return [
 	'plugin.carddav-contacts.no_addressbook' => 'Bu URL\'de CardDAV adres defteri bulunamadı',
 	'plugin.carddav-contacts.bad_url'        => 'Geçersiz CardDAV URL\'si (HTTPS ve genel bir sunucu gerekli)',
 	'plugin.carddav-contacts.pass_clear'  => 'Parolayı temizle',
+	'plugin.carddav-contacts.label'         => 'CardDAV kişileri',
 ];

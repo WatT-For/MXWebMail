@@ -27,4 +27,5 @@ return [
 	'plugin.ics-viewer.status'                      => 'Statut : {v}',
 	'plugin.ics-viewer.title'                       => 'Événement de calendrier',
 	'plugin.ics-viewer.attachment'                  => 'Pièce jointe calendrier',
+	'plugin.ics-viewer.label'                  => 'Visionneuse ICS',
 ];

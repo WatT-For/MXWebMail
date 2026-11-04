@@ -10,4 +10,5 @@ return [
 	'plugin.wkd-keys.bad_email'                => 'Geçersiz e-posta adresi',
 	'plugin.wkd-keys.import_confirm'           => '{email} için bir PGP anahtarı bulundu. İçe aktarılsın mı?',
 	'plugin.wkd-keys.imported'                 => 'PGP anahtarı içe aktarıldı.',
+	'plugin.wkd-keys.label'                    => 'WKD anahtarları',
 ];

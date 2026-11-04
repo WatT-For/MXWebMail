@@ -46,9 +46,6 @@ final class SeasonalDecorations extends PluginBase
 	 */
 	private function head(string $base): string
 	{
-		if (empty($this->config['enabled'])) {
-			return '';
-		}
 		if (!$this->app->isLoggedIn() && empty($this->config['show_on_login'] ?? true)) {
 			return '';
 		}

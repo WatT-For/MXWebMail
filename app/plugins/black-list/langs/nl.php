@@ -11,4 +11,5 @@ return [
 	'plugin.black-list.f.exceptions.help' => 'E-mails op de blacklist die toegestaan blijven. Bijv.: admin@domain1.com',
 	'plugin.black-list.f.auth_error'     => 'Authenticatiefout',
 	'plugin.black-list.f.auth_error.help' => 'Geeft een algemene inlogfout in plaats van "account niet toegestaan"',
+	'plugin.black-list.label'            => 'Zwarte lijst',
 ];

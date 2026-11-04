@@ -11,4 +11,5 @@ return [
 	'plugin.filelink.error_too_big'    => 'O ficheiro excede {mb} MB',
 	'plugin.filelink.expired'          => 'Este link expirou ou é inválido.',
 	'plugin.filelink.attached'         => '{name} ({size}): {url}',
+	'plugin.filelink.label'          => 'Anexos Filelink',
 ];

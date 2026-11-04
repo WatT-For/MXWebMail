@@ -1,8 +1,9 @@
 {
 	"name": "imap-contacts-suggestions",
+	"label": "plugin.imap-contacts-suggestions.label",
 	"class": "ImapContactsSuggestions",
 	"main": "ImapContactsSuggestions.php",
-	"version": "0.12.0",
+	"version": "0.12.1",
 	"description": "plugin.imap-contacts-suggestions.description",
 	"hooks": ["contacts.provider"]
 }

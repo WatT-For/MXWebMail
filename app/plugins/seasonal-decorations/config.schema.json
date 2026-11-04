@@ -1,5 +1,4 @@
 {
-	"enabled":           { "label": "plugin.seasonal-decorations.f.enabled", "type": "bool", "default": false, "help": "plugin.seasonal-decorations.f.enabled.help" },
 	"show_on_login":     { "label": "plugin.seasonal-decorations.f.show_on_login", "type": "bool", "default": true, "help": "plugin.seasonal-decorations.f.show_on_login.help" },
 	"newyear":           { "label": "plugin.seasonal-decorations.f.newyear", "type": "bool", "default": true },
 	"newyear_from":      { "label": "plugin.seasonal-decorations.f.newyear_from", "type": "string", "default": "12-29" },

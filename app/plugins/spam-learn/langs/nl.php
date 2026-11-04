@@ -15,4 +15,5 @@ return [
 	'plugin.spam-learn.f.folder.help'      => 'Wordt automatisch aangemaakt indien afwezig',
 	'plugin.spam-learn.f.max_bytes'        => 'Max. gevoede grootte (KB)',
 	'plugin.spam-learn.f.max_bytes.help'   => 'Bericht wordt boven deze grootte afgekapt',
+	'plugin.spam-learn.label'           => 'Spam leren',
 ];

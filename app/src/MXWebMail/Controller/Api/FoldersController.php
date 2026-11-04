@@ -189,6 +189,16 @@ final class FoldersController extends BaseController
 		return JsonResponse::ok();
 	}
 
+	/** Dossiers masqués de la colonne latérale (état UI par compte). */
+	public function foldersHiddenSet(Request $request): JsonResponse
+	{
+		$this->requireAuth();
+		$this->requireCsrf();
+		$this->app->mail()->setHiddenFolders(
+			array_map(fn($f) => $this->noCrlf((string) $f, 'folder'), (array) $request->input('folders', [])));
+		return JsonResponse::ok();
+	}
+
 	/** Import dans un dossier (IMAP APPEND) : .eml (1 message) ou .mbox
 	 *  (détection par contenu : 1ʳᵉ ligne "From" - extension non fiable). */
 	public function folderImport(Request $request): JsonResponse

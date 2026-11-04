@@ -27,4 +27,5 @@ return [
 	'plugin.color-tags.defaults.work'       => 'Werk',
 	'plugin.color-tags.defaults.personal'   => 'Persoonlijk',
 	'plugin.color-tags.defaults.follow-up'  => 'Opvolgen',
+	'plugin.color-tags.label'             => 'Gekleurde labels',
 ];

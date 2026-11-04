@@ -27,4 +27,5 @@ return [
 	'plugin.color-tags.defaults.work'       => 'Работа',
 	'plugin.color-tags.defaults.personal'   => 'Личное',
 	'plugin.color-tags.defaults.follow-up'  => 'Отслеживать',
+	'plugin.color-tags.label'             => 'Цветные метки',
 ];

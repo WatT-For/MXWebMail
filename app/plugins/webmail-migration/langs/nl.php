@@ -41,4 +41,5 @@ return [
 	'plugin.webmail-migration.path_missing'        => 'Map niet gevonden',
 	'plugin.webmail-migration.invalid_data_dir'      => 'Geen RainLoop of SnappyMail data-map (storage/, domains/ of AddressBook.sqlite verwacht)',
 	'plugin.webmail-migration.additional_note'     => 'Extra accounts gevonden - wachtwoorden niet importeerbaar, handmatig opnieuw aanmaken',
+	'plugin.webmail-migration.label'              => 'Webmail-migratie',
 ];

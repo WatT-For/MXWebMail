@@ -27,4 +27,5 @@ return [
 	'plugin.link-confirmation.f.warn_mailto.help' => 'Par défaut ces liens s’ouvrent directement dans l’application associée',
 	'plugin.link-confirmation.f.remember'        => 'Proposer "ne plus demander pour ce domaine"',
 	'plugin.link-confirmation.f.remember.help'   => 'Mémorisé dans le navigateur de l’utilisateur (localStorage)',
+	'plugin.link-confirmation.label'                     => 'Confirmation des liens',
 ];

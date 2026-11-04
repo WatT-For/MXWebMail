@@ -41,4 +41,5 @@ return [
 	'plugin.webmail-migration.path_missing'        => 'Dizin bulunamadı',
 	'plugin.webmail-migration.invalid_data_dir'      => 'Bir RainLoop veya SnappyMail data dizini değil (storage/, domains/ veya AddressBook.sqlite bekleniyor)',
 	'plugin.webmail-migration.additional_note'     => 'Ek hesaplar bulundu - parolalar içe aktarılamaz, el ile yeniden ekleyin',
+	'plugin.webmail-migration.label'              => 'Webmail geçişi',
 ];

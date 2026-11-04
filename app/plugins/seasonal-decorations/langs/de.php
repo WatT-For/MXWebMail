@@ -3,8 +3,6 @@ declare(strict_types=1);
 
 return [
 	'plugin.seasonal-decorations.description'           => 'Monochrome Landschafts-Dekoration der Kopfleisten nach Datum - Neujahr, Ostern, 1. April, Halloween, Weihnachten',
-	'plugin.seasonal-decorations.f.enabled'             => 'Aktiviert',
-	'plugin.seasonal-decorations.f.enabled.help'        => 'Zeigt nicht-interaktive Deko-Partikel während der aktivierten Zeiträume',
 	'plugin.seasonal-decorations.f.show_on_login'       => 'Auch ohne Sitzung anzeigen',
 	'plugin.seasonal-decorations.f.show_on_login.help'  => 'Dekoriert auch die Anmelde- und Wartungsseiten',
 
@@ -23,4 +21,5 @@ return [
 	'plugin.seasonal-decorations.f.christmas'           => 'Weihnachten',
 	'plugin.seasonal-decorations.f.christmas_from'      => 'Weihnachten - Beginn (MM-TT)',
 	'plugin.seasonal-decorations.f.christmas_to'        => 'Weihnachten - Ende (MM-TT)',
+	'plugin.seasonal-decorations.label'               => 'Saisonale Dekorationen',
 ];

@@ -11,4 +11,5 @@ return [
 	'plugin.black-list.f.exceptions.help' => 'Kara listede olup izinli kalan e-postalar. Örn.: admin@domain1.com',
 	'plugin.black-list.f.auth_error'     => 'Kimlik doğrulama hatası',
 	'plugin.black-list.f.auth_error.help' => '"Hesaba izin verilmiyor" yerine genel bir kimlik bilgisi hatası döndürür',
+	'plugin.black-list.label'            => 'Kara liste',
 ];

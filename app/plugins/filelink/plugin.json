@@ -1,8 +1,9 @@
 {
 	"name": "filelink",
+	"label": "plugin.filelink.label",
 	"class": "Filelink",
 	"main": "Filelink.php",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"description": "plugin.filelink.description",
 	"hooks": ["app.data", "app.routes"]
 }

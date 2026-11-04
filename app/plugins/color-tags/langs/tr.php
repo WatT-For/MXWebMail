@@ -27,4 +27,5 @@ return [
 	'plugin.color-tags.defaults.work'       => 'İş',
 	'plugin.color-tags.defaults.personal'   => 'Kişisel',
 	'plugin.color-tags.defaults.follow-up'  => 'Takip',
+	'plugin.color-tags.label'             => 'Renkli etiketler',
 ];

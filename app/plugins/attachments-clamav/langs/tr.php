@@ -14,4 +14,5 @@ return [
 	'plugin.attachments-clamav.unavailable'        => 'Virüs tarayıcısına ulaşılamıyor',
 	'plugin.attachments-clamav.bad_response'       => 'Beklenmeyen tarayıcı yanıtı: {msg}',
 	'plugin.attachments-clamav.read_failed'         => '“{name}” dosyası okunamıyor',
+	'plugin.attachments-clamav.label'           => 'ClamAV antivirüsü',
 ];

@@ -3,8 +3,6 @@ declare(strict_types=1);
 
 return [
 	'plugin.seasonal-decorations.description'           => 'Décoration paysage monochrome des bandeaux selon la date - Nouvel An, Pâques, 1er avril, Halloween, Noël',
-	'plugin.seasonal-decorations.f.enabled'             => 'Activé',
-	'plugin.seasonal-decorations.f.enabled.help'        => 'Affiche des particules décoratives non interactives pendant les périodes activées',
 	'plugin.seasonal-decorations.f.show_on_login'       => 'Afficher hors session',
 	'plugin.seasonal-decorations.f.show_on_login.help'  => 'Décore aussi les pages de connexion et de maintenance',
 
@@ -23,4 +21,5 @@ return [
 	'plugin.seasonal-decorations.f.christmas'           => 'Noël',
 	'plugin.seasonal-decorations.f.christmas_from'      => 'Noël - début (MM-JJ)',
 	'plugin.seasonal-decorations.f.christmas_to'        => 'Noël - fin (MM-JJ)',
+	'plugin.seasonal-decorations.label'               => 'Décorations saisonnières',
 ];

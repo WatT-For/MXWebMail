@@ -15,4 +15,5 @@ return [
 	'plugin.avatars.f.identicon'        => 'Yedek identicon',
 	'plugin.avatars.f.identicon.help'   => 'Hiçbir dış kaynak yanıt vermediğinde yerel olarak üretilen görüntü',
 	'plugin.avatars.f.identicon.initials' => 'Renkli baş harfler',
+	'plugin.avatars.label'               => 'Avatarlar',
 ];

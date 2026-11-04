@@ -170,6 +170,7 @@ final class PluginManager
 			$name = $m['name'] ?? basename(dirname($file));
 			$out[] = [
 				'name'         => $name,
+				'label'        => (string) ($m['label'] ?? ''),
 				'description'  => $m['description'] ?? '',
 				'version'      => $m['version'] ?? '',
 				'enabled'      => $this->repo->isEnabled($name),

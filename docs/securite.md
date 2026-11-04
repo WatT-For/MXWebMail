@@ -5,14 +5,17 @@
 ### "Rester connecté" (jetons persistants)
 
 La case "Rester connecté" émet un cookie `mxwm_remember` (`selector:validator`,
-HttpOnly, Secure, SameSite=Lax, 30 jours). La table `auth_tokens` ne stocke que le
+HttpOnly, Secure, SameSite=Lax, durée `remember_days` - 30 jours par défaut). La
+table `auth_tokens` ne stocke que le
 **hash SHA-256** du validator ; celui-ci est **tourné à chaque usage** (un cookie
 volé déjà présenté est détectable et invalidé). La restauration re-déchiffre le mot
 de passe IMAP (`CredentialCrypt`) et re-vérifie les identifiants - un échec supprime
 le jeton. Chaque jeton enregistre l'**IP à l'émission** (`ip`), la **dernière IP**
 connue (`last_ip`, à chaque restauration) et le User-Agent - visibles dans
 Paramètres > Sessions pour repérer une session inconnue. Les jetons y sont listés
-et révocables, et le jeton courant est révoqué à la déconnexion.
+et révocables, et le jeton courant est révoqué à la déconnexion **manuelle**
+(la déconnexion d'inactivité `autologout` le préserve : la session est alors
+restaurée silencieusement à la visite suivante).
 
 ### CSRF
 

@@ -7,4 +7,5 @@ return [
 	'plugin.imap-contacts-suggestions.f.folder'    => 'Cartella IMAP',
 	'plugin.imap-contacts-suggestions.f.folder.help' => 'Cartella in cui cercare i mittenti (es. INBOX, Sent)',
 	'plugin.imap-contacts-suggestions.f.max_results' => 'Risultati massimi',
+	'plugin.imap-contacts-suggestions.label'        => 'Suggerimenti per i contatti',
 ];

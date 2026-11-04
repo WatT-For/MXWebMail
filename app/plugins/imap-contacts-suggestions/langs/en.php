@@ -7,4 +7,5 @@ return [
 	'plugin.imap-contacts-suggestions.f.folder'    => 'IMAP folder',
 	'plugin.imap-contacts-suggestions.f.folder.help' => 'Folder to search senders in (e.g. INBOX, Sent)',
 	'plugin.imap-contacts-suggestions.f.max_results' => 'Max results',
+	'plugin.imap-contacts-suggestions.label'        => 'Contact suggestions',
 ];

@@ -16,4 +16,5 @@ return [
 	'plugin.pwa.f.display.help'          => '"standalone" = eigen venster (aanbevolen)',
 	'plugin.pwa.f.icon_url'              => 'Icoon-URL',
 	'plugin.pwa.f.icon_url.help'         => 'Vierkante PNG ≥512px; leeg = ingebouwde standaardiconen',
+	'plugin.pwa.label'                  => 'Webapp (PWA)',
 ];

@@ -16,4 +16,5 @@ return [
 	'plugin.pwa.f.display.help'          => '"standalone" = finestra autonoma (consigliato)',
 	'plugin.pwa.f.icon_url'              => "URL dell'icona",
 	'plugin.pwa.f.icon_url.help'         => 'PNG quadrato ≥512px; vuoto = icone predefinite incorporate',
+	'plugin.pwa.label'                  => 'App web (PWA)',
 ];

@@ -15,6 +15,7 @@ import { SettingsVM } from './viewmodels/settings.js';
 import { dialog } from './ui/dialog.js';
 import { notify } from './ui/notify.js';
 import { toast } from './ui/toast.js';
+import { initShortcuts } from './shortcuts.js';
 
 /** decodeURIComponent qui ne casse pas le routage sur un hash malformé (%zz). */
 const safeDecode = (s) => { try { return decodeURIComponent(s); } catch { return s; } };
@@ -123,6 +124,10 @@ class AppVM {
 		this.user(data.user);
 		this.accounts(data.accounts || []);
 		// Retour du flow OAuth2 en redirection pleine page (popup bloquée)
+		// Lien mailto: externe (protocole enregistré) > composition pré-remplie.
+		// replaceState retire le param pour qu'un F5 ne ré-ouvre pas le compose.
+		const mailto = new URLSearchParams(location.search).get('mailto');
+		if (mailto) { history.replaceState(null, '', location.pathname + location.hash); }
 		const oauth = new URLSearchParams(location.search).get('oauth');
 		if (oauth) {
 			history.replaceState(null, '', location.pathname + location.hash);
@@ -181,6 +186,16 @@ class AppVM {
 		this.notifyEnabled(!!data.settings?.notify_new_mail);
 		const refresh = parseInt(data.settings?.list_refresh, 10) || 0;
 		await this.compose.init();
+		if (mailto) { this.compose.openMailto(mailto); }
+		// Handler mailto: système - une seule proposition par navigateur
+		// (accepté ou refusé, Chrome ne re-demande pas).
+		try {
+			if (!localStorage.getItem('mxwm_mailto_reg')) {
+				navigator.registerProtocolHandler?.('mailto',
+					window.MXWM.base + '/?mailto=%s');
+				localStorage.setItem('mxwm_mailto_reg', '1');
+			}
+		} catch (e) { /* contexte non sécurisé / navigateur sans support */ }
 		this.loadQuota();
 		window.addEventListener('hashchange', () => this.routeFromHash());
 		if (this.popupIdentityPending) {
@@ -199,6 +214,7 @@ class AppVM {
 		if (this.view() === 'mail' && !this.messageList.messages().length) {
 			this.messageList.load();
 		}
+		initShortcuts(this);
 	}
 
 	routeFromHash() {
@@ -458,7 +474,7 @@ class AppVM {
 		if (minutes <= 0) { return; }
 		const reset = () => {
 			clearTimeout(this._logoutTimer);
-			this._logoutTimer = setTimeout(() => this.logout(), minutes * 60000);
+			this._logoutTimer = setTimeout(() => this.idleLogout(), minutes * 60000);
 		};
 		this._logoutReset = reset;
 		for (const ev of ['click', 'keydown', 'mousemove', 'scroll']) {
@@ -519,6 +535,19 @@ class AppVM {
 	async logout() {
 		await api.post('/logout');
 		location.href = window.MXWM.base + '/';
+	}
+
+	/**
+	 * Déconnexion d'inactivité (timer autologout) : la session est détruite
+	 * mais le jeton "Rester connecté" survit - la page rechargée restaure la
+	 * session silencieusement. Sans jeton : retour à la page de login comme
+	 * avant. Le catch silencieux évite un toast d'erreur intempestif sur un
+	 * timer en tâche de fond (le reload retombe alors sur l'app ou le login).
+	 */
+	async idleLogout() {
+		this.disarmAutologout();
+		await api.post('/logout', { idle: true }).catch(() => {});
+		location.reload();
 	}
 }
 

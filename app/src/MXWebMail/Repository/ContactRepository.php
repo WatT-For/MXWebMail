@@ -31,6 +31,58 @@ final class ContactRepository
 		return $rows;
 	}
 
+	/** Groupes (properties.categories) dont le nom matche $q - pour les
+	 *  suggestions de composition. LIKE préfiltré, % et _ échappés. */
+	public function searchGroups(int $userId, string $q, int $limit = 5): array
+	{
+		$like = '%' . addcslashes($q, '%_\\') . '%';
+		$stmt = $this->udb->for($userId)->pdo()->prepare(
+			"SELECT properties FROM contacts
+			 WHERE user_id = :u AND properties LIKE :q ESCAPE '\\'"
+		);
+		$stmt->execute(['u' => $userId, 'q' => $like]);
+		$groups = [];
+		$names = [];
+		foreach ($stmt->fetchAll() as $r) {
+			$cats = (array) (json_decode((string) ($r['properties'] ?? ''), true)['categories'] ?? []);
+			foreach ($cats as $c) {
+				if (stripos((string) $c, $q) !== false) {
+					$k = mb_strtolower((string) $c);
+					$groups[$k] = ($groups[$k] ?? 0) + 1;
+					$names[$k] = (string) $c;
+				}
+			}
+		}
+		$out = [];
+		foreach (array_slice($groups, 0, $limit, true) as $k => $n) {
+			$out[] = ['group' => $names[$k], 'count' => $n];
+		}
+		return $out;
+	}
+
+	/** Membres d'un groupe : tous les emails des contacts ayant la catégorie
+	 *  $name (exacte, insensible à la casse). */
+	public function expandGroup(int $userId, string $name): array
+	{
+		$stmt = $this->udb->for($userId)->pdo()->prepare(
+			'SELECT c.name, c.properties, ce.email FROM contacts c
+			 JOIN contact_emails ce ON ce.contact_id = c.id
+			 WHERE c.user_id = :u ORDER BY c.name, ce.id'
+		);
+		$stmt->execute(['u' => $userId]);
+		$lower = mb_strtolower($name);
+		$out = [];
+		foreach ($stmt->fetchAll() as $r) {
+			$cats = array_map('mb_strtolower',
+				(array) (json_decode((string) ($r['properties'] ?? ''), true)['categories'] ?? []));
+			if (in_array($lower, $cats, true)) {
+				$out[] = ['name' => (string) $r['name'], 'email' => (string) $r['email']];
+				if (count($out) >= 500) { break; }
+			}
+		}
+		return $out;
+	}
+
 	public function all(int $userId): array
 	{
 		$stmt = $this->udb->for($userId)->pdo()->prepare(

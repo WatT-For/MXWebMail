@@ -49,7 +49,7 @@ final class App
 
 	public function __construct(?string $rootDir = null, ?string $installDir = null)
 	{
-		defined('APP_VERSION') || define('APP_VERSION', '0.50.0'); // X-Mailer MailSo
+		defined('APP_VERSION') || define('APP_VERSION', '0.51.0'); // X-Mailer MailSo
 		// Prérequis du paquet de mise à jour - lus par regex dans le App.php du
 		// paquet extrait (UpdateService::checkRequirements) avant application.
 		defined('APP_REQ_PHP') || define('APP_REQ_PHP', '>=8.4');
@@ -612,10 +612,14 @@ final class App
 			'message_pane_height' => 'int:120:1200',
 			'compose_modal_width' => 'int:0:3000',
 			'compose_modal_height' => 'int:0:3000',
+			'identity_modal_width' => 'int:0:3000',
+			'identity_modal_height' => 'int:0:3000',
 			'theme' => 'key',
 			'empty_trash_on_logout' => 'bool',
 			'empty_junk_on_logout'  => 'bool',
 			'list_threads'          => 'bool',
+			'after_delete'          => 'enum:next,prev,close',
+			'keyboard_shortcuts'    => 'bool',
 		];
 	}
 
@@ -884,6 +888,7 @@ final class App
 		$router->get('/api/folders/notify', [$apiFolders, 'foldersNotifyGet']);
 		$router->post('/api/folders/notify', [$apiFolders, 'foldersNotifySet']);
 		$router->post('/api/folders/collapsed', [$apiFolders, 'foldersCollapsedSet']);
+		$router->post('/api/folders/hidden', [$apiFolders, 'foldersHiddenSet']);
 
 		$router->get('/api/messages', [$apiMessages, 'messages']);
 		$router->get('/api/messages/{uid}', [$apiMessages, 'message']);
@@ -912,6 +917,7 @@ final class App
 		$router->post('/api/compose/upload/{token}/delete', [$apiCompose, 'composeUploadDelete']);
 		$router->post('/api/compose/save-draft', [$apiCompose, 'composeSaveDraft']);
 
+		$router->get('/api/contacts/group', [$apiContacts, 'contactsGroup']);
 		$router->get('/api/contacts', [$apiContacts, 'contacts']);
 		$router->post('/api/contacts', [$apiContacts, 'contactSave']);
 		$router->post('/api/contacts/delete', [$apiContacts, 'contactDelete']);

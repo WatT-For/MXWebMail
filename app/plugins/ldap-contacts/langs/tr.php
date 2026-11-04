@@ -19,4 +19,5 @@ return [
 	'plugin.ldap-contacts.f.name_attr'   => 'Ad özniteliği',
 	'plugin.ldap-contacts.f.mail_attr'   => 'E-posta özniteliği',
 	'plugin.ldap-contacts.f.max_results' => 'En fazla sonuç',
+	'plugin.ldap-contacts.label'           => 'LDAP kişileri',
 ];

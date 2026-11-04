@@ -3,8 +3,6 @@ declare(strict_types=1);
 
 return [
 	'plugin.seasonal-decorations.description'           => 'Монохромный пейзаж-декор заголовков по дате - Новый год, Пасха, 1 апреля, Хэллоуин, Рождество',
-	'plugin.seasonal-decorations.f.enabled'             => 'Включено',
-	'plugin.seasonal-decorations.f.enabled.help'        => 'Показывает неинтерактивные декоративные частицы во включённые периоды',
 	'plugin.seasonal-decorations.f.show_on_login'       => 'Показывать без сессии',
 	'plugin.seasonal-decorations.f.show_on_login.help'  => 'Также украшает страницы входа и обслуживания',
 
@@ -23,4 +21,5 @@ return [
 	'plugin.seasonal-decorations.f.christmas'           => 'Рождество',
 	'plugin.seasonal-decorations.f.christmas_from'      => 'Рождество - начало (ММ-ДД)',
 	'plugin.seasonal-decorations.f.christmas_to'        => 'Рождество - конец (ММ-ДД)',
+	'plugin.seasonal-decorations.label'               => 'Сезонные украшения',
 ];

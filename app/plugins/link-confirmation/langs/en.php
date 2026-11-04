@@ -27,4 +27,5 @@ return [
 	'plugin.link-confirmation.f.warn_mailto.help' => 'By default these links open directly in the associated application',
 	'plugin.link-confirmation.f.remember'        => 'Offer “don’t ask again for this domain”',
 	'plugin.link-confirmation.f.remember.help'   => 'Stored in the user’s browser (localStorage)',
+	'plugin.link-confirmation.label'                     => 'Link confirmation',
 ];

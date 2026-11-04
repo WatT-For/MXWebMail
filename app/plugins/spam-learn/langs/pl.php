@@ -15,4 +15,5 @@ return [
 	'plugin.spam-learn.f.folder.help'      => 'Tworzony automatycznie, gdy brak',
 	'plugin.spam-learn.f.max_bytes'        => 'Maks. rozmiar przekazywany (KB)',
 	'plugin.spam-learn.f.max_bytes.help'   => 'Wiadomość jest obcinana powyżej tego rozmiaru',
+	'plugin.spam-learn.label'           => 'Uczenie spamu',
 ];

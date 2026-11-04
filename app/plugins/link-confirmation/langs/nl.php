@@ -27,4 +27,5 @@ return [
 	'plugin.link-confirmation.f.warn_mailto.help' => 'Standaard openen deze links rechtstreeks in de gekoppelde toepassing',
 	'plugin.link-confirmation.f.remember'        => '"Niet meer vragen voor dit domein" aanbieden',
 	'plugin.link-confirmation.f.remember.help'   => 'Opgeslagen in de browser van de gebruiker (localStorage)',
+	'plugin.link-confirmation.label'                     => 'Linkbevestiging',
 ];

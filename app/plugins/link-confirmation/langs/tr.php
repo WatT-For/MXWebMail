@@ -27,4 +27,5 @@ return [
 	'plugin.link-confirmation.f.warn_mailto.help' => 'Varsayılan olarak bu bağlantılar doğrudan ilişkili uygulamada açılır',
 	'plugin.link-confirmation.f.remember'        => '"Bu alan adı için bir daha sorma" seçeneği sun',
 	'plugin.link-confirmation.f.remember.help'   => 'Kullanıcının tarayıcısında saklanır (localStorage)',
+	'plugin.link-confirmation.label'                     => 'Bağlantı onayı',
 ];

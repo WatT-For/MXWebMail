@@ -20,8 +20,7 @@ final class Announcement extends PluginBase
 	public function register(HookRegistry $hooks): void
 	{
 		$hooks->on('app.head', function (string $nonce, string $base) {
-			if (empty($this->config['enabled'])
-				|| trim((string) ($this->config['text'] ?? '')) === '') {
+			if (trim((string) ($this->config['text'] ?? '')) === '') {
 				return '';
 			}
 			if (!$this->app->isLoggedIn() && empty($this->config['show_on_login'])) {

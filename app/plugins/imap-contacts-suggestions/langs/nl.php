@@ -7,4 +7,5 @@ return [
 	'plugin.imap-contacts-suggestions.f.folder'    => 'IMAP-map',
 	'plugin.imap-contacts-suggestions.f.folder.help' => 'Map om afzenders in te zoeken (bijv. INBOX, Sent)',
 	'plugin.imap-contacts-suggestions.f.max_results' => 'Max. resultaten',
+	'plugin.imap-contacts-suggestions.label'        => 'Contactsuggesties',
 ];

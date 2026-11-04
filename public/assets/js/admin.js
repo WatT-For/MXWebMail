@@ -690,6 +690,15 @@ class AdminVM {
 			user_allowed: ko.observable(!!p.user_allowed),
 			admin_only: !!p.admin_only };
 	}
+	// Nom d'affichage : label du manifeste traduit ; nom technique si la clé
+	// n'est pas résolue (plugin du catalogue non installé - langs absentes)
+	// ou absente. Un littéral sans point est affiché tel quel.
+	pluginLabel(p) {
+		const l = ko.unwrap(p.label) || '';
+		if (l === '') { return p.name; }
+		const r = t(l);
+		return (r !== l || !l.includes('.')) ? r : p.name;
+	}
 	// Entrée catalogue d'un plugin installé (latest/update_available/compatible)
 	catalogFor(name) {
 		return (this.pluginCatalog()?.plugins || []).find(p => p.name === name) || null;
@@ -792,6 +801,7 @@ class AdminVM {
 		if (!r) { this.editingPlugin(null); return; }
 		this.editingPlugin({
 			name: p.name,
+			label: p.label,
 			error: ko.observable(''), // erreur affichée dans la modale (alerte racine masquée par le backdrop)
 			fields: ko.observableArray(
 				Object.entries(r.schema || {}).map(([key, f]) => {

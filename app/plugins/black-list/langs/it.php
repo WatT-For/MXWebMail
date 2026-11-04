@@ -11,4 +11,5 @@ return [
 	'plugin.black-list.f.exceptions.help' => 'Email in blacklist che restano consentite. Es.: admin@domain1.com',
 	'plugin.black-list.f.auth_error'     => 'Errore di autenticazione',
 	'plugin.black-list.f.auth_error.help' => 'Restituisce un errore generico di credenziali invece di "account non consentito"',
+	'plugin.black-list.label'            => 'Lista nera',
 ];

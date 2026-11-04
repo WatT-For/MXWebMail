@@ -15,4 +15,5 @@ return [
 	'plugin.avatars.f.identicon'        => 'Fallback identicon',
 	'plugin.avatars.f.identicon.help'   => 'Locally generated image when no external source responds',
 	'plugin.avatars.f.identicon.initials' => 'Colored initials',
+	'plugin.avatars.label'               => 'Avatars',
 ];

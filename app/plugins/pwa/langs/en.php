@@ -16,4 +16,5 @@ return [
 	'plugin.pwa.f.display.help'          => '"standalone" = standalone window (recommended)',
 	'plugin.pwa.f.icon_url'              => 'Icon URL',
 	'plugin.pwa.f.icon_url.help'         => 'Square PNG ≥512px; empty = bundled default icons',
+	'plugin.pwa.label'                  => 'Web app (PWA)',
 ];

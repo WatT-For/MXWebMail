@@ -10,4 +10,5 @@ return [
 	'plugin.wkd-keys.bad_email'                => 'Недействительный адрес электронной почты',
 	'plugin.wkd-keys.import_confirm'           => 'Для {email} найден ключ PGP. Импортировать?',
 	'plugin.wkd-keys.imported'                 => 'Ключ PGP импортирован.',
+	'plugin.wkd-keys.label'                    => 'Ключи WKD',
 ];

@@ -11,4 +11,5 @@ return [
 	'plugin.white-list.f.exceptions.help' => 'Entre los correos fuera de la lista blanca, solo estos se rechazan (vacío = todos rechazados). Ej.: demo@domain1.com *@domain2.com admin@*',
 	'plugin.white-list.f.auth_error'     => 'Error de autenticación',
 	'plugin.white-list.f.auth_error.help' => 'Devuelve un error de credenciales genérico en lugar de "cuenta no permitida"',
+	'plugin.white-list.label'            => 'Lista blanca',
 ];

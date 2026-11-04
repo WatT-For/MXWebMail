@@ -7,4 +7,5 @@ return [
 	'plugin.imap-contacts-suggestions.f.folder'    => 'Pasta IMAP',
 	'plugin.imap-contacts-suggestions.f.folder.help' => 'Pasta para pesquisar remetentes (ex. INBOX, Sent)',
 	'plugin.imap-contacts-suggestions.f.max_results' => 'Máx. de resultados',
+	'plugin.imap-contacts-suggestions.label'        => 'Sugestões de contactos',
 ];

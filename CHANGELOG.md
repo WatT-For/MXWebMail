@@ -6,6 +6,45 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) -
 semver `0.MINOR.PATCH` en développement.
 Catégories, dans l'ordre : `Sécurité`, `Ajouté`, `Modifié`, `Corrigé`, `Obsolète`, `Supprimé`.
 
+## [0.51.0] - 2026-11-04
+
+### Ajouté
+
+- Raccourcis clavier de la vue mail : navigation (↑/↓/j/k), suppression, réponse, transfert, archivage, spam, suivi, non-lu, déplacement, composition, recherche - aide via la touche `?`, désactivables dans Paramètres (`keyboard_shortcuts`).
+- Sélection multiple dans la liste : Ctrl+clic pour basculer une ligne, Shift+clic pour une plage.
+- Lecture : boutons message précédent/suivant et réglage `after_delete` pour ouvrir le voisin après suppression/déplacement au lieu de fermer le lecteur.
+- Composition : glisser-déposer de fichiers sur la fenêtre, de mails sur le bouton "Nouveau message" (joints en .eml) et collage de fichiers non-images dans le corps.
+- Signature OpenPGP sans chiffrement (option "Signer") + vérification des messages signés en clair à la lecture.
+- "Modifier comme nouveau" dans le menu du message : réédition fidèle (destinataires, sujet, corps, pièces jointes).
+- Gestionnaire `mailto:` : enregistrement du webmail comme client mailto: du navigateur/OS avec composition pré-remplie.
+- Contacts : saisir le nom d'un groupe (catégorie) dans un champ destinataire propose le groupe et l'expanse en membres.
+- Paramètres > Identités : la taille de la modale d'édition est mémorisée après un redimensionnement à la poignée (réglages `identity_modal_width`/`identity_modal_height`) - double-clic sur la poignée = retour à la taille par défaut.
+- Admin > Extensions : les plugins sont listés sous un nom d'affichage traduit (nouveau champ `label` du manifeste, convention `theme.json`) - le nom technique reste affiché à côté et sert toujours d'identifiant (dossier, API, logs).
+- Paramètres > Dossiers : interrupteur "Affichage" par dossier personnel pour le masquer de la colonne latérale (effet immédiat, mémorisé par compte - les dossiers natifs comme INBOX ou Corbeille ne sont pas masquables).
+- Icône "répondu" (flèche) sur les mails de la liste ayant reçu une réponse : le flag IMAP `\Answered` est posé sur le message d'origine à l'envoi d'une réponse, et persisté via `X-Draft-Info` pour les brouillons de réponse envoyés plus tard.
+- Admin > Général : réglage `remember_days` pour la durée de vie des jetons "Rester connecté" (1-365 jours, 30 par défaut).
+
+### Modifié
+
+- Admin > À propos : réorganisation de l'onglet - la vérification et le workflow de mise à jour sont intégrés à la carte d'en-tête en version simplifiée (bouton GitHub retiré, lien présent dans la navbar), "Chemins" prend la place de l'ancienne carte "Mise à jour" et "Utilisation du stockage" rejoint "Extensions PHP" sur la même ligne (grille 2x2 à largeurs égales).
+- La déconnexion automatique d'inactivité (`autologout`) détruit la session sans révoquer le jeton "Rester connecté" - la session est restaurée silencieusement à la visite suivante ; la déconnexion manuelle révoque toujours le jeton.
+
+### Corrigé
+
+- Le voile "déposer pour joindre" de la composition ne se masquait plus après un survol sans dépôt (compteur gonflé par `dragover` - comptage désormais sur `dragenter`).
+- La vérification OpenPGP n'était jamais atteinte : clé privée/passphrase exigés avant même pour un message signé en clair, puis bloc introuvable (restructuration de `decryptPgp`).
+- Après une suppression avec le réglage "ouvrir le précédent", un message non capturé dans la liste pouvait ouvrir le premier message au lieu de fermer le lecteur.
+- La confirmation "Vider" d'un dossier affiche désormais le nom traduit des dossiers natifs (ex. "Corbeille") au lieu du nom IMAP brut (ex. "Trash").
+- Paramètres > Identités : le marqueur "position du curseur" de la signature s'affichait avec un glyphe de police de secours incorrect dans l'éditeur et l'aide - il est désormais dessiné en CSS (ruban signet) et l'aide affiche l'icône du bouton.
+- La touche `!` était inerte dans le dossier des indésirables (cibles déjà marquées sautées) - elle inverse désormais le marquage comme le bouton.
+- Après une action groupée (suppression/déplacement/spam) incluant le mail affiché, l'ouverture automatique du voisin (`after_delete`) pouvait sauter des messages.
+- Le gestionnaire `mailto:` n'était plus jamais reproposé si l'enregistrement navigateur échouait une première fois.
+- Le glisser-déposer d'un mail pour le joindre en `.eml` se fait sur le bouton "Nouveau message" (la fenêtre de composition modale ne pouvait pas recevoir de mail glissé depuis la liste).
+
+### Supprimé
+
+- Plugins `announcement` et `seasonal-decorations` : la case "Activé(e)" de la modale de configuration est supprimée - l'activation se fait uniquement par le switch du tableau Extensions.
+
 ## [0.50.0] - 2026-11-03
 
 ### Ajouté

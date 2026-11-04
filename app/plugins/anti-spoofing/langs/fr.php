@@ -32,4 +32,5 @@ return [
 	'plugin.anti-spoofing.alert.auth_spf_softfail' => 'SPF softfail (expéditeur non autorisé)',
 	'plugin.anti-spoofing.alert.auth_dkim_fail_thirdparty' => 'Signature DKIM tierce invalide ({domain}) - probable relais.',
 	'plugin.anti-spoofing.alert.auth_pass'         => 'Authentification vérifiée : {mechs}',
+	'plugin.anti-spoofing.label'                          => 'Anti-usurpation',
 ];

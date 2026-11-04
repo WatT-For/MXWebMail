@@ -32,4 +32,5 @@ return [
 	'plugin.anti-spoofing.alert.auth_spf_softfail' => 'SPF-softfail (afzender niet geautoriseerd)',
 	'plugin.anti-spoofing.alert.auth_dkim_fail_thirdparty' => 'DKIM-handtekening van derde ongeldig ({domain}) - waarschijnlijk een relay.',
 	'plugin.anti-spoofing.alert.auth_pass'         => 'Authenticatie geverifieerd: {mechs}',
+	'plugin.anti-spoofing.label'                          => 'Anti-spoofing',
 ];

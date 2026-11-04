@@ -15,4 +15,5 @@ return [
 	'plugin.spam-learn.f.folder.help'      => 'Yoksa otomatik oluşturulur',
 	'plugin.spam-learn.f.max_bytes'        => 'Maks. beslenen boyut (KB)',
 	'plugin.spam-learn.f.max_bytes.help'   => 'İleti bu boyutun üzerinde kırpılır',
+	'plugin.spam-learn.label'           => 'Spam öğrenimi',
 ];

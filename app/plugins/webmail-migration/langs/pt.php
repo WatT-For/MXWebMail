@@ -41,4 +41,5 @@ return [
 	'plugin.webmail-migration.path_missing'        => 'Diretório não encontrado',
 	'plugin.webmail-migration.invalid_data_dir'      => 'Não é um diretório data do RainLoop ou SnappyMail (esperado storage/, domains/ ou AddressBook.sqlite)',
 	'plugin.webmail-migration.additional_note'     => 'Contas adicionais encontradas - palavras-passe não importáveis, recriar manualmente',
+	'plugin.webmail-migration.label'              => 'Migração de webmail',
 ];

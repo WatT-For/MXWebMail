@@ -14,4 +14,5 @@ return [
 	'plugin.ldap-login.f.base_dn'      => 'Temel DN',
 	'plugin.ldap-login.f.search_filter' => 'Filtre (%u = giriş girdisi)',
 	'plugin.ldap-login.f.mail_attr'    => 'IMAP e-postasını içeren öznitelik',
+	'plugin.ldap-login.label'          => 'LDAP girişi',
 ];

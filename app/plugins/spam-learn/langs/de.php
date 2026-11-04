@@ -15,4 +15,5 @@ return [
 	'plugin.spam-learn.f.folder.help'      => 'Wird bei Bedarf automatisch erstellt',
 	'plugin.spam-learn.f.max_bytes'        => 'Max. übertragene Größe (KB)',
 	'plugin.spam-learn.f.max_bytes.help'   => 'Nachricht wird über dieser Größe abgeschnitten',
+	'plugin.spam-learn.label'           => 'Spam-Lernen',
 ];

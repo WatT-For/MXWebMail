@@ -32,4 +32,5 @@ return [
 	'plugin.anti-spoofing.alert.auth_spf_softfail' => 'SPF softfail (отправитель не авторизован)',
 	'plugin.anti-spoofing.alert.auth_dkim_fail_thirdparty' => 'Сторонняя подпись DKIM недействительна ({domain}) - вероятно, ретранслятор.',
 	'plugin.anti-spoofing.alert.auth_pass'         => 'Аутентификация проверена: {mechs}',
+	'plugin.anti-spoofing.label'                          => 'Антиспуфинг',
 ];

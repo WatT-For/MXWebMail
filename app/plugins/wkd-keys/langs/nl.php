@@ -10,4 +10,5 @@ return [
 	'plugin.wkd-keys.bad_email'                => 'Ongeldig e-mailadres',
 	'plugin.wkd-keys.import_confirm'           => 'Er is een PGP-sleutel gevonden voor {email}. Importeren?',
 	'plugin.wkd-keys.imported'                 => 'PGP-sleutel geïmporteerd.',
+	'plugin.wkd-keys.label'                    => 'WKD-sleutels',
 ];

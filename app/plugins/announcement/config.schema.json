@@ -1,5 +1,4 @@
 {
-	"enabled":        { "label": "plugin.announcement.f.enabled", "type": "bool", "default": false },
 	"text":           { "label": "plugin.announcement.f.text", "type": "text", "default": "", "help": "plugin.announcement.f.text.help" },
 	"level":          { "label": "plugin.announcement.f.level", "type": "enum", "options": { "info": "plugin.announcement.f.level.info", "success": "plugin.announcement.f.level.success", "warning": "plugin.announcement.f.level.warning", "danger": "plugin.announcement.f.level.danger" }, "default": "info" },
 	"show_on_login":  { "label": "plugin.announcement.f.show_on_login", "type": "bool", "default": false, "help": "plugin.announcement.f.show_on_login.help" },

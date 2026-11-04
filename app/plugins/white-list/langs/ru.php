@@ -11,4 +11,5 @@ return [
 	'plugin.white-list.f.exceptions.help' => 'Среди адресов вне белого списка отклоняются только эти (пусто = отклоняются все). Напр.: demo@domain1.com *@domain2.com admin@*',
 	'plugin.white-list.f.auth_error'     => 'Ошибка аутентификации',
 	'plugin.white-list.f.auth_error.help' => 'Возвращает общую ошибку учётных данных вместо "учётная запись не разрешена"',
+	'plugin.white-list.label'            => 'Белый список',
 ];

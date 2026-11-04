@@ -32,4 +32,5 @@ return [
 	'plugin.anti-spoofing.alert.auth_spf_softfail' => 'SPF softfail (nadawca nieautoryzowany)',
 	'plugin.anti-spoofing.alert.auth_dkim_fail_thirdparty' => 'Obcy podpis DKIM nieprawidłowy ({domain}) - prawdopodobnie przekaźnik.',
 	'plugin.anti-spoofing.alert.auth_pass'         => 'Uwierzytelnienie zweryfikowane: {mechs}',
+	'plugin.anti-spoofing.label'                          => 'Antyspoofing',
 ];

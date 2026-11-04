@@ -11,4 +11,5 @@ return [
 	'plugin.filelink.error_too_big'    => 'Dosya {mb} MB sınırını aşıyor',
 	'plugin.filelink.expired'          => 'Bu bağlantının süresi doldu veya geçersiz.',
 	'plugin.filelink.attached'         => '{name} ({size}): {url}',
+	'plugin.filelink.label'          => 'Filelink ekleri',
 ];

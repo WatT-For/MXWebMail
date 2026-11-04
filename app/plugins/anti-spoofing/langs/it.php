@@ -32,4 +32,5 @@ return [
 	'plugin.anti-spoofing.alert.auth_spf_softfail' => 'SPF softfail (mittente non autorizzato)',
 	'plugin.anti-spoofing.alert.auth_dkim_fail_thirdparty' => 'Firma DKIM di terze parti non valida ({domain}) - probabile relay.',
 	'plugin.anti-spoofing.alert.auth_pass'         => 'Autenticazione verificata: {mechs}',
+	'plugin.anti-spoofing.label'                          => 'Anti-spoofing',
 ];

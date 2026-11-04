@@ -1,8 +1,9 @@
 {
 	"name": "attachments-clamav",
+	"label": "plugin.attachments-clamav.label",
 	"class": "AttachmentsClamav",
 	"main": "AttachmentsClamav.php",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"description": "plugin.attachments-clamav.description",
 	"hooks": ["attachment.upload"]
 }

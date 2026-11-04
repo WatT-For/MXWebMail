@@ -15,4 +15,5 @@ return [
 	'plugin.avatars.f.identicon'        => 'Zapasowy identicon',
 	'plugin.avatars.f.identicon.help'   => 'Lokalnie generowany obraz, gdy żadne źródło zewnętrzne nie odpowiada',
 	'plugin.avatars.f.identicon.initials' => 'Kolorowe inicjały',
+	'plugin.avatars.label'               => 'Awatary',
 ];

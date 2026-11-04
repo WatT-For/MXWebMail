@@ -15,4 +15,5 @@ return [
 	'plugin.spam-learn.f.folder.help'      => 'Created automatically if missing',
 	'plugin.spam-learn.f.max_bytes'        => 'Max size fed (KB)',
 	'plugin.spam-learn.f.max_bytes.help'   => 'Message is truncated beyond this size',
+	'plugin.spam-learn.label'           => 'Spam learning',
 ];

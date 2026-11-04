@@ -13,6 +13,7 @@ export class MessageModel {
 		this.size = data.size;
 		this.isSeen = ko.observable(!!data.isSeen);
 		this.isFlagged = ko.observable(!!data.isFlagged);
+		this.isAnswered = ko.observable(!!data.isAnswered);
 		this.isJunk = ko.observable(!!data.isJunk);
 		this.isSelected = ko.observable(false);   // ligne courante (lecture)
 		this.isChecked = ko.observable(false);    // case à cocher (actions groupées)

@@ -27,4 +27,5 @@ return [
 	'plugin.color-tags.defaults.work'       => 'Work',
 	'plugin.color-tags.defaults.personal'   => 'Personal',
 	'plugin.color-tags.defaults.follow-up'  => 'Follow up',
+	'plugin.color-tags.label'             => 'Color tags',
 ];

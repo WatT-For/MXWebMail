@@ -72,6 +72,11 @@ export class MessageListVM {
 		this.searchModal = null; // bootstrap.Modal instanciée paresseusement (openSearch)
 		this._dragList = null;  // MessageModel[] en cours de glisser-déposer
 		this._dragGhost = null; // fantôme compteur affiché pendant le drag
+		this._anchor = null;    // MessageModel pivot des sélections par plage (Shift)
+		// Index de la ligne du message affiché au moment de son retrait -
+		// capturé AVANT le remove, consommé par advanceOrClear (réglage
+		// after_delete : 'next'|'prev'|'close').
+		this._advanceIdx = null;
 
 		// pureComputed inscriptible : lecture = tout coché, écriture = (dé)cocher tout
 		this.allChecked = ko.pureComputed({
@@ -150,6 +155,50 @@ export class MessageListVM {
 		location.hash = '#/' + encodeURIComponent(folder);
 	}
 
+	/** Clic sur la ligne : Ctrl/Meta = bascule la coche sans ouvrir,
+	 *  Shift = plage depuis l'ancre, sinon ouverture (comportement de base). */
+	rowClick(m, e) {
+		if (e.ctrlKey || e.metaKey) {
+			m.isChecked(!m.isChecked());
+			this._anchor = m;
+			return;
+		}
+		if (e.shiftKey) {
+			this.checkRange(m);
+			return;
+		}
+		this._anchor = m;
+		this.select(m);
+	}
+
+	/** Clic sur la case : Shift = plage depuis l'ancre (preventDefault requis
+	 *  pour bloquer le toggle natif), sinon toggle normal + ancre. */
+	checkClick(m, e) {
+		if (e.shiftKey) {
+			e.preventDefault();
+			this.checkRange(m);
+			return;
+		}
+		this._anchor = m;
+		return true;
+	}
+
+	/** Coche tous les messages entre l'ancre et m (bornes incluses).
+	 *  Sans ancre valide dans la liste : toggle unitaire de m. */
+	checkRange(m) {
+		const list = this.messages();
+		const i = list.indexOf(m);
+		const a = this._anchor ? list.indexOf(this._anchor) : -1;
+		if (i < 0 || a < 0) {
+			m.isChecked(!m.isChecked());
+			this._anchor = m;
+			return;
+		}
+		for (let k = Math.min(a, i); k <= Math.max(a, i); k++) {
+			list[k].isChecked(true);
+		}
+	}
+
 	async select(message) {
 		const mv = this.app.messageView;
 		// Mail déjà affiché (ou en cours de chargement) : pas de re-fetch.
@@ -224,11 +273,70 @@ export class MessageListVM {
 		this._gone.delete(this.goneKey(folder, uid));
 	}
 
+	// ─── Navigation précédent/suivant + avance après suppression ───
+
+	/** Index dans messages() du message affiché dans le lecteur (-1 si absent). */
+	indexOfViewed() {
+		const mv = this.app.messageView;
+		if (mv.requestedUid === null) { return -1; }
+		return this.messages().findIndex(
+			m => m.uid === mv.requestedUid && m.folder === mv.requestedFolder);
+	}
+
+	/** Un message existe-t-il à dir lignes du message affiché
+	 *  (dir > 0 = ligne suivante dans le tri courant, dir < 0 = précédente) ? */
+	hasAdjacent(dir, uid, folder) {
+		const i = this.messages().findIndex(m => m.uid === uid && m.folder === folder);
+		const j = i + dir;
+		return i >= 0 && j >= 0 && j < this.messages().length;
+	}
+
+	/** Sélectionne le message dir positions après le courant (lecture
+	 *  précédent/suivant et raccourcis clavier). */
+	async selectAdjacent(dir) {
+		const i = this.indexOfViewed();
+		if (i < 0) { return; }
+		const target = this.messages()[i + dir];
+		if (!target) { return; }
+		await this.select(target);
+		document.querySelector('.message-pane .table-active')
+			?.scrollIntoView({ block: 'nearest' });
+	}
+
+	/** Mémorise l'index de la ligne affichée avant son retrait - à appeler
+	 *  AVANT tout remove touchant le message du lecteur. */
+	captureAdvanceIdx(m) {
+		const mv = this.app.messageView;
+		if (mv.requestedUid === m.uid && mv.requestedFolder === m.folder) {
+			this._advanceIdx = this.messages().indexOf(m);
+		}
+	}
+
+	/** Après disparition du message affiché : sélectionne le voisin selon le
+	 *  réglage after_delete, sinon ferme le lecteur (comportement historique). */
+	async advanceOrClear() {
+		const mv = this.app.messageView;
+		const mode = this.app.userSettings?.after_delete || 'next';
+		const idx = this._advanceIdx;
+		this._advanceIdx = null;
+		const list = this.messages();
+		// Index non capturé ou liste vide : fermeture quel que soit le mode -
+		// jamais de repli sur list[0] (message arbitraire).
+		const target = idx !== null && idx >= 0 && list.length
+			? (mode === 'prev' ? list[Math.max(0, idx - 1)]
+				: mode === 'next' ? list[Math.min(idx, list.length - 1)]
+				: null)
+			: null;
+		if (target) { await this.select(target); }
+		else { mv.clear(); }
+	}
+
 	/** Retrait optimiste d'un message en cours de déplacement : badge non-lu,
 	 *  ligne de la liste, suivi _gone. m = MessageModel ou message() du
 	 *  lecteur (mêmes champs folder/uid/isSeen). */
 	hideMoved(m) {
 		this._gone.add(this.goneKey(m.folder, m.uid));
+		this.captureAdvanceIdx(m);
 		const row = this.messages().find(x => x.uid === m.uid && x.folder === m.folder);
 		if (!(row || m).isSeen()) { this.adjustUnread(-1, m.folder); }
 		if (row) { this.messages.remove(row); }
@@ -418,7 +526,7 @@ export class MessageListVM {
 		if (mv.requestedUid !== null
 			&& !this.messages().some(m => m.uid === mv.requestedUid && m.folder === mv.requestedFolder)) {
 			this.cancelReadTimer(); // même hygiène que selectFolder/clearFolder
-			mv.clear();
+			this.advanceOrClear();
 		}
 	}
 
@@ -426,14 +534,27 @@ export class MessageListVM {
 	 *  + removeAll en UNE notification KO (remove() par item re-rendrait la
 	 *  liste à chaque ligne - effet "disparition une par une"). */
 	optimisticRemove(list) {
+		const cur = this.messages(); // tableau pré-retrait (index d'origine)
 		for (const m of list) {
 			this._gone.add(this.goneKey(m.folder, m.uid));
 			if (!m.isSeen()) { this.adjustUnread(-1, m.folder); }
 		}
 		// Sous-lignes des fils dépliés : retirées avec leur racine, en une
 		// seule notification KO (elles ne sont pas _gone - toujours en IMAP).
-		this.messages.removeAll([...list,
-			...list.flatMap(m => this.threadChildren[m.uid] || [])]);
+		const removed = [...list,
+			...list.flatMap(m => this.threadChildren[m.uid] || [])];
+		// Capture sur `removed` (racines + sous-lignes) : un mail affiché qui
+		// est une sous-ligne de fil part avec sa racine - list seul le manque.
+		for (const m of removed) { this.captureAdvanceIdx(m); }
+		// Position post-retrait du successeur du mail affiché = index capturé
+		// moins les retraits situés au-dessus.
+		if (this._advanceIdx !== null && this._advanceIdx >= 0) {
+			this._advanceIdx -= removed.filter(m => {
+				const i = cur.indexOf(m);
+				return i >= 0 && i < this._advanceIdx;
+			}).length;
+		}
+		this.messages.removeAll(removed);
 		list.forEach(m => delete this.threadChildren[m.uid]);
 	}
 

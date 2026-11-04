@@ -129,6 +129,9 @@ export class FolderListVM {
 					parentName,
 					topGroup,
 					collapsed: ko.observable(!!f.collapsed),
+					// Masqué de la colonne latérale (réglage utilisateur,
+					// Paramètres > Dossiers) - jamais vrai sur un natif.
+					userHidden: ko.observable(!!f.hidden),
 					unread: ko.observable(f.unread || 0),
 					size: ko.observable(f.size ?? null),
 					role: f.role || '',
@@ -143,6 +146,11 @@ export class FolderListVM {
 				};
 				// Computed : la colonne Taille suit les mises à jour in-place.
 				row.sizeLabel = ko.pureComputed(() => fmtSize(row.size()));
+				// Switch "Affichage" des paramètres : checked = dossier visible.
+				row.shown = ko.pureComputed({
+					read: () => !row.userHidden(),
+					write: v => row.userHidden(!v),
+				});
 				return row;
 			})
 			// Dossiers de base d'abord (ordre canonique), puis les autres par chemin
@@ -157,8 +165,9 @@ export class FolderListVM {
 			f.parent = f.parentName ? (byName[f.parentName] || null) : null;
 			f.hasChildren = arr.some(g => g.parentName === f.fullName);
 			f.hidden = ko.pureComputed(() => {
+				if (f.userHidden()) { return true; }
 				for (let p = f.parent; p; p = p.parent) {
-					if (p.collapsed()) { return true; }
+					if (p.collapsed() || p.userHidden()) { return true; }
 				}
 				return false;
 			});
@@ -190,6 +199,7 @@ export class FolderListVM {
 				for (let i = 0; i < cur.length; i++) {
 					cur[i].unread(arr[i].unread());
 					cur[i].size(arr[i].size());
+					cur[i].userHidden(arr[i].userHidden());
 				}
 			} else {
 				this.folders(arr);
@@ -309,7 +319,8 @@ export class FolderListVM {
 	}
 
 	async clearFolder(f) {
-		if (!(await dialog.confirm(t('folders.clear_confirm', { name: f.fullName }),
+		// f.label : nom traduit des rôles natifs (Corbeille…), pas le chemin IMAP.
+		if (!(await dialog.confirm(t('folders.clear_confirm', { name: f.label }),
 			{ variant: 'danger', okLabel: t('common.delete') }))) { return; }
 		await api.post(`/folders/${b64url(f.fullName)}/clear`);
 		// Le message affiché dans le lecteur venait du dossier vidé > fermer.

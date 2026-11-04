@@ -207,6 +207,12 @@ export class SettingsVM {
 		// sans spread, on muterait app.userSettings avant tout save.
 		this.values({ ...this.app.userSettings });
 		this.pluginTabs(this.app.pluginTabs || []);
+		// Taille persistée de la modale identité (px ; 0 = défaut Bootstrap)
+		// - bornes = minW/minH du binding modalResize du template.
+		const iw = parseInt(this.app.userSettings.identity_modal_width, 10) || 0;
+		const ih = parseInt(this.app.userSettings.identity_modal_height, 10) || 0;
+		this.identW(iw >= 480 ? iw : 0);
+		this.identH(ih >= 400 ? ih : 0);
 		// popup_identity : identité par défaut sans nom > édition forcée.
 		// await AVANT le hash : sinon (fetch lent) hashchange > activate('identities')
 		// puis le .then du routeFromHash initial ferait activate('general').
@@ -397,6 +403,17 @@ export class SettingsVM {
 	}
 
 	// ─── Identités ───
+
+	/** Persiste la taille de la modale d'identité dans les réglages
+	 *  utilisateur (miroir de ComposeVM.saveComposeSize). */
+	async saveIdentitySize() {
+		this.app.userSettings.identity_modal_width = this.identW();
+		this.app.userSettings.identity_modal_height = this.identH();
+		await api.post('/settings', {
+			identity_modal_width: this.identW(),
+			identity_modal_height: this.identH(),
+		}).catch(() => {}); // silencieux : préférence cosmétique (cf. savePaneSizes)
+	}
 
 	/** Lazy-load onglet identités. Promesse mémoïsée : appels concurrents
 	 *  dédupliqués, erreur > reset pour retry à la prochaine visite. */
@@ -696,6 +713,25 @@ export class SettingsVM {
 		this.saved(true);
 		// Synchronise le polling sans recharger (INBOX toujours côté serveur)
 		this.app.notifyFolders(['INBOX', ...names]);
+	}
+
+	/**
+	 * Persiste les dossiers masqués (colonne "Affichage") - debounce : le
+	 * POST lit les observables après le dernier clic, indifférent à l'ordre
+	 * d'exécution des bindings checked/event. Échec > toast + resync des
+	 * toggles sur l'état serveur.
+	 */
+	persistFolderVisibility() {
+		clearTimeout(this._visT);
+		this._visT = setTimeout(() => {
+			api.post('/folders/hidden', {
+				folders: this.app.folderList.folders()
+					.filter(f => f.userHidden()).map(f => f.fullName),
+			}).catch(async e => {
+				this.error(e.message);
+				await this.app.folderList.load();
+			});
+		}, 400);
 	}
 
 	// ─── Filtres Sieve ───

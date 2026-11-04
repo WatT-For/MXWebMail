@@ -27,4 +27,5 @@ return [
 	'plugin.ics-viewer.status'                      => 'Estado: {v}',
 	'plugin.ics-viewer.title'                       => 'Evento de calendário',
 	'plugin.ics-viewer.attachment'                  => 'Anexo de calendário',
+	'plugin.ics-viewer.label'                  => 'Visualizador ICS',
 ];

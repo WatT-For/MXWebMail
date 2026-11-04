@@ -170,10 +170,14 @@ final class MailService
 			}
 		}
 		$collapsed = $this->collapsedFolderSet();
+		$hidden = $this->hiddenFolderSet();
 		foreach ($out as &$f) {
 			$f['system'] = strcasecmp((string) $f['fullName'], 'INBOX') === 0
 				|| $f['special'] !== null;
 			$f['collapsed'] = isset($collapsed[(string) $f['fullName']]);
+			// !$f['system'] : un dossier devenu natif (assignation de rôle)
+			// ne peut rester masqué même si une entrée obsolète subsiste.
+			$f['hidden'] = !$f['system'] && isset($hidden[(string) $f['fullName']]);
 		}
 		unset($f);
 		// Lignes mises en cache session (par compte) : cachedFolders() sert la
@@ -592,7 +596,8 @@ final class MailService
 	private function folderPrefs(): array
 	{
 		return $this->folderPrefs ??= $this->app->settings()->getMany(
-			(int) ($_SESSION['user_id'] ?? 0), ['special_folders', 'user_folders', 'collapsed_folders']);
+			(int) ($_SESSION['user_id'] ?? 0),
+			['special_folders', 'user_folders', 'collapsed_folders', 'hidden_folders']);
 	}
 
 	/** Réglage JSON stocké > tableau (accepte tableau natif ou chaîne). */
@@ -637,6 +642,46 @@ final class MailService
 			array_filter($all) === [] ? null : $all);
 		$this->folderPrefs = null;
 		$this->invalidateFolderCache(); // flag 'collapsed' des lignes recalculé
+	}
+
+	/**
+	 * Set des fullName des dossiers masqués de la colonne latérale
+	 * (compte actif) - état UI persisté par compte, même stockage que
+	 * collapsed_folders.
+	 */
+	private function hiddenFolderSet(): array
+	{
+		$all = $this->decodeSetting($this->folderPrefs()['hidden_folders'] ?? null);
+		$names = array_map('strval',
+			(array) ($all[(string) ($_SESSION['account_id'] ?? 0)] ?? []));
+		return array_fill_keys($names, true);
+	}
+
+	/**
+	 * Dossiers masqués du compte actif : intersectés avec les dossiers
+	 * personnels existants (dossiers natifs exclus, purge des disparus) ;
+	 * vide pour le compte = clé supprimée.
+	 */
+	public function setHiddenFolders(array $names): void
+	{
+		$allowed = array_fill_keys(array_map('strval',
+			array_column(array_filter($this->cachedFolders(),
+				fn($f) => empty($f['system'])), 'fullName')), true);
+		$names = array_values(array_filter(array_map('strval', $names),
+			fn($n) => isset($allowed[$n])));
+		$uid = (int) $_SESSION['user_id'];
+		$all = $this->decodeSetting(
+			$this->app->settings()->get($uid, 'hidden_folders', []));
+		$key = (string) ($_SESSION['account_id'] ?? 0);
+		if ($names === []) {
+			unset($all[$key]);
+		} else {
+			$all[$key] = $names;
+		}
+		$this->app->settings()->set($uid, 'hidden_folders',
+			array_filter($all) === [] ? null : $all);
+		$this->folderPrefs = null;
+		$this->invalidateFolderCache(); // flag 'hidden' des lignes recalculé
 	}
 
 	/** Trace des dossiers créés via l'interface (une écriture pour le lot). */
@@ -1293,6 +1338,7 @@ final class MailService
 			'messageId'   => $d['messageId'] ?? '',
 			'inReplyTo'   => $d['inReplyTo'] ?? '',
 			'references'  => $d['references'] ?? '',
+			'draftInfo'   => $d['draftInfo'] ?? null,
 			'pgpEncrypted'=> $d['pgpEncrypted'] ?? null,
 			'pgpSigned'   => $d['pgpSigned'] ?? null,
 			'smimeSigned' => $d['smimeSigned'] ?? null,

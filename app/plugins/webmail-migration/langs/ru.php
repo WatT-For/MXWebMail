@@ -41,4 +41,5 @@ return [
 	'plugin.webmail-migration.path_missing'        => 'Каталог не найден',
 	'plugin.webmail-migration.invalid_data_dir'      => 'Это не каталог data RainLoop или SnappyMail (ожидались storage/, domains/ или AddressBook.sqlite)',
 	'plugin.webmail-migration.additional_note'     => 'Найдены дополнительные учётные записи - пароли не импортируются, создайте их вручную',
+	'plugin.webmail-migration.label'              => 'Миграция вебпочты',
 ];

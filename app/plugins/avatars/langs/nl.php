@@ -15,4 +15,5 @@ return [
 	'plugin.avatars.f.identicon'        => 'Fallback-identicon',
 	'plugin.avatars.f.identicon.help'   => 'Lokaal gegenereerde afbeelding wanneer geen externe bron reageert',
 	'plugin.avatars.f.identicon.initials' => 'Gekleurde initialen',
+	'plugin.avatars.label'               => 'Avatars',
 ];

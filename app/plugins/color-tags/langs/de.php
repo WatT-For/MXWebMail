@@ -27,4 +27,5 @@ return [
 	'plugin.color-tags.defaults.work'       => 'Arbeit',
 	'plugin.color-tags.defaults.personal'   => 'Persönlich',
 	'plugin.color-tags.defaults.follow-up'  => 'Nachverfolgen',
+	'plugin.color-tags.label'             => 'Farbige Schlagwörter',
 ];

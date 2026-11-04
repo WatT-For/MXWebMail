@@ -32,4 +32,5 @@ return [
 	'plugin.anti-spoofing.alert.auth_spf_softfail' => 'SPF softfail (gönderen yetkisiz)',
 	'plugin.anti-spoofing.alert.auth_dkim_fail_thirdparty' => 'Üçüncü taraf DKIM imzası geçersiz ({domain}) - muhtemelen bir aktarıcı.',
 	'plugin.anti-spoofing.alert.auth_pass'         => 'Kimlik doğrulama onaylandı: {mechs}',
+	'plugin.anti-spoofing.label'                          => 'Kimlik sahteciliği koruması',
 ];

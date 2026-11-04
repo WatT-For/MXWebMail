@@ -14,4 +14,5 @@ return [
 	'plugin.ldap-login.f.base_dn'      => 'Bazowy DN',
 	'plugin.ldap-login.f.search_filter' => 'Filtr (%u = wpisany login)',
 	'plugin.ldap-login.f.mail_attr'    => 'Atrybut zawierający e-mail IMAP',
+	'plugin.ldap-login.label'          => 'Logowanie LDAP',
 ];

@@ -25,7 +25,9 @@ final class ContactsController extends BaseController
 		$limit = (int) $this->app->config()->get('contacts_suggestions_limit', 20);
 		$data = $q === ''
 			? $this->app->contacts()->all($userId)
-			: $this->app->contacts()->search($userId, $q, $limit);
+			: array_merge(
+				$this->app->contacts()->searchGroups($userId, $q),
+				$this->app->contacts()->search($userId, $q, $limit));
 
 		// Hook : des plugins peuvent fournir des suggestions externes (ldap, carddav…)
 		foreach ($this->app->hooks()->collect('contacts.provider', $q, $userId) as $extra) {
@@ -34,6 +36,16 @@ final class ContactsController extends BaseController
 			}
 		}
 		return JsonResponse::ok($data);
+	}
+
+	/** Expansion d'un groupe de contacts en adresses membres (composition). */
+	public function contactsGroup(Request $request): JsonResponse
+	{
+		$this->requireReadOnly();
+		$this->requireContacts();
+		$name = $this->noCrlf((string) $request->input('name', ''), 'name');
+		return JsonResponse::ok(
+			$this->app->contacts()->expandGroup((int) $_SESSION['user_id'], $name));
 	}
 
 	public function contactSave(Request $request): JsonResponse

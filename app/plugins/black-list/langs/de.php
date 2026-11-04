@@ -11,4 +11,5 @@ return [
 	'plugin.black-list.f.exceptions.help' => 'Blockierte E-Mails, die erlaubt bleiben. Z. B.: admin@domain1.com',
 	'plugin.black-list.f.auth_error'     => 'Authentifizierungsfehler',
 	'plugin.black-list.f.auth_error.help' => 'Gibt statt „Konto nicht erlaubt" einen generischen Fehler zurück',
+	'plugin.black-list.label'            => 'Schwarze Liste',
 ];

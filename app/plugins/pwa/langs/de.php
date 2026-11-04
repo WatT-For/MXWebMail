@@ -16,4 +16,5 @@ return [
 	'plugin.pwa.f.display.help'          => '„standalone“ = eigenes Fenster (empfohlen)',
 	'plugin.pwa.f.icon_url'              => 'Symbol-URL',
 	'plugin.pwa.f.icon_url.help'         => 'Quadratisches PNG ≥512px; leer = eingebettete Standard-Symbole',
+	'plugin.pwa.label'                  => 'Web-App (PWA)',
 ];

@@ -3,8 +3,6 @@ declare(strict_types=1);
 
 return [
 	'plugin.seasonal-decorations.description'           => 'Tarihe göre tek renkli manzara başlık süslemeleri - Yeni Yıl, Paskalya, 1 Nisan, Cadılar Bayramı, Noel',
-	'plugin.seasonal-decorations.f.enabled'             => 'Etkin',
-	'plugin.seasonal-decorations.f.enabled.help'        => 'Etkin dönemlerde etkileşimsiz süs parçacıkları gösterir',
 	'plugin.seasonal-decorations.f.show_on_login'       => 'Oturumsuz göster',
 	'plugin.seasonal-decorations.f.show_on_login.help'  => 'Giriş ve bakım sayfalarını da süsler',
 
@@ -23,4 +21,5 @@ return [
 	'plugin.seasonal-decorations.f.christmas'           => 'Noel',
 	'plugin.seasonal-decorations.f.christmas_from'      => 'Noel - başlangıç (AA-GG)',
 	'plugin.seasonal-decorations.f.christmas_to'        => 'Noel - bitiş (AA-GG)',
+	'plugin.seasonal-decorations.label'               => 'Sezonluk süslemeler',
 ];

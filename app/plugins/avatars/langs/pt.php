@@ -15,4 +15,5 @@ return [
 	'plugin.avatars.f.identicon'        => 'Identicon de reserva',
 	'plugin.avatars.f.identicon.help'   => 'Imagem gerada localmente quando nenhuma fonte externa responde',
 	'plugin.avatars.f.identicon.initials' => 'Iniciais coloridas',
+	'plugin.avatars.label'               => 'Avatares',
 ];

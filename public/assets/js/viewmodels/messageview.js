@@ -50,6 +50,17 @@ export class MessageViewVM {
 		this.security = ko.observable(null);      // verdict plugin anti-spoofing
 		this.requestedUid = null;                 // uid+dossier passés à show() - évite
 		this.requestedFolder = null;              // un re-fetch au re-clic sur le même mail
+		// Prev/next : dépend de message() (observable) - requestedUid est une
+		// propriété plain, un computed dessus ne se réévaluerait pas à la
+		// sélection d'un autre mail.
+		this.hasPrev = ko.pureComputed(() => {
+			const m = this.message();
+			return !!m && this.app.messageList.hasAdjacent(-1, m.uid, m.folder);
+		});
+		this.hasNext = ko.pureComputed(() => {
+			const m = this.message();
+			return !!m && this.app.messageList.hasAdjacent(1, m.uid, m.folder);
+		});
 		this.securityAlerts = ko.pureComputed(() => this.security()?.alerts || []);
 		this.securityOk = ko.pureComputed(() => this.security()?.auth_ok || ''); // SPF/DKIM/DMARC pass
 		// Couleur du bouclier : niveau max des alertes (info/warning/danger) ;
@@ -201,39 +212,79 @@ export class MessageViewVM {
 		const m = this.message();
 		if (!m || this.decryptedText()) { return false; }
 		const body = (m.bodyPlain || '') + (m.bodyHtml || '');
-		return body.includes('BEGIN PGP MESSAGE');
+		return body.includes('BEGIN PGP MESSAGE')
+			|| body.includes('BEGIN PGP SIGNED MESSAGE');
+	}
+
+	/** Bloc signe en clair (> "Vérifier") vs chiffre (> "Déchiffrer"). */
+	isPgpSigned() {
+		const m = this.message();
+		if (!m) { return false; }
+		return ((m.bodyPlain || '') + (m.bodyHtml || ''))
+			.includes('BEGIN PGP SIGNED MESSAGE');
 	}
 
 	async decryptPgp() {
+		// openpgp chargé à la demande (lazy.js) - ~540K hors du boot.
+		const openpgp = await loadOpenPgp();
+		const body = this.message().bodyPlain || this.message().bodyHtml || '';
+		const signed = body.match(
+			/-----BEGIN PGP SIGNED MESSAGE-----[\s\S]*?-----END PGP SIGNATURE-----/)?.[0];
+		const armored = body.match(
+			/-----BEGIN PGP MESSAGE-----[\s\S]*?-----END PGP MESSAGE-----/)?.[0];
+		if (!signed && !armored) {
+			await dialog.alert(t('pgp.block_not_found'),
+				{ variant: 'danger', title: 'OpenPGP' });
+			return;
+		}
+		if (armored) {
+			try {
+				const keys = await api.get('/pgp/keys');
+				const priv = keys.find(k => Number(k.is_private) === 1);
+				if (!priv) {
+					await dialog.alert(t('pgp.no_private_key'),
+						{ variant: 'warning', title: 'OpenPGP' });
+					return;
+				}
+				const pass = await dialog.prompt(t('pgp.passphrase_prompt'),
+					{ title: t('pgp.decrypt_title'), inputType: 'password' });
+				if (pass === null) { return; }
+				const privateKey = await openpgp.decryptKey({
+					privateKey: await openpgp.readPrivateKey({ armoredKey: priv.key_data }),
+					passphrase: pass,
+				});
+				const { data } = await openpgp.decrypt({
+					message: await openpgp.readMessage({ armoredMessage: armored }),
+					decryptionKeys: privateKey,
+				});
+				this.decryptedText(typeof data === 'string' ? data : new TextDecoder().decode(data));
+				return;
+			} catch {
+				// Échec du déchiffrement : tentative de vérification ci-dessous
+				// (message chiffré+signé sans clé, bloc signe non standard…).
+			}
+		}
 		try {
 			const keys = await api.get('/pgp/keys');
-			const priv = keys.find(k => Number(k.is_private) === 1);
-			// openpgp chargé à la demande (lazy.js) - ~540K hors du boot.
-			const openpgp = await loadOpenPgp();
-			if (!priv) {
-				await dialog.alert(t('pgp.no_private_key'),
-					{ variant: 'warning', title: 'OpenPGP' });
-				return;
-			}
-			const pass = await dialog.prompt(t('pgp.passphrase_prompt'),
-				{ title: t('pgp.decrypt_title'), inputType: 'password' });
-			if (pass === null) { return; }
-			const armored = (this.message().bodyPlain || this.message().bodyHtml || '')
-				.match(/-----BEGIN PGP MESSAGE-----[\s\S]*?-----END PGP MESSAGE-----/)?.[0];
-			if (!armored) {
-				await dialog.alert(t('pgp.block_not_found'),
-					{ variant: 'danger', title: 'OpenPGP' });
-				return;
-			}
-			const privateKey = await openpgp.decryptKey({
-				privateKey: await openpgp.readPrivateKey({ armoredKey: priv.key_data }),
-				passphrase: pass,
-			});
-			const { data } = await openpgp.decrypt({
-				message: await openpgp.readMessage({ armoredMessage: armored }),
-				decryptionKeys: privateKey,
-			});
+			const pubs = await Promise.all(keys.filter(k => !Number(k.is_private))
+				.map(k => openpgp.readKey({ armoredKey: k.key_data }).catch(() => null)));
+			const vKeys = pubs.filter(Boolean);
+			const message = signed
+				? await openpgp.readCleartextMessage({ cleartextMessage: signed })
+				: await openpgp.readMessage({ armoredMessage: armored });
+			const { data, signatures } = await openpgp.verify({
+				message, verificationKeys: vKeys });
 			this.decryptedText(typeof data === 'string' ? data : new TextDecoder().decode(data));
+			let verdict = 'pgp.signed_unknown';
+			try {
+				if (vKeys.length && signatures?.length
+					&& await signatures[0].verified) {
+					verdict = 'pgp.signed_valid';
+				} else if (vKeys.length) {
+					verdict = 'pgp.signed_invalid';
+				}
+			} catch { verdict = 'pgp.signed_invalid'; }
+			await dialog.alert(t(verdict), { variant: 'info', title: 'OpenPGP' });
 		} catch (e) {
 			await dialog.alert(t('pgp.decrypt_failed', { msg: e.message }),
 				{ variant: 'danger', title: 'OpenPGP' });
@@ -921,10 +972,11 @@ export class MessageViewVM {
 		const junkName = this.app.folderList.junkFolder()?.fullName;
 		const expectMove = spam ? (!!junkName && m.folder !== junkName)
 			: (m.folder === junkName);
-		// UI optimiste : retrait immédiat + lecteur fermé, ou flag keyword.
+		// UI optimiste : retrait immédiat + avance/auto (ou lecteur fermé),
+		// ou flag keyword. hideMoved capture déjà _advanceIdx.
 		if (expectMove) {
 			ml.hideMoved(m);
-			this.clear();
+			ml.advanceOrClear();
 		} else {
 			m.isJunk(spam);
 			ml.messages().find(x => x.uid === m.uid && x.folder === m.folder)?.isJunk(spam);
@@ -950,6 +1002,16 @@ export class MessageViewVM {
 			? 'app.mark_not_spam' : 'app.mark_spam';
 	}
 
+	/** Lecture du message voisin dans le tri courant (boutons chevron +
+	 *  raccourcis clavier). */
+	async prevMessage() {
+		await this.app.messageList.selectAdjacent(-1);
+	}
+
+	async nextMessage() {
+		await this.app.messageList.selectAdjacent(1);
+	}
+
 	async deleteMessage() {
 		const m = this.message();
 		if (!m) { return; }
@@ -963,12 +1025,13 @@ export class MessageViewVM {
 		} catch (e) { this.error(e.message); return; }
 		const model = ml.messages().find(x => x.uid === m.uid && x.folder === m.folder);
 		if (model) {
+			ml.captureAdvanceIdx(model);
 			if (!model.isSeen()) { ml.adjustUnread(-1, m.folder); }
 			ml.messages.remove(model);
 		}
-		// Après une suppression : aucun mail sélectionné - lecteur fermé.
+		// Avance sur le voisin selon after_delete, sinon lecteur fermé.
 		ml.cancelReadTimer();
-		this.clear();
+		await ml.advanceOrClear();
 		ml.refresh();
 	}
 
@@ -990,12 +1053,13 @@ export class MessageViewVM {
 		await api.post(`/messages/${m.uid}/move`, { folder: m.folder, to: target });
 		const model = ml.messages().find(x => x.uid === m.uid && x.folder === m.folder);
 		if (model) {
+			ml.captureAdvanceIdx(model);
 			if (!model.isSeen()) { ml.adjustUnread(-1, m.folder); }
 			ml.messages.remove(model);
 		}
-		// Après un déplacement : aucun mail sélectionné - lecteur fermé.
+		// Avance sur le voisin selon after_delete, sinon lecteur fermé.
 		ml.cancelReadTimer();
-		this.clear();
+		await ml.advanceOrClear();
 		ml.refresh();
 	}
 

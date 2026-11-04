@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 return [
 	'plugin.announcement.description'         => 'Баннер объявления, задаваемый администратором (страница приложения, опционально вход)',
-	'plugin.announcement.f.enabled'           => 'Включено',
 	'plugin.announcement.f.text'              => 'Текст баннера',
 	'plugin.announcement.f.text.help'         => 'Обычный текст для всех пользователей - HTML не интерпретируется',
 	'plugin.announcement.f.level'             => 'Уровень',
@@ -14,4 +13,5 @@ return [
 	'plugin.announcement.f.show_on_login'     => 'Показывать на странице входа',
 	'plugin.announcement.f.show_on_login.help'=> 'Полезно для уведомлений об обслуживании',
 	'plugin.announcement.f.dismissible'       => 'Закрываемый (кнопка ×)',
+	'plugin.announcement.label'               => 'Объявление',
 ];

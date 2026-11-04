@@ -3,8 +3,6 @@ declare(strict_types=1);
 
 return [
 	'plugin.seasonal-decorations.description'           => 'Monochrome landscape decoration of headers by date - New Year, Easter, April Fools, Halloween, Christmas',
-	'plugin.seasonal-decorations.f.enabled'             => 'Enabled',
-	'plugin.seasonal-decorations.f.enabled.help'        => 'Shows non-interactive decorative particles during the enabled periods',
 	'plugin.seasonal-decorations.f.show_on_login'       => 'Show when logged out',
 	'plugin.seasonal-decorations.f.show_on_login.help'  => 'Also decorates the login and maintenance pages',
 
@@ -23,4 +21,5 @@ return [
 	'plugin.seasonal-decorations.f.christmas'           => 'Christmas',
 	'plugin.seasonal-decorations.f.christmas_from'      => 'Christmas - start (MM-DD)',
 	'plugin.seasonal-decorations.f.christmas_to'        => 'Christmas - end (MM-DD)',
+	'plugin.seasonal-decorations.label'               => 'Seasonal decorations',
 ];

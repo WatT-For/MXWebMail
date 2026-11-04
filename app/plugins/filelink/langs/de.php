@@ -11,4 +11,5 @@ return [
 	'plugin.filelink.error_too_big'    => 'Datei überschreitet {mb} MB',
 	'plugin.filelink.expired'          => 'Dieser Link ist abgelaufen oder ungültig.',
 	'plugin.filelink.attached'         => '{name} ({size}): {url}',
+	'plugin.filelink.label'          => 'Filelink-Anhänge',
 ];

@@ -255,7 +255,8 @@
 				<!-- ko foreach: plugins -->
 				<tr>
 					<td>
-						<span data-bind="text: name"></span>
+						<span data-bind="text: $root.pluginLabel($data)"></span>
+						<code class="text-muted small ms-1" data-bind="text: name, visible: $root.pluginLabel($data) !== name"></code>
 						<div class="text-muted small" data-bind="text: $root.t(description)"></div>
 					</td>
 					<td>
@@ -299,7 +300,8 @@
 				<!-- ko foreach: catalogAvailable -->
 				<tr>
 					<td>
-						<span data-bind="text: name"></span>
+						<span data-bind="text: $root.pluginLabel($data)"></span>
+						<code class="text-muted small ms-1" data-bind="text: name, visible: $root.pluginLabel($data) !== name"></code>
 						<div class="text-muted small" data-bind="text: $root.t(description)"></div>
 					</td>
 					<td>
@@ -503,121 +505,50 @@
 	<!-- À propos -->
 	<div data-bind="visible: tab()==='about'" style="display:none">
 		<h5><?= $t('admin.about') ?></h5>
-		<!-- ko with: about -->
 		<div class="card mb-3">
-			<div class="card-body d-flex align-items-center gap-3">
-				<i class="fa-solid fa-envelope fa-2x text-primary"></i>
-				<div class="flex-grow-1">
-					<div class="fs-5" data-bind="text: app_name"></div>
-					<div class="text-muted small"><?= $t('admin.about.tagline') ?></div>
-				</div>
-				<!-- ko if: repo_url -->
-				<a class="btn btn-sm btn-outline-secondary" data-bind="attr: { href: repo_url }" target="_blank" rel="noopener"><i class="fa-brands fa-github"></i> GitHub</a>
-				<!-- /ko -->
-				<span class="badge text-bg-primary fs-6">v<span data-bind="text: version"></span></span>
-			</div>
-		</div>
-		<!-- /ko -->
-
-		<div class="row g-3">
-		<div class="col-12 col-xl-7">
-		<!-- ko with: about -->
-		<div class="card h-100"><div class="card-body">
-			<h6 class="card-title mb-3"><i class="fa-solid fa-server me-1"></i><?= $t('admin.about.system') ?></h6>
-			<table class="table table-sm table-borderless mb-0">
-				<tbody>
-					<tr><th class="text-muted fw-normal" style="width:40%">PHP</th>
-						<td><span data-bind="text: php"></span> <span class="text-muted small">(<span data-bind="text: php_sapi"></span>)</span></td></tr>
-					<tr><th class="text-muted fw-normal"><?= $t('admin.about.db_driver') ?></th>
-						<td><code data-bind="text: db_driver || '-'"></code></td></tr>
-					<tr><th class="text-muted fw-normal">memory_limit</th>
-						<td><code data-bind="text: memory_limit"></code></td></tr>
-					<tr><th class="text-muted fw-normal">upload_max_filesize</th>
-						<td><code data-bind="text: upload_max_filesize"></code></td></tr>
-					<tr><th class="text-muted fw-normal">post_max_size</th>
-						<td><code data-bind="text: post_max_size"></code></td></tr>
-					<tr><th class="text-muted fw-normal"><?= $t('admin.about.db_size') ?></th>
-						<td data-bind="text: db_size === null ? $root.t('admin.about.unavailable') : $root.formatSize(db_size)"></td></tr>
-					<tr><th class="text-muted fw-normal"><?= $t('admin.about.config_writable') ?></th>
-						<td><span class="badge" data-bind="css: config_writable ? 'text-bg-success' : 'text-bg-warning',
-							text: $root.t(config_writable ? 'admin.about.writable' : 'admin.about.readonly')"></span></td></tr>
-				</tbody>
-			</table>
-		</div></div>
-		<!-- /ko -->
-		</div>
-		<div class="col-12 col-xl-5">
-
-		<!-- Mise à jour -->
-		<div class="card h-100">
 			<div class="card-body">
-				<h6 class="card-title mb-3"><?= $t('admin.update.title') ?></h6>
-				<!-- ko if: !updateInfo() || !updateInfo().configured -->
-				<p class="text-muted small mb-0"><?= $t('admin.update.not_configured') ?></p>
-				<!-- /ko -->
-				<!-- ko if: updateInfo() && updateInfo().configured -->
-				<!-- ko toast: { value: updateErr, variant: 'danger' } --><!-- /ko -->
-				<div class="d-flex align-items-center gap-2 flex-wrap">
-					<span class="small"><?= $t('admin.update.current') ?> <strong>v<span data-bind="text: updateInfo().current"></span></strong></span>
+				<div class="d-flex align-items-center gap-3 flex-wrap">
+					<!-- ko with: about -->
+					<i class="fa-solid fa-envelope fa-2x text-primary"></i>
+					<div class="flex-grow-1">
+						<div class="fs-5" data-bind="text: app_name"></div>
+						<div class="text-muted small"><?= $t('admin.about.tagline') ?></div>
+					</div>
+					<span class="badge text-bg-primary fs-6">v<span data-bind="text: version"></span></span>
+					<!-- /ko -->
+					<!-- ko if: updateInfo() && updateInfo().configured -->
 					<button class="btn btn-sm btn-outline-primary" type="button"
 						data-bind="click: checkUpdate, disable: !!updateBusy()">
 						<i class="fa-solid fa-rotate" data-bind="css:{'fa-spin': updateBusy()==='check'}"></i>
 						<?= $t('admin.update.check') ?>
 					</button>
-				</div>
-
-				<!-- ko if: updateResult() -->
-				<div class="mt-3">
+					<!-- ko if: updateResult() -->
 					<!-- ko if: updateResult().up_to_date -->
 					<span class="badge text-bg-success"><?= $t('admin.update.up_to_date') ?></span>
 					<!-- /ko -->
 					<!-- ko if: !updateResult().up_to_date -->
-					<div class="alert alert-info py-2 mb-2">
-						<span class="badge text-bg-primary">v<span data-bind="text: updateResult().latest"></span></span>
-						<strong class="ms-1" data-bind="text: updateResult().name || updateResult().tag"></strong>
-						<span class="text-muted small ms-1"
-							data-bind="text: updateResult().published_at ? updateResult().published_at.slice(0,10) : ''"></span>
-						<!-- ko if: updateResult().html_url -->
-						<a data-bind="attr:{href: updateResult().html_url}" target="_blank" rel="noopener" class="ms-1">
-							<i class="fa-solid fa-arrow-up-right-from-square"></i></a>
-						<!-- /ko -->
-					</div>
-					<!-- ko if: updateResult().notes -->
-					<div class="small text-muted mb-1"><?= $t('admin.update.release_notes') ?></div>
-					<pre class="small border rounded p-2 mb-2" style="max-height:180px;overflow:auto;white-space:pre-wrap"
-						data-bind="text: updateResult().notes"></pre>
+					<span class="badge text-bg-primary">v<span data-bind="text: updateResult().latest"></span></span>
+					<strong class="small" data-bind="text: updateResult().name || updateResult().tag"></strong>
+					<!-- ko if: updateResult().html_url -->
+					<a data-bind="attr:{href: updateResult().html_url}" target="_blank" rel="noopener">
+						<i class="fa-solid fa-arrow-up-right-from-square"></i></a>
 					<!-- /ko -->
 					<!-- /ko -->
+					<!-- /ko -->
+					<!-- /ko -->
+					<!-- ko if: updateInfo() && !updateInfo().configured -->
+					<span class="text-muted small"><?= $t('admin.update.not_configured') ?></span>
+					<!-- /ko -->
+					<!-- ko toast: { value: updateErr, variant: 'danger' } --><!-- /ko -->
 				</div>
-				<!-- /ko -->
-
+				<!-- ko if: updateInfo() && updateInfo().configured -->
 				<!-- ko if: updateInfo().db && updateInfo().db.schema_ahead -->
-				<div class="alert alert-danger py-2 mt-3 mb-0 small">
+				<div class="alert alert-danger py-2 mt-2 mb-0 small">
 					<i class="fa-solid fa-triangle-exclamation me-1"></i>
 					<span data-bind="text: $root.t('admin.update.schema_ahead', {v: updateInfo().db.schema_ahead})"></span>
 				</div>
 				<!-- /ko -->
-				<!-- ko if: updateStep()==='downloaded' || updateStep()==='extracted' -->
-				<div class="alert alert-warning py-2 mt-3 mb-0 small">
-					<i class="fa-solid fa-box-open me-1"></i>
-					<span data-bind="text: $root.t('admin.update.pending', {ver: updateInfo().state.version})"></span>
-					<span class="badge ms-1" data-bind="text: updateInfo().state.verified ? $root.t('admin.update.verified') : $root.t('admin.update.unverified'),
-						css: updateInfo().state.verified ? 'text-bg-success' : 'text-bg-secondary'"></span>
-					<!-- ko if: updateInfo().state.modified && updateInfo().state.modified.length -->
-					<div class="mt-1">
-						<i class="fa-solid fa-file-pen me-1"></i>
-						<span data-bind="text: $root.t('admin.update.modified_list', {count: updateInfo().state.modified.length})"></span>
-						<div class="text-muted" data-bind="text: updateInfo().state.modified.slice(0,5).join(', ') + (updateInfo().state.modified.length > 5 ? '…' : '')"></div>
-					</div>
-					<!-- /ko -->
-				</div>
-				<!-- /ko -->
-				<!-- ko if: updateStep()==='applied' -->
-				<div class="alert alert-success py-2 mt-3 mb-0 small">
-					<i class="fa-solid fa-check me-1"></i>
-					<span data-bind="text: $root.t('admin.update.applied_state', {ver: updateInfo().state.version})"></span>
-				</div>
-				<!-- ko if: updateInfo().state.migrations_pending -->
+				<!-- ko if: updateInfo().state && updateInfo().state.migrations_pending -->
 				<div class="alert alert-warning py-2 mt-2 mb-0 small d-flex align-items-center gap-2">
 					<i class="fa-solid fa-database"></i>
 					<span data-bind="text: $root.t('admin.update.migrations_pending')"></span>
@@ -627,15 +558,8 @@
 					</button>
 				</div>
 				<!-- /ko -->
-				<!-- /ko -->
-				<!-- ko if: updateStep()==='rolled_back' -->
-				<div class="alert alert-info py-2 mt-3 mb-0 small">
-					<i class="fa-solid fa-rotate-left me-1"></i>
-					<span data-bind="text: $root.t('admin.update.rolled_back_state', {ver: updateInfo().state.version})"></span>
-				</div>
-				<!-- /ko -->
-
-				<div class="d-flex gap-2 mt-3 flex-wrap">
+				<!-- ko if: (updateResult() && !updateResult().up_to_date && updateResult().has_asset) || updateStep()==='downloaded' || updateStep()==='extracted' || updateInfo().rollback -->
+				<div class="d-flex gap-2 mt-2 flex-wrap">
 					<!-- ko if: (updateResult() && !updateResult().up_to_date && updateResult().has_asset) || updateStep()==='downloaded' -->
 					<button class="btn btn-sm btn-primary" type="button"
 						data-bind="click: downloadUpdate, disable: !!updateBusy()">
@@ -666,25 +590,38 @@
 					<!-- /ko -->
 				</div>
 				<!-- /ko -->
+				<!-- /ko -->
 			</div>
-		</div>
-		</div>
 		</div>
 
 		<!-- ko with: about -->
-		<div class="card mt-3"><div class="card-body">
-			<h6 class="card-title mb-3"><i class="fa-solid fa-puzzle-piece me-1"></i><?= $t('admin.about.extensions') ?>
-				<span class="badge text-bg-warning fw-normal ms-1" style="display:none"
-					data-bind="visible: $root.aboutMissingCount() > 0, text: $root.t('admin.about.ext_missing', {count: $root.aboutMissingCount()})"></span>
-			</h6>
-			<!-- ko foreach: $root.aboutExtensions -->
-			<span class="badge fw-normal me-1 mb-1" data-bind="css: ok ? 'text-bg-success' : 'text-bg-secondary'">
-				<i class="fa-solid fa-fw" data-bind="css: {'fa-check': ok, 'fa-xmark': !ok}"></i>
-				<span data-bind="text: name"></span>
-			</span>
-			<!-- /ko -->
+		<div class="row g-3">
+		<div class="col-12 col-xl-6">
+		<div class="card h-100"><div class="card-body">
+			<h6 class="card-title mb-3"><i class="fa-solid fa-server me-1"></i><?= $t('admin.about.system') ?></h6>
+			<table class="table table-sm table-borderless mb-0">
+				<tbody>
+					<tr><th class="text-muted fw-normal" style="width:40%">PHP</th>
+						<td><span data-bind="text: php"></span> <span class="text-muted small">(<span data-bind="text: php_sapi"></span>)</span></td></tr>
+					<tr><th class="text-muted fw-normal"><?= $t('admin.about.db_driver') ?></th>
+						<td><code data-bind="text: db_driver || '-'"></code></td></tr>
+					<tr><th class="text-muted fw-normal">memory_limit</th>
+						<td><code data-bind="text: memory_limit"></code></td></tr>
+					<tr><th class="text-muted fw-normal">upload_max_filesize</th>
+						<td><code data-bind="text: upload_max_filesize"></code></td></tr>
+					<tr><th class="text-muted fw-normal">post_max_size</th>
+						<td><code data-bind="text: post_max_size"></code></td></tr>
+					<tr><th class="text-muted fw-normal"><?= $t('admin.about.db_size') ?></th>
+						<td data-bind="text: db_size === null ? $root.t('admin.about.unavailable') : $root.formatSize(db_size)"></td></tr>
+					<tr><th class="text-muted fw-normal"><?= $t('admin.about.config_writable') ?></th>
+						<td><span class="badge" data-bind="css: config_writable ? 'text-bg-success' : 'text-bg-warning',
+							text: $root.t(config_writable ? 'admin.about.writable' : 'admin.about.readonly')"></span></td></tr>
+				</tbody>
+			</table>
 		</div></div>
-		<div class="card mt-3"><div class="card-body">
+		</div>
+		<div class="col-12 col-xl-6">
+		<div class="card h-100"><div class="card-body">
 			<h6 class="card-title mb-3"><i class="fa-solid fa-folder-tree me-1"></i><?= $t('admin.about.paths') ?></h6>
 			<div class="row mb-1">
 				<div class="col-md-3 text-muted small"><?= $t('admin.about.root_dir') ?></div>
@@ -699,7 +636,23 @@
 				<div class="col"><code class="small text-break" data-bind="text: paths.storage"></code></div>
 			</div>
 		</div></div>
-		<div class="card mt-3"><div class="card-body">
+		</div>
+		<div class="col-12 col-xl-6">
+		<div class="card h-100"><div class="card-body">
+			<h6 class="card-title mb-3"><i class="fa-solid fa-puzzle-piece me-1"></i><?= $t('admin.about.extensions') ?>
+				<span class="badge text-bg-warning fw-normal ms-1" style="display:none"
+					data-bind="visible: $root.aboutMissingCount() > 0, text: $root.t('admin.about.ext_missing', {count: $root.aboutMissingCount()})"></span>
+			</h6>
+			<!-- ko foreach: $root.aboutExtensions -->
+			<span class="badge fw-normal me-1 mb-1" data-bind="css: ok ? 'text-bg-success' : 'text-bg-secondary'">
+				<i class="fa-solid fa-fw" data-bind="css: {'fa-check': ok, 'fa-xmark': !ok}"></i>
+				<span data-bind="text: name"></span>
+			</span>
+			<!-- /ko -->
+		</div></div>
+		</div>
+		<div class="col-12 col-xl-6">
+		<div class="card h-100"><div class="card-body">
 			<h6 class="card-title mb-3"><i class="fa-solid fa-hard-drive me-1"></i><?= $t('admin.about.storage_usage') ?></h6>
 			<table class="table table-sm table-borderless mb-0">
 				<thead><tr><th class="text-muted fw-normal"><?= $t('admin.about.dir') ?></th>
@@ -710,6 +663,8 @@
 				</tbody>
 			</table>
 		</div></div>
+		</div>
+		</div>
 		<!-- /ko -->
 	</div>
 
@@ -729,7 +684,7 @@
 	<div class="modal-dialog modal-lg modal-dialog-scrollable">
 		<div class="modal-content">
 			<div class="modal-header">
-				<h5 class="modal-title"><?= $t('admin.plugin_config') ?> <span data-bind="text: name"></span></h5>
+				<h5 class="modal-title"><?= $t('admin.plugin_config') ?> <span data-bind="text: $root.pluginLabel($data)"></span> <code class="text-muted small" data-bind="text: name, visible: $root.pluginLabel($data) !== name"></code></h5>
 				<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
 			</div>
 			<div class="modal-body">

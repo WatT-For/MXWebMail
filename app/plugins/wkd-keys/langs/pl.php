@@ -10,4 +10,5 @@ return [
 	'plugin.wkd-keys.bad_email'                => 'Nieprawidłowy adres e-mail',
 	'plugin.wkd-keys.import_confirm'           => 'Znaleziono klucz PGP dla {email}. Zaimportować?',
 	'plugin.wkd-keys.imported'                 => 'Klucz PGP zaimportowany.',
+	'plugin.wkd-keys.label'                    => 'Klucze WKD',
 ];

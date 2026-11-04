@@ -69,6 +69,9 @@
 			<button class="btn btn-sm btn-icon btn-outline-light" data-bind="click: openSettings, tooltip: 'app.settings'">
 				<i class="fa-solid fa-gear"></i>
 			</button>
+			<button class="btn btn-sm btn-icon btn-outline-light" type="button" data-bs-toggle="modal" data-bs-target="#shortcuts-modal">
+				<i class="fa-solid fa-keyboard" data-bind="tooltip: 'app.shortcuts'"></i>
+			</button>
 			<button class="btn btn-sm btn-icon btn-outline-light" data-bind="click: logout, tooltip: 'app.logout'">
 				<i class="fa-solid fa-right-from-bracket"></i>
 			</button>
@@ -81,7 +84,10 @@
 		<aside class="folder-pane" data-bind="with: folderList">
 			<div class="d-flex justify-content-between align-items-center gap-2 p-2 border-bottom">
 				<button class="btn btn-sm btn-primary text-truncate" style="min-width:0"
-					data-bind="click: $root.compose.openNew.bind($root.compose)">
+					data-bind="click: $root.compose.openNew.bind($root.compose),
+						event: { dragover: $root.compose.mailBtnDragOver.bind($root.compose),
+							dragleave: $root.compose.mailBtnDragLeave.bind($root.compose),
+							drop: $root.compose.mailBtnDrop.bind($root.compose) }">
 					<i class="fa-solid fa-pen"></i> <?= $t('app.new_message') ?>
 				</button>
 				<span class="d-flex gap-1">
@@ -221,7 +227,7 @@
 				<table class="table table-hover table-sm align-middle mb-0">
 					<colgroup><col style="width:6px"><col style="width:28px"><col><col style="width:110px"></colgroup>
 					<tbody data-bind="foreach: messages">
-						<tr data-bind="click: $parent.select.bind($parent),
+						<tr data-bind="click: $parent.rowClick,
 							css: { 'table-active': isSelected, 'message-unread': !isSeen() },
 							attr: { draggable: true },
 							event: { dragstart: $parent.messageDragStart, dragend: $parent.messageDragEnd }">
@@ -229,7 +235,7 @@
 								data-bind="style: { backgroundColor: colorTag() || 'transparent' },
 									attr: { title: colorTagLabel }"></td>
 							<td>
-								<input type="checkbox" class="form-check-input" data-bind="checked: isChecked, click: () => true, clickBubble: false">
+								<input type="checkbox" class="form-check-input" data-bind="checked: isChecked, click: $parent.checkClick, clickBubble: false">
 							</td>
 							<td>
 								<div class="text-truncate" data-bind="text: fromLabel(), css: { 'ps-3': isChild }"></div>
@@ -238,6 +244,8 @@
 										data-bind="visible: !isChild && threads && threads.length > 1,
 											click: $parent.toggleThread, clickBubble: false,
 											css: { 'fa-rotate-90': _threadOpen }"></i>
+									<i class="fa-solid fa-reply me-1 text-muted" style="display:none"
+										data-bind="visible: isAnswered, tooltip: 'app.answered'"></i>
 									<span data-bind="text: subject"></span>
 									<span class="badge text-bg-secondary ms-1" style="display:none"
 										data-bind="visible: !isChild && threads && threads.length > 1, text: threads.length"></span>
@@ -327,6 +335,14 @@
 					<div class="d-flex flex-column align-items-end align-self-stretch gap-1">
 						<div class="btn-group btn-group-sm">
 							<button class="btn btn-sm btn-icon btn-outline-secondary"
+								data-bind="click: $parent.prevMessage, disable: !$parent.hasPrev()">
+								<i class="fa-solid fa-chevron-left" data-bind="tooltip: 'app.msg_prev'"></i>
+							</button>
+							<button class="btn btn-sm btn-icon btn-outline-secondary"
+								data-bind="click: $parent.nextMessage, disable: !$parent.hasNext()">
+								<i class="fa-solid fa-chevron-right" data-bind="tooltip: 'app.msg_next'"></i>
+							</button>
+							<button class="btn btn-sm btn-icon btn-outline-secondary"
 								data-bind="click: () => $root.compose.openReply($data,
 									($root.userSettings?.msg_default_action || 'reply') === 'reply_all'),
 									tooltip: 'app.reply'">
@@ -363,6 +379,7 @@
 							</button>
 							<ul class="dropdown-menu dropdown-menu-end">
 								<li><a class="dropdown-item" href="#" data-bind="click: () => $root.compose.openForward($data, true)"><i class="fa-solid fa-paperclip me-2"></i><?= $t('app.forward_attach') ?></a></li>
+								<li><a class="dropdown-item" href="#" data-bind="click: () => $root.compose.openAsNew($data)"><i class="fa-solid fa-pen-to-square me-2"></i><?= $t('app.edit_as_new') ?></a></li>
 								<li><a class="dropdown-item" href="#" data-bind="click: $parent.moveWithPicker"><i class="fa-solid fa-file-export me-2"></i><?= $t('app.move_to') ?></a></li>
 								<li style="display:none"
 									data-bind="visible: $root.folderList.archiveFolder() && folder !== $root.folderList.archiveFolder().fullName"><a class="dropdown-item" href="#"
@@ -450,7 +467,7 @@
 						</span>
 					</div>
 					<button class="btn btn-sm btn-outline-primary mb-2" data-bind="visible: $parent.isPgp(), click: $parent.decryptPgp" style="display:none">
-						<i class="fa-solid fa-key"></i> <?= $t('app.decrypt_pgp') ?>
+						<i class="fa-solid fa-key"></i> <span data-bind="text: $parent.isPgpSigned() ? $root.t('app.verify_pgp') : $root.t('app.decrypt_pgp')"></span>
 					</button>
 					<button class="btn btn-sm btn-outline-secondary mb-2" data-bind="visible: $parent.message() && $parent.message().smimeSigned, click: $parent.verifySmime" style="display:none">
 						<i class="fa-solid fa-certificate"></i> <span data-bind="text: $parent.smimeLabel"></span>
@@ -584,6 +601,27 @@
 									<option value="reply_all"><?= $t('app.reply_all') ?></option>
 								</select>
 							</div>
+						</div>
+					</div>
+					<div class="col-12 col-xxl-6">
+						<div class="row align-items-center mb-2">
+							<label class="col-md-4 col-form-label col-form-label-sm"><?= $t('settings.after_delete') ?></label>
+							<div class="col-md-8">
+								<select class="form-select form-select-sm" data-bind="value: values().after_delete">
+									<option value="next"><?= $t('settings.after_delete.next') ?></option>
+									<option value="prev"><?= $t('settings.after_delete.prev') ?></option>
+									<option value="close"><?= $t('settings.after_delete.close') ?></option>
+								</select>
+							</div>
+						</div>
+					</div>
+					<div class="col-12 col-xxl-6">
+						<div class="row align-items-center mb-2">
+							<label class="col-md-4 col-form-label col-form-label-sm" for="st-keys"><?= $t('settings.keyboard_shortcuts') ?> <i class="fa-regular fa-circle-question help-icon" tabindex="0"
+								data-bind="tooltip: 'settings.keyboard_shortcuts_help'"></i></label>
+							<div class="col-md-8"><div class="form-check">
+								<input class="form-check-input" type="checkbox" id="st-keys" data-bind="checked: values().keyboard_shortcuts">
+							</div></div>
 						</div>
 					</div>
 					<div class="col-12 col-xxl-6">
@@ -754,6 +792,7 @@
 					<p class="text-muted small"><?= $t('settings.folders_notify_help') ?></p>
 					<table class="table table-hover table-sm align-middle settings-folders">
 						<thead class="table-light"><tr>
+							<th class="text-center text-nowrap" style="width:1%"><?= $t('settings.folders_display') ?></th>
 							<th class="text-center text-nowrap" style="width:1%"><?= $t('settings.folders_watch') ?></th>
 							<th><?= $t('settings.folders') ?></th>
 							<th class="text-end text-nowrap" style="width:1%; display:none"
@@ -762,6 +801,14 @@
 						</tr></thead>
 						<tbody data-bind="foreach: notifyChecks">
 							<tr>
+								<td class="text-center">
+									<div class="form-check form-switch m-0 d-inline-block">
+										<input class="form-check-input" type="checkbox" role="switch"
+											data-bind="checked: folder.shown, disable: isSystem,
+												event: { change: $parent.persistFolderVisibility },
+												attr: { id: 'df-' + $index() }">
+									</div>
+								</td>
 								<td class="text-center">
 									<input class="form-check-input" type="checkbox"
 										data-bind="checked: checked, disable: isInbox, attr: { id: 'nf-' + $index() }">
@@ -1118,7 +1165,13 @@
 			data-bind="style: { width: composeW() ? composeW() + 'px' : '',
 				maxWidth: composeW() ? 'calc(100vw - 32px)' : '' }">
 			<div class="modal-content"
-				data-bind="style: { height: composeH() ? composeH() + 'px' : '' }">
+				data-bind="style: { height: composeH() ? composeH() + 'px' : '' },
+					css: { 'mx-dropzone': dropActive },
+					event: { dragenter: onDragEnter, dragover: onDragOver, dragleave: onDragLeave, drop: onDrop, paste: onPaste }">
+				<div class="compose-drop-hint" data-bind="visible: dropActive" style="display:none">
+					<i class="fa-solid fa-paperclip fa-2x mb-2"></i>
+					<span><?= $t('compose.drop_hint') ?></span>
+				</div>
 				<div class="modal-header">
 					<h5 class="modal-title"><?= $t('app.new_message') ?></h5>
 					<div class="ms-auto me-2 d-flex align-items-center gap-2">
@@ -1144,6 +1197,9 @@
 								<li><label class="dropdown-item"><input type="checkbox" class="form-check-input me-2"
 									data-bind="checked: pgpEncrypt"> <i class="fa-solid fa-lock me-1"></i><?= $t('compose.encrypt') ?><i class="fa-regular fa-circle-question help-icon ms-1" tabindex="0"
 									data-bind="tooltip: 'compose.encrypt_help'"></i></label></li>
+								<li><label class="dropdown-item"><input type="checkbox" class="form-check-input me-2"
+									data-bind="checked: pgpSign"> <i class="fa-solid fa-pen-fancy me-1"></i><?= $t('compose.sign') ?><i class="fa-regular fa-circle-question help-icon ms-1" tabindex="0"
+									data-bind="tooltip: 'compose.sign_help'"></i></label></li>
 								<li><hr class="dropdown-divider"></li>
 								<li class="dropdown-submenu">
 									<!-- click noop : neutralise href="#" (sinon le routeur hash réagit) -->
@@ -1191,7 +1247,7 @@
 							<a class="list-group-item list-group-item-action py-1 small" href="#" role="option"
 								data-bind="event:{mousedown:(d,e)=>{e.preventDefault();$parent.applySuggestion('to',$data);}},
 									css:{active:$index()===$parent.suggestIndex()},
-									text:(name?name+' - ':'')+email"></a>
+									text: group ? $root.t('compose.group', {name: group, n: count}) : (name?name+' - ':'')+email"></a>
 						</div>
 					</div>
 					<div class="mb-2 position-relative" style="display:none" data-bind="visible: showCc() || !!cc().length || !!ccText()">
@@ -1216,7 +1272,7 @@
 							<a class="list-group-item list-group-item-action py-1 small" href="#" role="option"
 								data-bind="event:{mousedown:(d,e)=>{e.preventDefault();$parent.applySuggestion('cc',$data);}},
 									css:{active:$index()===$parent.suggestIndex()},
-									text:(name?name+' - ':'')+email"></a>
+									text: group ? $root.t('compose.group', {name: group, n: count}) : (name?name+' - ':'')+email"></a>
 						</div>
 					</div>
 					<div class="mb-2 position-relative" style="display:none" data-bind="visible: showBcc() || !!bcc().length || !!bccText()">
@@ -1241,7 +1297,7 @@
 							<a class="list-group-item list-group-item-action py-1 small" href="#" role="option"
 								data-bind="event:{mousedown:(d,e)=>{e.preventDefault();$parent.applySuggestion('bcc',$data);}},
 									css:{active:$index()===$parent.suggestIndex()},
-									text:(name?name+' - ':'')+email"></a>
+									text: group ? $root.t('compose.group', {name: group, n: count}) : (name?name+' - ':'')+email"></a>
 						</div>
 					</div>
 					<div class="mb-2">
@@ -1593,7 +1649,7 @@
 						<div class="col-md-4"><input class="form-control" placeholder="<?= $t('settings.reply_to_opt') ?>" data-bind="value: reply_to"></div>
 					</div>
 					<label class="form-label small mb-1"><?= $t('settings.signature') ?> <i class="fa-regular fa-circle-question help-icon" tabindex="0"
-						data-bind="tooltip: 'settings.signature_caret_help'"></i></label>
+						data-bind="tooltip: { text: 'settings.signature_caret_help', icon: 'fa-regular fa-bookmark' }"></i></label>
 					<textarea id="signature-editor" data-bind="signatureEditor: signature"></textarea>
 				</div>
 				<div class="modal-footer">
@@ -1602,7 +1658,8 @@
 				</div>
 				<div class="modal-resize-grip" aria-hidden="true"
 					data-bind="modalResize:
-						{ w: $parent.identW, h: $parent.identH, minW: 480, minH: 400 },
+						{ w: $parent.identW, h: $parent.identH, minW: 480, minH: 400,
+							save: $parent.saveIdentitySize },
 						tooltip: 'app.resize'"></div>
 			</div>
 		</div>
@@ -1626,6 +1683,38 @@
 				<div class="modal-footer">
 					<button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal"><?= $t('common.cancel') ?></button>
 					<button type="button" class="btn btn-sm btn-primary" data-bind="click: $parent.saveContact"><?= $t('common.save') ?></button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Aide raccourcis clavier (touche ?) -->
+	<div class="modal fade" id="shortcuts-modal" tabindex="-1">
+		<div class="modal-dialog">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title"><?= $t('app.shortcuts') ?></h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+				</div>
+				<div class="modal-body">
+					<table class="table table-sm mb-0">
+						<tbody>
+							<tr><td class="text-nowrap"><kbd>↑</kbd> <kbd>↓</kbd> / <kbd>k</kbd> <kbd>j</kbd></td><td><?= $t('app.shortcuts.nav') ?></td></tr>
+							<tr><td><kbd>x</kbd></td><td><?= $t('app.shortcuts.check') ?></td></tr>
+							<tr><td><kbd>Suppr</kbd></td><td><?= $t('app.shortcuts.delete') ?></td></tr>
+							<tr><td><kbd>r</kbd> / <kbd>a</kbd></td><td><?= $t('app.shortcuts.reply') ?></td></tr>
+							<tr><td><kbd>f</kbd></td><td><?= $t('app.shortcuts.forward') ?></td></tr>
+							<tr><td><kbd>e</kbd></td><td><?= $t('app.shortcuts.archive') ?></td></tr>
+							<tr><td><kbd>!</kbd></td><td><?= $t('app.shortcuts.spam') ?></td></tr>
+							<tr><td><kbd>s</kbd></td><td><?= $t('app.shortcuts.flag') ?></td></tr>
+							<tr><td><kbd>u</kbd></td><td><?= $t('app.shortcuts.unread') ?></td></tr>
+							<tr><td><kbd>m</kbd></td><td><?= $t('app.shortcuts.move') ?></td></tr>
+							<tr><td><kbd>c</kbd></td><td><?= $t('app.shortcuts.compose') ?></td></tr>
+							<tr><td><kbd>/</kbd></td><td><?= $t('app.shortcuts.search') ?></td></tr>
+							<tr><td><kbd>Échap</kbd></td><td><?= $t('app.shortcuts.escape') ?></td></tr>
+							<tr><td><kbd>?</kbd></td><td><?= $t('app.shortcuts.help') ?></td></tr>
+						</tbody>
+					</table>
 				</div>
 			</div>
 		</div>

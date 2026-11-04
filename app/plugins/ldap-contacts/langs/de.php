@@ -19,4 +19,5 @@ return [
 	'plugin.ldap-contacts.f.name_attr'   => 'Namensattribut',
 	'plugin.ldap-contacts.f.mail_attr'   => 'E-Mail-Attribut',
 	'plugin.ldap-contacts.f.max_results' => 'Max. Ergebnisse',
+	'plugin.ldap-contacts.label'           => 'LDAP-Kontakte',
 ];

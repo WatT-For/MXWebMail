@@ -14,4 +14,5 @@ return [
 	'plugin.attachments-clamav.unavailable'        => 'Virusscanner onbereikbaar',
 	'plugin.attachments-clamav.bad_response'       => 'Onverwacht antwoord van de scanner: {msg}',
 	'plugin.attachments-clamav.read_failed'         => 'Kan bestand “{name}” niet lezen',
+	'plugin.attachments-clamav.label'           => 'ClamAV-antivirus',
 ];

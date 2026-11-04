@@ -3,8 +3,6 @@ declare(strict_types=1);
 
 return [
 	'plugin.seasonal-decorations.description'           => 'Monochromatyczny krajobraz pasków według daty - Nowy Rok, Wielkanoc, Prima Aprilis, Halloween, Boże Narodzenie',
-	'plugin.seasonal-decorations.f.enabled'             => 'Włączone',
-	'plugin.seasonal-decorations.f.enabled.help'        => 'Pokazuje nieinteraktywne cząsteczki dekoracyjne we włączonych okresach',
 	'plugin.seasonal-decorations.f.show_on_login'       => 'Pokazuj bez sesji',
 	'plugin.seasonal-decorations.f.show_on_login.help'  => 'Dekoruje także strony logowania i konserwacji',
 
@@ -23,4 +21,5 @@ return [
 	'plugin.seasonal-decorations.f.christmas'           => 'Boże Narodzenie',
 	'plugin.seasonal-decorations.f.christmas_from'      => 'Boże Narodzenie - początek (MM-DD)',
 	'plugin.seasonal-decorations.f.christmas_to'        => 'Boże Narodzenie - koniec (MM-DD)',
+	'plugin.seasonal-decorations.label'               => 'Ozdoby sezonowe',
 ];

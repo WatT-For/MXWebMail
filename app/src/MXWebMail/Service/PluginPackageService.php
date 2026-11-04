@@ -84,6 +84,8 @@ final class PluginPackageService
 				'latest'           => $latest,
 				'update_available' => $latest !== '' && $cur !== ''
 					&& version_compare($latest, $cur, '>'),
+				'label'            => (string) (($p['label'] ?? '') !== ''
+					? $p['label'] : ($r['label'] ?? '')),
 				'description'      => (string) (($p['description'] ?? '') !== ''
 					? $p['description'] : ($r['description'] ?? '')),
 				'has_schema'       => (bool) ($p['has_schema'] ?? false),
@@ -114,6 +116,7 @@ final class PluginPackageService
 			}
 			$out[$name] = [
 				'version'     => (string) ($m['version'] ?? ''),
+				'label'       => (string) ($m['label'] ?? ''),
 				'description' => (string) ($m['description'] ?? ''),
 				'min_app'     => (string) ($m['min_app'] ?? ''),
 				'max_app'     => (string) ($m['max_app'] ?? ''),
@@ -142,6 +145,7 @@ final class PluginPackageService
 			}
 			$out[$m[1]] = [
 				'version'     => (string) ($mf['version'] ?? ''),
+				'label'       => (string) ($mf['label'] ?? ''),
 				'description' => (string) ($mf['description'] ?? ''),
 				'min_app'     => (string) ($mf['min_app'] ?? ''),
 				'max_app'     => (string) ($mf['max_app'] ?? ''),

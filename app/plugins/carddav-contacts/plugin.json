@@ -1,8 +1,9 @@
 {
 	"name": "carddav-contacts",
+	"label": "plugin.carddav-contacts.label",
 	"class": "CardDavContacts",
 	"main": "CardDavContacts.php",
-	"version": "0.12.3",
+	"version": "0.12.4",
 	"description": "plugin.carddav-contacts.description",
 	"hooks": ["app.data"]
 }

@@ -32,4 +32,5 @@ return [
 	'plugin.anti-spoofing.alert.auth_spf_softfail' => 'SPF softfail (remetente não autorizado)',
 	'plugin.anti-spoofing.alert.auth_dkim_fail_thirdparty' => 'Assinatura DKIM de terceiros inválida ({domain}) - provável retransmissor.',
 	'plugin.anti-spoofing.alert.auth_pass'         => 'Autenticação verificada: {mechs}',
+	'plugin.anti-spoofing.label'                          => 'Anti-spoofing',
 ];

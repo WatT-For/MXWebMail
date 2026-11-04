@@ -27,4 +27,5 @@ return [
 	'plugin.ics-viewer.status'                      => 'Status: {v}',
 	'plugin.ics-viewer.title'                       => 'Kalendertermin',
 	'plugin.ics-viewer.attachment'                  => 'Kalender-Anhang',
+	'plugin.ics-viewer.label'                  => 'ICS-Ansicht',
 ];

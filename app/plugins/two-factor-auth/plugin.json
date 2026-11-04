@@ -1,8 +1,9 @@
 {
 	"name": "two-factor-auth",
+	"label": "plugin.two-factor-auth.label",
 	"class": "TwoFactorAuth",
 	"main": "TwoFactorAuth.php",
-	"version": "0.17.0",
+	"version": "0.17.1",
 	"description": "plugin.two-factor-auth.description",
 	"hooks": ["auth.post-login", "app.data", "admin.mounts", "admin.post-login", "admin.totp-required"]
 }

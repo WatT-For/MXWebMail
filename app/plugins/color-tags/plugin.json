@@ -1,8 +1,9 @@
 {
 	"name": "color-tags",
+	"label": "plugin.color-tags.label",
 	"class": "ColorTags",
 	"main": "ColorTags.php",
-	"version": "0.13.0",
+	"version": "0.13.1",
 	"description": "plugin.color-tags.description",
 	"hooks": ["app.data", "message.meta"]
 }

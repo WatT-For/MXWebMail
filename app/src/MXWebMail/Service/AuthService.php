@@ -144,6 +144,13 @@ final class AuthService
 
 	private const REMEMBER_DAYS = 30;
 
+	/** Durée de vie des jetons (jours) : config 'remember_days', bornée 1-365. */
+	private function rememberDays(): int
+	{
+		return min(365, max(1,
+			(int) $this->app->config()->get('remember_days', self::REMEMBER_DAYS)));
+	}
+
 	/** Émet un jeton persistant + cookie après un login réussi. */
 	public function issueRememberToken(int $userId): void
 	{
@@ -157,7 +164,7 @@ final class AuthService
 				't' => hash('sha256', $validator),
 				'a' => mb_substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255),
 				'i' => $this->app->clientIp() ?: null,
-				'c' => time(), 'e' => time() + self::REMEMBER_DAYS * 86400,
+				'c' => time(), 'e' => time() + $this->rememberDays() * 86400,
 			]);
 		$this->setRememberCookie($selector . ':' . $validator);
 	}
@@ -165,7 +172,7 @@ final class AuthService
 	private function setRememberCookie(string $value, ?int $expires = null): void
 	{
 		setcookie('mxwm_remember', $value, [
-			'expires'  => $expires ?? time() + self::REMEMBER_DAYS * 86400,
+			'expires'  => $expires ?? time() + $this->rememberDays() * 86400,
 			'path'     => '/',
 			'secure'   => $this->app->isHttps(),
 			'httponly' => true,

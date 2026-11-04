@@ -7,4 +7,5 @@ return [
 	'plugin.imap-contacts-suggestions.f.folder'    => 'Folder IMAP',
 	'plugin.imap-contacts-suggestions.f.folder.help' => 'Folder do wyszukiwania nadawców (np. INBOX, Sent)',
 	'plugin.imap-contacts-suggestions.f.max_results' => 'Maks. wyników',
+	'plugin.imap-contacts-suggestions.label'        => 'Sugestie kontaktów',
 ];

@@ -24,4 +24,5 @@ return [
 	'plugin.carddav-contacts.no_addressbook' => 'Nessuna rubrica CardDAV trovata a questo URL',
 	'plugin.carddav-contacts.bad_url'        => 'URL CardDAV non valido (richiesti HTTPS e host pubblico)',
 	'plugin.carddav-contacts.pass_clear'  => 'Cancella la password',
+	'plugin.carddav-contacts.label'         => 'Contatti CardDAV',
 ];

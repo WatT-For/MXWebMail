@@ -11,4 +11,5 @@ return [
 	'plugin.white-list.f.exceptions.help' => 'Von den E-Mails außerhalb der Whitelist werden nur diese abgelehnt (leer = alle abgelehnt). Z. B.: demo@domain1.com *@domain2.com admin@*',
 	'plugin.white-list.f.auth_error'     => 'Authentifizierungsfehler',
 	'plugin.white-list.f.auth_error.help' => 'Gibt statt „Konto nicht erlaubt" einen generischen Fehler zurück',
+	'plugin.white-list.label'            => 'Weiße Liste',
 ];

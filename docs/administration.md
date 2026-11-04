@@ -26,7 +26,8 @@ Le panneau se compose d'onglets (hash `#/<page>[/<sous-onglet>]`).
 ### Général
 
 `app_name`, `admin_path`, `language` (liste des langues installées + `auto`),
-`session_lifetime`, `maintenance`, `update.channel`. Gère aussi le **favicon** (upload
+`session_lifetime`, `remember_days` (durée des jetons "Rester connecté"),
+`maintenance`, `update.channel`. Gère aussi le **favicon** (upload
 ≤ 512 Ko : ico/png/svg/jpg/webp, contenu validé). Le mode **maintenance** affiche une
 page dédiée (503) sur `/` : les utilisateurs connectés y sont basculés à leur
 prochaine requête API (session conservée) et elle se recharge seule à la fin ;
@@ -100,6 +101,9 @@ La suppression d'un utilisateur est en cascade et supprime aussi sa base contact
 
 ### Extensions (plugins)
 
+Chaque plugin est listé sous son **nom d'affichage** (champ `label` du manifeste,
+traduit - le nom technique `name` reste affiché à côté en `code`).
+
 Activation/désactivation de chaque plugin + modale de **configuration** générée depuis
 `config.schema.json` (types `string`, `text`, `integer`, `number`, `password`, `bool`,
 `enum`, `list`). La colonne **Accès utilisateurs** restreint un plugin activé à la surface admin
@@ -170,8 +174,8 @@ Voir [themes.md](themes.md).
 
 Version (`APP_VERSION`), PHP/SAPI/limites, pilote et taille de la base, chemins,
 extensions chargées. Un lien vers le dépôt GitHub officiel est affiché dans la
-navbar et l'en-tête de cet onglet. Gère aussi les **mises à jour** via GitHub
-Releases :
+navbar. La carte d'en-tête intègre aussi les **mises à jour** via GitHub
+Releases (vérification, téléchargement, application, restauration) :
 
 - *Vérifier* > *Télécharger* > *Appliquer* > finalisation automatique des
   migrations ; états conservés dans `storage/update/state.json` ;

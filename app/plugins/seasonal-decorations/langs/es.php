@@ -3,8 +3,6 @@ declare(strict_types=1);
 
 return [
 	'plugin.seasonal-decorations.description'           => 'Decoración paisaje monocroma de las cabeceras según la fecha - Año Nuevo, Pascua, 1 de abril, Halloween, Navidad',
-	'plugin.seasonal-decorations.f.enabled'             => 'Activado',
-	'plugin.seasonal-decorations.f.enabled.help'        => 'Muestra partículas decorativas no interactivas durante los periodos activados',
 	'plugin.seasonal-decorations.f.show_on_login'       => 'Mostrar sin sesión',
 	'plugin.seasonal-decorations.f.show_on_login.help'  => 'También decora las páginas de acceso y mantenimiento',
 
@@ -23,4 +21,5 @@ return [
 	'plugin.seasonal-decorations.f.christmas'           => 'Navidad',
 	'plugin.seasonal-decorations.f.christmas_from'      => 'Navidad - inicio (MM-DD)',
 	'plugin.seasonal-decorations.f.christmas_to'        => 'Navidad - fin (MM-DD)',
+	'plugin.seasonal-decorations.label'               => 'Decoraciones estacionales',
 ];

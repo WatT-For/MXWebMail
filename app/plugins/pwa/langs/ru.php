@@ -16,4 +16,5 @@ return [
 	'plugin.pwa.f.display.help'          => '"standalone" = отдельное окно (рекомендуется)',
 	'plugin.pwa.f.icon_url'              => 'URL значка',
 	'plugin.pwa.f.icon_url.help'         => 'Квадратный PNG ≥512px; пусто = встроенные значки',
+	'plugin.pwa.label'                  => 'Веб-приложение (PWA)',
 ];

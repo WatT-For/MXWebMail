@@ -15,4 +15,5 @@ return [
 	'plugin.spam-learn.f.folder.help'      => 'Создаётся автоматически при отсутствии',
 	'plugin.spam-learn.f.max_bytes'        => 'Макс. передаваемый размер (КБ)',
 	'plugin.spam-learn.f.max_bytes.help'   => 'Сообщение обрезается сверх этого размера',
+	'plugin.spam-learn.label'           => 'Обучение спаму',
 ];

@@ -30,6 +30,17 @@ final class ComposeController extends BaseController
 			return JsonResponse::error($this->t('errors.no_rcpt'), 'no_rcpt');
 		}
 		$this->app->mail()->send($message);
+		// Marque le message d'origine \Answered - non bloquant (l'envoi a
+		// réussi, un échec de marquage ne doit pas faire échouer la réponse).
+		$replyUid = (int) $request->input('replyUid', 0);
+		$replyFolder = $this->noCrlf((string) $request->input('replyFolder', ''), 'replyFolder');
+		if ($replyUid > 0 && $replyFolder !== '') {
+			try {
+				$this->app->mail()->flags($replyFolder, $replyUid, '\Answered', true);
+			} catch (\Throwable $e) {
+				$this->app->log('warning', 'Marquage \\Answered échoué: ' . $e->getMessage());
+			}
+		}
 		// Libère les streams des PJ (fopen dans buildMessage) : unlink
 		// impossible sous Windows tant que $message vit.
 		$rcpts = array_merge(
@@ -159,6 +170,16 @@ final class ComposeController extends BaseController
 		if ($drafts === null) {
 			return JsonResponse::error(
 				$this->t('errors.folder_role_none', ['role' => 'drafts']), 'role_none');
+		}
+		// Brouillon d'une réponse : la cible du flag \Answered (posé à
+		// l'envoi) est persistée dans le message via X-Draft-Info - en-tête
+		// interne, jamais écrit pour un envoi réel (buildMessage ne l'ajoute pas).
+		$replyUid = (int) $request->input('replyUid', 0);
+		$replyFolder = $this->noCrlf((string) $request->input('replyFolder', ''), 'replyFolder');
+		if ($replyUid > 0 && $replyFolder !== '') {
+			$message->Headers->AddByName(
+				\MailSo\Mime\Enumerations\Header::X_DRAFT_INFO,
+				"type=reply;uid={$replyUid};folder=" . base64_encode($replyFolder));
 		}
 		// Ré-enregistrement d'un brouillon ouvert : REPLACE dans le dossier
 		// où il vit (RFC 8508 ou append+expunge ciblé), APPEND dans Drafts

@@ -1,8 +1,9 @@
 {
 	"name": "webmail-migration",
+	"label": "plugin.webmail-migration.label",
 	"class": "WebmailMigration",
 	"main": "WebmailMigration.php",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"description": "plugin.webmail-migration.description",
 	"hooks": ["admin.mounts"]
 }

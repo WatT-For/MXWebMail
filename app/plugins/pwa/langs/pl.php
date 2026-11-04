@@ -16,4 +16,5 @@ return [
 	'plugin.pwa.f.display.help'          => '„standalone” = osobne okno (zalecane)',
 	'plugin.pwa.f.icon_url'              => 'URL ikony',
 	'plugin.pwa.f.icon_url.help'         => 'Kwadratowy PNG ≥512px; puste = wbudowane ikony domyślne',
+	'plugin.pwa.label'                  => 'Aplikacja webowa (PWA)',
 ];

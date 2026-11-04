@@ -469,6 +469,7 @@ final class SystemController extends BaseController
 					'language' => ['label' => 'admin.f.language', 'type' => 'enum',
 						'options' => $langs, 'help' => 'admin.f.language_help'],
 					'session_lifetime' => ['label' => 'admin.f.session_lifetime', 'type' => 'integer'],
+					'remember_days' => ['label' => 'admin.f.remember_days', 'type' => 'integer'],
 					'maintenance' => ['label' => 'admin.f.maintenance', 'type' => 'bool',
 						'help' => 'admin.f.maintenance_help'],
 					'update.channel' => ['label' => 'admin.f.update_channel', 'type' => 'enum',
@@ -651,7 +652,6 @@ final class SystemController extends BaseController
 		return [
 			'app_name' => $this->app->config()->get('app_name'),
 			'version' => defined('APP_VERSION') ? APP_VERSION : '?',
-			'repo_url' => $this->app->github()->repoUrl(),
 			'php' => PHP_VERSION,
 			'php_sapi' => PHP_SAPI,
 			'memory_limit' => (string) ini_get('memory_limit'),

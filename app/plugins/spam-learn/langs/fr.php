@@ -15,4 +15,5 @@ return [
 	'plugin.spam-learn.f.folder.help'      => 'Créé automatiquement si absent',
 	'plugin.spam-learn.f.max_bytes'        => 'Taille max transmise (Ko)',
 	'plugin.spam-learn.f.max_bytes.help'   => 'Le message est tronqué au-delà',
+	'plugin.spam-learn.label'           => 'Apprentissage anti-spam',
 ];

@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 return [
 	'plugin.announcement.description'         => 'Yönetici tarafından belirlenen duyuru bandı (uygulama sayfası, isteğe bağlı giriş)',
-	'plugin.announcement.f.enabled'           => 'Etkin',
 	'plugin.announcement.f.text'              => 'Bant metni',
 	'plugin.announcement.f.text.help'         => 'Tüm kullanıcılara gösterilen düz metin - HTML yorumlanmaz',
 	'plugin.announcement.f.level'             => 'Seviye',
@@ -14,4 +13,5 @@ return [
 	'plugin.announcement.f.show_on_login'     => 'Giriş sayfasında göster',
 	'plugin.announcement.f.show_on_login.help'=> 'Bakım duyuruları için kullanışlı',
 	'plugin.announcement.f.dismissible'       => 'Kapatılabilir (× düğmesi)',
+	'plugin.announcement.label'               => 'Duyuru',
 ];

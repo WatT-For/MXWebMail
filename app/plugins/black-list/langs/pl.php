@@ -11,4 +11,5 @@ return [
 	'plugin.black-list.f.exceptions.help' => 'E-maile z czarnej listy, które pozostają dozwolone. Np.: admin@domain1.com',
 	'plugin.black-list.f.auth_error'     => 'Błąd uwierzytelniania',
 	'plugin.black-list.f.auth_error.help' => 'Zwraca ogólny błąd poświadczeń zamiast "konto niedozwolone"',
+	'plugin.black-list.label'            => 'Czarna lista',
 ];

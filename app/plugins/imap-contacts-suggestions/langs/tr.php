@@ -7,4 +7,5 @@ return [
 	'plugin.imap-contacts-suggestions.f.folder'    => 'IMAP klasörü',
 	'plugin.imap-contacts-suggestions.f.folder.help' => 'Gönderenlerin aranacağı klasör (örn. INBOX, Sent)',
 	'plugin.imap-contacts-suggestions.f.max_results' => 'En fazla sonuç',
+	'plugin.imap-contacts-suggestions.label'        => 'Kişi önerileri',
 ];

@@ -6,11 +6,11 @@
 	},
 	"label": {
 		"type": "enum",
-		"label": "plugin.two-factor-auth.label",
-		"help": "plugin.two-factor-auth.label.help",
+		"label": "plugin.two-factor-auth.f.label",
+		"help": "plugin.two-factor-auth.f.label.help",
 		"options": {
-			"email": "plugin.two-factor-auth.label.email",
-			"local": "plugin.two-factor-auth.label.local"
+			"email": "plugin.two-factor-auth.f.label.email",
+			"local": "plugin.two-factor-auth.f.label.local"
 		},
 		"default": "email"
 	},

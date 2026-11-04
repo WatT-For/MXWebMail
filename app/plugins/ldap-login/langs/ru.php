@@ -14,4 +14,5 @@ return [
 	'plugin.ldap-login.f.base_dn'      => 'Базовый DN',
 	'plugin.ldap-login.f.search_filter' => 'Фильтр (%u = введённый логин)',
 	'plugin.ldap-login.f.mail_attr'    => 'Атрибут с IMAP-адресом',
+	'plugin.ldap-login.label'          => 'Вход через LDAP',
 ];

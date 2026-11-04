@@ -3,8 +3,6 @@ declare(strict_types=1);
 
 return [
 	'plugin.seasonal-decorations.description'           => 'Decorazione paesaggio monocromatica delle intestazioni in base alla data - Capodanno, Pasqua, Pesce d\'aprile, Halloween, Natale',
-	'plugin.seasonal-decorations.f.enabled'             => 'Attivato',
-	'plugin.seasonal-decorations.f.enabled.help'        => 'Mostra particelle decorative non interattive nei periodi attivati',
 	'plugin.seasonal-decorations.f.show_on_login'       => 'Mostra senza sessione',
 	'plugin.seasonal-decorations.f.show_on_login.help'  => 'Decora anche le pagine di accesso e manutenzione',
 
@@ -23,4 +21,5 @@ return [
 	'plugin.seasonal-decorations.f.christmas'           => 'Natale',
 	'plugin.seasonal-decorations.f.christmas_from'      => 'Natale - inizio (MM-GG)',
 	'plugin.seasonal-decorations.f.christmas_to'        => 'Natale - fine (MM-GG)',
+	'plugin.seasonal-decorations.label'               => 'Decorazioni stagionali',
 ];

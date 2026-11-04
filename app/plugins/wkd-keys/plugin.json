@@ -1,8 +1,9 @@
 {
 	"name": "wkd-keys",
+	"label": "plugin.wkd-keys.label",
 	"class": "WkdKeys",
 	"main": "WkdKeys.php",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "plugin.wkd-keys.description",
 	"hooks": ["app.data", "message.view"]
 }

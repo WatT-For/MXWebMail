@@ -27,4 +27,5 @@ return [
 	'plugin.color-tags.defaults.work'       => 'Trabalho',
 	'plugin.color-tags.defaults.personal'   => 'Pessoal',
 	'plugin.color-tags.defaults.follow-up'  => 'A acompanhar',
+	'plugin.color-tags.label'             => 'Etiquetas coloridas',
 ];

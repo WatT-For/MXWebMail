@@ -16,4 +16,5 @@ return [
 	'plugin.pwa.f.display.help'          => '"standalone" = bağımsız pencere (önerilen)',
 	'plugin.pwa.f.icon_url'              => 'Simge URL\'si',
 	'plugin.pwa.f.icon_url.help'         => 'Kare PNG ≥512px; boş = yerleşik varsayılan simgeler',
+	'plugin.pwa.label'                  => 'Web uygulaması (PWA)',
 ];

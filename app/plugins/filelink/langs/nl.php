@@ -11,4 +11,5 @@ return [
 	'plugin.filelink.error_too_big'    => 'Bestand groter dan {mb} MB',
 	'plugin.filelink.expired'          => 'Deze link is verlopen of ongeldig.',
 	'plugin.filelink.attached'         => '{name} ({size}): {url}',
+	'plugin.filelink.label'          => 'Filelink-bijlagen',
 ];

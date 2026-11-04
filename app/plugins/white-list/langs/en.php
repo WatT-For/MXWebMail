@@ -11,4 +11,5 @@ return [
 	'plugin.white-list.f.exceptions.help' => 'Among emails outside the whitelist, only these are rejected (empty = all rejected). E.g.: demo@domain1.com *@domain2.com admin@*',
 	'plugin.white-list.f.auth_error'     => 'Authentication error',
 	'plugin.white-list.f.auth_error.help' => 'Returns a generic credentials error instead of “account not allowed”',
+	'plugin.white-list.label'            => 'Whitelist',
 ];

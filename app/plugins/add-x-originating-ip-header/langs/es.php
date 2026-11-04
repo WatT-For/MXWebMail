@@ -6,4 +6,5 @@ return [
 	'plugin.add-x-originating-ip-header.description' => 'Añade la cabecera X-Originating-IP (IP del remitente) a los mensajes salientes',
 	'plugin.add-x-originating-ip-header.f.check_proxy' => 'Respetar proxies',
 	'plugin.add-x-originating-ip-header.f.check_proxy.help' => 'Usa la IP real del cliente (X-Forwarded-For vía trusted_proxies) en lugar de REMOTE_ADDR',
+	'plugin.add-x-originating-ip-header.label'             => 'Cabecera X-Originating-IP',
 ];

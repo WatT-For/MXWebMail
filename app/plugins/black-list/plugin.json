@@ -1,8 +1,9 @@
 {
 	"name": "black-list",
+	"label": "plugin.black-list.label",
 	"class": "BlackList",
 	"main": "BlackList.php",
-	"version": "0.13.0",
+	"version": "0.13.1",
 	"description": "plugin.black-list.description",
 	"hooks": ["auth.login.mapped"]
 }

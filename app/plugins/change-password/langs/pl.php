@@ -67,4 +67,5 @@ return [
 	'plugin.change-password.f.mailcow_api_hostname.help' => 'Np.: mail.example.com',
 	'plugin.change-password.f.mailcow_api_token'    => 'Token API Mailcow',
 	'plugin.change-password.f.mailcow_api_token.help'  => 'Token odczytu/zapisu API Mailcow',
+	'plugin.change-password.label'                      => 'Zmień hasło',
 ];

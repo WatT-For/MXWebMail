@@ -11,4 +11,5 @@ return [
 	'plugin.white-list.f.exceptions.help' => 'Spośród e-maili spoza białej listy odrzucane są tylko te (puste = wszystkie odrzucane). Np.: demo@domain1.com *@domain2.com admin@*',
 	'plugin.white-list.f.auth_error'     => 'Błąd uwierzytelniania',
 	'plugin.white-list.f.auth_error.help' => 'Zwraca ogólny błąd poświadczeń zamiast "konto niedozwolone"',
+	'plugin.white-list.label'            => 'Biała lista',
 ];

@@ -27,4 +27,5 @@ return [
 	'plugin.ics-viewer.status'                      => 'Status: {v}',
 	'plugin.ics-viewer.title'                       => 'Kalenderafspraak',
 	'plugin.ics-viewer.attachment'                  => 'Kalenderbijlage',
+	'plugin.ics-viewer.label'                  => 'ICS-weergave',
 ];

@@ -78,7 +78,9 @@
 			this.loading(true);
 			try {
 				await api.post('/login', { email: this.email(), password: this.password(), totp: this.totp(), remember: this.remember() });
-				location.href = window.MXWM.base + '/';
+				// Préserver un ?mailto= à travers le login (clic mailto session fermée).
+				const m = new URLSearchParams(location.search).get('mailto');
+				location.href = window.MXWM.base + '/' + (m ? '?mailto=' + encodeURIComponent(m) : '');
 			} catch (e) {
 				// Code d'erreur stable - jamais de test sur le message localisé
 				if (e.code === 'totp_required') { this.showTotp(true); }
