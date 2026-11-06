@@ -9,7 +9,7 @@ return [
 	'plugin.pwa.f.short_name'            => 'Kurzname',
 	'plugin.pwa.f.short_name.help'       => 'Wird unter dem Symbol angezeigt; leer = App-Name',
 	'plugin.pwa.f.theme_color'           => 'Themenfarbe',
-	'plugin.pwa.f.theme_color.help'      => 'Farbe der Titelleiste (hex #rrggbb)',
+	'plugin.pwa.f.theme_color.help'      => 'Farbe der Titelleiste (hex #rrggbb); leer = Kopfzeilenfarbe des angezeigten Themes',
 	'plugin.pwa.f.background_color'      => 'Hintergrundfarbe',
 	'plugin.pwa.f.background_color.help' => 'Farbe des Startbildschirms (Splash)',
 	'plugin.pwa.f.display'               => 'Anzeigemodus',

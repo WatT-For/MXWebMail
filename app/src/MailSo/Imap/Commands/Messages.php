@@ -538,6 +538,24 @@ trait Messages
 						case 'COUNT':
 							$aResult[$sItem] = $oResponse->ResponseList[$i + 1];
 							break;
+						case 'PARTIAL':
+							// PARTIAL (<range> <seqset>) : liste imbriquée -
+							// élément [1] = sequence-set ("38:42,50") à
+							// expanser en ints pour le FETCH suivant.
+							$aPartial = $oResponse->ResponseList[$i + 1] ?? null;
+							$sSet = \is_array($aPartial) ? (string) ($aPartial[1] ?? '') : '';
+							if (\strlen($sSet)) {
+								$aUids = [];
+								foreach (\explode(',', $sSet) as $sTok) {
+									if (\preg_match('/^(\d+):(\d+)$/', $sTok, $m)) {
+										$aUids = \array_merge($aUids, \range((int) $m[1], (int) $m[2]));
+									} else if (\preg_match('/^\d+$/', $sTok)) {
+										$aUids[] = (int) $sTok;
+									}
+								}
+								$aResult[$sItem] = $aUids;
+							}
+							break;
 					}
 				}
 			}

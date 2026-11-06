@@ -26,9 +26,13 @@ class Response
 
 	public function send(): void
 	{
-		http_response_code($this->status);
-		foreach ($this->headers as $name => $value) {
-			header("{$name}: {$value}");
+		// Les exports zip ont déjà émis leurs en-têtes (pushHttpHeaders) :
+		// toute écriture ici produirait un warning "headers already sent".
+		if (!headers_sent()) {
+			http_response_code($this->status);
+			foreach ($this->headers as $name => $value) {
+				header("{$name}: {$value}");
+			}
 		}
 		if ($this->file !== null) {
 			$fp = fopen($this->file, 'rb');

@@ -150,6 +150,10 @@ final class PluginsController extends BaseController
 		}
 		return match ($type) {
 			'bool' => (int) filter_var($v, FILTER_VALIDATE_BOOL),
+			// ''/null accepté : champ vidé = retour au défaut/repli du plugin
+			'color' => $v === '' || $v === null ? ''
+				: (is_string($v) && preg_match('/^#[0-9a-fA-F]{6}$/', $v)
+					? strtolower($v) : $fail()),
 			'integer' => self::intRange($v, PHP_INT_MIN, PHP_INT_MAX) ?? $fail(),
 			'number' => is_numeric($v) ? (float) $v : $fail(),
 			'list' => is_array($v)

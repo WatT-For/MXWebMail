@@ -136,7 +136,7 @@ class SmtpClient extends \MailSo\Net\NetClient
 	 */
 	public function Login(Settings $oSettings) : self
 	{
-		if ($this->bIsLoggined) {
+		if ($this->bIsLoggined || !$oSettings->useAuth) {
 			return $this;
 		}
 

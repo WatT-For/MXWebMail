@@ -179,40 +179,49 @@ export class FolderListVM {
 		return arr;
 	}
 
+	/**
+	 * Applique des lignes /folders (fetch dédié ou section "folders" du
+	 * /api/poll) : tri, liens, MAJ in-place ou rebuild, expansion du
+	 * dossier actif. Ne touche pas loading/error - silencieux par nature.
+	 */
+	applyList(list) {
+		const arr = this.buildRows(list);
+		const cur = this.folders();
+		// Mise à jour in-place quand la structure est inchangée : badges et
+		// tailles rafraîchis sur les objets existants - scroll, repli et
+		// chevrons préservés, pas de re-render. La comparaison couvre la
+		// classification : une réassignation de rôle (special) via
+		// Paramètres ou un changement de hiérarchie force le rebuild.
+		// unread/size exclus : ce sont les valeurs rafraîchies.
+		const sameSet = arr.length === cur.length && arr.every((n, i) =>
+			n.fullName === cur[i].fullName && n.name === cur[i].name
+			&& n.role === cur[i].role && n.special === cur[i].special
+			&& n.isSystem === cur[i].isSystem
+			&& n.parentName === cur[i].parentName && n.depth === cur[i].depth);
+		if (sameSet) {
+			for (let i = 0; i < cur.length; i++) {
+				cur[i].unread(arr[i].unread());
+				cur[i].size(arr[i].size());
+				cur[i].userHidden(arr[i].userHidden());
+			}
+		} else {
+			this.folders(arr);
+		}
+		// Abonnement paresseux (et non au constructeur) : folderList est
+		// instancié AVANT messageList dans AppVM - subscribe() évalue
+		// immédiatement le pureComputed > messageList serait undefined.
+		// Navigation vers un dossier masqué (hash, notification) >
+		// expansion de ses ancêtres pour le rendre visible.
+		this._navWatch ??= this.current.subscribe(() => this.expandActiveAncestors());
+		// Boot/hash direct : le dossier actif peut être masqué par un
+		// ancêtre replié (la subscription a pu tirer sur liste vide).
+		this.expandActiveAncestors();
+	}
+
 	async load() {
 		this.loading(true);
 		try {
-			const arr = this.buildRows(await api.get('/folders'));
-			const cur = this.folders();
-			// Mise à jour in-place quand la structure est inchangée : badges et
-			// tailles rafraîchis sur les objets existants - scroll, repli et
-			// chevrons préservés, pas de re-render. La comparaison couvre la
-			// classification : une réassignation de rôle (special) via
-			// Paramètres ou un changement de hiérarchie force le rebuild.
-			// unread/size exclus : ce sont les valeurs rafraîchies.
-			const sameSet = arr.length === cur.length && arr.every((n, i) =>
-				n.fullName === cur[i].fullName && n.name === cur[i].name
-				&& n.role === cur[i].role && n.special === cur[i].special
-				&& n.isSystem === cur[i].isSystem
-				&& n.parentName === cur[i].parentName && n.depth === cur[i].depth);
-			if (sameSet) {
-				for (let i = 0; i < cur.length; i++) {
-					cur[i].unread(arr[i].unread());
-					cur[i].size(arr[i].size());
-					cur[i].userHidden(arr[i].userHidden());
-				}
-			} else {
-				this.folders(arr);
-			}
-			// Abonnement paresseux (et non au constructeur) : folderList est
-			// instancié AVANT messageList dans AppVM - subscribe() évalue
-			// immédiatement le pureComputed > messageList serait undefined.
-			// Navigation vers un dossier masqué (hash, notification) >
-			// expansion de ses ancêtres pour le rendre visible.
-			this._navWatch ??= this.current.subscribe(() => this.expandActiveAncestors());
-			// Boot/hash direct : le dossier actif peut être masqué par un
-			// ancêtre replié (la subscription a pu tirer sur liste vide).
-			this.expandActiveAncestors();
+			this.applyList(await api.get('/folders'));
 		} catch (e) {
 			this.error(e.message);
 		} finally {

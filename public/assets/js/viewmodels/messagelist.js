@@ -1,5 +1,6 @@
 import { api, b64url, base } from '../api.js';
 import { dialog } from '../ui/dialog.js';
+import { toast } from '../ui/toast.js';
 import { t } from '../i18n.js';
 import { MessageModel } from '../models/message.js';
 
@@ -113,6 +114,55 @@ export class MessageListVM {
 		}
 	}
 
+	/**
+	 * Applique une réponse /api/messages (fetch dédié ou section "list" du
+	 * /api/poll) : compteurs + MessageModel. Ne touche pas les flags de
+	 * chargement - silencieux par nature (poll d'arrière-plan).
+	 */
+	applyData(data) {
+		// La recherche multi-dossiers renvoie threadsSupported:false - elle
+		// ne doit pas écraser l'état connu du dossier (item de menu masqué).
+		const global = this.searchScope() === 'all' && this.searchQuery() !== '';
+		if (!global) { this.threadsSupported(!!data.threadsSupported); }
+		this.total(data.total || 0);
+		const rows = (data.messages || [])
+			.filter(m => !this._gone.has(this.goneKey(m.folder, m.uid)));
+		// Les sous-lignes de fils dépliés (isChild) vivent dans messages() :
+		// la comparaison de séquence porte sur les seules lignes de niveau 0.
+		const targets = this.messages().filter(m => !m.isChild);
+		const sameSeq = targets.length === rows.length
+			&& targets.every((m, i) => m.uid === rows[i].uid && m.folder === rows[i].folder);
+		if (sameSeq) {
+			// Réconciliation in-place : flags rafraîchis, fils dépliés et
+			// sélection préservés - aucun re-render du foreach.
+			for (let i = 0; i < targets.length; i++) {
+				const m = targets[i];
+				if (m.staticSignature() !== MessageModel.signature(rows[i])) {
+					const nm = new MessageModel(rows[i]);
+					nm.isSelected(m.isSelected());
+					nm.isChecked(m.isChecked());
+					nm._threadOpen(m._threadOpen());
+					this.messages.splice(this.messages.indexOf(m), 1, nm);
+				} else {
+					m.updateFrom(rows[i]);
+				}
+			}
+			return;
+		}
+		// Rebuild : sélection et coches préservées par clé folder+uid.
+		const checked = new Set(this.messages().filter(m => m.isChecked())
+			.map(m => this.goneKey(m.folder, m.uid)));
+		const sel = this.messages().find(m => m.isSelected());
+		const selKey = sel ? this.goneKey(sel.folder, sel.uid) : null;
+		this.threadChildren = {};
+		this.messages(rows.map(d => {
+			const m = new MessageModel(d);
+			if (selKey !== null && this.goneKey(d.folder, d.uid) === selKey) { m.isSelected(true); }
+			m.isChecked(checked.has(this.goneKey(d.folder, d.uid)));
+			return m;
+		}));
+	}
+
 	/** silent = chargement d'arrière-plan (poll auto) : pas de voile bloquant. */
 	async load(silent = false) {
 		this._loadCount++;
@@ -127,14 +177,7 @@ export class MessageListVM {
 				`&sort=${encodeURIComponent(this.sort())}` +
 				(!global && this.useThreads() ? '&threads=1' : '');
 			const data = await api.get('/messages' + q);
-			// La recherche multi-dossiers renvoie threadsSupported:false - elle
-			// ne doit pas écraser l'état connu du dossier (item de menu masqué).
-			if (!global) { this.threadsSupported(!!data.threadsSupported); }
-			this.threadChildren = {};
-			this.total(data.total || 0);
-			this.messages((data.messages || [])
-				.filter(m => !this._gone.has(this.goneKey(m.folder, m.uid)))
-				.map(m => new MessageModel(m)));
+			this.applyData(data);
 		} catch (e) {
 			this.error(e.message);
 		} finally {
@@ -492,28 +535,38 @@ export class MessageListVM {
 	 *  coché, applique à tous les cochés, sinon à lui seul. */
 	async toggleFlag(message) {
 		const set = !message.isFlagged();
-		const targets = message.isChecked() ? this.checkedMessages() : [message];
-		for (const m of targets) {
-			try {
-				await api.post(`/messages/${m.uid}/flags`,
-					{ folder: m.folder, flag: '\\Flagged', set });
-				m.isFlagged(set);
-			} catch (e) { this.error(e.message); }
-		}
+		await this.setFlagBatch(
+			message.isChecked() ? this.checkedMessages() : [message],
+			'\\Flagged', set);
 	}
 
 	async bulkFlag(flag, set) {
-		for (const m of this.checkedMessages()) {
-			try {
-				// m.folder (dossier réel du message) : en recherche multi-dossiers
-				// il diffère du dossier courant - les UID sont par dossier.
-				await api.post(`/messages/${m.uid}/flags`, { folder: m.folder, flag, set });
-				if (flag === '\\Seen' && m.isSeen() !== set) {
-					m.isSeen(set);
-					this.adjustUnread(set ? -1 : 1, m.folder);
-				}
-				if (flag === '\\Flagged') { m.isFlagged(set); }
-			} catch (e) { this.error(e.message); }
+		await this.setFlagBatch(this.checkedMessages(), flag, set);
+	}
+
+	/** Un POST /messages/flags groupé par dossier côté serveur (un UID
+	 *  STORE par dossier) au lieu d'une requête par message. Échec partiel
+	 *  > resync de la liste (même pattern que settleBatch). */
+	async setFlagBatch(targets, flag, set) {
+		if (!targets.length) { return; }
+		try {
+			const r = await api.post('/messages/flags', {
+				items: targets.map(m => ({ folder: m.folder, uid: m.uid })),
+				flag, set });
+			if (r.errors?.length) {
+				this.error(r.errors[0].error);
+				await this.load();
+				return;
+			}
+		} catch (e) { this.error(e.message); return; }
+		for (const m of targets) {
+			// m.folder (dossier réel du message) : en recherche multi-dossiers
+			// il diffère du dossier courant - les UID sont par dossier.
+			if (flag === '\\Seen' && m.isSeen() !== set) {
+				m.isSeen(set);
+				this.adjustUnread(set ? -1 : 1, m.folder);
+			}
+			if (flag === '\\Flagged') { m.isFlagged(set); }
 		}
 	}
 
@@ -604,6 +657,29 @@ export class MessageListVM {
 		await this.moveMessages(this.checkedMessages(), target);
 	}
 
+	/** Transfere la selection en une composition : chaque message joint
+	 *  en .eml (le marquage $Forwarded est cote serveur a l'envoi). */
+	bulkForwardAttach() {
+		const list = this.checkedMessages();
+		if (list.length) { this.app.compose.openForwardMany(list); }
+	}
+
+	/** Copie la selection vers un dossier : les originaux restent en place,
+	 *  seuls les badges dossiers changent (non-lus de la cible). */
+	async bulkCopy(target) {
+		const list = this.checkedMessages().filter(m => m.folder !== target);
+		if (!list.length) { return; }
+		let fail = null;
+		try {
+			const r = await api.post('/messages/copy',
+				{ items: list.map(m => ({ folder: m.folder, uid: m.uid })), to: target });
+			if (r.errors?.length) { fail = r.errors[0].error; }
+		} catch (e) { fail = e.message; }
+		if (fail) { this.error(fail); }
+		else { toast.success(t('app.copied_many', { n: list.length })); }
+		await this.refresh();
+	}
+
 	// ─── Glisser-déposer vers les dossiers ───
 
 	/** MessageModel[] en cours de glisser-déposer - null hors drag (lecture
@@ -647,6 +723,11 @@ export class MessageListVM {
 	async moveWithPicker() {
 		const target = await this.app.folderList.pickFolder(this.folder());
 		if (target) { await this.bulkMove(target); }
+	}
+
+	async copyWithPicker() {
+		const target = await this.app.folderList.pickFolder(this.folder());
+		if (target) { await this.bulkCopy(target); }
 	}
 
 	/** Déplace la sélection vers le dossier de rôle "archive" (s'il existe). */
@@ -695,26 +776,38 @@ export class MessageListVM {
 			else { m.isJunk(spam); }
 		}
 		if (moved) { this.closeViewerIfRemoved(); }
-		// POSTs en fond ; échec ou stratégie divergente > resync de la liste.
+		// POST unique groupé : N requêtes HTTP + N connexions IMAP > 1 + 1.
+		// Échec global, item sans résultat ou stratégie divergente > resync.
 		let resync = false;
-		for (const { m, expectMove } of targets) {
-			try {
-				const r = await api.post(`/messages/${m.uid}/spam`, { folder: m.folder, spam });
-				if (r.strategy === 'move' && !expectMove) {
+		let r;
+		try {
+			r = await api.post('/messages/spam', {
+				items: targets.map(({ m }) => ({ folder: m.folder, uid: m.uid })),
+				spam });
+		} catch (e) { r = { error: e.message }; }
+		const byKey = {};
+		for (const res of r.results || []) {
+			byKey[this.goneKey(res.folder, res.uid)] = res.result;
+		}
+		if (r.error) { this.error(r.error); resync = true; }
+		if (r.errors?.length) { this.error(r.errors[0].error); }
+		targets.forEach(({ m, expectMove }) => {
+			const v = byKey[this.goneKey(m.folder, m.uid)];
+			if (v) {
+				if (v.strategy === 'move' && !expectMove) {
 					// Move imprévu : la ligne est encore affichée - la retirer.
 					if (!m.isSeen()) { this.adjustUnread(-1, m.folder); }
 					this.messages.remove(m);
 					this.closeViewerIfRemoved();
-				} else if (r.strategy !== 'move' && expectMove) {
+				} else if (v.strategy !== 'move' && expectMove) {
 					resync = true;
 				}
-			} catch (e) {
-				this.error(e.message);
+			} else {
 				if (expectMove && !m.isSeen()) { this.adjustUnread(1, m.folder); }
 				resync = true;
 			}
 			this.unmarkMoved(m.folder, m.uid);
-		}
+		});
 		if (resync) { await this.load(); this.closeViewerIfRemoved(); }
 	}
 }

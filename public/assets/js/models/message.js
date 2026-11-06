@@ -14,6 +14,7 @@ export class MessageModel {
 		this.isSeen = ko.observable(!!data.isSeen);
 		this.isFlagged = ko.observable(!!data.isFlagged);
 		this.isAnswered = ko.observable(!!data.isAnswered);
+		this.isForwarded = ko.observable(!!data.isForwarded);
 		this.isJunk = ko.observable(!!data.isJunk);
 		this.isSelected = ko.observable(false);   // ligne courante (lecture)
 		this.isChecked = ko.observable(false);    // case à cocher (actions groupées)
@@ -27,6 +28,29 @@ export class MessageModel {
 		this._threadOpen = ko.observable(false);
 		this.raw = data;
 	}
+
+	/** Rafraîchit les observables depuis une nouvelle version serveur
+	 *  (reconciliation in-place de applyData : les props non reactives sont
+	 *  couvertes par signature(), pas ici). */
+	updateFrom(data) {
+		this.isSeen(!!data.isSeen);
+		this.isFlagged(!!data.isFlagged);
+		this.isAnswered(!!data.isAnswered);
+		this.isForwarded(!!data.isForwarded);
+		this.isJunk(!!data.isJunk);
+		this.colorTag(data.colorTag || null);
+		this.raw = data;
+	}
+
+	/** Empreinte des champs non reactifs rendus par la liste : un écart entre
+	 *  deux versions impose le remplacement du modèle (bindings texte). */
+	static signature(d) {
+		return JSON.stringify([d.subject, d.from, d.date, d.size, d.hasAttach,
+			d.threads, d.threadUnseen, d.encrypted, d.isSpam, d.spamScore,
+			d.colorTagId, d.colorTagLabel]);
+	}
+
+	staticSignature() { return MessageModel.signature(this.raw); }
 
 	fromLabel() {
 		const f = this.from;

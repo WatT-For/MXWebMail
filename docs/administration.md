@@ -39,6 +39,10 @@ Pilote SQLite ou MariaDB/MySQL, hôte/port/nom/utilisateur/mot de passe. Un test
 (`/api/admin/test-db`) est obligatoire avant écriture : le serveur valide la connexion et
 crée la base si besoin. Voir [base-de-donnees.md](base-de-donnees.md).
 
+La carte **Sauvegarde** télécharge une archive zip (`config.php`, `app.key`,
+bases SQLite, `storage/branding`) - **sensible** (credentials + clé de chiffrement),
+à conserver en lieu sûr. Une base MariaDB n'est pas couverte : `mysqldump` côté serveur.
+
 ### Fonctionnalités
 
 Sous-onglets *Fonctionnalités* et *Défauts* :
@@ -87,14 +91,17 @@ d'application OAuth2 sont enregistrés par chaque utilisateur
 
 Liste + recherche d'utilisateurs, avec bouton d'actualisation (icône) pour recharger la liste.
 Par utilisateur (modale, onglets *Profil*, *Réglages*,
-*Comptes/Identités*) :
+*Comptes/Identités*, *Sessions*) :
 
 - `display_name`, `is_admin`, `disabled` ;
 - réglages utilisateur effectifs (édition + reset - le reset restaure les
   `user_defaults` mais **préserve** les clés internes `plugin.*` et
   `user_folders`, ex. secret 2FA, provenance des dossiers) ;
 - comptes IMAP secondaires (suppression, sauf le compte par défaut) ;
-- identités (création/édition/suppression, identité par défaut).
+- identités (création/édition/suppression, identité par défaut) ;
+- onglet **Sessions** : jetons "Rester connecté" listés et révocables ;
+  **Forcer la déconnexion** révoque les jetons et tue les sessions actives
+  (epoch de session incrémenté, rejet à la requête suivante).
 
 La suppression d'un utilisateur est en cascade et supprime aussi sa base contacts
 (`storage/db/users/<id>.sqlite`).
@@ -106,7 +113,7 @@ traduit - le nom technique `name` reste affiché à côté en `code`).
 
 Activation/désactivation de chaque plugin + modale de **configuration** générée depuis
 `config.schema.json` (types `string`, `text`, `integer`, `number`, `password`, `bool`,
-`enum`, `list`). La colonne **Accès utilisateurs** restreint un plugin activé à la surface admin
+`enum`, `color`, `list`). La colonne **Accès utilisateurs** restreint un plugin activé à la surface admin
 (page `/{admin_path}`, `/api/admin/*`, sessions admin) : il devient inerte pour les
 utilisateurs - voir [plugins.md](plugins.md). Décochée par défaut (à autoriser
 explicitement) ; elle est absente pour les plugins ne déclarant que des hooks `admin.*`

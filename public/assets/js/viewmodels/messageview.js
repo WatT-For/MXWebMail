@@ -335,7 +335,16 @@ export class MessageViewVM {
 		// nettoyés puis déplacés (sinon l'allowlist tuerait tout le contenu).
 		for (const root of [doc.head, doc.body]) {
 			for (const el of root.querySelectorAll(':not(' + allowed + ')')) {
-				el.remove();
+				// Balise inconnue ("<style=...>" malformé, <o:p>) ou élément
+				// custom (nom avec tiret : jamais défini dans un document
+				// DOMParser) : conteneur inerte pour le navigateur - on jette
+				// le conteneur, on garde le contenu (sanitisé indépendamment).
+				if (el instanceof HTMLUnknownElement
+					|| (el instanceof HTMLElement && el.localName.includes('-'))) {
+					el.replaceWith(...el.childNodes);
+				} else {
+					el.remove();
+				}
 			}
 		}
 
@@ -838,7 +847,8 @@ export class MessageViewVM {
 	}
 
 	/** Se désabonner : one-click RFC 8058 côté serveur, sinon ouverture
-	 *  du lien https ; mailto > composition pré-remplie. */
+	 *  du lien https ; mailto > composition pré-remplie (sujet/corps
+	 *  de l'URI conservés - jeton requis par certains ESP). */
 	async unsubscribe() {
 		const m = this.message();
 		if (!m?.unsubscribe) { return; }
@@ -847,13 +857,14 @@ export class MessageViewVM {
 			if (r.done) {
 				toast.success(t('app.unsubscribe_done'));
 			} else if (r.url) {
-				window.open(r.url, '_blank', 'noopener');
+				// Popup hors geste utilisateur (après await) > bloquable :
+				// la confirmation ré-arme un geste avant de retenter.
+				if (!window.open(r.url, '_blank', 'noopener')
+					&& await dialog.confirm(t('app.unsubscribe_open'))) {
+					window.open(r.url, '_blank', 'noopener');
+				}
 			} else if (r.mailto) {
-				const c = this.app.compose;
-				c.openNew();
-				c.to([c.normChip(decodeURIComponent(
-					r.mailto.replace(/^mailto:/i, '').split('?')[0]))]);
-				c.subject('unsubscribe');
+				this.app.compose.openMailto(r.mailto);
 			}
 		} catch (e) { this.error(e.message); }
 	}
@@ -1068,6 +1079,40 @@ export class MessageViewVM {
 		if (!m) { return; }
 		const target = await this.app.folderList.pickFolder(m.folder);
 		if (target) { await this.moveTo(target); }
+	}
+
+	/** Copie le message affiché vers un dossier - l'original reste. */
+	async copyWithPicker() {
+		const m = this.message();
+		if (!m) { return; }
+		const target = await this.app.folderList.pickFolder(m.folder);
+		if (!target) { return; }
+		await api.post(`/messages/${m.uid}/copy`, { folder: m.folder, to: target });
+		toast.success(t('app.copied'));
+		await this.app.messageList.refresh();
+	}
+
+	/** "Créer un filtre" : ouvre l'assistant Sieve pré-rempli sur
+	 *  l'expéditeur du message affiché (hash puis modale - l'activation
+	 *  asynchrone de l'onglet ne masque pas une modale deja "filters"). */
+	createFilter() {
+		const m = this.message();
+		if (!m) { return; }
+		location.hash = '#/@settings/filters';
+		this.app.settings.newFilterFromMessage(m);
+	}
+
+	/** "Renvoyer tel quel" : re-expédition du source brut (Resent-*). */
+	async bounce() {
+		const m = this.message();
+		if (!m) { return; }
+		const r = await dialog.form({ title: t('app.bounce_title'),
+			icon: 'fa-share-from-square',
+			fields: [{ name: 'to', label: t('app.bounce_to'), inputType: 'email' }] });
+		if (!r?.to) { return; }
+		await api.post(`/messages/${m.uid}/bounce`,
+			{ folder: m.folder, to: r.to.trim() });
+		toast.success(t('app.bounce_done'));
 	}
 
 	/** Déplace le message affiché vers le dossier de rôle "archive". */

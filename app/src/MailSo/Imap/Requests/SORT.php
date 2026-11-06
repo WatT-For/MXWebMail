@@ -80,9 +80,12 @@ class SORT extends Request
 			if (!$this->oImapClient->hasCapability('ESORT')) {
 				$this->oImapClient->writeLogException(new \MailSo\RuntimeException('ESORT is not supported'), \LOG_ERR);
 			}
+			// PARTIAL est une option de retour ESORT de base (acceptée par
+			// Dovecot sans CONTEXT=SORT) - CONTEXT=SORT n'est requis que pour
+			// les options contextuelles SAVE/UPDATE/...CONTEXT.
 			if (!$this->oImapClient->hasCapability('CONTEXT=SORT')) {
 				foreach ($this->aReturn as $sReturn) {
-					if (\preg_match('/PARTIAL|UPDATE|CONTEXT/i', $sReturn)) {
+					if (\preg_match('/\b(SAVE|UPDATE|CONTEXT)\b/i', $sReturn)) {
 						$this->oImapClient->writeLogException(new \MailSo\RuntimeException('CONTEXT=SORT is not supported'), \LOG_ERR);
 					}
 				}

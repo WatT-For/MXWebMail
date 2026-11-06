@@ -19,25 +19,15 @@ final class MessagesController extends BaseController
 	public function messages(Request $request): JsonResponse
 	{
 		$this->requireReadOnly();
-		$folder = $this->noCrlf((string) $request->input('folder', 'INBOX'), 'folder');
-		$page = max(1, (int) $request->input('page', 1));
-		$limit = min(200, max(1, (int) $request->input('limit', 50)));
-		$search = $this->noCrlf((string) $request->input('search', ''), 'search');
-		// Critère IMAP SORT (RFC 5256) - whitelist stricte : la valeur part
-		// telle quelle dans la commande UID SORT.
-		$sort = (string) $request->input('sort', '');
-		if (!in_array($sort, self::SORT_CRITERIA, true)) {
-			$sort = 'REVERSE DATE';
-		}
-		$threads = (bool) $request->input('threads', false);
-		$threadUid = (int) $request->input('thread_uid', 0);
-		// folder=* : recherche multi-dossiers (fusion triée date desc).
-		$data = $folder === '*'
-			? $this->app->mail()->searchAllFolders($search, $limit)
-			: $this->app->mail()->messages($folder, ($page - 1) * $limit, $limit, $search, $sort, $threads, $threadUid);
-		$data['page'] = $page;
-		$data['limit'] = $limit;
-		return JsonResponse::ok($data);
+		return JsonResponse::ok($this->listData([
+			'folder'     => $request->input('folder', 'INBOX'),
+			'page'       => $request->input('page', 1),
+			'limit'      => $request->input('limit', 50),
+			'search'     => $request->input('search', ''),
+			'sort'       => $request->input('sort', ''),
+			'threads'    => $request->input('threads', false),
+			'thread_uid' => $request->input('thread_uid', 0),
+		]));
 	}
 
 	public function message(Request $request): JsonResponse
@@ -85,11 +75,30 @@ final class MessagesController extends BaseController
 
 	/** Envoie l'accusé de réception (RFC 3798, action manuelle) puis pose
 	 *  le mot-clé $MDNSent sur le message source. */
+	/** "Renvoyer tel quel" (bounce) : re-expédition du source brut avec
+	 *  en-tetes Resent-* vers un seul destinataire. */
+	public function messageBounce(Request $request): JsonResponse
+	{
+		$this->requireAuth();
+		$this->requireCsrf();
+		$to = trim($this->noCrlf((string) $request->input('to'), 'to'));
+		if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
+			throw new \RuntimeException(
+				$this->t('errors.invalid_value', ['key' => 'to']), 400);
+		}
+		$this->app->mail()->bounce(
+			$this->noCrlf((string) $request->input('folder', 'INBOX'), 'folder'),
+			(int) $request->params['uid'],
+			$to
+		);
+		return JsonResponse::ok();
+	}
+
 	public function messageMdnSend(Request $request): JsonResponse
 	{
 		$this->requireAuth();
 		$this->requireCsrf();
-		$folder = $this->folderParam($request);
+		$folder = $this->noCrlf((string) $request->input('folder', 'INBOX'), 'folder');
 		$uid = (int) $request->params['uid'];
 		$msg = $this->app->mail()->message($folder, $uid);
 		if (empty($msg['dispositionTo'])) {
@@ -158,7 +167,7 @@ final class MessagesController extends BaseController
 	{
 		$this->requireAuth();
 		$this->requireCsrf();
-		$folder = $this->folderParam($request);
+		$folder = $this->noCrlf((string) $request->input('folder', 'INBOX'), 'folder');
 		$uid = (int) $request->params['uid'];
 		$msg = $this->app->mail()->message($folder, $uid);
 		if (empty($msg['smimeSigned'])) {
@@ -426,7 +435,7 @@ final class MessagesController extends BaseController
 					// gros corps : même logique que FpassthruWithTimeLimitReset
 					set_time_limit(30);
 				}
-			});
+			}, $meta);
 		fclose($fp);
 		if (!$ok) {
 			@unlink($tmp);
@@ -474,7 +483,7 @@ final class MessagesController extends BaseController
 				$body = $maxLength === null
 					? stream_get_contents($r)
 					: stream_get_contents($r, $maxLength + 1);
-			});
+			}, $meta);
 		if (!$ok || !is_string($body)) {
 			$this->app->log('warning',
 				"Attachment mimeStream échoué uid={$uid} folder={$folder} mimeIndex={$mimeIndex}");
@@ -586,6 +595,10 @@ final class MessagesController extends BaseController
 		if ($to === $mail->trashFolder()) {
 			$this->requireDangerous();
 		}
+		if (!in_array($to, array_column($mail->folders(), 'fullName'), true)) {
+			throw new \RuntimeException(
+				$this->t('errors.invalid_value', ['key' => 'to']), 400);
+		}
 		$mail->move(
 			$this->noCrlf((string) $request->input('folder', 'INBOX'), 'folder'),
 			$to,
@@ -598,9 +611,22 @@ final class MessagesController extends BaseController
 	{
 		$this->requireAuth();
 		$this->requireCsrf();
-		$this->app->mail()->copy(
-			$this->noCrlf((string) $request->input('folder', 'INBOX'), 'folder'),
-			$this->noCrlf((string) $request->input('to'), 'to'),
+		$mail = $this->app->mail();
+		$to = $this->noCrlf((string) $request->input('to'), 'to');
+		// Pas de requireDangerous : copier vers la corbeille ne retire
+		// pas l'original (contrairement au deplacement).
+		if (!in_array($to, array_column($mail->folders(), 'fullName'), true)) {
+			throw new \RuntimeException(
+				$this->t('errors.invalid_value', ['key' => 'to']), 400);
+		}
+		$folder = $this->noCrlf((string) $request->input('folder', 'INBOX'), 'folder');
+		if ($to === $folder) {
+			throw new \RuntimeException(
+				$this->t('errors.invalid_value', ['key' => 'to']), 400);
+		}
+		$mail->copy(
+			$folder,
+			$to,
 			(int) $request->params['uid']
 		);
 		return JsonResponse::ok();
@@ -654,6 +680,10 @@ final class MessagesController extends BaseController
 		if ($to === $mail->trashFolder()) {
 			$this->requireDangerous();
 		}
+		if (!in_array($to, array_column($mail->folders(), 'fullName'), true)) {
+			return JsonResponse::error(
+				$this->t('errors.invalid_value', ['key' => 'to']), 'invalid_value', 400);
+		}
 		$groups = $this->batchItemsByFolder($request);
 		if ($groups instanceof JsonResponse) { return $groups; }
 		$done = 0; $errors = [];
@@ -669,12 +699,99 @@ final class MessagesController extends BaseController
 		return JsonResponse::ok(['done' => $done, 'errors' => $errors]);
 	}
 
+	/** Copie groupee : meme contrat que messagesMove mais sans effet de
+	 *  bord sur la selection - les originaux restent en place. */
+	public function messagesCopy(Request $request): JsonResponse
+	{
+		$this->requireAuth();
+		$this->requireCsrf();
+		$mail = $this->app->mail();
+		$to = $this->noCrlf((string) $request->input('to'), 'to');
+		if ($to === '') {
+			return JsonResponse::error($this->t('errors.invalid_value', ['key' => 'to']), 'invalid_value', 400);
+		}
+		if (!in_array($to, array_column($mail->folders(), 'fullName'), true)) {
+			return JsonResponse::error(
+				$this->t('errors.invalid_value', ['key' => 'to']), 'invalid_value', 400);
+		}
+		$groups = $this->batchItemsByFolder($request);
+		if ($groups instanceof JsonResponse) { return $groups; }
+		$done = 0; $errors = [];
+		foreach ($groups as $folder => $uids) {
+			if ($folder === $to) { continue; }
+			try {
+				$mail->copy($folder, $to, $uids);
+				$done += count($uids);
+			} catch (\Throwable $e) {
+				$errors[] = ['folder' => $folder, 'error' => $e->getMessage()];
+			}
+		}
+		return JsonResponse::ok(['done' => $done, 'errors' => $errors]);
+	}
+
+	/** Flags groupés : un UID STORE par dossier (sequence set) au lieu d'une
+	 *  requête HTTP + commande IMAP par message (bulkFlag frontend). */
+	public function messagesFlags(Request $request): JsonResponse
+	{
+		$this->requireAuth();
+		$this->requireCsrf();
+		$flag = (string) $request->input('flag');
+		if (!in_array($flag, self::ALLOWED_FLAGS, true)) {
+			return JsonResponse::error(
+				$this->t('errors.invalid_value', ['key' => 'flag']), 'invalid_value', 400);
+		}
+		$set = (bool) $request->input('set', true);
+		$groups = $this->batchItemsByFolder($request);
+		if ($groups instanceof JsonResponse) { return $groups; }
+		$mail = $this->app->mail();
+		$done = 0; $errors = [];
+		foreach ($groups as $folder => $uids) {
+			try {
+				$mail->flagsMany($folder, $uids, $flag, $set);
+				$done += count($uids);
+			} catch (\Throwable $e) {
+				$errors[] = ['folder' => $folder, 'error' => $e->getMessage()];
+			}
+		}
+		return JsonResponse::ok(['done' => $done, 'errors' => $errors]);
+	}
+
+	/** Marquage spam groupé : un appel par sélection au lieu d'une requête
+	 *  HTTP par message - markSpam par UID sur la connexion partagée (hook
+	 *  message.spam émis par message, erreurs isolées par item). */
+	public function messagesSpam(Request $request): JsonResponse
+	{
+		$this->requireAuth();
+		$this->requireCsrf();
+		$spam = (bool) $request->input('spam', true);
+		$groups = $this->batchItemsByFolder($request);
+		if ($groups instanceof JsonResponse) { return $groups; }
+		$mail = $this->app->mail();
+		$done = 0; $results = []; $errors = [];
+		foreach ($groups as $folder => $uids) {
+			foreach ($uids as $uid) {
+				try {
+					$results[] = ['folder' => $folder, 'uid' => $uid,
+						'result' => $mail->markSpam($folder, $uid, $spam)];
+					$done++;
+				} catch (\Throwable $e) {
+					$errors[] = ['folder' => $folder, 'uid' => $uid,
+						'error' => $e->getMessage()];
+				}
+			}
+		}
+		return JsonResponse::ok(
+			['done' => $done, 'results' => $results, 'errors' => $errors]);
+	}
+
 	/**
 	 * Désabonnement (List-Unsubscribe). RFC 8058 : si le message annonce
 	 * "List-Unsubscribe-Post: List-Unsubscribe=One-Click" et une cible
-	 * https, le POST part côté serveur (même garde SSRF que le proxy
-	 * d'images, redirects revalidés). Sinon la cible url/mailto est
-	 * renvoyée pour action côté client.
+	 * https, le POST part côté serveur via le client HTTP interne (cURL
+	 * ou socket - aucune dépendance à allow_url_fopen), avec la même
+	 * garde SSRF que le proxy d'images, redirects revalidés par hop.
+	 * Tout échec du one-click est journalisé puis la cible url/mailto
+	 * est renvoyée : le client ouvre alors le lien en dégradé.
 	 */
 	public function messageUnsubscribe(Request $request): JsonResponse
 	{
@@ -688,37 +805,61 @@ final class MessagesController extends BaseController
 		}
 		if (!empty($u['post']) && $u['url']) {
 			$url = $u['url'];
+			$method = 'POST';
+			$ca = (string) (((array) $this->app->config()->get('ssl'))['cafile'] ?? '');
 			for ($hop = 0; $hop <= 3; $hop++) {
 				if ($this->proxyUrlError($url, [])) {
 					return JsonResponse::error($this->t('errors.host_blocked'), 'ssrf', 403);
 				}
-				$ctx = stream_context_create(['http' => [
-					'method' => 'POST', 'timeout' => 8, 'max_redirects' => 0,
-					'ignore_errors' => true, 'user_agent' => 'MXWebMail-Unsubscribe',
-					'header' => "Content-Type: application/x-www-form-urlencoded\r\n",
-					'content' => 'List-Unsubscribe=One-Click',
-				]]);
-				$body = @file_get_contents($url, false, $ctx);
-				$status = 0; $location = null;
-				foreach ($http_response_header ?? [] as $i => $h) {
-					if ($i === 0 && preg_match('#^HTTP/\S+\s+(\d{3})#', $h, $m)) {
-						$status = (int) $m[1];
-					} else if (stripos($h, 'Location:') === 0) {
-						$location = trim(substr($h, 9));
+				// Transports en cascade : cURL puis socket natif (indépendant
+				// de allow_url_fopen et capable de résoudre les CA via l'OS
+				// quand curl n'a pas de bundle - et réciproquement).
+				$res = null; $err = '';
+				foreach (['curl', 'socket'] as $type) {
+					try {
+						$http = \MXWebMailLib\HTTP\Request::factory($type);
+						$http->timeout = 8;
+						$http->verify_peer = true;
+						$http->user_agent = 'MXWebMail-Unsubscribe';
+						if ($ca !== '') {
+							$http->setCABundleFile($ca);
+						}
+						// GET : body null (doRequest l'ajouterait à l'URL).
+						$res = $http->doRequest($method, $url,
+							'POST' === $method ? 'List-Unsubscribe=One-Click' : null,
+							'POST' === $method ? ['Content-Type: application/x-www-form-urlencoded'] : []);
+						break;
+					} catch (\Throwable $e) {
+						$err .= ($err !== '' ? ' | ' : '') . "[{$type}] " . $e->getMessage();
 					}
 				}
-				if ($status >= 300 && $status < 400 && $location && $hop < 3) {
-					$url = $this->resolveRedirect($url, $location) ?? '';
-					if ($url !== '' && preg_match('#^https://#i', $url)) {
+				if (!$res) {
+					$this->app->log('warning',
+						"Désabonnement one-click échoué url={$url} : {$err}");
+					break;
+				}
+				$status = (int) $res->status;
+				if ($status >= 300 && $status < 400 && $hop < 3) {
+					$loc = $res->getHeader('location');
+					$loc = is_array($loc) ? (string) ($loc[0] ?? '') : (string) $loc;
+					$next = $loc !== '' ? $this->resolveRedirect($url, $loc) : null;
+					if ($next && preg_match('#^https://#i', $next)) {
+						$url = $next;
+						// 301/302/303 > GET (RFC 7231) ; 307/308 conservent le POST.
+						if (in_array($status, [301, 302, 303], true)) {
+							$method = 'GET';
+						}
 						continue;
 					}
-					return JsonResponse::error($this->t('errors.bad_url'), 'bad_url');
+					break; // redirect non résolvable : l'URL d'origine s'ouvre au navigateur
 				}
-				return ($status >= 200 && $status < 300)
-					? JsonResponse::ok(['done' => true])
-					: JsonResponse::error($this->t('errors.unsubscribe_failed'), 'failed', 502);
+				if ($status >= 200 && $status < 300) {
+					return JsonResponse::ok(['done' => true]);
+				}
+				$this->app->log('warning',
+					"Désabonnement one-click refusé url={$url} : HTTP {$status}");
+				break;
 			}
-			return JsonResponse::error($this->t('errors.unsubscribe_failed'), 'failed', 502);
 		}
 		return JsonResponse::ok(['url' => $u['url'], 'mailto' => $u['mailto']]);
 	}
@@ -949,13 +1090,6 @@ final class MessagesController extends BaseController
 		}
 		return $out;
 	}
-
-	/** Critères IMAP SORT acceptés en ?sort= sur /api/messages (RFC 5256). */
-	private const SORT_CRITERIA = [
-		'REVERSE DATE', 'DATE', 'ARRIVAL', 'REVERSE ARRIVAL',
-		'FROM', 'REVERSE FROM', 'TO', 'REVERSE TO', 'CC',
-		'SUBJECT', 'REVERSE SUBJECT', 'SIZE', 'REVERSE SIZE',
-	];
 
 	/** Flags acceptés sur /api/messages/{uid}/flags (= enum IMAP complet). */
 	private const ALLOWED_FLAGS = [

@@ -9,7 +9,7 @@ return [
 	'plugin.pwa.f.short_name'            => 'Short name',
 	'plugin.pwa.f.short_name.help'       => 'Shown under the icon; empty = application name',
 	'plugin.pwa.f.theme_color'           => 'Theme color',
-	'plugin.pwa.f.theme_color.help'      => 'App title bar color (hex #rrggbb)',
+	'plugin.pwa.f.theme_color.help'      => 'App title bar color (hex #rrggbb); empty = header color of the displayed theme',
 	'plugin.pwa.f.background_color'      => 'Background color',
 	'plugin.pwa.f.background_color.help' => 'Splash screen color',
 	'plugin.pwa.f.display'               => 'Display mode',

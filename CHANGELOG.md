@@ -6,6 +6,67 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) -
 semver `0.MINOR.PATCH` en développement.
 Catégories, dans l'ordre : `Sécurité`, `Ajouté`, `Modifié`, `Corrigé`, `Obsolète`, `Supprimé`.
 
+## [0.52.0] - 2026-11-06
+
+### Ajouté
+
+- "Copier vers..." : copie d'un message ou de la sélection vers un dossier (menu du lecteur + barre d'actions groupée) - les originaux restent en place.
+- "Renvoyer tel quel" : réexpédition du message brut vers un autre destinataire avec en-têtes `Resent-*` (bounce).
+- "Créer un filtre" dans le menu du message : ouvre l'assistant Sieve pré-rempli sur l'expéditeur.
+- Transfert groupé : la sélection cochée peut être jointe en `.eml` dans une seule composition (bouton dédié, 20 messages max) ; à l'envoi, les messages transférés sont marqués `$Forwarded` (icône flèche dans la liste, comme "répondu").
+- Composition : `Ctrl`+`Entrée` envoie le message (documenté dans l'aide `?`).
+- Contacts : la fiche édite désormais téléphone, organisation, surnom, site web, anniversaire et note (conservés à l'import/export vCard) ; recherche dans l'onglet et bouton "Écrire" par contact.
+- Admin > Utilisateurs : onglet Sessions - jetons "Rester connecté" listés et révoquables, bouton "Forcer la déconnexion" (jetons + sessions actives).
+- Admin > Base de données : téléchargement d'une sauvegarde zip (config.php, clé de chiffrement, bases SQLite, branding).
+- Schémas de configuration des extensions : type de champ `color` (sélecteur de couleur natif + saisie hexadécimale, vide = repli du plugin) - appliqué aux couleurs du plugin PWA.
+- API : endpoint `GET /api/poll` regroupant dossiers, derniers messages des dossiers surveillés, page de liste et quota en une seule requête.
+- API : endpoint `POST /api/messages/flags` groupant les changements de drapeaux (lu, suivi) de la sélection en une seule requête.
+- API : endpoint `POST /api/messages/spam` groupant les marquages spam/non-spam de la sélection en une seule requête.
+
+### Modifié
+
+- Favicon : nouvelle icône par défaut (logo mxrelay).
+- Plugin PWA : les icônes par défaut reprennent le logo mxrelay (centré, fond transparent).
+- Réponse : la citation du message d'origine n'est plus préfixée de chevrons `>` dans le corps - elle s'affiche en bloc encadré ; les chevrons restent générés dans la partie texte brut du mail envoyé.
+- Plugin PWA : champ "Couleur du thème" vide > `theme-color` suit la couleur d'en-tête du thème affiché (clair/sombre selon l'OS ou le réglage du thème) au lieu du bleu fixe ; le manifest reçoit la couleur d'en-tête du thème actif.
+- Actualisation automatique et chargement initial mutualisés via `/api/poll` : une connexion IMAP par tick et par boot au lieu de plusieurs ; le polling est suspendu quand l'onglet est masqué.
+- Paquet de release : les sourcemaps JS (`*.map`) ne sont plus incluses.
+- Performances : la liste de messages est réconciliée en place au lieu d'être reconstruite à chaque actualisation (DOM intact quand rien n'a changé, sélection et fils dépliés préservés).
+- Performances : actions groupées lu/suivi et spam parallélisées ou regroupées en une seule requête (un UID STORE par dossier au lieu d'un par message).
+- Performances : requêtes SQL réduites par appel (config des plugins chargée avec les états, domaines et réglages utilisateur mémoïsés par requête, lecture du répondeur d'absence sans double téléchargement du script Sieve).
+- Performances : session PHP et chargement des extensions évités pour les assets publics (favicon, dictionnaires, fichiers de thème et d'extensions).
+- Performances : le cache des dossiers n'est réécrit que lorsque son contenu change.
+- Performances : la liste de messages pagine désormais côté serveur IMAP quand il le permet (ESORT `RETURN COUNT PARTIAL`) - plus besoin de trier et rapatrier tous les UID du dossier ni d'invalider le cache à chaque changement, recherche incluse.
+- Performances : l'affichage d'un message ne fait plus qu'un aller-retour IMAP au lieu de deux pour la quasi-totalité des structures de mail.
+- Performances : les pièces jointes ne re-fetchent plus les en-têtes MIME déjà connues et leurs métadonnées sont mises en cache - un aller-retour de moins par pièce jointe, mutualisé entre téléchargement, aperçu et archive zip.
+- Paquet : les fontes FontAwesome `.ttf` (~700 Ko, jamais téléchargées car `woff2` est prioritaire) ne sont plus livrées.
+
+### Corrigé
+
+- Anti-usurpation : le bouclier ne mentionnait que les mécanismes écrits dans `Authentication-Results` - les verdicts SPF/DKIM/DMARC publiés dans `Received-SPF`, `X-Spam-Status` (SpamAssassin) et `X-Spamd-Result` (rspamd) sont désormais comptés quand le MTA ne les écrit pas dans `Authentication-Results`, et `header.i=@domaine` est reconnu pour l'alignement DKIM.
+- Désabonnement : le one-click RFC 8058 échouait systématiquement sur les hébergements sans `allow_url_fopen` (mutualisés) - il passe désormais par le client HTTP interne (cURL ou socket) avec prise en compte de `ssl.cafile`. Tout échec est journalisé et le bouton retombe sur le lien https ou un mailto complet (sujet et corps conservés).
+- Accusé de réception (MDN) et vérification de signature S/MIME : les deux actions retournaient une erreur serveur sur tout message (le dossier n'était jamais transmis à la couche IMAP).
+- "Rester connecté" et bascule de compte en échec permanent après un changement de mot de passe de la boîte : le mot de passe chiffré stocké par compte n'était jamais rafraîchi au login.
+- Le cache des dossiers (résolution des rôles corbeille/spam/archives) n'était jamais persisté : il est désormais stocké en fichier par compte au lieu de la session.
+- Export .eml/.zip : warning PHP "headers already sent" dans les logs à chaque export.
+- Réglage des dossiers spéciaux : une requête malformée effaçait toutes les assignations personnalisées.
+- API de réglages : la valeur texte "false" était acceptée comme vraie pour les options booléennes.
+- Déplacement de messages : la cible est désormais validée (erreur 400 propre au lieu d'un échec IMAP brut).
+- Mise à jour : un `apply` de plus de 15 minutes pouvait débloquer l'API en pleine copie de fichiers.
+- Logout admin sans vérification CSRF (cohérent avec le reste de l'API admin).
+- Composition : les suggestions de destinataires cassaient le rendu Knockout dès qu'un contact sans groupe était proposé (exception `group is not defined` à chaque item) - les champs to/cc/bcc sont corrigés.
+- Lecture : certains mails (ex. notifications eBay imbriquant un avis Mondial Relay) n'affichaient plus leur contenu central à cause d'une balise `<style>` malformée qui avalait le corps - le sanitizer déballe désormais les balises inconnues et les éléments custom au lieu de les supprimer avec leur contenu.
+- Premier login : erreur serveur possible sur connexions simultanées d'un nouvel utilisateur.
+- ETag des assets : correspondance par élément de la liste `If-None-Match` (conforme RFC) ; prépare les codes de langue type `pt_BR` pour l'URL i18n.
+- Migrations sous MariaDB : chaque version était appliquée puis la migration échouait ("no active transaction") - le DDL auto-commit invalide la transaction PDO ; la transaction n'est désormais ouverte que sous SQLite, donc installation et mises à jour de schéma refonctionnent sur MariaDB.
+- Envoi SMTP sans authentification : l'option `smtp.useAuth` d'un domaine était ignorée (une commande `AUTH` était tentée systématiquement, donc échec sur serveur sans AUTH) - elle est désormais respectée.
+
+- "Renvoyer tel quel" : le message réexpédié arrivait sans son contenu (seuls les en-têtes `Resent-*` étaient envoyés).
+- Démarrage : un échec de `/api/poll` figeait l'initialisation de l'application (liste et dossiers vides, pas de raccourcis ni d'actualisation) - repli sur les endpoints unitaires.
+- "Copier vers..." acceptait le dossier source comme destination (duplication possible).
+- Caches `folders-*.json` laissés orphelins par les sessions expirées (purge > 30 j).
+- Références `.ttf` orphelines dans le CSS FontAwesome (fichiers retirés du paquet).
+
 ## [0.51.0] - 2026-11-04
 
 ### Ajouté

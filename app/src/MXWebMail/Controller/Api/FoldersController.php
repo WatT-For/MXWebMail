@@ -149,8 +149,14 @@ final class FoldersController extends BaseController
 		// chaque appel - deux appels = deux connexions IMAP.
 		$mail = $this->app->mail();
 		$existing = array_column($mail->folders(), 'fullName');
+		$body = $request->json();
+		// Un JSON en liste écraserait toutes les assignations (clés rejetées) :
+		// refusé plutôt que destructif.
+		if (!is_array($body) || ($body !== [] && array_is_list($body))) {
+			throw new \InvalidArgumentException('special folders map expected', 400);
+		}
 		$map = [];
-		foreach ((array) $request->json() as $role => $value) {
+		foreach ($body as $role => $value) {
 			if (!in_array($role, MailService::SPECIAL_ROLES, true) || !is_string($value)) {
 				continue;
 			}

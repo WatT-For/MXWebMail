@@ -61,6 +61,18 @@ function initTiny(element, accessor, extra = {}) {
 		toolbar: 'undo redo | bold italic underline | forecolor | bullist numlist | link | removeformat',
 		...extra,
 		setup(editor) {
+			// Ctrl+Entree = envoyer : l'iframe TinyMCE avale les keydown,
+			// le listener de #compose-modal ne les voit jamais - un
+			// evenement synthetique dispatch sur la textarea y remonte.
+			if (element.id === 'compose-body') {
+				editor.on('keydown', ev => {
+					if ((ev.ctrlKey || ev.metaKey) && ev.key === 'Enter') {
+						ev.preventDefault();
+						element.dispatchEvent(new KeyboardEvent('keydown',
+							{ key: 'Enter', ctrlKey: true, bubbles: true }));
+					}
+				});
+			}
 			// SetContent : la modale "code source" applique ses changements
 			// via editor.setContent() - sans cet event l'observable resterait
 			// désynchronisé. Pas de boucle : syncFromObservable réécrit la

@@ -16,6 +16,13 @@ use MXWebMail\Service\MailService;
 
 abstract class BaseController
 {
+	/** Critères IMAP SORT acceptés en ?sort= sur /api/messages (RFC 5256). */
+	protected const SORT_CRITERIA = [
+		'REVERSE DATE', 'DATE', 'ARRIVAL', 'REVERSE ARRIVAL',
+		'FROM', 'REVERSE FROM', 'TO', 'REVERSE TO', 'CC',
+		'SUBJECT', 'REVERSE SUBJECT', 'SIZE', 'REVERSE SIZE',
+	];
+
 	public function __construct(protected App $app) {}
 
 	/**
@@ -111,6 +118,34 @@ abstract class BaseController
 		return array_filter($settings,
 			fn(string $k) => !str_starts_with($k, 'plugin.'),
 			ARRAY_FILTER_USE_KEY);
+	}
+
+	/**
+	 * Page de messages normalisée - partagée par GET /api/messages et la
+	 * section "list" de GET /api/poll. $p = paramètres bruts (query ou JSON
+	 * décodé) : folder, page, limit, search, sort, threads, thread_uid.
+	 */
+	protected function listData(array $p): array
+	{
+		$mail = $this->app->mail();
+		$folder = $this->noCrlf((string) ($p['folder'] ?? 'INBOX'), 'folder');
+		$page = max(1, (int) ($p['page'] ?? 1));
+		$limit = min(200, max(1, (int) ($p['limit'] ?? 50)));
+		$search = $this->noCrlf((string) ($p['search'] ?? ''), 'search');
+		$sort = (string) ($p['sort'] ?? '');
+		if (!in_array($sort, self::SORT_CRITERIA, true)) {
+			$sort = 'REVERSE DATE';
+		}
+		$threads = !empty($p['threads']);
+		$threadUid = (int) ($p['thread_uid'] ?? 0);
+		// folder=* : recherche multi-dossiers (fusion triée date desc).
+		$data = $folder === '*'
+			? $mail->searchAllFolders($search, $limit)
+			: $mail->messages($folder, ($page - 1) * $limit, $limit,
+				$search, $sort, $threads, $threadUid);
+		$data['page'] = $page;
+		$data['limit'] = $limit;
+		return $data;
 	}
 
 	/**

@@ -83,7 +83,9 @@ final class PageController
 			$etag = '"' . substr(sha1($path . '|' . $mtime . '|' . filesize($path)), 0, 16) . '"';
 			$headers['ETag'] = $etag;
 			$headers['Last-Modified'] = gmdate('D, d M Y H:i:s', $mtime) . ' GMT';
-			if (str_contains((string) $request->header('If-None-Match'), $etag)) {
+			$inm = (string) $request->header('If-None-Match');
+			if ($inm !== '' && in_array($etag,
+				array_map('trim', explode(',', $inm)), true)) {
 				return new Response('', 304, $headers);
 			}
 		}
@@ -199,7 +201,7 @@ final class PageController
 	public function i18nAsset(Request $request): Response
 	{
 		session_write_close(); // asset public : pas besoin de la session
-		$lang = preg_replace('/[^a-z]/', '', $request->params['lang'] ?? '');
+		$lang = preg_replace('/[^a-zA-Z_-]/', '', $request->params['lang'] ?? '');
 		if ($lang === '' || !in_array($lang, $this->app->languages(), true)) {
 			return Response::notFound();
 		}

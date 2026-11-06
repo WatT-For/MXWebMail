@@ -9,7 +9,7 @@ return [
 	'plugin.pwa.f.short_name'            => 'Nom court',
 	'plugin.pwa.f.short_name.help'       => "Affiché sous l'icône ; vide = nom de l'application",
 	'plugin.pwa.f.theme_color'           => 'Couleur du thème',
-	'plugin.pwa.f.theme_color.help'      => "Barre de titre de l'application (hex #rrggbb)",
+	'plugin.pwa.f.theme_color.help'      => "Barre de titre de l'application (hex #rrggbb) ; vide = couleur d'en-tête du thème affiché",
 	'plugin.pwa.f.background_color'      => 'Couleur de fond',
 	'plugin.pwa.f.background_color.help' => "Écran de démarrage (splash) de l'application",
 	'plugin.pwa.f.display'               => "Mode d'affichage",

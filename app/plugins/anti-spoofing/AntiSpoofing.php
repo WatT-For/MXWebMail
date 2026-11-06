@@ -8,7 +8,8 @@ use MXWebMail\Plugin\PluginBase;
 
 /**
  * Détection d'usurpation d'adresse / de domaine dans le lecteur de message.
- * - imap.message-headers : ajoute Return-Path (enveloppe) au FETCH IMAP.
+ * - imap.message-headers : ajoute Return-Path (enveloppe) et Received-SPF
+ *   au FETCH IMAP.
  * - message.view         : calcule un verdict heuristique et l'injecte dans
  *   la réponse JSON du message (clé "security") - jamais bloquant, le
  *   frontend affiche un bouclier indicatif.
@@ -22,6 +23,7 @@ final class AntiSpoofing extends PluginBase
 	{
 		$hooks->on('imap.message-headers', function (array &$headers) {
 			$headers[] = \MailSo\Mime\Enumerations\Header::RETURN_PATH;
+			$headers[] = \MailSo\Mime\Enumerations\Header::RECEIVED_SPF;
 		});
 
 		$hooks->on('message.view', function (array &$data, \MailSo\Mail\Message $msg) {
@@ -184,6 +186,42 @@ final class AntiSpoofing extends PluginBase
 								$alerts[] = $this->alert('auth_dmarc_fail', 'danger', []);
 							}
 							break;
+					}
+				}
+			}
+			// Verdicts publies hors Authentication-Results : tags de tests
+			// SpamAssassin (X-Spam-Status) et symboles rspamd (X-Spamd-Result)
+			// - certains MTA (Postfix + opendkim + SpamAssassin…) n'ecrivent
+			// que dkim= dans A-R. Seuls les mecanismes sans aucune ligne A-R
+			// sont completes (jamais de contradiction avec un verdict A-R
+			// explicite) et uniquement en positif : aucune alerte n'est
+			// generee depuis ces sources (domaine non verifiable, tags
+			// heuristiques de scoring).
+			$spamStatus = $headers
+				? $headers->ValueByName(\MailSo\Mime\Enumerations\Header::X_SPAM_STATUS) : '';
+			$spamdResult = $headers
+				? $headers->ValueByName(\MailSo\Mime\Enumerations\Header::X_SPAMD_RESULT) : '';
+			if ($spamStatus !== '' || $spamdResult !== '') {
+				if (!$msg->SPF
+					&& (preg_match('/\bSPF_PASS\b/i', $spamStatus)
+						|| preg_match('/\bR_SPF_ALLOW\b/i', $spamdResult))) {
+					$passed['SPF'] = true;
+				}
+				// DMARC est aligne avec le From par construction.
+				if (!$msg->DMARC
+					&& (preg_match('/\bDMARC_PASS\b/i', $spamStatus)
+						|| preg_match('/\bDMARC_POLICY_ALLOW(?:_WITH_FAILURES)?\b/i', $spamdResult))) {
+					$passed['DMARC'] = true;
+				}
+				if (!$msg->DKIM) {
+					if (preg_match('/\bDKIM_VALID_AU\b/i', $spamStatus)) {
+						// DKIM_VALID_AU : signature du domaine auteur > alignee.
+						$dkimAlignedPass = true;
+					} elseif ($fromDomain !== ''
+						&& preg_match('/\bR_DKIM_ALLOW\b(?:\([^)]*\))?\[([^:\]]+)/i',
+							$spamdResult, $m)
+						&& self::orgDomain(trim($m[1])) === self::orgDomain($fromDomain)) {
+						$dkimAlignedPass = true;
 					}
 				}
 			}
@@ -482,9 +520,9 @@ final class AntiSpoofing extends PluginBase
 	 */
 	private static function authDomain(string $v): string
 	{
-		$v = strtolower(trim($v, " \t\""));
+		$v = ltrim(strtolower(trim($v, " \t\"")), '@');
 		if (str_contains($v, '@')) {
-			$v = \MailSo\Base\Utils::getEmailAddressDomain(ltrim($v, '@'));
+			$v = \MailSo\Base\Utils::getEmailAddressDomain($v);
 		}
 		return $v;
 	}

@@ -45,13 +45,27 @@ export class SettingsVM {
 		// (GET /contacts > all()), inutile de requêter par page.
 		this.contactsPage = ko.observable(1);
 		this.contactsPerPage = 25;
+		// Recherche locale : le carnet est deja charge en entier (all()) -
+		// filtre synchrone, aucun appel reseau (l'endpoint ?q= renvoie une
+		// forme autocomplete/groupe incompatible avec le tableau).
+		this.contactSearch = ko.observable('');
+		this.filteredContacts = ko.pureComputed(() => {
+			const q = this.contactSearch().trim().toLowerCase();
+			const all = this.contacts();
+			if (!q) { return all; }
+			return all.filter(c =>
+				(c.name || '').toLowerCase().includes(q)
+				|| (c.emails || '').toLowerCase().includes(q)
+				|| ((c.properties?.categories || []).join(' ')).toLowerCase().includes(q));
+		});
+		this.contactSearch.subscribe(() => this.contactsPage(1));
 		this.contactsTotalPages = ko.pureComputed(() =>
-			Math.max(1, Math.ceil(this.contacts().length / this.contactsPerPage)));
+			Math.max(1, Math.ceil(this.filteredContacts().length / this.contactsPerPage)));
 		// Page bornée : suppression du dernier contact d'une page, carnet
 		// rechargé plus court > la page courante se replie sans reset brutal.
 		this.contactsPageEff = ko.pureComputed(() =>
 			Math.min(this.contactsPage(), this.contactsTotalPages()));
-		this.pagedContacts = ko.pureComputed(() => this.contacts().slice(
+		this.pagedContacts = ko.pureComputed(() => this.filteredContacts().slice(
 			(this.contactsPageEff() - 1) * this.contactsPerPage,
 			this.contactsPageEff() * this.contactsPerPage));
 
@@ -244,7 +258,10 @@ export class SettingsVM {
 		this.tab(known.includes(name) ? name : 'general');
 		if (this.tab() !== 'filters') { this.filterModal?.hide(); }
 		if (this.tab() !== 'identities') { this.identityModal?.hide(); }
-		if (this.tab() !== 'contacts') { this.contactModal?.hide(); }
+		if (this.tab() !== 'contacts') {
+			this.contactModal?.hide();
+			this.contactSearch('');
+		}
 		if (this.tab() === 'identities') { this.loadIdentities(); }
 		if (this.tab() === 'contacts') { this.loadContacts(); }
 		if (this.tab() === 'sessions') { this.loadSessions(); }
@@ -505,10 +522,16 @@ export class SettingsVM {
 	}
 
 	editContact(c) {
-		const cats = (c?.properties?.categories || []).join(', ');
+		const p = c?.properties || {};
+		const cats = (p.categories || []).join(', ');
 		// id toujours présent (null à la création) : le titre de la modale
 		// teste "id ? contact_edit : contact_new" - clé absente > ReferenceError KO.
-		this.editingContact({ ...(c || { id: null, name: '', emails: '' }), categories: cats });
+		// Champs riches aplaties depuis properties (cles vCard conservees
+		// par l'import/export : tel, org, url, nick, bday, note).
+		this.editingContact({ ...(c || { id: null, name: '', emails: '' }),
+			categories: cats,
+			tel: p.tel || '', org: p.org || '', url: p.url || '',
+			nick: p.nick || '', bday: p.bday || '', note: p.note || '' });
 		this.contactModal?.show();
 		// Focus du champ nom une fois la modale affichée (pattern identity-modal)
 		document.getElementById('contact-modal')?.addEventListener('shown.bs.modal',
@@ -517,11 +540,17 @@ export class SettingsVM {
 
 	async saveContact() {
 		const c = this.editingContact();
-		// Champ "Groupes" (CSV) > properties.categories, les autres clés
-		// de properties (org/tel/…) sont préservées.
+		// Champs plats > properties ; les autres cles de properties
+		// (importees, inconnues) sont preservees. Champ vide > cle retiree.
 		const cats = (c.categories || '').split(',').map(s => s.trim()).filter(Boolean);
-		c.properties = { ...(c.properties || {}), categories: cats };
-		if (!cats.length) { delete c.properties.categories; }
+		const props = { ...(c.properties || {}) };
+		if (cats.length) { props.categories = cats; } else { delete props.categories; }
+		for (const k of ['tel', 'org', 'url', 'nick', 'bday', 'note']) {
+			const v = String(c[k] || '').trim();
+			if (v) { props[k] = v; } else { delete props[k]; }
+			delete c[k];
+		}
+		c.properties = props;
 		delete c.categories;
 		await api.post('/contacts', c);
 		this.contactModal?.hide(); // hidden.bs.modal > editingContact(null)
@@ -535,6 +564,13 @@ export class SettingsVM {
 		await api.post('/contacts/delete', { id: c.id });
 		this._contactsReq = null;
 		await this.loadContacts();
+	}
+
+	/** "Ecrire" : composition pre-remplie vers le premier email du contact
+	 *  (emails = CSV issu du GROUP_CONCAT serveur). */
+	composeToContact(c) {
+		const first = (c.emails || '').split(',').map(s => s.trim()).filter(Boolean)[0];
+		if (first) { this.app.compose.openMailto('mailto:' + encodeURIComponent(first)); }
 	}
 
 	/** Import .vcf/.csv/.sqlite (carnet RainLoop/SnappyMail) - dédup serveur. */
@@ -873,6 +909,23 @@ export class SettingsVM {
 			error: ko.observable(''), // erreur dans la modale (alerte racine masquée par le backdrop)
 			rules: ko.observableArray(
 				templateRules(tpl, { junk: this._junkFolder() }).map(r => this._koRule(r))) });
+		this.filterModal?.show();
+	}
+
+	/** Filtre pré-rempli depuis un message affiché : condition "from is
+	 *  expéditeur", action fileinto sans dossier (choix dans la modale). */
+	newFilterFromMessage(msg) {
+		const from = Array.isArray(msg.from) ? msg.from[0] : msg.from;
+		const email = typeof from === 'object' ? from?.email : from;
+		this.filtersError('');
+		this.filterMode('assistant');
+		this.compiledSource('');
+		this.editingFilter({ name: email || '', source: '', managed: true,
+			originalName: ko.observable(null), active: ko.observable(false),
+			error: ko.observable(''),
+			rules: ko.observableArray([this._koRule({ match: 'all',
+				conditions: [{ field: 'from', op: 'is', value: email || '' }],
+				actions: [{ type: 'fileinto', arg: '' }] })]) });
 		this.filterModal?.show();
 	}
 

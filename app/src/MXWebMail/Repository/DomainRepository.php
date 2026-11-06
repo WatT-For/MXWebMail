@@ -5,14 +5,20 @@ namespace MXWebMail\Repository;
 
 final class DomainRepository
 {
+	/** Mémoïsation par requête name => row|null (findByName est appelé en boucle). */
+	private array $byName = [];
+
 	public function __construct(private Database $db) {}
 
 	public function findByName(string $name): ?array
 	{
-		$stmt = $this->db->pdo()->prepare('SELECT * FROM domains WHERE name = :n AND active = 1');
-		$stmt->execute(['n' => self::normalizeName($name)]);
-		$row = $stmt->fetch();
-		return $row ?: null;
+		$n = self::normalizeName($name);
+		if (!array_key_exists($n, $this->byName)) {
+			$stmt = $this->db->pdo()->prepare('SELECT * FROM domains WHERE name = :n AND active = 1');
+			$stmt->execute(['n' => $n]);
+			$this->byName[$n] = $stmt->fetch() ?: null;
+		}
+		return $this->byName[$n];
 	}
 
 	/** Existence sans filtre active (garde anti-doublon - name est UNIQUE). */
@@ -44,6 +50,7 @@ final class DomainRepository
 		$pdo = $this->db->pdo();
 		$domain['name'] = self::normalizeName((string) $domain['name']);
 		$options = self::sanitizeOptions($domain['options'] ?? null);
+		$this->byName = []; // écriture (update/rename possible) > mémo vidée
 		if (!empty($domain['id'])) {
 			$pdo->prepare(
 				'UPDATE domains SET name=:name, imap_host=:ih, imap_port=:ip, imap_encryption=:ie,
@@ -176,5 +183,6 @@ final class DomainRepository
 	public function delete(int $id): void
 	{
 		$this->db->pdo()->prepare('DELETE FROM domains WHERE id = :id')->execute(['id' => $id]);
+		$this->byName = [];
 	}
 }

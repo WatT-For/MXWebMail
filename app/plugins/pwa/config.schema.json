@@ -13,13 +13,13 @@
 	},
 	"theme_color": {
 		"label": "plugin.pwa.f.theme_color",
-		"type": "string",
-		"default": "#0d6efd",
+		"type": "color",
+		"default": "",
 		"help": "plugin.pwa.f.theme_color.help"
 	},
 	"background_color": {
 		"label": "plugin.pwa.f.background_color",
-		"type": "string",
+		"type": "color",
 		"default": "#ffffff",
 		"help": "plugin.pwa.f.background_color.help"
 	},

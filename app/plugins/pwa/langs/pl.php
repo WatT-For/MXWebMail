@@ -9,7 +9,7 @@ return [
 	'plugin.pwa.f.short_name'            => 'Krótka nazwa',
 	'plugin.pwa.f.short_name.help'       => 'Wyświetlana pod ikoną; puste = nazwa aplikacji',
 	'plugin.pwa.f.theme_color'           => 'Kolor motywu',
-	'plugin.pwa.f.theme_color.help'      => 'Kolor paska tytułu aplikacji (hex #rrggbb)',
+	'plugin.pwa.f.theme_color.help'      => 'Kolor paska tytułu aplikacji (hex #rrggbb); puste = kolor nagłówka wyświetlanego motywu',
 	'plugin.pwa.f.background_color'      => 'Kolor tła',
 	'plugin.pwa.f.background_color.help' => 'Kolor ekranu startowego (splash)',
 	'plugin.pwa.f.display'               => 'Tryb wyświetlania',

@@ -83,6 +83,7 @@ final class AdminController extends Admin\BaseController
 
 	public function logout(Request $request): JsonResponse
 	{
+		$this->requireCsrf();
 		unset($_SESSION['admin']);
 		return JsonResponse::ok();
 	}

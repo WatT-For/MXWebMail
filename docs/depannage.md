@@ -132,6 +132,12 @@ suspendues tant que l'écart existe.
 
 ## Divers
 
+**"Renvoyer tel quel" (bounce) : le destinataire voit-il le mail comme spam ?**
+Possible : la réexpédition casse SPF/DMARC côté final (le serveur d'envoi ne
+correspond plus à l'expéditeur d'origine) - comportement normal des bounce,
+les en-têtes `Resent-*` documentent la retransmission. Pour garder
+l'authentification, préférer le transfert classique.
+
 **Sous Nginx, les dossiers privés sont accessibles ?**
 Non, si le `root` pointe sur `public/` et que le bloc `location ~ /\.` + `^/(app|dist)`
 est présent. Ne pointez jamais le `root` sur la racine du projet.

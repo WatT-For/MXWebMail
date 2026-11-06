@@ -142,33 +142,75 @@ class MailClient
 
 		$this->oImapClient->FolderExamine($sFolderName);
 
-		$oBodyStructure = null;
-
 		$aFetchItems = array(
 			FetchType::UID,
 //			FetchType::FAST,
 			FetchType::RFC822_SIZE,
 			FetchType::INTERNALDATE,
 			FetchType::FLAGS,
-			$this->getEnvelopeOrHeadersRequestString()
+			$this->getEnvelopeOrHeadersRequestString(),
+			FetchType::BODYSTRUCTURE,
 		);
 
-		$aFetchResponse = $this->oImapClient->Fetch(array(FetchType::BODYSTRUCTURE), $iIndex, $bIndexIsUid);
-		if (\count($aFetchResponse) && isset($aFetchResponse[0])) {
-			$oBodyStructure = $aFetchResponse[0]->GetFetchBodyStructure();
-			if ($oBodyStructure) {
-				$iBodyTextLimit = $this->oImapClient->Settings->body_text_limit;
-				foreach ($oBodyStructure->GetHtmlAndPlainParts() as $oPart) {
-					$sLine = FetchType::BODY_PEEK.'['.$oPart->PartID().']';
-					if (0 < $iBodyTextLimit && $iBodyTextLimit < $oPart->EstimatedSize()) {
-						$sLine .= "<0.{$iBodyTextLimit}>";
-					}
-					$aFetchItems[] = $sLine;
+		// Peeks spéculatifs bornés : les parts texte des structures courantes
+		// (non-multipart > 1 ; alternative > 1/2 ; mixed[alternative] > 1.1/1.2 ;
+		// alternative[*,related] > 2.1/2.2) rentrent dans le même FETCH -
+		// un round-trip économisé sur la majorité des lectures. Plafond de
+		// 512 Ko par indice quand body_text_limit=0 : au-delà la valeur est
+		// probablement tronquée > repli sur le second FETCH historique.
+		// Avec body_text_limit>0, le cap nominal s'applique déjà aux parts.
+		$iBodyTextLimit = $this->oImapClient->Settings->body_text_limit;
+		$iSpecCap = 0 < $iBodyTextLimit ? $iBodyTextLimit : 524288;
+		foreach (['1','2','1.1','1.2','2.1','2.2'] as $sSpecId) {
+			$aFetchItems[] = FetchType::BODY_PEEK.'['.$sSpecId.']<0.'.$iSpecCap.'>';
+		}
+
+		$aFetchResponse = $this->oImapClient->Fetch($aFetchItems, $iIndex, $bIndexIsUid);
+
+		$oBodyStructure = null;
+		$oResp = \count($aFetchResponse) && isset($aFetchResponse[0])
+			? $aFetchResponse[0] : null;
+		$oBodyStructure = $oResp?->GetFetchBodyStructure();
+
+		if ($oResp && $oBodyStructure) {
+			// Parts texte couvertes par les peeks spéculatifs ? Une valeur
+			// atteignant le cap est suspecte de troncature (seulement quand
+			// body_text_limit=0 : sinon la troncature est le comportement
+			// nominal, identique à la requête historique).
+			$bCovered = true;
+			foreach ($oBodyStructure->GetHtmlAndPlainParts() as $oPart) {
+				$sId = $oPart->PartID();
+				$sText = $oResp->GetFetchValue(FetchType::BODY.'['.$sId.']')
+					?? $oResp->GetFetchValue(FetchType::BODY.'['.$sId.']<0>');
+				if (!\is_string($sText)
+					|| (!$iBodyTextLimit && \strlen($sText) >= $iSpecCap)) {
+					$bCovered = false;
+					break;
 				}
+			}
+			if ($bCovered) {
+				return Message::fromFetchResponse($sFolderName, $oResp, $oBodyStructure);
 			}
 		}
 
-		if (!$oBodyStructure) {
+		// Repli (structures exotiques ou parts > cap) : FETCH ciblé des parts
+		// réelles, identique à l'implémentation historique.
+		$aFetchItems = array(
+			FetchType::UID,
+			FetchType::RFC822_SIZE,
+			FetchType::INTERNALDATE,
+			FetchType::FLAGS,
+			$this->getEnvelopeOrHeadersRequestString()
+		);
+		if ($oBodyStructure) {
+			foreach ($oBodyStructure->GetHtmlAndPlainParts() as $oPart) {
+				$sLine = FetchType::BODY_PEEK.'['.$oPart->PartID().']';
+				if (0 < $iBodyTextLimit && $iBodyTextLimit < $oPart->EstimatedSize()) {
+					$sLine .= "<0.{$iBodyTextLimit}>";
+				}
+				$aFetchItems[] = $sLine;
+			}
+		} else {
 			$aFetchItems[] = FetchType::BODYSTRUCTURE;
 		}
 
@@ -189,7 +231,7 @@ class MailClient
 	 * @throws \MailSo\Net\Exceptions\*
 	 * @throws \MailSo\Imap\Exceptions\*
 	 */
-	public function MessageMimeStream($mCallback, string $sFolderName, int $iIndex, string $sMimeIndex) : bool
+	public function MessageMimeStream($mCallback, string $sFolderName, int $iIndex, string $sMimeIndex, ?array $aKnownMeta = null) : bool
 	{
 		if (!\is_callable($mCallback)) {
 			throw new \ValueError;
@@ -203,6 +245,18 @@ class MailClient
 		$sPeek = FetchType::BODY_PEEK;
 
 		$sMimeIndex = \trim($sMimeIndex);
+		if (\strlen($sMimeIndex) && $aKnownMeta) {
+			// Métadonnées déjà connues via BODYSTRUCTURE (attachmentList) :
+			// le FETCH BODY[x.MIME] est sauté - un round-trip de moins par PJ.
+			$sFileName = (string) ($aKnownMeta['name'] ?? '');
+			$sContentType = (string) ($aKnownMeta['mime'] ?? '');
+			$sMailEncoding = \MailSo\Base\StreamWrappers\Binary::GetInlineDecodeOrEncodeFunctionName(
+				(string) ($aKnownMeta['encoding'] ?? ''));
+			if ($sMailEncoding && $this->oImapClient->hasCapability('BINARY')) {
+				$sMailEncoding = '';
+				$sPeek = FetchType::BINARY_PEEK;
+			}
+		} else {
 		$aFetchResponse = $this->oImapClient->Fetch(array(
 			\strlen($sMimeIndex)
 				? FetchType::BODY_PEEK.'['.$sMimeIndex.'.MIME]'
@@ -243,6 +297,7 @@ class MailClient
 					$sContentType = 'message/rfc822';
 				}
 			}
+		}
 		}
 
 		$callback = function ($sParent, $sLiteralAtomUpperCase, $rImapLiteralStream)
@@ -626,6 +681,17 @@ class MailClient
 		}
 	}
 
+	/** Liste par UIDs arbitraires (réutilise le pipeline FETCH + ordre du
+	 *  SequenceSet de MessageListByRequestIndexOrUids). */
+	public function MessageListByUids(string $sFolderName, SequenceSet $oRange) : MessageCollection
+	{
+		$oMessageCollection = new MessageCollection;
+		$oMessageCollection->FolderName = $sFolderName;
+		$this->oImapClient->FolderExamine($sFolderName);
+		$this->MessageListByRequestIndexOrUids($oMessageCollection, $oRange);
+		return $oMessageCollection;
+	}
+
 	/**
 	 * @throws \InvalidArgumentException
 	 * @throws \MailSo\RuntimeException
@@ -800,6 +866,48 @@ class MailClient
 		$message_list_limit = $this->oImapClient->Settings->message_list_limit;
 		if (100 > $message_list_limit || $message_list_limit > $oInfo->MESSAGES) {
 			$message_list_limit = 0;
+		}
+
+		// Pagination serveur (RFC 5267) : UID SORT RETURN (COUNT PARTIAL x:y)
+		// renvoie la fenêtre + le total en UNE commande - plus de SORT complet
+		// du dossier ni de cache d'UIDs à revalider à chaque changement
+		// d'etag. Remplace aussi le chemin "limited" (exact, trié, frais).
+		// Non-thread uniquement : ThreadsMap exige la map complète.
+		if ($bUseSort && $this->oImapClient->hasCapability('ESORT')
+			&& !$oParams->bUseThreads && !$oParams->iThreadUid) {
+			try {
+				$aSortTypes = [];
+				if ($oParams->sSort) {
+					$aSortTypes[] = $oParams->sSort;
+				}
+				if (!\str_contains($oParams->sSort, 'DATE')) {
+					$aSortTypes[] = 'REVERSE DATE';
+				}
+				// Les critères de recherche entrent dans la commande : tri +
+				// recherche + total + page couverts en un seul round-trip.
+				$oSearchCriterias = \MailSo\Imap\SearchCriterias::fromString(
+					$this->oImapClient, $oParams->sFolderName,
+					$sSearch, $oParams->bHideDeleted, false);
+				$iStart = $oParams->iOffset + 1;
+				$iEnd = $oParams->iOffset + $oParams->iLimit;
+				$aResult = $this->oImapClient->MessageESort($aSortTypes,
+					(string) $oSearchCriterias,
+					['COUNT', "PARTIAL {$iStart}:{$iEnd}"]);
+				if (isset($aResult['COUNT'])) {
+					$oMessageCollection->totalEmails = (int) $aResult['COUNT'];
+					$oMessageCollection->Sort = \implode(' ', $aSortTypes);
+					$aUids = (array) ($aResult['PARTIAL'] ?? []);
+					if ($aUids) {
+						$this->MessageListByRequestIndexOrUids(
+							$oMessageCollection, new SequenceSet($aUids));
+					}
+					return $oMessageCollection;
+				}
+			} catch (\Throwable $oException) {
+				\MXWebMailLib\Log::warning('MailClient',
+					'ESORT PARTIAL a échoué, repli sur le chemin classique : '
+					. $oException->getMessage());
+			}
 		}
 
 		// Idea to fetch all UID's in background

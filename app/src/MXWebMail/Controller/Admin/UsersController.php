@@ -68,6 +68,38 @@ final class UsersController extends BaseController
 		return JsonResponse::ok();
 	}
 
+	/** Sessions "Rester connecté" d'un utilisateur (jetons auth_tokens). */
+	public function userSessions(Request $request): JsonResponse
+	{
+		$this->requireAdmin();
+		$u = $this->userOr404($request);
+		return JsonResponse::ok(
+			$this->app->auth()->rememberSessions((int) $u['id']));
+	}
+
+	/** Révoque un jeton "Rester connecté" précis d'un utilisateur. */
+	public function userSessionDelete(Request $request): JsonResponse
+	{
+		$this->requireAdmin();
+		$this->requireCsrf();
+		$u = $this->userOr404($request);
+		$this->app->auth()->deleteRememberToken(
+			(int) $u['id'], (int) $request->params['sid']);
+		return JsonResponse::ok();
+	}
+
+	/** "Forcer la déconnexion" : jetons remember-me + sessions PHP
+	 *  vivantes (bump session_epoch vérifié par isLoggedIn). */
+	public function userSessionsRevoke(Request $request): JsonResponse
+	{
+		$this->requireAdmin();
+		$this->requireCsrf();
+		$u = $this->userOr404($request);
+		$this->app->auth()->revokeAllRememberTokens((int) $u['id']);
+		$this->app->users()->bumpSessionEpoch((int) $u['id']);
+		return JsonResponse::ok();
+	}
+
 	public function userDelete(Request $request): JsonResponse
 	{
 		$this->requireAdmin();

@@ -41,6 +41,7 @@ class AdminVM {
 		this.editingPlugin = ko.observable(null);
 		this.editingTheme = ko.observable(null);
 		this.editingUser = ko.observable(null);
+		this.userSessions = ko.observableArray([]);
 		this.editingUserIdentity = ko.observable(null);
 		this.userSearch = ko.observable('');
 		this.usersBusy = ko.observable(false);
@@ -576,8 +577,35 @@ class AdminVM {
 			identities: r.identities || [],
 		});
 		this.editingUserIdentity(null);
+		this.userSessions([]);
 		this.userModalTab('profile');
 		this.userModal?.show();
+	}
+
+	/** Sessions "Rester connecte" du compte édité (onglet Sessions). */
+	async loadUserSessions() {
+		const eu = this.editingUser();
+		if (!eu) { return; }
+		this.userSessions(
+			await api.get(`/admin/users/${eu.id}/sessions`).catch(() => []));
+	}
+
+	async deleteUserSession(s) {
+		const eu = this.editingUser();
+		if (!eu) { return; }
+		await api.post(`/admin/users/${eu.id}/sessions/${s.id}/delete`)
+			.catch(e => toast.error(e.message));
+		await this.loadUserSessions();
+	}
+
+	/** Jetons remember-me + sessions PHP vivantes (bump epoch cote serveur). */
+	async revokeUserSessions() {
+		const eu = this.editingUser();
+		if (!eu || !(await dialog.confirm(t('admin.session_revoke_all_confirm'),
+			{ variant: 'danger', okLabel: t('admin.session_revoke_all') }))) { return; }
+		await api.post(`/admin/users/${eu.id}/sessions/revoke`)
+			.catch(e => toast.error(e.message));
+		await this.loadUserSessions();
 	}
 	// Identités d'un compte (listes plates côté VM > filtre par account_id)
 	identitiesFor(account) {

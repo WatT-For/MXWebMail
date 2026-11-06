@@ -5,23 +5,17 @@ namespace MXWebMail\Repository;
 
 final class SettingRepository
 {
+	/** Mémo par requête : userId => map key=>valeur décodée (cf. allFor). */
+	private array $cache = [];
+
 	public function __construct(private Database $db) {}
 
 	public function get(int $userId, string $key, mixed $default = null): mixed
 	{
-		$stmt = $this->db->pdo()->prepare('SELECT value FROM user_settings WHERE user_id = :u AND `key` = :k');
-		$stmt->execute(['u' => $userId, 'k' => $key]);
-		$v = $stmt->fetchColumn();
-		if ($v === false) {
-			return $default;
-		}
-		$decoded = json_decode((string) $v, true);
-		// Échec du décodage > chaîne brute historique ; 'null' stocké (ancien bug
-		// ou set(null) avant suppression) se comporte comme une clé absente.
-		if (json_last_error() !== JSON_ERROR_NONE) {
-			return $v;
-		}
-		return $decoded ?? $default;
+		$all = $this->allFor($userId);
+		// Clé présente avec 'null' stocké (ancien bug ou set(null) avant
+		// suppression) se comporte comme une clé absente.
+		return array_key_exists($key, $all) ? ($all[$key] ?? $default) : $default;
 	}
 
 	/**
@@ -34,16 +28,7 @@ final class SettingRepository
 		if (!$keys) {
 			return [];
 		}
-		$in = implode(',', array_fill(0, count($keys), '?'));
-		$stmt = $this->db->pdo()->prepare(
-			"SELECT `key`, value FROM user_settings WHERE user_id = ? AND `key` IN ($in)");
-		$stmt->execute(array_merge([$userId], array_values($keys)));
-		$out = [];
-		foreach ($stmt->fetchAll() as $row) {
-			$d = json_decode((string) $row['value'], true);
-			$out[$row['key']] = json_last_error() === JSON_ERROR_NONE ? $d : $row['value'];
-		}
-		return $out;
+		return array_intersect_key($this->allFor($userId), array_flip($keys));
 	}
 
 	public function set(int $userId, string $key, mixed $value): void
@@ -51,6 +36,7 @@ final class SettingRepository
 		if ($value === null) {
 			$this->db->pdo()->prepare('DELETE FROM user_settings WHERE user_id = :u AND `key` = :k')
 				->execute(['u' => $userId, 'k' => $key]);
+			unset($this->cache[$userId][$key]);
 			return;
 		}
 		$driver = $this->db->pdo()->getAttribute(\PDO::ATTR_DRIVER_NAME);
@@ -64,6 +50,11 @@ final class SettingRepository
 			'k' => $key,
 			'v' => json_encode($value, JSON_UNESCAPED_UNICODE),
 		]);
+		// Mémo synchro (read-after-write : setSpecialFolderMap lit puis écrit
+		// la même clé dans la même requête).
+		if (isset($this->cache[$userId])) {
+			$this->cache[$userId][$key] = $value;
+		}
 	}
 
 	/**
@@ -82,10 +73,22 @@ final class SettingRepository
 			"DELETE FROM user_settings WHERE user_id = :u
 				AND $key NOT LIKE 'plugin.%' AND $key != 'user_folders'"
 		)->execute(['u' => $userId]);
+		if (isset($this->cache[$userId])) {
+			$this->cache[$userId] = array_filter($this->cache[$userId],
+				fn(string $k) => str_starts_with($k, 'plugin.') || $k === 'user_folders',
+				ARRAY_FILTER_USE_KEY);
+		}
 	}
 
+	/**
+	 * Tous les réglages d'un utilisateur - mémoïsé par requête (get/getMany
+	 * lisent la même map : N SELECT > 1). Invalidée sur set/deleteAllFor.
+	 */
 	public function allFor(int $userId): array
 	{
+		if (isset($this->cache[$userId])) {
+			return $this->cache[$userId];
+		}
 		$stmt = $this->db->pdo()->prepare('SELECT `key`, value FROM user_settings WHERE user_id = :u');
 		$stmt->execute(['u' => $userId]);
 		$out = [];
@@ -93,6 +96,6 @@ final class SettingRepository
 			$decoded = json_decode((string) $row['value'], true);
 			$out[$row['key']] = json_last_error() === JSON_ERROR_NONE ? $decoded : $row['value'];
 		}
-		return $out;
+		return $this->cache[$userId] = $out;
 	}
 }

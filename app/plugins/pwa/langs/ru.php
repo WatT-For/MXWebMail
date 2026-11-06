@@ -9,7 +9,7 @@ return [
 	'plugin.pwa.f.short_name'            => 'Короткое имя',
 	'plugin.pwa.f.short_name.help'       => 'Отображается под значком; пусто = имя приложения',
 	'plugin.pwa.f.theme_color'           => 'Цвет темы',
-	'plugin.pwa.f.theme_color.help'      => 'Цвет строки заголовка (hex #rrggbb)',
+	'plugin.pwa.f.theme_color.help'      => 'Цвет строки заголовка (hex #rrggbb); пусто = цвет шапки отображаемой темы',
 	'plugin.pwa.f.background_color'      => 'Цвет фона',
 	'plugin.pwa.f.background_color.help' => 'Цвет стартового экрана (splash)',
 	'plugin.pwa.f.display'               => 'Режим отображения',

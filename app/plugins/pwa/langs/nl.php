@@ -9,7 +9,7 @@ return [
 	'plugin.pwa.f.short_name'            => 'Korte naam',
 	'plugin.pwa.f.short_name.help'       => 'Getoond onder het icoon; leeg = app-naam',
 	'plugin.pwa.f.theme_color'           => 'Themakleur',
-	'plugin.pwa.f.theme_color.help'      => 'Kleur van de titelbalk (hex #rrggbb)',
+	'plugin.pwa.f.theme_color.help'      => 'Kleur van de titelbalk (hex #rrggbb); leeg = kopkleur van het weergegeven thema',
 	'plugin.pwa.f.background_color'      => 'Achtergrondkleur',
 	'plugin.pwa.f.background_color.help' => 'Kleur van het opstartscherm (splash)',
 	'plugin.pwa.f.display'               => 'Weergavemodus',

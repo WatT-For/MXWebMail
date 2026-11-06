@@ -198,11 +198,38 @@ class HeaderCollection extends \MailSo\Base\Collection
 			foreach ($aHeaders as $sLine) {
 				$aStatus = array();
 				$aHeader = array();
-				if (\preg_match("/(dkim|dmarc|spf)=([a-z0-9]+).*?(;|$)/Di", $sLine, $aStatus)
-				 && \preg_match('/(?:header\\.(?:d|i|from)|smtp.mailfrom)="?([^\\s;"]+)/i', $sLine, $aHeader)
-				) {
+				// Domaine : priorite au signataire (header.d), puis identite
+				// enveloppe (smtp.mailfrom/mfrom), puis HELO - preg_match
+				// retient la correspondance la plus a gauche, pas l'ordre
+				// de l'alternance > preg_match sequentiels. Une ligne sans
+				// token est quand meme enregistree (domaine vide : non
+				// aligne en aval, sauf DMARC dont le verdict inclut
+				// l'alignement).
+				if (\preg_match("/(dkim|dmarc|spf)=([a-z0-9]+).*?(;|$)/Di", $sLine, $aStatus)) {
+					\preg_match('/header\.d="?([^\s;"]+)/i', $sLine, $aHeader)
+					 || \preg_match('/header\.(?:i|from)="?([^\s;"]+)/i', $sLine, $aHeader)
+					 || \preg_match('/smtp\.(?:mailfrom|mfrom)="?([^\s;"]+)/i', $sLine, $aHeader)
+					 || \preg_match('/smtp\.helo="?([^\s;"]+)/i', $sLine, $aHeader);
 					$sType = \strtolower($aStatus[1]);
-					$aResult[$sType][] = array(\strtolower($aStatus[2]), $aHeader[1], \trim($sLine));
+					$aResult[$sType][] = array(\strtolower($aStatus[2]), $aHeader[1] ?? '', \trim($sLine));
+				}
+			}
+		}
+		if (!\count($aResult['spf'])) {
+			// Received-SPF: pass (domain: x designates y as permitted sender)
+			//   receiver=h; identity=mailfrom; envelope-from="u@dom"; helo=mx.dom
+			// Secours pour les MTA qui n'ecrivent pas spf= dans
+			// Authentication-Results (postfix-policyd-spf...). 1er en-tete =
+			// hop le plus proche ; helo= sert de domaine si envelope-from vide.
+			foreach ($this->ValuesByName(Enumerations\Header::RECEIVED_SPF) as $sHeaderValue) {
+				$aStatus = array();
+				$aHeader = array();
+				$sHeaderValue = \preg_replace('/[\\r\\n\\t\\s]+/', ' ', $sHeaderValue);
+				if (\preg_match('/^\s*(pass|fail|softfail|neutral|none|temperror|permerror)\b/i', $sHeaderValue, $aStatus)
+				 && \preg_match('/(?:envelope-from|helo)\s*=\s*"?([^\s;"]+)/i', $sHeaderValue, $aHeader)
+				) {
+					$aResult['spf'][] = array(\strtolower($aStatus[1]), $aHeader[1], \trim($sHeaderValue));
+					break;
 				}
 			}
 		}

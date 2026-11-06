@@ -5,6 +5,7 @@ namespace MXWebMail\Controller\Admin;
 use MXWebMail\Application\App;
 use MXWebMail\Http\JsonResponse;
 use MXWebMail\Http\Request;
+use MXWebMail\Http\Response;
 use MXWebMail\Security\Csrf;
 
 
@@ -282,6 +283,40 @@ final class SystemController extends BaseController
 			return JsonResponse::error($this->t('errors.config_write_failed'), 'config_write', 500);
 		}
 		return JsonResponse::ok();
+	}
+
+	/**
+	 * Sauvegarde zip streamée : config.php, app.key, bases SQLite,
+	 * branding. SENSIBLE (credentials + cle de chiffrement) - admin seul,
+	 * GET = lecture seule (meme convention que les autres GET admin).
+	 * Une base MariaDB n'est PAS couverte : mysqldump cote serveur.
+	 */
+	public function backup(Request $request): Response
+	{
+		$this->requireAdmin();
+		$root = MXWM_APP_DIR;
+		$storage = $this->app->storageDir();
+		$zip = new \MXWebMailLib\Stream\ZIP();
+		$zip->pushHttpHeaders('mxwebmail-backup-' . date('Ymd-His'));
+		$zip->addFile($root . '/config/config.php', 'config/config.php');
+		$zip->addFile($storage . '/app.key', 'storage/app.key');
+		$zip->addFile($storage . '/INSTALLED', 'storage/INSTALLED');
+		foreach ((array) glob($storage . '/db/*.sqlite') as $f) {
+			$zip->addFile($f, 'storage/db/' . basename($f));
+		}
+		foreach ((array) glob($storage . '/branding/*') as $f) {
+			is_file($f) && $zip->addFile($f, 'storage/branding/' . basename($f));
+		}
+		$zip->addFromString('LISEZMOI.txt',
+			"Sauvegarde MXWebMail - " . date('c') . "\r\n"
+			. "Contenu : config.php, cle de chiffrement app.key, bases SQLite,\r\n"
+			. "assets de marque (branding/).\r\n"
+			. "Non couvert : base MariaDB (mysqldump cote serveur), boites IMAP,\r\n"
+			. "logs, cache, fichiers temporaires, avatars caches.\r\n"
+			. "SENSIBLE : contient la cle de chiffrement et les identifiants de\r\n"
+			. "config.php - conserver en lieu sur.\r\n");
+		$zip->close();
+		return new Response('', 200);
 	}
 
 	public function about(Request $request): JsonResponse

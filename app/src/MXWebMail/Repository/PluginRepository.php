@@ -24,15 +24,16 @@ final class PluginRepository
 		return $this->states()[$name]['user_allowed'] ?? false;
 	}
 
-	/** États enabled/user_allowed de tous les plugins - une requête par instance. */
+	/** États enabled/user_allowed/config de tous les plugins - une requête par instance. */
 	private function states(): array
 	{
 		if ($this->stateMap === null) {
 			$this->stateMap = [];
-			foreach ($this->db->pdo()->query('SELECT name, enabled, user_allowed FROM plugins') as $row) {
+			foreach ($this->db->pdo()->query('SELECT name, enabled, user_allowed, config FROM plugins') as $row) {
 				$this->stateMap[$row['name']] = [
 					'enabled'      => (bool) $row['enabled'],
 					'user_allowed' => (bool) $row['user_allowed'],
+					'config'       => $row['config'],
 				];
 			}
 		}
@@ -96,13 +97,18 @@ final class PluginRepository
 			: "INSERT INTO plugins ($cols) VALUES ($marks)
 			   ON DUPLICATE KEY UPDATE $sets";
 		$this->db->pdo()->prepare($sql)->execute(['n' => $name] + $row);
+		// Map mémoïsée synchro : un getConfig post-écriture dans la même
+		// requête doit lire la nouvelle valeur (config admin, setEnabled…).
+		if ($this->stateMap !== null && isset($this->stateMap[$name])
+			&& array_key_exists('config', $data)) {
+			$this->stateMap[$name]['config'] = $data['config'];
+		}
 	}
 
+	/** Config JSON du plugin - lue dans la map states (aucune requête dédiée). */
 	public function getConfig(string $name): array
 	{
-		$stmt = $this->db->pdo()->prepare('SELECT config FROM plugins WHERE name = :n');
-		$stmt->execute(['n' => $name]);
-		$v = $stmt->fetchColumn();
+		$v = $this->states()[$name]['config'] ?? null;
 		return $v ? (json_decode((string) $v, true) ?: []) : [];
 	}
 

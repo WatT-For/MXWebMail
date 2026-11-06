@@ -28,8 +28,13 @@ final class UserRepository
 	/** Crée l'utilisateur applicatif au premier login IMAP réussi. */
 	public function create(string $username): array
 	{
-		$this->db->pdo()->prepare('INSERT INTO users (username, created_at) VALUES (:u, :t)')
-			->execute(['u' => $username, 't' => time()]);
+		try {
+			$this->db->pdo()->prepare('INSERT INTO users (username, created_at) VALUES (:u, :t)')
+				->execute(['u' => $username, 't' => time()]);
+		} catch (\PDOException) {
+			// Deux premiers logins concurrents : l'autre requête a créé la
+			// ligne entre notre SELECT et notre INSERT - on la relit.
+		}
 		return $this->findByUsername($username);
 	}
 
@@ -84,5 +89,14 @@ final class UserRepository
 	public function delete(int $id): void
 	{
 		$this->db->pdo()->prepare('DELETE FROM users WHERE id = :id')->execute(['id' => $id]);
+	}
+
+	/** Incrémente l'epoch de session : toute session PHP de l'utilisateur
+	 *  est rejetée à la requête suivante (comparée dans App::isLoggedIn). */
+	public function bumpSessionEpoch(int $id): void
+	{
+		$this->db->pdo()->prepare(
+			'UPDATE users SET session_epoch = session_epoch + 1 WHERE id = :id'
+		)->execute(['id' => $id]);
 	}
 }

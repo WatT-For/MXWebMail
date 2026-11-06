@@ -209,9 +209,13 @@
 					<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: () => bulkSpam(!$root.folderList.isJunkFolder(folder())), disable: !hasChecked(), tooltip: $root.folderList.isJunkFolder(folder()) ? 'app.mark_not_spam' : 'app.mark_spam'"><i class="fa-solid fa-shield-halved"></i></button>
 					<button class="btn btn-sm btn-icon btn-outline-secondary"
 						data-bind="click: moveWithPicker, disable: !hasChecked(), tooltip: 'app.move_to'"><i class="fa-solid fa-file-export"></i></button>
+					<button class="btn btn-sm btn-icon btn-outline-secondary"
+						data-bind="click: copyWithPicker, disable: !hasChecked(), tooltip: 'app.copy_to'"><i class="fa-solid fa-copy"></i></button>
 					<button class="btn btn-sm btn-icon btn-outline-secondary" style="display:none"
 						data-bind="visible: $root.folderList.archiveFolder() && folder() !== $root.folderList.archiveFolder().fullName,
 							click: bulkArchive, disable: !hasChecked(), tooltip: 'app.archive'"><i class="fa-solid fa-box-archive"></i></button>
+					<button class="btn btn-sm btn-icon btn-outline-secondary"
+						data-bind="click: bulkForwardAttach, disable: !hasChecked(), tooltip: 'app.forward_attach'"><i class="fa-solid fa-share"></i></button>
 					<button class="btn btn-sm btn-icon btn-outline-secondary"
 						data-bind="click: downloadEmlZip, disable: !hasChecked(), tooltip: 'app.download_eml_zip'"><i class="fa-solid fa-file-zipper"></i></button>
 					<!-- ko if: $root.features().dangerous_actions !== false -->
@@ -246,6 +250,8 @@
 											css: { 'fa-rotate-90': _threadOpen }"></i>
 									<i class="fa-solid fa-reply me-1 text-muted" style="display:none"
 										data-bind="visible: isAnswered, tooltip: 'app.answered'"></i>
+									<i class="fa-solid fa-share me-1 text-muted" style="display:none"
+										data-bind="visible: isForwarded, tooltip: 'app.forwarded'"></i>
 									<span data-bind="text: subject"></span>
 									<span class="badge text-bg-secondary ms-1" style="display:none"
 										data-bind="visible: !isChild && threads && threads.length > 1, text: threads.length"></span>
@@ -381,6 +387,9 @@
 								<li><a class="dropdown-item" href="#" data-bind="click: () => $root.compose.openForward($data, true)"><i class="fa-solid fa-paperclip me-2"></i><?= $t('app.forward_attach') ?></a></li>
 								<li><a class="dropdown-item" href="#" data-bind="click: () => $root.compose.openAsNew($data)"><i class="fa-solid fa-pen-to-square me-2"></i><?= $t('app.edit_as_new') ?></a></li>
 								<li><a class="dropdown-item" href="#" data-bind="click: $parent.moveWithPicker"><i class="fa-solid fa-file-export me-2"></i><?= $t('app.move_to') ?></a></li>
+								<li><a class="dropdown-item" href="#" data-bind="click: $parent.copyWithPicker"><i class="fa-solid fa-copy me-2"></i><?= $t('app.copy_to') ?></a></li>
+								<li style="display:none" data-bind="visible: $root.features().sieve"><a class="dropdown-item" href="#" data-bind="click: $parent.createFilter"><i class="fa-solid fa-filter me-2"></i><?= $t('app.create_filter') ?></a></li>
+								<li><a class="dropdown-item" href="#" data-bind="click: $parent.bounce"><i class="fa-solid fa-share-from-square me-2"></i><?= $t('app.bounce') ?></a></li>
 								<li style="display:none"
 									data-bind="visible: $root.folderList.archiveFolder() && folder !== $root.folderList.archiveFolder().fullName"><a class="dropdown-item" href="#"
 									data-bind="click: $parent.archive"><i class="fa-solid fa-box-archive me-2"></i><?= $t('app.archive') ?></a></li>
@@ -944,9 +953,12 @@
 		<div data-bind="visible: tab()==='contacts'" style="display:none">
 			<div class="d-flex justify-content-between mb-2">
 				<h5><?= $t('settings.contacts') ?></h5>
-				<div>
-					<button class="btn btn-sm btn-outline-secondary me-1" data-bind="click: exportContacts"><i class="fa-solid fa-file-export"></i> <?= $t('settings.export') ?></button>
-					<label class="btn btn-sm btn-outline-secondary me-1 mb-0"><i class="fa-solid fa-file-import"></i> <?= $t('settings.import') ?><input type="file" accept=".vcf,.csv,.sqlite,.sqlite3,.db,text/vcard,text/csv,application/vnd.sqlite3,application/x-sqlite3" class="d-none" data-bind="event: {change: importContacts}"></label>
+				<div class="d-flex align-items-center gap-1">
+					<input type="search" class="form-control form-control-sm w-auto" style="display:none"
+						data-bind="value: contactSearch, valueUpdate: 'input', visible: contacts().length > 0"
+						placeholder="<?= $t('settings.contact_search') ?>">
+					<button class="btn btn-sm btn-outline-secondary" data-bind="click: exportContacts"><i class="fa-solid fa-file-export"></i> <?= $t('settings.export') ?></button>
+					<label class="btn btn-sm btn-outline-secondary mb-0"><i class="fa-solid fa-file-import"></i> <?= $t('settings.import') ?><input type="file" accept=".vcf,.csv,.sqlite,.sqlite3,.db,text/vcard,text/csv,application/vnd.sqlite3,application/x-sqlite3" class="d-none" data-bind="event: {change: importContacts}"></label>
 					<button class="btn btn-sm btn-primary" data-bind="click: () => editContact(null)"><i class="fa-solid fa-plus"></i> <?= $t('common.add') ?></button>
 				</div>
 			</div>
@@ -961,6 +973,9 @@
 							<span class="badge text-bg-secondary me-1" data-bind="text: $data"></span>
 						<!-- /ko --></td>
 						<td class="text-end">
+							<button class="btn btn-sm btn-icon btn-outline-secondary"
+								data-bind="click: $parent.composeToContact, tooltip: 'settings.contact_compose',
+									attr: { 'aria-label': $root.t('settings.contact_compose') }"><i class="fa-solid fa-pen-to-square"></i></button>
 							<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: $parent.editContact"><i class="fa-solid fa-pen"></i></button>
 							<button class="btn btn-sm btn-icon btn-outline-danger" data-bind="click: $parent.deleteContact"><i class="fa-solid fa-trash"></i></button>
 						</td>
@@ -1247,7 +1262,7 @@
 							<a class="list-group-item list-group-item-action py-1 small" href="#" role="option"
 								data-bind="event:{mousedown:(d,e)=>{e.preventDefault();$parent.applySuggestion('to',$data);}},
 									css:{active:$index()===$parent.suggestIndex()},
-									text: group ? $root.t('compose.group', {name: group, n: count}) : (name?name+' - ':'')+email"></a>
+									text: $data.group ? $root.t('compose.group', {name: $data.group, n: $data.count}) : ($data.name ? $data.name + ' - ' : '') + $data.email"></a>
 						</div>
 					</div>
 					<div class="mb-2 position-relative" style="display:none" data-bind="visible: showCc() || !!cc().length || !!ccText()">
@@ -1272,7 +1287,7 @@
 							<a class="list-group-item list-group-item-action py-1 small" href="#" role="option"
 								data-bind="event:{mousedown:(d,e)=>{e.preventDefault();$parent.applySuggestion('cc',$data);}},
 									css:{active:$index()===$parent.suggestIndex()},
-									text: group ? $root.t('compose.group', {name: group, n: count}) : (name?name+' - ':'')+email"></a>
+									text: $data.group ? $root.t('compose.group', {name: $data.group, n: $data.count}) : ($data.name ? $data.name + ' - ' : '') + $data.email"></a>
 						</div>
 					</div>
 					<div class="mb-2 position-relative" style="display:none" data-bind="visible: showBcc() || !!bcc().length || !!bccText()">
@@ -1297,7 +1312,7 @@
 							<a class="list-group-item list-group-item-action py-1 small" href="#" role="option"
 								data-bind="event:{mousedown:(d,e)=>{e.preventDefault();$parent.applySuggestion('bcc',$data);}},
 									css:{active:$index()===$parent.suggestIndex()},
-									text: group ? $root.t('compose.group', {name: group, n: count}) : (name?name+' - ':'')+email"></a>
+									text: $data.group ? $root.t('compose.group', {name: $data.group, n: $data.count}) : ($data.name ? $data.name + ' - ' : '') + $data.email"></a>
 						</div>
 					</div>
 					<div class="mb-2">
@@ -1678,7 +1693,15 @@
 				<div class="modal-body">
 					<div class="mb-2"><input id="contact-name" class="form-control" placeholder="<?= $t('common.name') ?>" data-bind="value: name"></div>
 					<div class="mb-2"><input class="form-control" placeholder="<?= $t('settings.emails_csv') ?>" data-bind="value: emails"></div>
-					<div><input class="form-control" placeholder="<?= $t('settings.groups_csv') ?>" data-bind="value: categories"></div>
+					<div class="mb-2"><input class="form-control" placeholder="<?= $t('settings.groups_csv') ?>" data-bind="value: categories"></div>
+					<div class="row g-2 mb-2">
+						<div class="col-6"><input type="tel" class="form-control" placeholder="<?= $t('settings.contact_tel') ?>" data-bind="value: tel"></div>
+						<div class="col-6"><input class="form-control" placeholder="<?= $t('settings.contact_org') ?>" data-bind="value: org"></div>
+						<div class="col-6"><input class="form-control" placeholder="<?= $t('settings.contact_nick') ?>" data-bind="value: nick"></div>
+						<div class="col-6"><input type="url" class="form-control" placeholder="<?= $t('settings.contact_url') ?>" data-bind="value: url"></div>
+						<div class="col-6"><label class="form-label form-label-sm mb-1"><?= $t('settings.contact_bday') ?></label><input type="date" class="form-control" data-bind="value: bday"></div>
+					</div>
+					<div><textarea class="form-control" rows="2" placeholder="<?= $t('settings.contact_note') ?>" data-bind="value: note"></textarea></div>
 				</div>
 				<div class="modal-footer">
 					<button type="button" class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal"><?= $t('common.cancel') ?></button>
@@ -1712,6 +1735,7 @@
 							<tr><td><kbd>c</kbd></td><td><?= $t('app.shortcuts.compose') ?></td></tr>
 							<tr><td><kbd>/</kbd></td><td><?= $t('app.shortcuts.search') ?></td></tr>
 							<tr><td><kbd>Échap</kbd></td><td><?= $t('app.shortcuts.escape') ?></td></tr>
+							<tr><td><kbd>Ctrl</kbd>+<kbd>Entrée</kbd></td><td><?= $t('app.shortcuts.send') ?></td></tr>
 							<tr><td><kbd>?</kbd></td><td><?= $t('app.shortcuts.help') ?></td></tr>
 						</tbody>
 					</table>

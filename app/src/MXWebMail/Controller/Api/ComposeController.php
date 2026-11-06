@@ -41,6 +41,30 @@ final class ComposeController extends BaseController
 				$this->app->log('warning', 'Marquage \\Answered échoué: ' . $e->getMessage());
 			}
 		}
+		// Marque le(s) message(s) d'origine $Forwarded - non bloquant.
+		// Cas simple (forwardUid/Folder) et multi-transfert (forwardItems)
+		// alimentent la même table, un UID STORE par dossier via flagsMany.
+		$fwdTargets = [];
+		$fwdUid = (int) $request->input('forwardUid', 0);
+		$fwdFolder = $this->noCrlf((string) $request->input('forwardFolder', ''), 'forwardFolder');
+		$fwdTotal = 0;
+		if ($fwdUid > 0 && $fwdFolder !== '') { $fwdTargets[$fwdFolder][] = $fwdUid; $fwdTotal = 1; }
+		foreach ((array) $request->input('forwardItems', []) as $it) {
+			// Cap strict 50, testé avant l'ajout : le total (forwardUid simple +
+			// forwardItems) ne dépasse jamais 50 ; un item malformé ne consomme
+			// pas le budget.
+			if ($fwdTotal >= 50) { break; }
+			$f = is_array($it) ? $this->noCrlf((string) ($it['folder'] ?? ''), 'forwardItems') : '';
+			$u = (int) ($it['uid'] ?? 0);
+			if ($f !== '' && $u > 0) { $fwdTargets[$f][] = $u; $fwdTotal++; }
+		}
+		foreach ($fwdTargets as $f => $uids) {
+			try {
+				$this->app->mail()->flagsMany($f, array_unique($uids), '$Forwarded', true);
+			} catch (\Throwable $e) {
+				$this->app->log('warning', 'Marquage $Forwarded echoue: ' . $e->getMessage());
+			}
+		}
 		// Libère les streams des PJ (fopen dans buildMessage) : unlink
 		// impossible sous Windows tant que $message vit.
 		$rcpts = array_merge(
@@ -180,6 +204,14 @@ final class ComposeController extends BaseController
 			$message->Headers->AddByName(
 				\MailSo\Mime\Enumerations\Header::X_DRAFT_INFO,
 				"type=reply;uid={$replyUid};folder=" . base64_encode($replyFolder));
+		} elseif (($fwdUid = (int) $request->input('forwardUid', 0)) > 0
+			&& ($fwdFolder = $this->noCrlf((string) $request->input('forwardFolder', ''), 'forwardFolder')) !== '') {
+			// Brouillon d'un transfert simple : meme mecanisme, type=forward.
+			// (Le multi-transfert ne persiste pas ses cibles - un seul
+			// en-tete X-Draft-Info, limitation acceptee.)
+			$message->Headers->AddByName(
+				\MailSo\Mime\Enumerations\Header::X_DRAFT_INFO,
+				"type=forward;uid={$fwdUid};folder=" . base64_encode($fwdFolder));
 		}
 		// Ré-enregistrement d'un brouillon ouvert : REPLACE dans le dossier
 		// où il vit (RFC 8508 ou append+expunge ciblé), APPEND dans Drafts

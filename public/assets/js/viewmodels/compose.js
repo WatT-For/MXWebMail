@@ -1,6 +1,7 @@
 import { api } from '../api.js';
 import { t } from '../i18n.js';
 import { dialog } from '../ui/dialog.js';
+import { toast } from '../ui/toast.js';
 import { loadOpenPgp } from '../lazy.js';
 
 /**
@@ -42,6 +43,9 @@ export class ComposeVM {
 		this.references = '';
 		this.replyUid = 0;        // cible d'une réponse (flag \Answered posé à l'envoi)
 		this.replyFolder = '';
+		this.forwardUid = 0;      // cible d'un transfert (flag $Forwarded posé à l'envoi)
+		this.forwardFolder = '';
+		this.forwardItems = [];   // cibles multi-transfert en PJ [{folder,uid}]
 		this.draftUid = null;     // brouillon ouvert/enregistré (REPLACE à la ré-enregistrement)
 		this.draftFolder = '';
 		this.modal = null;
@@ -129,6 +133,16 @@ export class ComposeVM {
 		if (!this.modal) {
 			const el = document.getElementById('compose-modal');
 			this.modal = new bootstrap.Modal(el);
+			// Ctrl+Entree = envoyer (depuis tout champ de la modale ; le
+			// corps TinyMCE y arrive via l'evenement relais de editor.js).
+			// Autocompletion ouverte : Enter choisit le destinataire.
+			el.addEventListener('keydown', e => {
+				if ((e.ctrlKey || e.metaKey) && e.key === 'Enter'
+					&& !this.suggestions().length) {
+					e.preventDefault();
+					if (!this.sending()) { this.send(); }
+				}
+			});
 			// Garde de fermeture : contenu saisi non envoyé/enregistré >
 			// confirmation (couvre ×, Échap, backdrop et hide() programmatique).
 			el.addEventListener('hide.bs.modal', e => this.guardClose(e));
@@ -205,6 +219,7 @@ export class ComposeVM {
 		this.closeSuggestions();
 		this.inReplyTo = ''; this.references = '';
 		this.replyUid = 0; this.replyFolder = '';
+		this.forwardUid = 0; this.forwardFolder = ''; this.forwardItems = [];
 		this.draftUid = null; this.draftFolder = '';
 		this._dirty = false;
 		this._closeConfirmed = false;
@@ -365,16 +380,18 @@ export class ComposeVM {
 		this.replyFolder = msg.folder || '';
 		// Mail HTML-only : la citation est dérivée du HTML (texte brut).
 		const quoted = (msg.bodyPlain || this.htmlToText(msg.bodyHtml))
-			.split('\n').map(l => '> ' + l).join('\n');
+			.replace(/\r/g,'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
+			.replace(/\n/g,'<br>');
 		const sig = this.signatureBlock();
-		this.html(`${this.sigLead(sig)}${sig}<blockquote>` +
-			`${quoted.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/\n/g,'<br>')}</blockquote>`);
+		this.html(`${this.sigLead(sig)}${sig}<blockquote>${quoted}</blockquote>`);
 		this._dirty = false;
 		this.show();
 	}
 
 	openForward(msg, asAttachment = false) {
 		this.reset();
+		this.forwardUid = msg.uid || 0;
+		this.forwardFolder = msg.folder || '';
 		const subject = msg.subject || '';
 		this.subject(/^\s*fwd?\s*:/i.test(subject) ? subject : 'Fwd: ' + subject);
 		if (asAttachment) {
@@ -387,6 +404,20 @@ export class ComposeVM {
 			this.html(`${this.sigLead(sig)}${sig}<hr><p><b>${t('compose.forwarded')}</b></p>${body}`);
 			this.pushMsgrefAttachments(msg);
 		}
+		this._dirty = false;
+		this.show();
+	}
+
+	/** Multi-transfert : chaque message coché est joint en .eml (cap 20 -
+	 *  le serveur borne aussi par attachments_max_total). */
+	openForwardMany(msgs) {
+		if (msgs.length > 20) { toast.error(t('compose.forwarded_multi_max', { n: 20 })); return; }
+		this.reset();
+		this.forwardItems = msgs.map(m => ({ folder: m.folder, uid: m.uid }));
+		this.subject('Fwd: ' + t('compose.forwarded_multi', { n: msgs.length }));
+		const sig = this.signatureBlock();
+		this.html(`${this.sigLead(sig)}${sig}<p><i>${t('compose.forwarded_attach')}</i></p>`);
+		for (const m of msgs) { this.pushEmlRef(m); }
 		this._dirty = false;
 		this.show();
 	}
@@ -535,6 +566,9 @@ export class ComposeVM {
 		if (Array.isArray(di) && di[0] === 'reply') {
 			this.replyUid = di[1] || 0;
 			this.replyFolder = di[2] || '';
+		} else if (Array.isArray(di) && di[0] === 'forward') {
+			this.forwardUid = di[1] || 0;
+			this.forwardFolder = di[2] || '';
 		}
 		this.html(msg.bodyHtml || (msg.bodyPlain || '').replace(/\n/g, '<br>'));
 		this.pushMsgrefAttachments(msg);
@@ -983,6 +1017,9 @@ export class ComposeVM {
 			references: this.references,
 			replyUid: this.replyUid,
 			replyFolder: this.replyFolder,
+			forwardUid: this.forwardUid,
+			forwardFolder: this.forwardFolder,
+			forwardItems: this.forwardItems,
 			draftUid: this.draftUid || 0,
 			draftFolder: this.draftFolder || '',
 			attachments: this.attachments().map(a => a.token ?? a.msgref).filter(Boolean),

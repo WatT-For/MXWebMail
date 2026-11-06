@@ -10,11 +10,11 @@ namespace MXWebMail\Security;
  */
 final class CredentialCrypt
 {
-	private static ?string $key = null;
+	private static array $keys = [];
 
 	private static function key(string $storageDir): string
 	{
-		if (self::$key === null) {
+		if (!isset(self::$keys[$storageDir])) {
 			$keyFile = $storageDir . '/app.key';
 			if (!is_file($keyFile)) {
 				if (!is_dir($storageDir)) {
@@ -23,9 +23,9 @@ final class CredentialCrypt
 				file_put_contents($keyFile, sodium_bin2hex(random_bytes(SODIUM_CRYPTO_SECRETBOX_KEYBYTES)));
 				chmod($keyFile, 0600);
 			}
-			self::$key = sodium_hex2bin(trim((string) file_get_contents($keyFile)));
+			self::$keys[$storageDir] = sodium_hex2bin(trim((string) file_get_contents($keyFile)));
 		}
-		return self::$key;
+		return self::$keys[$storageDir];
 	}
 
 	public static function encrypt(string $plain, string $storageDir): string

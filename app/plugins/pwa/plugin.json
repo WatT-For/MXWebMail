@@ -3,7 +3,7 @@
 	"label": "plugin.pwa.label",
 	"class": "Pwa",
 	"main": "Pwa.php",
-	"version": "0.12.1",
+	"version": "0.13.1",
 	"description": "plugin.pwa.description",
 	"hooks": ["app.head", "app.routes"]
 }

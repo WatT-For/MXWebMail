@@ -146,6 +146,19 @@ Remarques :
   Sous Apache, `public/.htaccess` couvre déjà `mod_deflate` + les TTL des assets ;
   la compression PHP (`http.gzip`) fonctionne dans les deux cas.
 
+### Performance (recommandations serveur)
+
+- **HTTP/2 (Apache)** : `a2enmod http2` puis `Protocols h2 h2c http/1.1` dans le
+  VirtualHost (`h2` suffit sous TLS ; `h2c` n'est utile qu'aux clients non
+  navigateurs - Edge/Firefox n'implementent h2 qu'en HTTPS). `mod_http2` exige
+  `mpm_event` (deja le defaut avec PHP-FPM) - il est incompatible avec
+  `mpm_prefork`/`mod_php`.
+- **PHP-FPM** : `pm.max_children` adapte a la charge (le defaut 5 suffit a peine
+  pour quelques onglets/utilisateurs simultanes : le poll, les images `cid:`,
+  les PJ et le proxy d'images parallélisent les requêtes).
+- **OPcache** : actif par defaut dans le paquet PHP Debian (`opcache.enable=1`
+  en FPM) - verifier `opcache_get_status()` en cas de doute.
+
 ## 6. Étapes post-installation
 
 1. **Sauvegardez `app/storage/app.key`** : il chiffre tous les credentials stockés

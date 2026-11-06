@@ -105,21 +105,27 @@ final class Database
 			)'
 		);
 
+		// Transaction par version : sous SQLite le DDL est transactionnel
+		// (échec = retour complet à l'état $version) ; sous MariaDB le DDL
+		// auto-commit et PDO le détecte - commit() jetterait "no active
+		// transaction". Les ALTER sont idempotents (ADD COLUMN IF NOT EXISTS)
+		// donc un re-run après échec est sain.
+		$useTx = $this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite';
 		foreach ($this->migrations as $i => $sqlList) {
 			if ($i <= $version) {
 				continue;
 			}
-			// Transaction par version : sous SQLite le DDL est transactionnel
-			// (échec = retour complet à l'état $version) ; sous MariaDB le DDL
-			// auto-commit, mais les ALTER sont écrits idempotents
-			// (ADD COLUMN IF NOT EXISTS) donc un re-run après échec est sain.
 			try {
-				$this->pdo->beginTransaction();
+				if ($useTx) {
+					$this->pdo->beginTransaction();
+				}
 				foreach ($sqlList as $sql) {
 					$this->pdo->exec($sql);
 				}
 				$this->setMeta('schema_version', (string) $i);
-				$this->pdo->commit();
+				if ($useTx) {
+					$this->pdo->commit();
+				}
 			} catch (\Throwable $e) {
 				if ($this->pdo->inTransaction()) {
 					$this->pdo->rollBack();
@@ -357,6 +363,12 @@ final class Database
 		// UserRepository::all balayaient la table sans index dédié.
 		13 => [
 			'CREATE INDEX IF NOT EXISTS identities_account ON identities(account_id)',
+		],
+
+		// Epoch de session : incrémenté par l'admin pour tuer les sessions
+		// PHP vivantes d'un utilisateur (comparaison dans App::isLoggedIn).
+		14 => [
+			"ALTER TABLE users $addCol session_epoch INTEGER NOT NULL DEFAULT 0",
 		],
 		];
 	}

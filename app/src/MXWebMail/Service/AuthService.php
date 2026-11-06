@@ -134,6 +134,7 @@ final class AuthService
 		$_SESSION['domain']     = (string) ($domain['name'] ?? $domainName);
 		$_SESSION['acct_auth']      = 'password';
 		$_SESSION['acct_secondary'] = false;
+		$_SESSION['session_epoch']  = (int) ($user['session_epoch'] ?? 0);
 		unset($_SESSION['oauth_pending']);
 
 		$this->resetRateLimit($email);
@@ -261,6 +262,10 @@ final class AuthService
 		$_SESSION['domain']     = $domainName;
 		$_SESSION['acct_auth']      = 'password';
 		$_SESSION['acct_secondary'] = false;
+		// L'epoch courant requis par isLoggedIn (ce chemin ne charge pas la
+		// ligne users - lecture dédiée, indexée).
+		$_SESSION['session_epoch']  = (int) ($this->app->users()
+			->findById((int) $row['user_id'])['session_epoch'] ?? 0);
 		$this->app->users()->touchLastLogin((int) $row['user_id']);
 	}
 
@@ -289,6 +294,14 @@ final class AuthService
 		$this->app->db()->pdo()->prepare(
 			'DELETE FROM auth_tokens WHERE user_id = :u AND selector != :s')
 			->execute(['u' => $userId, 's' => $sel ?? '']);
+	}
+
+	/** Admin : révoque TOUS les jetons "Rester connecté" de l'utilisateur. */
+	public function revokeAllRememberTokens(int $userId): void
+	{
+		$this->app->db()->pdo()->prepare(
+			'DELETE FROM auth_tokens WHERE user_id = :u')
+			->execute(['u' => $userId]);
 	}
 
 	public function logout(): void
@@ -665,6 +678,11 @@ final class AuthService
 		$stmt = $pdo->prepare('SELECT id FROM accounts WHERE user_id = :u AND email = :e');
 		$stmt->execute(['u' => $userId, 'e' => $email]);
 		if ($row = $stmt->fetch()) {
+			// Le credential stocké sert à resumeFromRemember et switchAccount :
+			// il doit suivre le mot de passe qui vient d'être vérifié par IMAP.
+			$pdo->prepare('UPDATE accounts SET imap_pass = :ip WHERE id = :id')
+				->execute(['ip' => CredentialCrypt::encrypt($password, $this->app->storageDir()),
+					'id' => (int) $row['id']]);
 			return (int) $row['id'];
 		}
 		// Un seul principal : un compte recréé au login après suppression de

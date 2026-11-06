@@ -230,6 +230,22 @@ abstract class HtmlUtils
 		), $sText);
 
 		$sText = \str_ireplace('<div>',"\n<div>", $sText);
+
+		// Citations : chaque ligne du contenu d'un <blockquote> est prefixee
+		// '> ' (convention texte brut) - du plus imbrique vers l'exterieur.
+		for ($i = 0; $i < 9 && false !== \stripos($sText, '<blockquote'); ++$i) {
+			$sText = \preg_replace_callback(
+				'/<blockquote[^>]*>((?:(?!<blockquote).)*?)<\/blockquote>/is',
+				function($m) {
+					// <div> avec attributs : non couverts par le str_ireplace ci-dessus.
+					$inner = \preg_replace('/<div[^>]*>/i', "\n", $m[1]);
+					$lines = \array_filter(\array_map('trim',
+						\explode("\n", \strip_tags($inner))), 'strlen');
+					return "\n\n" . \implode("\n", \array_map(
+						function($l) { return '> ' . $l; }, $lines)) . "\n\n";
+				}, $sText);
+		}
+
 		$sText = \strip_tags($sText, '');
 		$sText = \preg_replace("/\n\\s+\n/", "\n", $sText);
 		$sText = \preg_replace("/[\n]{3,}/", "\n\n", $sText);

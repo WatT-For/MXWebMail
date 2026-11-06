@@ -123,6 +123,14 @@
 
 	<div data-bind="visible: tab()==='database'" style="display:none">
 		<h5><?= $t('admin.db_title') ?></h5>
+		<div class="card mb-3"><div class="card-body py-2 d-flex align-items-center justify-content-between">
+			<div>
+				<strong><?= $t('admin.backup_title') ?></strong>
+				<div class="text-muted small"><?= $t('admin.backup_help') ?></div>
+			</div>
+			<a class="btn btn-sm btn-outline-primary text-nowrap" href="api/admin/backup">
+				<i class="fa-solid fa-download"></i> <?= $t('admin.backup') ?></a>
+		</div></div>
 		<div class="card"><div class="card-body">
 			<div class="alert alert-info small"><?= $t('admin.db_notice') ?></div>
 			<div class="row" data-bind="template: {name:'fields-tpl', foreach: formSections.database}"></div>
@@ -717,6 +725,12 @@
 									<option data-bind="value: $data[0], text: $root.t($data[1])"></option>
 								</select>
 								<!-- /ko -->
+								<!-- ko if: type === 'color' -->
+								<div class="ko-flex gap-2">
+									<input type="color" class="form-control form-control-color" data-bind="value: value">
+									<input class="form-control form-control-sm" placeholder="#RRGGBB" data-bind="value: value">
+								</div>
+								<!-- /ko -->
 								<!-- ko if: type === 'bool' -->
 								<div class="form-check">
 									<input class="form-check-input" type="checkbox" data-bind="checked: value">
@@ -823,6 +837,7 @@
 					<li class="nav-item"><a class="nav-link" href="#" data-bind="css:{active: $root.userModalTab()==='profile'}, click: () => $root.userModalTab('profile')"><?= $t('admin.user_tab_profile') ?></a></li>
 					<li class="nav-item"><a class="nav-link" href="#" data-bind="css:{active: $root.userModalTab()==='settings'}, click: () => $root.userModalTab('settings')"><?= $t('admin.user_tab_settings') ?></a></li>
 					<li class="nav-item"><a class="nav-link" href="#" data-bind="css:{active: $root.userModalTab()==='accounts'}, click: () => $root.userModalTab('accounts')"><?= $t('admin.user_accounts') ?></a></li>
+					<li class="nav-item"><a class="nav-link" href="#" data-bind="css:{active: $root.userModalTab()==='sessions'}, click: () => { $root.userModalTab('sessions'); $root.loadUserSessions(); }"><?= $t('admin.user_sessions') ?></a></li>
 				</ul>
 
 				<!-- Profil -->
@@ -864,6 +879,32 @@
 					<div class="row" data-bind="template: {name:'fields-tpl', foreach: settingsFields}"></div>
 					<button class="btn btn-primary btn-sm" data-bind="click: $root.saveUserSettings"><?= $t('common.save') ?></button>
 					<button class="btn btn-outline-warning btn-sm" data-bind="click: $root.resetUserSettings"><?= $t('admin.user_settings_reset') ?></button>
+				</div>
+
+				<!-- Sessions "Rester connecté" + déconnexion forcée -->
+				<div data-bind="visible: $root.userModalTab()==='sessions'" style="display:none">
+					<div class="d-flex justify-content-end mb-2">
+						<button class="btn btn-sm btn-outline-danger" data-bind="click: $root.revokeUserSessions">
+							<i class="fa-solid fa-power-off"></i> <?= $t('admin.session_revoke_all') ?></button>
+					</div>
+					<div class="text-muted small" data-bind="visible: !$root.userSessions().length" style="display:none">
+						<?= $t('admin.sessions_empty') ?></div>
+					<table class="table table-sm align-middle" data-bind="visible: $root.userSessions().length">
+						<thead class="table-light"><tr>
+							<th><?= $t('admin.session_agent') ?></th><th>IP</th>
+							<th><?= $t('admin.session_last_used') ?></th>
+							<th><?= $t('admin.session_expires') ?></th><th></th></tr></thead>
+						<tbody data-bind="foreach: $root.userSessions">
+							<tr>
+								<td class="text-truncate" style="max-width:220px" data-bind="text: agent || '-'"></td>
+								<td class="text-nowrap small" data-bind="text: ip || last_ip || '-'"></td>
+								<td class="text-nowrap small" data-bind="text: last_used_at ? new Date(last_used_at * 1000).toLocaleString($root.lang) : '-'"></td>
+								<td class="text-nowrap small" data-bind="text: expires_at ? new Date(expires_at * 1000).toLocaleDateString($root.lang) : '-'"></td>
+								<td class="text-end"><button class="btn btn-sm btn-icon btn-outline-danger"
+									data-bind="click: $root.deleteUserSession"><i class="fa-solid fa-trash"></i></button></td>
+							</tr>
+						</tbody>
+					</table>
 				</div>
 
 				<!-- Comptes IMAP liés + identités d'envoi -->
@@ -1125,6 +1166,12 @@
 				<select class="form-select form-select-sm" data-bind="value: value, valueAllowUnset: true, foreach: optionsList">
 					<option data-bind="value: $data[0], text: $root.t($data[1])"></option>
 				</select>
+				<!-- /ko -->
+				<!-- ko if: type === 'color' -->
+				<div class="ko-flex gap-2">
+					<input type="color" class="form-control form-control-color" data-bind="value: value">
+					<input class="form-control form-control-sm" placeholder="#RRGGBB" data-bind="value: value">
+				</div>
 				<!-- /ko -->
 				<!-- ko if: type === 'bool' -->
 				<div class="form-check">

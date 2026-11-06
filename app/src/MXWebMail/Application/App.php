@@ -49,7 +49,7 @@ final class App
 
 	public function __construct(?string $rootDir = null, ?string $installDir = null)
 	{
-		defined('APP_VERSION') || define('APP_VERSION', '0.51.0'); // X-Mailer MailSo
+		defined('APP_VERSION') || define('APP_VERSION', '0.52.0'); // X-Mailer MailSo
 		// Prérequis du paquet de mise à jour - lus par regex dans le App.php du
 		// paquet extrait (UpdateService::checkRequirements) avant application.
 		defined('APP_REQ_PHP') || define('APP_REQ_PHP', '>=8.4');
@@ -552,6 +552,8 @@ final class App
 	{
 		if (!$this->sessionUserLoaded) {
 			$this->sessionUserLoaded = true;
+			// Figé par requête : un appel avant l'écriture de user_id (login)
+			// mémoïserait null pour toute la durée de la requête.
 			$this->sessionUser = empty($_SESSION['user_id'])
 				? null : $this->users()->findById((int) $_SESSION['user_id']);
 		}
@@ -562,7 +564,16 @@ final class App
 	{
 		// Compte supprimé ou bloqué par l'admin : la session est rejetée
 		$u = $this->sessionUser();
-		return $u !== null && !(int) ($u['disabled'] ?? 0);
+		if ($u === null || (int) ($u['disabled'] ?? 0)) {
+			return false;
+		}
+		// Epoch de session (forçage de déconnexion par l'admin) : la clé
+		// absente (session ouverte avant la feature) ADOPTE l'epoch courant
+		// au lieu de rejeter - les bumps ultérieurs la tueront correctement.
+		if (!isset($_SESSION['session_epoch'])) {
+			$_SESSION['session_epoch'] = (int) ($u['session_epoch'] ?? 0);
+		}
+		return (int) $_SESSION['session_epoch'] === (int) ($u['session_epoch'] ?? 0);
 	}
 
 	public function currentUser(): ?array
@@ -645,7 +656,8 @@ final class App
 			return [is_scalar($value), $value];
 		}
 		if ($rule === 'bool') {
-			return [is_scalar($value), (bool) $value];
+			// Strict : la chaîne "false" passerait sinon pour true après cast.
+			return [is_bool($value), $value];
 		}
 		if (str_starts_with($rule, 'enum:')) {
 			return is_string($value)
@@ -771,14 +783,26 @@ final class App
 			return;
 		}
 
-		$this->startSession();
-		// Jeton "se souvenir de moi" : restaure une session webmail
-		// absente/expirée avant le dispatch (rotation du validator à l'usage).
-		if (empty($_SESSION['user_id']) && !empty($_COOKIE['mxwm_remember'])) {
-			try {
-				$this->auth()->resumeFromRemember();
-			} catch (\Throwable $e) {
-				$this->log('warning', 'Remember-token: ' . $e->getMessage());
+		// Assets publics servis par PHP (favicon, plugin/theme/i18n) : ni
+		// session ni plugins ne sont nécessaires - les handlers ferment la
+		// session immédiatement et n'utilisent que repo/config/translator.
+		// Les routes cœur correspondantes sont enregistrées avant app.routes :
+		// aucune route de plugin ne peut déjà matcher ces préfixes.
+		$publicAsset = $request->method === 'GET'
+			&& ($request->path === '/favicon.ico'
+				|| str_starts_with($request->path, '/assets/plugin/')
+				|| str_starts_with($request->path, '/assets/theme/')
+				|| str_starts_with($request->path, '/assets/i18n/'));
+		if (!$publicAsset) {
+			$this->startSession();
+			// Jeton "se souvenir de moi" : restaure une session webmail
+			// absente/expirée avant le dispatch (rotation du validator à l'usage).
+			if (empty($_SESSION['user_id']) && !empty($_COOKIE['mxwm_remember'])) {
+				try {
+					$this->auth()->resumeFromRemember();
+				} catch (\Throwable $e) {
+					$this->log('warning', 'Remember-token: ' . $e->getMessage());
+				}
 			}
 		}
 		// Sonde maintenance/update : réponse sans charger les plugins ni le
@@ -790,7 +814,8 @@ final class App
 
 		// Charge les plugins activés : enregistre leurs hooks dans HookRegistry.
 		// Surface admin = page /{admin_path} + /api/admin/* (cf. doc de plugins()).
-		$this->plugins(
+		// Assets publics : sautés aussi (aucun hook appelé par leurs handlers).
+		$publicAsset || $this->plugins(
 			str_starts_with($request->path, '/api/admin/')
 			|| $request->path === '/' . $this->config->get('admin_path', 'admin')
 		);
@@ -843,6 +868,7 @@ final class App
 		$admin = new AdminController($this);
 		$apiFolders = new Api\FoldersController($this);
 		$apiMessages = new Api\MessagesController($this);
+		$apiPoll = new Api\PollController($this);
 		$apiCompose = new Api\ComposeController($this);
 		$apiContacts = new Api\ContactsController($this);
 		$apiSettings = new Api\SettingsController($this);
@@ -872,6 +898,8 @@ final class App
 
 		// ─── API authentifiée ───
 		$router->get('/api/folders', [$apiFolders, 'folders']);
+		// Poll mutualisé (folders + watch + list + quota, 1 connexion IMAP)
+		$router->get('/api/poll', [$apiPoll, 'poll']);
 		$router->post('/api/folders/create', [$apiFolders, 'folderCreate']);
 		$router->post('/api/folders/{name}/delete', [$apiFolders, 'folderDelete']);
 		$router->post('/api/folders/{name}/rename', [$apiFolders, 'folderRename']);
@@ -899,12 +927,16 @@ final class App
 		// Batch multi-dossiers (sélection cochée) - avant les routes {uid}.
 		$router->post('/api/messages/delete', [$apiMessages, 'messagesDelete']);
 		$router->post('/api/messages/move', [$apiMessages, 'messagesMove']);
+		$router->post('/api/messages/copy', [$apiMessages, 'messagesCopy']);
+		$router->post('/api/messages/flags', [$apiMessages, 'messagesFlags']);
+		$router->post('/api/messages/spam', [$apiMessages, 'messagesSpam']);
 		$router->post('/api/messages/{uid}/flags', [$apiMessages, 'messageFlags']);
 		$router->post('/api/messages/{uid}/move', [$apiMessages, 'messageMove']);
 		$router->post('/api/messages/{uid}/copy', [$apiMessages, 'messageCopy']);
 		$router->post('/api/messages/{uid}/delete', [$apiMessages, 'messageDelete']);
 		$router->post('/api/messages/{uid}/spam', [$apiMessages, 'messageSpam']);
 		$router->post('/api/messages/{uid}/unsubscribe', [$apiMessages, 'messageUnsubscribe']);
+		$router->post('/api/messages/{uid}/bounce', [$apiMessages, 'messageBounce']);
 		$router->post('/api/messages/{uid}/mdn', [$apiMessages, 'messageMdnSend']);
 		$router->post('/api/messages/{uid}/smime-verify', [$apiMessages, 'messageSmimeVerify']);
 		$router->get('/api/messages/{uid}/attachments.zip', [$apiMessages, 'attachmentsZip']);
@@ -984,6 +1016,9 @@ final class App
 		$router->post('/api/admin/users/{id}/identities', [$admUsers, 'userIdentitySave']);
 		$router->post('/api/admin/users/{id}/identities/delete', [$admUsers, 'userIdentityDelete']);
 		$router->post('/api/admin/users/{id}/identities/default', [$admUsers, 'userIdentityDefault']);
+		$router->get('/api/admin/users/{id}/sessions', [$admUsers, 'userSessions']);
+		$router->post('/api/admin/users/{id}/sessions/{sid}/delete', [$admUsers, 'userSessionDelete']);
+		$router->post('/api/admin/users/{id}/sessions/revoke', [$admUsers, 'userSessionsRevoke']);
 		$router->get('/api/admin/domains', [$admDomains, 'domains']);
 		$router->post('/api/admin/domains', [$admDomains, 'domainSave']);
 		$router->post('/api/admin/domains/delete', [$admDomains, 'domainDelete']);
@@ -1014,6 +1049,7 @@ final class App
 		$router->post('/api/admin/favicon', [$admSystem, 'faviconUpload']);
 		$router->post('/api/admin/favicon/delete', [$admSystem, 'faviconDelete']);
 		$router->get('/api/admin/about', [$admSystem, 'about']);
+		$router->get('/api/admin/backup', [$admSystem, 'backup']);
 		$router->get('/api/admin/update/check', [$admSystem, 'updateCheck']);
 		$router->get('/api/admin/update/status', [$admSystem, 'updateStatus']);
 		$router->post('/api/admin/update/download', [$admSystem, 'updateDownload']);

@@ -461,6 +461,9 @@ final class UpdateService
 					if (!copy($src, $dst)) {
 						throw new \RuntimeException("Copie échouée : $rel", 500);
 					}
+					// isUpdating() expire le flag à 15 min : sur gros paquet
+					// le garder frais évite que l'API se débloque en pleine copie.
+					touch($this->applyingFlag());
 				}
 			} catch (\Throwable $e) {
 				// Rollback automatique : restaurer les écrasés depuis le backup,

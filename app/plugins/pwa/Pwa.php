@@ -15,7 +15,8 @@ use MXWebMail\Plugin\PluginBase;
  * d'enregistrement du service worker dans le <head> de la page application,
  * et sert le manifest dynamique + un service worker minimal qui n'intercepte
  * rien (aucune mise en cache des mails). Icônes par défaut embarquées (assets/)
- * ou surchargées par une URL admin.
+ * ou surchargées par une URL admin. Champ theme_color vide > la meta porte
+ * data-pwa-auto et suit la couleur d'en-tête du thème affiché (register.js).
  * Routes publiques : /pwa/manifest.webmanifest, /pwa/sw.js.
  */
 final class Pwa extends PluginBase
@@ -33,9 +34,11 @@ final class Pwa extends PluginBase
 			return '';
 		}
 		$b = htmlspecialchars($base, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		$color = self::hex($this->config['theme_color'] ?? '');
 		return "\n\t" . '<link rel="manifest" href="' . $b . '/pwa/manifest.webmanifest">'
 			. "\n\t" . '<meta name="theme-color" content="'
-				. htmlspecialchars($this->themeColor(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">'
+				. htmlspecialchars($color ?? $this->headerColor(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+				. '"' . ($color === null ? ' data-pwa-auto' : '') . '>'
 			. "\n\t" . '<link rel="apple-touch-icon" href="' . $this->iconHref($b) . '">'
 			. "\n\t" . '<script src="' . $b . '/assets/plugin/pwa/register.js?v='
 				. rawurlencode($this->version()) . '" defer></script>';
@@ -150,7 +153,24 @@ JS;
 
 	private function themeColor(): string
 	{
-		return self::hex($this->config['theme_color'] ?? '') ?? '#0d6efd';
+		return self::hex($this->config['theme_color'] ?? '') ?? $this->headerColor();
+	}
+
+	/**
+	 * Couleur d'en-tête du template actif : variante sombre préférée quand le
+	 * template est sombre par défaut. Repli #0d6efd (header_color non défini).
+	 */
+	private function headerColor(): string
+	{
+		$themes = $this->app->themes();
+		$theme = $themes->current();
+		$config = $themes->config($theme);
+		$light = self::hex($config['header_color'] ?? null);
+		$dark = self::hex($config['header_color_dark'] ?? null);
+		if ($themes->darkMode($theme) === 'dark') {
+			return $dark ?? $light ?? '#0d6efd';
+		}
+		return $light ?? $dark ?? '#0d6efd';
 	}
 
 	private function backgroundColor(): string

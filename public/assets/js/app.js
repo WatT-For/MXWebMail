@@ -175,10 +175,26 @@ class AppVM {
 			const def = ids.find(i => Number(i.is_default)) || ids[0];
 			if (def && !(def.name || '').trim()) { this.popupIdentityPending = true; }
 		}
-		// Dossiers + liste initiale en parallèle : routeFromHash déclenche
-		// selectFolder>load() pendant que le LIST-STATUS est encore en vol
-		// (requêtes GET concurrentes libérées par la fermeture de session).
-		const foldersP = this.folderList.load();
+		// Boot mutualisé : dossiers + première page de messages + quota en
+		// UNE requête /api/poll = UNE connexion IMAP (avant : /folders +
+		// /messages + /quota = 3 connexions). watch vide : le seed _watch a
+		// lieu après application des dossiers.
+		const initialFolder = this.folderFromHash();
+		if (initialFolder !== null) {
+			// Positionné AVANT routeFromHash : hash identique > pas de
+			// selectFolder > pas de second chargement de liste.
+			this.messageList.folder(initialFolder);
+			this.messageList.page(1);
+		}
+		const listP = initialFolder === null ? null : {
+			folder: initialFolder, page: 1, limit: this.messageList.limit,
+			sort: this.messageList.sort(), threads: this.messageList.useThreads() ? 1 : 0,
+		};
+		const bootP = api.get('/poll?' + new URLSearchParams({
+			watch: '{}',
+			...(listP ? { list: JSON.stringify(listP) } : {}),
+			quota: '1',
+		}));
 		// Dossiers surveillés (données du boot appdata, pas de RTT dédié) +
 		// seed de l'état de détection : seules les hausses de non-lus
 		// postérieures au boot déclenchent une notification.
@@ -196,25 +212,59 @@ class AppVM {
 				localStorage.setItem('mxwm_mailto_reg', '1');
 			}
 		} catch (e) { /* contexte non sécurisé / navigateur sans support */ }
-		this.loadQuota();
 		window.addEventListener('hashchange', () => this.routeFromHash());
 		if (this.popupIdentityPending) {
 			// popup_identity : ouvre l'onglet identités tant que le nom est vide
 			location.hash = '#/@settings/identities';
 		}
 		this.routeFromHash();
-		await foldersP;
-		for (const f of this.folderList.folders()) {
-			if (f.isInbox || this.notifyFolders().includes(f.fullName)) {
-				this._watch[f.fullName] = { unread: f.unread(), lastUid: 0 };
+		// Repli si /api/poll échoue : les handlers unitaires gardent leurs
+		// surfaces d'erreur habituelles (toast panneau dossiers / liste).
+		const boot = await bootP.catch(() => null);
+		let bootListDone = false;
+		if (boot?.folders) {
+			this.folderList.applyList(boot.folders);
+			for (const f of this.folderList.folders()) {
+				if (f.isInbox || this.notifyFolders().includes(f.fullName)) {
+					this._watch[f.fullName] = { unread: f.unread(), lastUid: 0 };
+				}
 			}
+			if (listP) {
+				bootListDone = true;
+				if (boot.list) {
+					this.messageList.applyData(boot.list);
+				} else if (this.view() === 'mail') {
+					// Section "list" en échec côté serveur : repli endpoint dédié.
+					this.messageList.load();
+				}
+			}
+			if (boot.quota) {
+				this.quota.used(boot.quota[0] ?? 0);
+				this.quota.limit(boot.quota[1] ?? 0);
+			}
+		} else {
+			// /api/poll en échec : repli sur l'endpoint dédié (erreur dans le
+			// panneau dossiers) ; la liste suit le repli de fin d'init.
+			this.folderList.load();
 		}
 		// Réactualisation auto de la liste (réglage list_refresh, minutes, 0 = jamais)
 		if (refresh > 0) { this.armAutoRefresh(refresh); }
-		if (this.view() === 'mail' && !this.messageList.messages().length) {
+		// Onglet masqué : les ticks sont suspendus ; retour visible > poll immédiat.
+		document.addEventListener('visibilitychange', () => {
+			if (!document.hidden && this._refreshTimer) { this.poll(); }
+		});
+		if (this.view() === 'mail' && !this.messageList.messages().length && !bootListDone) {
 			this.messageList.load();
 		}
 		initShortcuts(this);
+	}
+
+	/** Dossier cible du hash courant pour le préchargement du boot -
+	 *  null pour la vue settings (pas de liste mail à charger). */
+	folderFromHash() {
+		const raw = location.hash.replace(/^#\//, '') || 'INBOX';
+		if (raw.split('/')[0] === '@settings') { return null; }
+		return safeDecode(raw);
 	}
 
 	routeFromHash() {
@@ -367,14 +417,6 @@ class AppVM {
 		const timer = setInterval(() => { if (w.closed) { done(); } }, 500);
 	}
 
-	async loadQuota() {
-		try {
-			const q = await api.get('/quota');
-			this.quota.used(q[0] ?? 0);
-			this.quota.limit(q[1] ?? 0);
-		} catch (e) { /* capability QUOTA absente */ }
-	}
-
 	/** Timer de réactualisation auto (minutes, réglage list_refresh ; 0 = arrêt). */
 	armAutoRefresh(minutes) {
 		clearInterval(this._refreshTimer);
@@ -385,48 +427,26 @@ class AppVM {
 	}
 
 	/**
-	 * Tick de réactualisation : badges de tous les dossiers, détection de
-	 * nouveaux mails (dossiers surveillés) puis reload de la liste courante -
-	 * effectué même avec un message affiché ; sauté seulement en
-	 * multi-sélection manuelle ou marquage "lu" différé en vol (les
-	 * MessageModel sont recréés : coches perdues / marquage annulé).
-	 * load() catch en interne (erreur affichée) - on ne peut donc pas
-	 * distinguer une session expirée ; le timer continue jusqu'au re-login.
+	 * Tick de réactualisation : UNE requête /api/poll = dossiers (badges) +
+	 * derniers messages des dossiers surveillés (détection nouveaux mails) +
+	 * reload de la liste courante - une seule connexion IMAP au lieu de
+	 * 1 + N + 1. Effectué même avec un message affiché ; sauté en
+	 * multi-sélection manuelle, marquage "lu" différé en vol ou onglet
+	 * masqué (visibilitychange relance un tick au retour).
 	 * _polling : un tick n'en chevauche pas un autre encore en vol.
 	 */
 	async poll() {
-		if (this._polling) { return; }
+		if (this._polling || document.hidden) { return; }
 		this._polling = true;
 		try {
-			await this.folderList.load();
+			// Baseline = unread du tick précédent ; le serveur ne fetch le
+			// dernier message que si unread a augmenté (plafond 20 dossiers).
+			const watch = {};
 			for (const f of this.folderList.folders()) {
 				if (!f.isInbox && !this.notifyFolders().includes(f.fullName)) { continue; }
 				// ??= : un dossier abonné après le boot se seede sans notifier
 				const prev = this._watch[f.fullName] ??= { unread: f.unread(), lastUid: 0 };
-				if (f.unread() <= prev.unread) {
-					prev.unread = f.unread();
-					continue;
-				}
-				try {
-					const d = await api.get('/messages?folder=' + encodeURIComponent(f.fullName)
-						+ '&page=1&limit=1&sort=' + encodeURIComponent('REVERSE DATE'));
-					const msg = d.messages?.[0];
-					if (msg && msg.uid !== prev.lastUid) {
-						prev.lastUid = msg.uid;
-						if (this.notifyEnabled()) {
-							notify.newMail({
-								folderLabel: f.isInbox ? '' : f.label,
-								from: msg.from || '', subject: msg.subject || '',
-								uid: msg.uid, folder: f.fullName,
-								onOpen: (uid, folder) => this.openMail(uid, folder),
-							});
-						}
-					}
-					prev.unread = f.unread();
-				} catch (e) {
-					// Fetch impossible (IMAP) : prev.unread n'est pas mis à jour,
-					// la détection sera retentée au prochain tick.
-				}
+				watch[f.fullName] = prev.unread;
 			}
 			const ml = this.messageList;
 			// Le mail visionné est auto-coché par select() : "sélection en
@@ -436,20 +456,63 @@ class AppVM {
 			const busy = ml.checkedMessages().some(m => !m.isSelected())
 				|| ml._readTimer !== null
 				|| ml.dragItems() !== null;
-			if (this.view() === 'mail' && !busy) {
-				// Restauration après reload : pastille du mail affiché (uid par
-				// dossier) + coches telles qu'elles étaient - coche auto du
-				// visionné et décochage manuel tous deux préservés. Clé
-				// folder+uid : en recherche multi-dossiers les UID se percutent.
-				const checkedKeys = new Set(
-					ml.checkedMessages().map(m => ml.goneKey(m.folder, m.uid)));
-				const uid = this.messageView.requestedUid;
-				const fld = this.messageView.requestedFolder;
-				await ml.load(true);
-				ml.messages().forEach(m => {
-					m.isSelected(m.uid === uid && m.folder === fld);
-					m.isChecked(checkedKeys.has(ml.goneKey(m.folder, m.uid)));
-				});
+			const doList = this.view() === 'mail' && !busy;
+			const global = ml.searchScope() === 'all' && ml.searchQuery() !== '';
+			const qs = new URLSearchParams({ watch: JSON.stringify(watch) });
+			if (doList) {
+				qs.set('list', JSON.stringify({
+					folder: global ? '*' : ml.folder(), page: ml.page(), limit: ml.limit,
+					search: ml.searchQuery(), sort: ml.sort(),
+					threads: !global && ml.useThreads() ? 1 : 0,
+				}));
+			}
+			let d;
+			try {
+				d = await api.get('/poll?' + qs);
+			} catch (e) {
+				// Même surface d'erreur que folderList.load() : toast du panneau
+				// dossiers, pas de popup globale à chaque tick en échec.
+				this.folderList.error(e.message);
+				return;
+			}
+			this.folderList.applyList(d.folders);
+			for (const [name, payload] of Object.entries(d.latest || {})) {
+				const prev = this._watch[name];
+				// null = fetch impossible côté serveur : baseline conservée,
+				// la détection sera retentée au prochain tick.
+				if (!prev || payload === null) { continue; }
+				const f = this.folderList.folders().find(x => x.fullName === name);
+				prev.unread = f ? f.unread() : prev.unread;
+				const msg = payload.messages?.[0];
+				if (msg && msg.uid !== prev.lastUid) {
+					prev.lastUid = msg.uid;
+					if (this.notifyEnabled() && f) {
+						notify.newMail({
+							folderLabel: f.isInbox ? '' : f.label,
+							from: msg.from || '', subject: msg.subject || '',
+							uid: msg.uid, folder: name,
+							onOpen: (uid, folder) => this.openMail(uid, folder),
+						});
+					}
+				}
+			}
+			// Baselines des dossiers surveillés non remontés dans latest
+			// (unread stable) : alignées sur les valeurs fraîches.
+			for (const f of this.folderList.folders()) {
+				const prev = this._watch[f.fullName];
+				if (prev && !(f.fullName in (d.latest || {}))) {
+					prev.unread = f.unread();
+				}
+			}
+			if (doList) {
+				if (d.list) {
+					// applyData préserve lui-même coches et sélection (rebuild)
+					// ou réconcilie in-place (tick sans changement structurel).
+					ml.applyData(d.list);
+				} else {
+					// Section "list" en échec côté serveur : repli endpoint dédié.
+					await ml.load(true);
+				}
 			}
 		} finally {
 			this._polling = false;

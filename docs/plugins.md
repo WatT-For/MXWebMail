@@ -57,7 +57,7 @@ surface utilisateur : la colonne n'affiche alors pas de switch pour lui (`-`).
 | Plugin | Rôle | Hooks |
 |---|---|---|
 | `add-x-originating-ip-header` | Ajoute `X-Originating-IP` (IP de l'expéditeur) aux envois. | `message.before-send` |
-| `anti-spoofing` | Détection d'usurpation dans le lecteur : Return-Path/Reply-To/Sender incohérents, display-name imitant une marque (homoglyphes et confusables détectés), domaine leurre (sous-domaine piégé, typosquat, trans-TLD), SPF/DKIM/DMARC évalués en alignement avec le domaine de l'expéditeur - les sous-domaines des domaines protégés sont légitimes. | `imap.message-headers`, `message.view` |
+| `anti-spoofing` | Détection d'usurpation dans le lecteur : Return-Path/Reply-To/Sender incohérents, display-name imitant une marque (homoglyphes et confusables détectés), domaine leurre (sous-domaine piégé, typosquat, trans-TLD), SPF/DKIM/DMARC évalués en alignement avec le domaine de l'expéditeur (verdicts lus dans `Authentication-Results`, `Received-SPF` ou les en-têtes SpamAssassin/rspamd) - les sous-domaines des domaines protégés sont légitimes. | `imap.message-headers`, `message.view` |
 | `avatars` | Avatar de l'expéditeur : icônes de services connues, Gravatar, favicon du domaine, initiales. | `app.data` |
 | `black-list` | Liste noire de connexion (wildcards + exceptions) - vérifiée sur l'email **résolu** (post-mapping). | `auth.login.mapped` |
 | `white-list` | Liste blanche de connexion (wildcards + exceptions) - vérifiée sur l'email **résolu** (post-mapping). | `auth.login.mapped` |
@@ -84,8 +84,9 @@ surface utilisateur : la colonne n'affiche alors pas de switch pour lui (`-`).
 
 Dans l'admin (*Extensions* > bouton ⚙), la configuration est générée depuis le fichier
 `config.schema.json` du plugin. Types supportés : `string`, `text`, `integer`, `number`,
-`password`, `bool`, `enum`, `list`. Les valeurs sont stockées en table `plugins` (colonne
-`config`, JSON).
+`password`, `bool`, `enum`, `color`, `list` - `color` rend un sélecteur natif + un champ
+`#RRGGBB` (la valeur vide est acceptée : le champ retombe sur le repli du plugin).
+Les valeurs sont stockées en table `plugins` (colonne `config`, JSON).
 
 Détails de configuration notables :
 

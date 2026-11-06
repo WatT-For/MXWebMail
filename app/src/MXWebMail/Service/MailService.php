@@ -101,7 +101,10 @@ final class MailService
 		try { $this->sieveClient?->Disconnect(); } catch (\Throwable) {}
 		$this->client = $this->sieveClient = null;
 		$this->specialMap = $this->userFolderSet = $this->folderRows = null;
-		unset($_SESSION['folder_cache']);
+		foreach (glob($this->app->storageDir() . '/cache/folders-'
+				. (int) ($_SESSION['user_id'] ?? 0) . '-*.json') ?: [] as $f) {
+			@unlink($f);
+		}
 	}
 
 	// ─── Dossiers ───
@@ -180,34 +183,59 @@ final class MailService
 			$f['hidden'] = !$f['system'] && isset($hidden[(string) $f['fullName']]);
 		}
 		unset($f);
-		// Lignes mises en cache session (par compte) : cachedFolders() sert la
+		// Lignes mises en cache fichier (par compte) : cachedFolders() sert la
 		// résolution des rôles (junkFolder(), trashFolder(), specialFolder(),
 		// folderFlags()) sans repayer un LIST+STATUS à chaque action (spam,
 		// corbeille, append Sent…). Les compteurs total/unread qu'elle
 		// contient peuvent être périmés - ces consommateurs ne les lisent pas.
-		$_SESSION['folder_cache'][(string) ($_SESSION['account_id'] ?? 0)] = $out;
+		// Fichier et non session : les GET ferment la session avant le handler
+		// (requireReadOnly), une écriture $_SESSION serait perdue.
+		// Écriture évitée si identique : le JSON est déterministe - un tick de
+		// poll sans changement ne doit pas réécrire le fichier.
+		if (($f = $this->folderCacheFile())) {
+			$json = json_encode($out);
+			if (!is_file($f) || (string) @file_get_contents($f) !== $json) {
+				// Purge des caches d'autres comptes/sessions mortes (> 30 j).
+				foreach (glob($this->app->storageDir() . '/cache/folders-*.json') ?: [] as $stale) {
+					if ((int) filemtime($stale) < time() - 2592000) { @unlink($stale); }
+				}
+				@mxwm_atomic_write($f, $json);
+			}
+		}
 		return $this->folderRows = $out;
 	}
 
+	/** Cache fichier par (utilisateur, compte) - survit à la session fermée. */
+	private function folderCacheFile(): ?string
+	{
+		$uid = (int) ($_SESSION['user_id'] ?? 0);
+		$acct = (int) ($_SESSION['account_id'] ?? 0);
+		return $uid > 0 ? $this->app->storageDir()
+			. "/cache/folders-$uid-$acct.json" : null;
+	}
+
 	/**
-	 * Lignes folders() depuis le cache session écrit à chaque calcul réel
+	 * Lignes folders() depuis le cache fichier écrit à chaque calcul réel
 	 * (GET /api/folders, donc rafraîchi par le poll list_refresh) ; absent >
 	 * folders() le peuple. Pour la résolution de rôles uniquement.
 	 */
 	private function cachedFolders(): array
 	{
-		$acct = (string) ($_SESSION['account_id'] ?? 0);
-		if (!isset($_SESSION['folder_cache'][$acct])) {
-			$this->folders(); // calcule et peuple le cache session
+		$f = $this->folderCacheFile();
+		$c = $f !== null && is_file($f)
+			? json_decode((string) file_get_contents($f), true) : null;
+		if (is_array($c)) {
+			return $c;
 		}
-		return $_SESSION['folder_cache'][$acct] ?? [];
+		$this->folders(); // calcule et peuple le cache fichier
+		return $this->folderRows ?? [];
 	}
 
-	/** Invalide la liste des dossiers et son cache session. */
+	/** Invalide la liste des dossiers et son cache fichier. */
 	private function invalidateFolderCache(): void
 	{
 		$this->folderRows = null;
-		unset($_SESSION['folder_cache'][(string) ($_SESSION['account_id'] ?? 0)]);
+		($f = $this->folderCacheFile()) && is_file($f) && @unlink($f);
 	}
 
 	/**
@@ -315,6 +343,12 @@ final class MailService
 	 * (INTERNALDATE non-nullable, UID). Message() enchaînait un second
 	 * FETCH de toutes les parties texte (body_text_limit=0 > corps
 	 * entier) pour ne lire que les PJ.
+	 * La liste est cachée disque (cache/att/<cle>.list.json) indexée sur
+	 * l'UIDVALIDITY lu par le FolderExamine ci-dessous : un mail à N
+	 * PJ/images cid ne paie plus qu'UN FETCH BODYSTRUCTURE au lieu d'un
+	 * par téléchargement/aperçu (le chemin zip sans ?uv= en profite
+	 * aussi). Contenu immuable par construction ; GC 7 j du dossier
+	 * att/ (attachmentCacheGc) couvre ces fichiers.
 	 */
 	public function attachmentList(string $folder, int $uid): ?array
 	{
@@ -322,7 +356,21 @@ final class MailService
 		// EXAMINE comme Message()/MessageMimeStream() : Fetch exige une
 		// mailbox sélectionnée - attachmentList court-circuite MailClient
 		// qui la fait en interne.
-		$imap->FolderExamine($folder);
+		$info = $imap->FolderExamine($folder);
+		$cacheFile = null;
+		if ($info->UIDVALIDITY) {
+			$cacheFile = $this->app->storageDir() . '/cache/att/'
+				. sha1(implode('|', [
+					(string) ($_SESSION['account_id'] ?? 0),
+					(string) ($_SESSION['email'] ?? ''),
+					$folder, $info->UIDVALIDITY, $uid])) . '.list.json';
+			if (is_file($cacheFile)) {
+				$c = json_decode((string) file_get_contents($cacheFile), true);
+				if (is_array($c)) {
+					return $c;
+				}
+			}
+		}
 		$fetch = $imap->Fetch(
 			[
 				\MailSo\Imap\Enumerations\FetchType::UID,
@@ -335,8 +383,26 @@ final class MailService
 		if (!$resp || !$bs) {
 			return null;
 		}
-		return self::attachmentsOf(
+		$list = self::attachmentsOf(
 			\MailSo\Mail\Message::fromFetchResponse($folder, $resp, $bs));
+		if ($cacheFile !== null) {
+			@mxwm_atomic_write($cacheFile, json_encode($list));
+		}
+		return $list;
+	}
+
+	/** Dernier message ARRIVÉ d'un dossier (UID le plus haut - détection
+	 *  "nouveau mail" du poll, une seule enveloppe par round-trip). */
+	public function latestMessage(string $folder): ?array
+	{
+		$info = $this->client()->ImapClient()->FolderExamine($folder);
+		if (!$info->UIDNEXT || $info->UIDNEXT < 2) { return null; }
+		// x:* = x jusqu'au plus haut UID : couvre le cas UIDNEXT-1 expungé.
+		$col = $this->client()->MessageListByUids($folder,
+			new \MailSo\Imap\SequenceSet(($info->UIDNEXT - 1) . ':*'));
+		$msg = $col[0] ?? null;
+		return $msg ? $this->app->hooks()->filter('message.meta',
+			self::messageMeta($msg), $msg) : null;
 	}
 
 	public function flags(string $folder, int $uid, string $flag, bool $set): void
@@ -357,9 +423,9 @@ final class MailService
 		$this->client()->MessageMove($from, $to, new \MailSo\Imap\SequenceSet($uids));
 	}
 
-	public function copy(string $from, string $to, int $uid): void
+	public function copy(string $from, string $to, int|array $uids): void
 	{
-		$this->client()->MessageCopy($from, $to, new \MailSo\Imap\SequenceSet((string) $uid));
+		$this->client()->MessageCopy($from, $to, new \MailSo\Imap\SequenceSet($uids));
 	}
 
 	/**
@@ -560,7 +626,7 @@ final class MailService
 		$map = array_filter($map,
 			fn($v) => is_string($v) && $v !== '' && $v !== 'auto');
 		$uid = (int) $_SESSION['user_id'];
-		$raw = $this->app->settings()->get($uid, 'special_folders', []);
+		$raw = $this->folderPrefs()['special_folders'] ?? [];
 		$all = is_array($raw) ? $raw : (json_decode((string) $raw, true) ?: []);
 		$all[(string) ($_SESSION['account_id'] ?? 0)] = $map;
 		$this->app->settings()->set($uid, 'special_folders', $all);
@@ -597,7 +663,8 @@ final class MailService
 	{
 		return $this->folderPrefs ??= $this->app->settings()->getMany(
 			(int) ($_SESSION['user_id'] ?? 0),
-			['special_folders', 'user_folders', 'collapsed_folders', 'hidden_folders']);
+			['special_folders', 'user_folders', 'collapsed_folders', 'hidden_folders',
+				'notify_folders']);
 	}
 
 	/** Réglage JSON stocké > tableau (accepte tableau natif ou chaîne). */
@@ -630,8 +697,7 @@ final class MailService
 		$names = array_values(array_filter(array_map('strval', $names),
 			fn($n) => isset($existing[$n])));
 		$uid = (int) $_SESSION['user_id'];
-		$all = $this->decodeSetting(
-			$this->app->settings()->get($uid, 'collapsed_folders', []));
+		$all = $this->decodeSetting($this->folderPrefs()['collapsed_folders'] ?? null);
 		$key = (string) ($_SESSION['account_id'] ?? 0);
 		if ($names === []) {
 			unset($all[$key]);
@@ -670,8 +736,7 @@ final class MailService
 		$names = array_values(array_filter(array_map('strval', $names),
 			fn($n) => isset($allowed[$n])));
 		$uid = (int) $_SESSION['user_id'];
-		$all = $this->decodeSetting(
-			$this->app->settings()->get($uid, 'hidden_folders', []));
+		$all = $this->decodeSetting($this->folderPrefs()['hidden_folders'] ?? null);
 		$key = (string) ($_SESSION['account_id'] ?? 0);
 		if ($names === []) {
 			unset($all[$key]);
@@ -723,7 +788,7 @@ final class MailService
 	private function updateUserFolders(callable $fn): void
 	{
 		$uid = (int) $_SESSION['user_id'];
-		$raw = $this->app->settings()->get($uid, 'user_folders', []);
+		$raw = $this->folderPrefs()['user_folders'] ?? [];
 		$all = is_array($raw) ? $raw : (json_decode((string) $raw, true) ?: []);
 		$key = (string) ($_SESSION['account_id'] ?? 0);
 		$names = array_map('strval', (array) ($all[$key] ?? []));
@@ -744,7 +809,7 @@ final class MailService
 	 */
 	public function notifyFolderList(): array
 	{
-		$raw = $this->app->settings()->get((int) $_SESSION['user_id'], 'notify_folders', []);
+		$raw = $this->folderPrefs()['notify_folders'] ?? [];
 		$all = is_array($raw) ? $raw : (json_decode((string) $raw, true) ?: []);
 		$names = array_values(array_filter(array_map('strval',
 			(array) ($all[(string) ($_SESSION['account_id'] ?? 0)] ?? [])),
@@ -758,7 +823,7 @@ final class MailService
 		$names = array_values(array_filter(array_unique(array_map('strval', $names)),
 			fn($n) => in_array($n, $existing, true) && strcasecmp($n, 'INBOX') !== 0));
 		$uid = (int) $_SESSION['user_id'];
-		$raw = $this->app->settings()->get($uid, 'notify_folders', []);
+		$raw = $this->folderPrefs()['notify_folders'] ?? [];
 		$all = is_array($raw) ? $raw : (json_decode((string) $raw, true) ?: []);
 		$all[(string) ($_SESSION['account_id'] ?? 0)] = $names;
 		$this->app->settings()->set($uid, 'notify_folders', $all);
@@ -1052,22 +1117,21 @@ final class MailService
 		$scripts = $sieve->ListScripts();
 		$active = null;
 		$managed = [];
+		$docs = [];
 		foreach (array_keys($scripts) as $name) {
-			$doc = \MXWebMail\Sieve\ScriptBuilder::parseMarker(
+			// Un seul GetScript par script : le doc de l'actif est réutilisé
+			// ci-dessous au lieu d'être re-fetché (N+1 round-trips avant).
+			$docs[$name] = \MXWebMail\Sieve\ScriptBuilder::parseMarker(
 				$sieve->GetScript((string) $name));
-			if ($doc !== null) {
+			if ($docs[$name] !== null) {
 				$managed[] = $name;
 			}
 			if ($scripts[$name]) {
 				$active = $name;
 			}
 		}
-		$vacation = null;
-		if ($active !== null && in_array($active, $managed, true)) {
-			$doc = \MXWebMail\Sieve\ScriptBuilder::parseMarker(
-				$sieve->GetScript((string) $active));
-			$vacation = $doc['vacation'] ?? null;
-		}
+		$vacation = $active !== null && in_array($active, $managed, true)
+			? ($docs[$active]['vacation'] ?? null) : null;
 		return [
 			'script'  => $active,
 			'managed' => $active !== null && in_array($active, $managed, true),
@@ -1156,8 +1220,10 @@ final class MailService
 	/**
 	 * Stream d'une partie MIME (pièce jointe, ou message entier si mimeIndex='').
 	 * Le callback reçoit une ressource PHP ouverte.
+	 * $meta (sortie d'attachmentList) permet à MessageMimeStream de sauter
+	 * le FETCH d'en-têtes MIME quand les champs sont déjà connus.
 	 */
-	public function mimeStream(string $folder, int $uid, string $mimeIndex, callable $cb): bool
+	public function mimeStream(string $folder, int $uid, string $mimeIndex, callable $cb, ?array $meta = null): bool
 	{
 		return $this->client()->MessageMimeStream(
 			function ($resource) use ($cb) {
@@ -1167,13 +1233,72 @@ final class MailService
 			},
 			$folder,
 			$uid,
-			$mimeIndex
+			$mimeIndex,
+			$meta
 		);
 	}
 
 	// ─── SMTP ───
 
 	public function send(\MailSo\Mime\Message $message): void
+	{
+		$this->app->hooks()->run('message.before-send', $message);
+		// Bcc retiré du DATA : l'en-tête ne doit pas fuiter vers les destinataires.
+		$stream = $message->ToStream(true);
+		$from = $message->GetFrom();
+		$this->smtpSendRaw(
+			$from?->GetEmail(),
+			array_map(static fn ($r) => $r->GetEmail(),
+				iterator_to_array($message->GetRcpt())),
+			$stream,
+			fstat($stream)['size'] ?? 0
+		);
+
+		// Copie dans le dossier Éléments envoyés (l'échec ne doit pas faire
+		// échouer l'envoi). Bcc conservé ici - ToString(false) : l'expéditeur
+		// doit retrouver ses destinataires Cci dans sa copie.
+		try {
+			$sent = $this->specialFolder('sent');
+			if ($sent !== null) {
+				$this->appendMessage($message->ToString(false), $sent, ['\\Seen']);
+			}
+		} catch (\Throwable $e) {
+			$this->app->log('warning', 'Append Sent échoué: ' . $e->getMessage());
+		}
+	}
+
+	/** "Renvoyer tel quel" (bounce) : le source brut est re-expédié préfixé
+	 *  des champs Resent-* (RFC 5322 §3.6.6 - prepended comme les champs
+	 *  trace). MAIL FROM = utilisateur de session, RCPT TO = destinataire
+	 *  saisi. Pas de copie Sent (ce n'est pas un nouveau message) et pas de
+	 *  hook message.before-send (pas d'objet Mime\Message). */
+	public function bounce(string $folder, int $uid, string $to): void
+	{
+		$raw = null;
+		if (!$this->mimeStream($folder, $uid, '', function ($r) use (&$raw) {
+			$raw = fopen('php://temp', 'w+b');
+			stream_copy_to_stream($r, $raw);
+		}) || !is_resource($raw)) {
+			throw new \RuntimeException($this->t('errors.not_found'), 404);
+		}
+		$out = fopen('php://temp', 'w+b');
+		fwrite($out,
+			'Resent-Date: ' . date(\DateTimeInterface::RFC2822) . "\r\n"
+			. 'Resent-From: <' . ($_SESSION['email'] ?? '') . ">\r\n"
+			. 'Resent-To: <' . $to . ">\r\n"
+			. 'Resent-Message-ID: <' . bin2hex(random_bytes(16))
+				. '@' . ($_SESSION['domain'] ?? 'localhost') . ">\r\n");
+		rewind($raw); // le callback mimeStream l'a laissé en fin de flux
+		stream_copy_to_stream($raw, $out);
+		fclose($raw);
+		rewind($out);
+		$this->smtpSendRaw($_SESSION['email'] ?? null, [$to],
+			$out, fstat($out)['size'] ?? 0);
+	}
+
+	/** Corps SMTP partagé send/bounce : résolution domaine + auth + dialogue
+	 *  (MailFrom/Rcpt/DATA). $mailFrom null > username des settings. */
+	private function smtpSendRaw(?string $mailFrom, array $rcpts, $stream, int $size): void
 	{
 		$domain = $this->app->auth()->domainFor(
 			$_SESSION['domain'] ?? '', !empty($_SESSION['acct_secondary']));
@@ -1186,16 +1311,15 @@ final class MailService
 		$this->app->hooks()->run('smtp.before-connect', $smtp, $settings);
 		try {
 			$smtp->Connect($settings);
-			$smtp->Login($settings);
+			// useAuth=false (option du domaine) : pas de commande AUTH -
+			// relais interne ou serveur SMTP sans authentification.
+			if ($settings->useAuth) {
+				$smtp->Login($settings);
+			}
 
-			$this->app->hooks()->run('message.before-send', $message);
-			// Bcc retiré du DATA : l'en-tête ne doit pas fuiter vers les destinataires.
-			$stream = $message->ToStream(true);
-			$size = fstat($stream)['size'] ?? 0;
-			$from = $message->GetFrom();
-			$smtp->MailFrom($from ? $from->GetEmail() : $settings->username, $size);
-			foreach ($message->GetRcpt() as $rcpt) {
-				$smtp->Rcpt($rcpt->GetEmail());
+			$smtp->MailFrom($mailFrom ?: $settings->username, $size);
+			foreach ($rcpts as $rcpt) {
+				$smtp->Rcpt($rcpt);
 			}
 			$smtp->DataWithStream($stream);
 		} catch (\MailSo\Smtp\Exceptions\ResponseException $e) {
@@ -1224,18 +1348,6 @@ final class MailService
 			// En cas d'exception mid-dialogue la socket resterait ouverte.
 			try { $smtp->Disconnect(); } catch (\Throwable) {}
 		}
-
-		// Copie dans le dossier Éléments envoyés (l'échec ne doit pas faire
-		// échouer l'envoi). Bcc conservé ici - ToString(false) : l'expéditeur
-		// doit retrouver ses destinataires Cci dans sa copie.
-		try {
-			$sent = $this->specialFolder('sent');
-			if ($sent !== null) {
-				$this->appendMessage($message->ToString(false), $sent, ['\\Seen']);
-			}
-		} catch (\Throwable $e) {
-			$this->app->log('warning', 'Append Sent échoué: ' . $e->getMessage());
-		}
 	}
 
 	// ─── Sérialisation ───
@@ -1259,6 +1371,7 @@ final class MailService
 			'isSeen'    => in_array('\seen', $flags, true),
 			'isFlagged' => in_array('\flagged', $flags, true),
 			'isAnswered'=> in_array('\answered', $flags, true),
+			'isForwarded' => in_array('$forwarded', $flags, true),
 			'isDraft'   => in_array('\draft', $flags, true),
 			'hasAttach' => !empty($d['attachments']),
 			'encrypted' => !empty($d['encrypted']),
@@ -1309,6 +1422,7 @@ final class MailService
 			// Attachment est JsonSerializable : (array) exposerait les props
 			// privées sous des clés mangled ("\0Class\0prop") - toutes les
 			// métadonnées (mimeIndex, cId, fileName) deviendraient null.
+			$attObj = $att instanceof \MailSo\Mail\Attachment ? $att : null;
 			$att = is_array($att) ? $att
 				: ($att instanceof \JsonSerializable ? $att->jsonSerialize() : (array) $att);
 			$attachments[] = [
@@ -1319,6 +1433,9 @@ final class MailService
 				'cid'       => $att['cId'] ?? null,
 				'location'  => $att['contentLocation'] ?? null,
 				'isInline'  => $att['isInline'] ?? false,
+				// CTE du BODYSTRUCTURE : permet à MessageMimeStream de
+				// sauter le FETCH BODY[x.MIME] (décision BINARY/PEEK).
+				'encoding'  => $attObj ? $attObj->ContentTransferEncoding() : null,
 			];
 		}
 		return $attachments;
