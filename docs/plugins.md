@@ -33,7 +33,7 @@ Publier une version de plugin = bumper `version` dans son `plugin.json` et pouss
 la branche suivie par `update.plugins_ref` - aucune release ni asset n'est requis.
 
 Le dépôt est verrouillé dans `GitHubClient::REPO` (même constante que l'updater cœur) -
-aucune URL arbitraire n'est acceptée. `update.channel`, `PAT GitHub` et le cache
+aucune URL arbitraire n'est acceptée. `update.channel` et le cache
 release (`cache.update_ttl`) sont partagés avec la vérification de mise à jour du cœur ;
 le ref>commit est caché à ce TTL, le tree et les manifestes sont adressés par leur sha
 (immutables). Le `check` statique exige `version` semver dans `plugin.json`.

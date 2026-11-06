@@ -90,18 +90,16 @@ contacts par utilisateur sont conservés). Il n'y a pas d'outil de migration de 
 ## Mises à jour
 
 **"Échec : Introuvable sur GitHub … dépôt privé ou ressource absente"**
-Le dépôt officiel est verrouillé (`GitHubClient::REPO` = `WatT-For/MXWebMail`) et
-**privé** : `PAT GitHub` (PAT avec accès `Contents: Read` au dépôt) est requis
-dans `config.php`. GitHub renvoie 404 - pas 403 - quand le token n'a pas accès
-au dépôt ; le message indique le endpoint fautif (`releases/latest`, `commits/…`
-ou un chemin `raw` du catalogue plugins). Un 404 persistant **avec** token valide
-signifie plutôt une ressource absente (aucune release publiée, `update.plugins_ref`
-inconnu). `update.repo`/`PAT GitHub` se règlent manuellement dans `config.php`.
+Le dépôt officiel est verrouillé (`GitHubClient::REPO` = `WatT-For/MXWebMail`).
+GitHub renvoie 404 - pas 403 - pour une ressource absente ou un accès insuffisant ;
+le message indique le endpoint fautif (`releases/latest`, `commits/…` ou un
+chemin `raw` du catalogue plugins). Un 404 persistant signifie en général une
+ressource absente (aucune release publiée, `update.plugins_ref` inconnu).
 
 **HTTP 404 sur `…/releases/download/…` (catalogue plugins ou téléchargement de mise à jour)**
 Sur dépôt privé, le `browser_download_url` des assets renvoie 404 même avec un
 token valide. Corrigé à partir de la 0.36.1 : les assets sont téléchargés via
-l'endpoint API `releases/assets/<id>` quand `PAT GitHub` est configuré.
+l'endpoint API `releases/assets/<id>` quand un PAT est configuré dans `config.php`.
 
 **Le site répond 503 "update" / page maintenance pendant une mise à jour**
 Normal : le flag `app/storage/update/applying` coupe l'API utilisateur pendant la

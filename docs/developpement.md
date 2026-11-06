@@ -76,7 +76,7 @@ Voir [plugins.md](plugins.md) pour créer un plugin.
   commit). Dépôt verrouillé par la constante `REPO`, cache release partagé
   `storage/cache/update-check.json`. Chaque asset tronqué porte `download_url`,
   résolu par `pickUrl()` : endpoint API `releases/assets/<id>`
-  (`Accept: application/octet-stream`) si `PAT GitHub` est configuré -
+  (`Accept: application/octet-stream`) si un PAT est configuré dans `config.php` -
   obligatoire sur dépôt privé où `browser_download_url` renvoie 404 - sinon
   `browser_download_url`. Caches plugins : `plugins-ref.json` (TTL `update_ttl`),
   `plugins-tree-<sha>.json` et `plugin-manifest-<name>-<sha>.json` (immutables).

@@ -6,6 +6,12 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) -
 semver `0.MINOR.PATCH` en développement.
 Catégories, dans l'ordre : `Sécurité`, `Ajouté`, `Modifié`, `Corrigé`, `Obsolète`, `Supprimé`.
 
+## [Unreleased]
+
+### Modifié
+
+- Messages d'erreur GitHub et documentation : la clé de token d'accès n'est plus nommée publiquement.
+
 ## [0.52.0] - 2026-11-06
 
 ### Ajouté
@@ -146,7 +152,7 @@ Catégories, dans l'ordre : `Sécurité`, `Ajouté`, `Modifié`, `Corrigé`, `Ob
 - Plugin anti-spoofing : l'indicateur de confiance n'affiche plus "SPF, DKIM et DMARC vérifiés" quand un seul mécanisme était présent - il liste les mécanismes réellement vérifiés ("Authentification vérifiée : DKIM").
 - Plugin anti-spoofing : un domaine dont le nom est une variante trop longue d'une marque protégée n'est plus signalé en alerte critique (`*.onmicrosoft.com`, domaine Office 365, n'est plus accusé d'imiter `microsoft.com`) - la comparaison des labels est bornée aux longueurs proches et la recherche de marque limitée aux préfixes/suffixes.
 - Barre d'actions de la liste des messages : les boutons `.btn-icon` ont désormais tous la même largeur (31px, carrés) quelle que soit la largeur du glyphe - `aspect-ratio` ignoré dans les `btn-group` est remplacé par une largeur fixe dérivée des variables Bootstrap.
-- Messages d'erreur GitHub explicites : dépôt privé ou ressource absente (piste `PAT GitHub`), token invalide, quota de l'API épuisé (avec heure de reset) ou GitHub indisponible - au lieu d'un brut "HTTP 404 - URL" dans la vérification des mises à jour et le catalogue d'extensions.
+- Messages d'erreur GitHub explicites : dépôt privé ou ressource absente, token invalide, quota de l'API épuisé (avec heure de reset) ou GitHub indisponible - au lieu d'un brut "HTTP 404 - URL" dans la vérification des mises à jour et le catalogue d'extensions.
 - Panneau d'administration : un échec de chargement du catalogue des extensions à l'ouverture de l'onglet, ou de la configuration d'un plugin/thème, affiche désormais un toast d'erreur au lieu d'échouer silencieusement.
 - Contacts auto-enregistrés : le nom d'un destinataire sans display-name (adresse saisie manuellement) vaut désormais son adresse mail au lieu d'être vide, et se met à jour quand un vrai nom apparaît ensuite ; les suggestions n'affichent plus "x@y - x@y".
 - Envoi d'un message avec pièce jointe après un enregistrement automatique du brouillon : erreur "Pièce jointe introuvable" - la sauvegarde du brouillon supprimait les fichiers temporaires des PJ que la composition référençait encore (et les brouillons cessaient de se mettre à jour après la première sauvegarde automatique).

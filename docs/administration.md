@@ -124,7 +124,7 @@ le dépôt verrouillé (`GitHubClient::REPO`, même que l'updater cœur) au ref
 `update.plugins_ref` - `'release'` = tag de la dernière release par défaut, `'main'`
 en dev (un push de `plugin.json` publie la mise à jour, aucune release requise).
 Chaque fichier téléchargé via `raw.githubusercontent.com` est vérifié par sha1 de
-blob git ; tant que le dépôt est privé, `PAT GitHub` dans `config.php` est requis.
+blob git.
 Le catalogue est chargé à l'ouverture de l'onglet (cache partagé avec le check cœur)
 et actualisable via le bouton **rafraîchir** en haut à droite ; les entrées du
 catalogue non installées sont listées à la fin du tableau des plugins :
@@ -206,7 +206,7 @@ Releases (vérification, téléchargement, application, restauration) :
 
 > Le dépôt officiel est verrouillé dans `GitHubClient::REPO` : la vérification est
 > désactivée tant qu'il n'est pas renseigné. `update.channel` reste modifiable ici ;
-> `update.repo`/`PAT GitHub` se règlent manuellement dans `config.php`.
+> `update.repo` se règle manuellement dans `config.php`.
 
 ## 3. Écriture de `config.php`
 

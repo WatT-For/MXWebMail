@@ -13,7 +13,6 @@ use MXWebMail\Application\App;
  * Config : section 'update' de config.php -
  *   repo         'owner/mxwebmail' ; vide = vérification désactivée
  *   channel      stable | beta (beta = pré-releases incluses)
- *   token        PAT GitHub optionnel (rate-limit / dépôt privé)
  *   manifest_url dev uniquement : URL d'un manifeste JSON au format "release",
  *                bypass l'API GitHub (jamais modifiable via l'API admin).
  *
@@ -500,15 +499,15 @@ final class GitHubClient
 		// Un 404 GitHub ne dit pas "dépôt privé" : c'est aussi une release
 		// absente, un plugins_ref inconnu ou un blob raw manquant.
 		$msg = match (true) {
-			$code === 401 => 'Token GitHub (PAT GitHub) invalide ou révoqué',
+			$code === 401 => 'Token GitHub invalide ou révoqué',
 			$rateLimited => 'Quota de l\'API GitHub épuisé'
 				. (($r = (int) ($h['x-ratelimit-reset'] ?? 0)) > 0
 					? ' (reset à ' . gmdate('H:i', $r) . ' UTC)' : '')
-				. ($token ? '' : ' - configurez PAT GitHub dans config.php pour relever la limite'),
+				. ($token ? '' : ' - configurez un PAT GitHub dans config.php pour relever la limite'),
 			$code === 403 => 'Accès refusé par GitHub (HTTP 403)',
 			$code === 404 => $token
-				? "Introuvable sur GitHub ($where) - ressource absente ou droits insuffisants (vérifiez PAT GitHub)"
-				: "Introuvable sur GitHub ($where) - dépôt privé ou ressource absente ; configurez PAT GitHub dans config.php si le dépôt est privé",
+				? "Introuvable sur GitHub ($where) - ressource absente ou droits insuffisants (vérifiez le token configuré)"
+				: "Introuvable sur GitHub ($where) - dépôt privé ou ressource absente ; configurez un PAT GitHub dans config.php si le dépôt est privé",
 			$code >= 500 => "GitHub indisponible (HTTP $code)",
 			default => "Réponse GitHub inattendue (HTTP $code)",
 		};
