@@ -33,7 +33,11 @@ Le champ `options` accepte un objet JSON avec des réglages fins par domaine :
 - `imap.shortLogin` - tronquer le login ;
 - `imap.lowerLogin` - forcer le login en minuscules ;
 - `imap.timeout` - délai de connexion IMAP ;
-- `imap.disabled_capabilities` - capacités IMAP à désactiver ;
+- `imap.disabled_capabilities` - capacités IMAP à désactiver (serveurs
+  bogués). Exemple : `ESORT` pour un serveur qui l'annonce sans implémenter
+  les options de retour RFC 5267 (`RETURN (PARTIAL ...)`) - le webmail
+  détecte déjà ce cas et bascule seul sur le tri classique, la clé ne sert
+  que si la détection ne s'applique pas (cache désactivé) ;
 - `imap.body_text_limit` - taille max (octets) des corps texte récupérés à
   l'ouverture d'un message (défaut `0` = illimité ; un plafond ~256 K
   économise le fetch des très longues newsletters) ;
@@ -87,8 +91,9 @@ dépendre de `autodetect.enabled`, et remplit les champs du domaine.
 
 ## 6. Test
 
-Le bouton **Tester la connexion** valide IMAP, SMTP et Sieve séparément. Utilisez-le après
-chaque modification pour vérifier que les identifiants, ports et chiffrements sont corrects
+Le bouton **Tester la connexion** valide le protocole de l'onglet actif de la modale
+(IMAP, SMTP ou Sieve ; les autres onglets testent IMAP). Utilisez-le après chaque
+modification pour vérifier que les identifiants, ports et chiffrements sont corrects
 avant de laisser les utilisateurs se connecter.
 
 ## 7. Cas courant : un seul serveur mail

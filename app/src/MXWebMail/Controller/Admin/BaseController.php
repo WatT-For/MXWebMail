@@ -69,9 +69,10 @@ abstract class BaseController
 		}
 	}
 
-	protected static function validate(string $key, mixed $value, string $rule): mixed
+	protected function validate(string $key, mixed $value, string $rule): mixed
 	{
-		$fail = fn() => throw new \RuntimeException("Valeur invalide pour $key", 400);
+		$fail = fn() => throw new \RuntimeException(
+			$this->t('errors.invalid_value', ['key' => $key]), 400);
 		return match (true) {
 			$rule === 'bool' => (bool) $value,
 			$rule === 'str' => self::str($value, 255) ?? $fail(),

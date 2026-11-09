@@ -808,6 +808,17 @@ class MailClient
 	}
 
 	/**
+	 * Refus PARTIAL memorise pour ce compte+serveur (serveur annoncant ESORT
+	 * sans implementer l'option de retour RFC 5267, ex. Zimbra).
+	 */
+	private function esortPartialDisabled(MessageListParams $oParams) : bool
+	{
+		$oCacher = $oParams->oCacher;
+		return (bool) ($oCacher && $oCacher->IsInited()
+			&& $oCacher->Get('ServerQuirk/ESORT/' . $this->oImapClient->Hash()));
+	}
+
+	/**
 	 * Runs SORT/SEARCH when $sSearch is provided
 	 * @throws \InvalidArgumentException
 	 * @throws \MailSo\RuntimeException
@@ -874,7 +885,9 @@ class MailClient
 		// d'etag. Remplace aussi le chemin "limited" (exact, trié, frais).
 		// Non-thread uniquement : ThreadsMap exige la map complète.
 		if ($bUseSort && $this->oImapClient->hasCapability('ESORT')
-			&& !$oParams->bUseThreads && !$oParams->iThreadUid) {
+			&& !$oParams->bUseThreads && !$oParams->iThreadUid
+			&& !$this->esortPartialDisabled($oParams)) {
+			$bEsortRejected = false;
 			try {
 				$aSortTypes = [];
 				if ($oParams->sSort) {
@@ -885,14 +898,28 @@ class MailClient
 				}
 				// Les critères de recherche entrent dans la commande : tri +
 				// recherche + total + page couverts en un seul round-trip.
+				// Pas de cache d'UIDs sur ce chemin - variable jetable, le
+				// 5e paramètre de fromString est passé par référence.
+				$bUseCache = false;
 				$oSearchCriterias = \MailSo\Imap\SearchCriterias::fromString(
 					$this->oImapClient, $oParams->sFolderName,
-					$sSearch, $oParams->bHideDeleted, false);
+					$sSearch, $oParams->bHideDeleted, $bUseCache);
 				$iStart = $oParams->iOffset + 1;
 				$iEnd = $oParams->iOffset + $oParams->iLimit;
-				$aResult = $this->oImapClient->MessageESort($aSortTypes,
-					(string) $oSearchCriterias,
-					['COUNT', "PARTIAL {$iStart}:{$iEnd}"]);
+				try {
+					$aResult = $this->oImapClient->MessageESort($aSortTypes,
+						(string) $oSearchCriterias,
+						['COUNT', "PARTIAL {$iStart}:{$iEnd}"]);
+				} catch (\MailSo\Imap\Exceptions\NegativeResponseException $oE) {
+					// BAD determinant = le texte serveur cite l'option de
+					// retour rejetee (heuristique "RETURN"/"PARTIAL" : un BAD
+					// de criteres de recherche ne doit pas marquer le serveur,
+					// ni un BAD du FETCH qui suivrait un PARTIAL reussi).
+					$bEsortRejected =
+						\MailSo\Imap\Enumerations\ResponseStatus::BAD === $oE->GetResponseStatus()
+						&& (bool) \preg_match('/partial|return/i', $oE->getMessage());
+					throw $oE;
+				}
 				if (isset($aResult['COUNT'])) {
 					$oMessageCollection->totalEmails = (int) $aResult['COUNT'];
 					$oMessageCollection->Sort = \implode(' ', $aSortTypes);
@@ -904,9 +931,19 @@ class MailClient
 					return $oMessageCollection;
 				}
 			} catch (\Throwable $oException) {
+				if ($bEsortRejected) {
+					// Refus protocolaire deterministe : ESORT desactive pour
+					// la connexion et memorise par compte+serveur (le flag
+					// expire avec le GC du cache - re-sonde automatique).
+					$this->oImapClient->disableCapability('ESORT');
+					$oCacher = $oParams->oCacher;
+					$oCacher && $oCacher->IsInited() && $oCacher->Set(
+						'ServerQuirk/ESORT/' . $this->oImapClient->Hash(), '1');
+				}
 				\MXWebMailLib\Log::warning('MailClient',
-					'ESORT PARTIAL a échoué, repli sur le chemin classique : '
-					. $oException->getMessage());
+					'ESORT PARTIAL a échoué, repli sur le chemin classique'
+					. ($bEsortRejected ? ' - ESORT désactivé pour ce compte' : '')
+					. ' : ' . $oException->getMessage());
 			}
 		}
 

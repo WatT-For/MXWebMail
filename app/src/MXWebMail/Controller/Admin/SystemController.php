@@ -138,7 +138,7 @@ final class SystemController extends BaseController
 				$out[$key] = match ($key) {
 					'language' => $this->validLanguage($input[$key]),
 					'default_domain' => self::validDefaultDomain($input[$key]),
-					default => self::validate($key, $input[$key], $rule),
+					default => $this->validate($key, $input[$key], $rule),
 				};
 			} catch (\RuntimeException) {
 				return JsonResponse::error(
@@ -181,7 +181,7 @@ final class SystemController extends BaseController
 							$this->t('errors.invalid_value', ['key' => $full]), 'validation', 400);
 					}
 					try {
-						$sub[$key] = self::validate($full, $input[$full], $rule);
+						$sub[$key] = $this->validate($full, $input[$full], $rule);
 					} catch (\RuntimeException) {
 						return JsonResponse::error(
 							$this->t('errors.invalid_value', ['key' => $full]), 'validation', 400);
@@ -727,7 +727,7 @@ final class SystemController extends BaseController
 	{
 		$v = strtolower(trim((string) $v));
 		if (!in_array($v, ['auto', ...$this->app->languages()], true)) {
-			throw new \RuntimeException('bad language', 400);
+			throw new \RuntimeException($this->t('errors.invalid_value', ['key' => 'language']), 400);
 		}
 		return $v;
 	}
@@ -768,6 +768,6 @@ final class SystemController extends BaseController
 			|| preg_match('/^[a-z0-9]([a-z0-9.\-]{0,251}[a-z0-9])?$/', $s)) {
 			return $s;
 		}
-		throw new \RuntimeException('bad default_domain', 400);
+		throw new \RuntimeException($this->t('errors.invalid_value', ['key' => 'default_domain']), 400);
 	}
 }

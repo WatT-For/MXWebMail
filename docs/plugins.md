@@ -79,6 +79,13 @@ surface utilisateur : la colonne n'affiche alors pas de switch pour lui (`-`).
 | `wkd-keys` | Découverte automatique des clés PGP des destinataires : **WKD** (advanced + direct), récolte des en-têtes **Autocrypt**, secours `keys.openpgp.org` optionnel - import proposé au compose. | `app.data`, `message.view` |
 | `seasonal-decorations` | Paysage monochrome discret dans les bandeaux selon la date (Nouvel An, Pâques, 1er avril, Halloween, Noël) : bibliothèque d'objets SVG recomposée en couches `mask-image` via `scenes.json` ({svg, pos, size}), couleur contrastée automatique - fenêtres réglables, optionnel hors session, sans animation. | `app.head` |
 | `link-confirmation` | Modale de confirmation avant l'ouverture d'un lien du corps d'un mail (anti-hameçonnage) : destination réelle affichée, signalement des liens suspects (texte ≠ URL, IP littérale, punycode, identifiants dans l'URL), domaines de confiance et "ne plus demander pour ce domaine". | `app.head` |
+| `always-cc-bcc` | Destinataires Cc ou Bcc systématiques à l'envoi (archive de conformité), par compte ou tous - le Bcc reste invisible. | `message.before-send` |
+| `report-abuse` | Bouton "Signaler" (barre d'actions) : transfère les mails cochés en `.eml` joints vers une adresse abuse administrée, marquage spam optionnel. | `app.data` |
+| `vcf-viewer` | Aperçu des pièces jointes `.vcf` dans le lecteur + import en un clic dans le carnet (bouton intégré au frontend quand `features.vcf_viewer`). | `app.data` |
+| `send-rate-limit` | Quota d'envoi par compte (messages/heure, messages/jour, destinataires/jour) - rejet 429 au-delà. Webmail uniquement. | `message.before-send` |
+| `login-notify` | Mail d'alerte au compte lors d'une connexion depuis une IP inconnue (modèle Gmail) - déposé non lu en boîte, opt-out par utilisateur. | `auth.post-login`, `app.data` |
+| `sso-header` | SSO via proxy d'authentification (en-tête utilisateur de confiance) - exige IPs de proxy déclarées et un mot de passe maître IMAP. | `app.routes`, `app.head`, `auth.provider`, `imap/smtp/sieve.before-connect` |
+| `dmarc-reports` | Page admin agrégeant les rapports DMARC (rua) d'une boîte IMAP dédiée - parsing XML/gzip, agrégats par domaine et IP source. | `admin.mounts` |
 
 ## 2. Configuration d'un plugin
 
@@ -131,6 +138,24 @@ Détails de configuration notables :
   `warn_mailto` (confirmer aussi `mailto:`/`tel:`, désactivé par défaut) et
   `remember` (case "ne plus demander pour ce domaine" - mémorisé dans le
   navigateur via localStorage, pas côté serveur).
+
+- **`always-cc-bcc`** - `mode` (`bcc`/`cc`), `addresses` (cibles, vide = inactif),
+  `senders` (wildcards d'expéditeurs, `*` = tous).
+- **`report-abuse`** - `abuse_address` (requis, vide = inactif), `subject_prefix`,
+  `mark_spam` (marque aussi en spam via `message.spam` - alimente l'apprentissage).
+- **`send-rate-limit`** - `max_msgs_hour`, `max_msgs_day`, `max_rcpts_day`
+  (0 = illimité), `exempt` (wildcards de comptes exemptés). Ne borne que le
+  webmail : un client IMAP/SMTP direct contourne le quota.
+- **`login-notify`** - `folder` (`INBOX`), `ignore_private`, `mask_ip`,
+  `include_ua`, `user_control` (onglet Paramètres d'opt-out par utilisateur).
+- **`sso-header`** - `header` (`X-Forwarded-User` ou `REMOTE_USER`),
+  `trusted_ips` (**requis, vide = plugin inerte**), `master_pass` (requis ;
+  mode *same* = passdb `master=yes`), `master_user` (optionnel : login
+  `user*master`), `allowed_domains`, `hide_form`. L'instance ne doit pas être
+  joignable en contournant le proxy (le header serait forgeable).
+- **`dmarc-reports`** - `host`/`port`/`encryption`/`user`/`pass` (boîte IMAP des
+  rapports), `folder`, `batch_size`, `delete_processed`, `processed_folder`.
+  Connexion IMAP propre au plugin (les options du domaine ne s'appliquent pas).
 
 Certains plugins n'ont pas de schéma admin : leur configuration est **par utilisateur**
 (ex. `carddav-contacts`, `color-tags`, `two-factor-auth` pour l'état du compte).

@@ -7,7 +7,7 @@ return [
 	'plugin.two-factor-auth.tab'                => 'Zwei-Faktor-Authentifizierung',
 	'plugin.two-factor-auth.issuer'             => 'In der TOTP-App angezeigter Dienstname',
 	'plugin.two-factor-auth.f.label'              => 'Kontoname in der TOTP-App',
-	'plugin.two-factor-auth.f.label.help'         => '„Vollständige Adresse“ behält die E-Mail; „Lokaler Teil“ entfernt die @Domain - manche Apps wählen das Symbol anhand der Domain.',
+	'plugin.two-factor-auth.f.label.help'         => '„Vollständige Adresse" behält die E-Mail; „Lokaler Teil" entfernt die @Domain - manche Apps wählen das Symbol anhand der Domain.',
 	'plugin.two-factor-auth.f.label.email'        => 'Vollständige Adresse',
 	'plugin.two-factor-auth.f.label.local'        => 'Lokaler Teil (vor @)',
 	'plugin.two-factor-auth.icon_url'           => 'Icon-URL (Parameter image=)',

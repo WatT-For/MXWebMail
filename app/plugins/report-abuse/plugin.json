@@ -1,0 +1,11 @@
+{
+	"name": "report-abuse",
+	"label": "plugin.report-abuse.label",
+	"class": "ReportAbuse",
+	"main": "ReportAbuse.php",
+	"version": "0.1.0",
+	"description": "plugin.report-abuse.description",
+	"hooks": ["app.data"],
+	"min_app": "0.52.0",
+	"max_app": "0.99.0"
+}

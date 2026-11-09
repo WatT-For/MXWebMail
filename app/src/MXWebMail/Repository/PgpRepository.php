@@ -9,7 +9,7 @@ namespace MXWebMail\Repository;
  */
 final class PgpRepository
 {
-	public function __construct(private Database $db) {}
+	public function __construct(private Database $db, private \MXWebMail\Locale\Translator $tr) {}
 
 	public function all(int $userId): array
 	{
@@ -24,7 +24,7 @@ final class PgpRepository
 	{
 		$email = trim(mb_strtolower($email));
 		if ($email === '' || !str_contains($armored, '-----BEGIN PGP')) {
-			throw new \InvalidArgumentException('Email et clé armored requis');
+			throw new \InvalidArgumentException($this->tr->t('errors.pgp_key_required'), 400);
 		}
 		// Une clé par (utilisateur, email, type) : remplace l'existante
 		$pdo = $this->db->pdo();

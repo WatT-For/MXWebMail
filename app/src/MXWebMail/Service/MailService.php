@@ -40,7 +40,7 @@ final class MailService
 		}
 		$password = CredentialCrypt::decrypt($_SESSION['imap_pass'], $this->app->storageDir());
 		if ($password === null) {
-			throw new \RuntimeException('Session invalide');
+			throw new \RuntimeException($this->t('errors.unauthenticated'), 401);
 		}
 		$settings->passphrase = $password;
 	}
@@ -50,7 +50,7 @@ final class MailService
 	{
 		if ($this->client === null) {
 			if (empty($_SESSION['email']) || empty($_SESSION['imap_pass'])) {
-				throw new \RuntimeException('Non authentifié');
+				throw new \RuntimeException($this->t('errors.unauthenticated'), 401);
 			}
 			$domain = $this->app->auth()->domainFor(
 				$_SESSION['domain'] ?? '', !empty($_SESSION['acct_secondary']));
@@ -215,16 +215,27 @@ final class MailService
 	}
 
 	/**
+	 * Contenu du cache fichier de dossiers (écrit à chaque folders()) -
+	 * null quand absent ou illisible. Jamais de calcul : les consommateurs
+	 * qui ne doivent pas payer une connexion IMAP (appdata) l'utilisent.
+	 */
+	private function folderCacheRead(): ?array
+	{
+		$f = $this->folderCacheFile();
+		$c = $f !== null && is_file($f)
+			? json_decode((string) file_get_contents($f), true) : null;
+		return is_array($c) ? $c : null;
+	}
+
+	/**
 	 * Lignes folders() depuis le cache fichier écrit à chaque calcul réel
 	 * (GET /api/folders, donc rafraîchi par le poll list_refresh) ; absent >
 	 * folders() le peuple. Pour la résolution de rôles uniquement.
 	 */
 	private function cachedFolders(): array
 	{
-		$f = $this->folderCacheFile();
-		$c = $f !== null && is_file($f)
-			? json_decode((string) file_get_contents($f), true) : null;
-		if (is_array($c)) {
+		$c = $this->folderCacheRead();
+		if ($c !== null) {
 			return $c;
 		}
 		$this->folders(); // calcule et peuple le cache fichier
@@ -457,7 +468,8 @@ final class MailService
 	 */
 	public function delete(string $folder, int|array $uids): array
 	{
-		$trash = $this->trashFolder();
+		// Trash absente > créée au premier usage, sinon repli expunge.
+		$trash = $this->trashFolder() ?? $this->ensureSpecialFolder('trash');
 		if ($trash !== null && $folder !== $trash) {
 			return ['strategy' => 'move',
 				'folder' => $this->moveToRole($folder, 'trash', $trash, $uids)];
@@ -495,7 +507,9 @@ final class MailService
 		// source. Tire aussi si l'action échoue ensuite (409) - accepté.
 		$this->app->hooks()->run('message.spam', $folder, $uid, $spam);
 
-		$junk = $this->junkFolder();
+		// Junk absente > créée au premier marquage (un move échouerait pareil
+		// et le keyword $Junk laisserait le message en place).
+		$junk = $this->junkFolder() ?? ($spam ? $this->ensureSpecialFolder('junk') : null);
 
 		if ($spam) {
 			if ($junk !== null && $folder === $junk) {
@@ -520,7 +534,7 @@ final class MailService
 			}
 		}
 
-		throw new \RuntimeException('Action spam non supportée : aucun dossier Junk ni keyword IMAP disponible', 409);
+		throw new \RuntimeException($this->t('errors.spam_unsupported'), 409);
 	}
 
 	// ─── Dossiers (actions) ───
@@ -664,7 +678,7 @@ final class MailService
 		return $this->folderPrefs ??= $this->app->settings()->getMany(
 			(int) ($_SESSION['user_id'] ?? 0),
 			['special_folders', 'user_folders', 'collapsed_folders', 'hidden_folders',
-				'notify_folders']);
+				'notify_folders', 'last_folder']);
 	}
 
 	/** Réglage JSON stocké > tableau (accepte tableau natif ou chaîne). */
@@ -747,6 +761,52 @@ final class MailService
 			array_filter($all) === [] ? null : $all);
 		$this->folderPrefs = null;
 		$this->invalidateFolderCache(); // flag 'hidden' des lignes recalculé
+	}
+
+	/**
+	 * Dernier dossier consulté du compte actif - restauré à l'ouverture du
+	 * webmail. Validation sur le cache fichier UNIQUEMENT (jamais folders()
+	 * : appdata ne doit pas payer une connexion IMAP) ; cache absent ou
+	 * périmé > nom brut, le client intersecte avec la liste reçue au boot.
+	 */
+	public function lastFolder(): ?string
+	{
+		$all = $this->decodeSetting($this->folderPrefs()['last_folder'] ?? null);
+		$name = (string) ($all[(string) ($_SESSION['account_id'] ?? 0)] ?? '');
+		if ($name === '') {
+			return null;
+		}
+		$cached = $this->folderCacheRead();
+		if ($cached === null) {
+			return $name;
+		}
+		foreach ($cached as $row) {
+			if (($row['fullName'] ?? '') === $name) {
+				return $name;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Dernier dossier consulté du compte actif : intersecté avec l'existant
+	 * (cache fichier ou LIST à froid, comme setCollapsedFolders) ; nom vide
+	 * ou disparu > clé du compte retirée, carte vide > réglage supprimé.
+	 */
+	public function setLastFolder(string $name): void
+	{
+		$exists = array_fill_keys(
+			array_column($this->cachedFolders(), 'fullName'), true);
+		$all = $this->decodeSetting($this->folderPrefs()['last_folder'] ?? null);
+		$key = (string) ($_SESSION['account_id'] ?? 0);
+		if ($name !== '' && isset($exists[$name])) {
+			$all[$key] = $name;
+		} else {
+			unset($all[$key]);
+		}
+		$this->app->settings()->set((int) $_SESSION['user_id'], 'last_folder',
+			$all === [] ? null : $all);
+		$this->folderPrefs = null;
 	}
 
 	/** Trace des dossiers créés via l'interface (une écriture pour le lot). */
@@ -986,9 +1046,59 @@ final class MailService
 		$tmp = tempnam($tmpDir, 'append_');
 		file_put_contents($tmp, $rawMessage);
 		try {
-			return $this->client()->MessageAppendFile($tmp, $folder, $flags, $internalDate);
+			return $this->appendRetryCreate($folder,
+				fn() => $this->client()->MessageAppendFile($tmp, $folder, $flags, $internalDate));
 		} finally {
 			@unlink($tmp);
+		}
+	}
+
+	/**
+	 * APPEND sur un dossier potentiellement deviné (rôle sans dossier réel) :
+	 * sur réponse TRYCREATE/NONEXISTENT (le SELECT préalable de certains
+	 * chemins renvoie NONEXISTENT), le dossier est créé puis l'opération
+	 * rejouée UNE fois. L'échec de création (ALREADYEXISTS en cas de course)
+	 * est ignoré - c'est la retentative qui tranche.
+	 */
+	private function appendRetryCreate(string $folder, callable $append): mixed
+	{
+		try {
+			return $append();
+		} catch (\MailSo\Imap\Exceptions\ResponseException $e) {
+			$m = strtoupper($e->getMessage());
+			if (!str_contains($m, 'TRYCREATE') && !str_contains($m, 'NONEXISTENT')) {
+				throw $e;
+			}
+			try {
+				$this->client()->FolderCreate($folder);
+			} catch (\Throwable) {}
+			$this->invalidateFolderCache();
+			return $append();
+		}
+	}
+
+	/**
+	 * Dossier d'un rôle garanti existant : détection puis création du nom
+	 * deviné si absent (un move vers un dossier inexistant échoue pareil).
+	 * null si le rôle est désactivé ('none') ou si la création échoue.
+	 */
+	private function ensureSpecialFolder(string $role): ?string
+	{
+		if (($this->specialFolderMap()[$role] ?? null) === 'none') {
+			return null;
+		}
+		$name = $this->detectedSpecialFolder($role);
+		foreach ($this->cachedFolders() as $f) {
+			if ($f['fullName'] === $name) {
+				return $name;
+			}
+		}
+		try {
+			$this->client()->FolderCreate($name);
+			$this->invalidateFolderCache();
+			return $name;
+		} catch (\Throwable) {
+			return null;
 		}
 	}
 
@@ -1008,7 +1118,10 @@ final class MailService
 		$fp = fopen($tmp, 'rb');
 		try {
 			$imap = $this->client()->ImapClient();
-			$new = $imap->MessageReplaceStream($folder, $uid, $fp, filesize($tmp), $flags);
+			$new = $this->appendRetryCreate($folder, function () use ($imap, $folder, $uid, $fp, $tmp, $flags) {
+				rewind($fp); // stream consommé par la tentative précédente
+				return $imap->MessageReplaceStream($folder, $uid, $fp, filesize($tmp), $flags);
+			});
 			// REPLACE conserve l'UID ; fallback append > nouvel UID (ou
 			// null sans UIDPLUS > la réf client n'est juste pas mise à jour).
 			return $new ?? ($uid > 0 && $imap->hasCapability('REPLACE') ? $uid : null);
@@ -1176,7 +1289,7 @@ final class MailService
 		}
 		$doc = $managed[$target];
 		$doc['vacation'] = $vacation;
-		$source = \MXWebMail\Sieve\ScriptBuilder::compile($doc);
+		$source = \MXWebMail\Sieve\ScriptBuilder::compile($doc, $this->app->locale());
 		$this->filterCheck($source);
 		$sieve->PutScript($target, $source);
 		// Activation uniquement si le répondeur est actif et le script ne l'est pas

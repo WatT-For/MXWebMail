@@ -1,0 +1,11 @@
+{
+	"name": "always-cc-bcc",
+	"label": "plugin.always-cc-bcc.label",
+	"class": "AlwaysCcBcc",
+	"main": "AlwaysCcBcc.php",
+	"version": "0.1.0",
+	"description": "plugin.always-cc-bcc.description",
+	"hooks": ["message.before-send"],
+	"min_app": "0.52.0",
+	"max_app": "0.99.0"
+}

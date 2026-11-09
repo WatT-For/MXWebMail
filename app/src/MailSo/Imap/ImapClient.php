@@ -337,6 +337,20 @@ class ImapClient extends \MailSo\Net\NetClient
 	}
 
 	/**
+	 * Desactive une capacite pour le reste de la connexion : le serveur
+	 * l'annonce mais l'implemente incompletement (ex. Zimbra : ESORT sans
+	 * l'option de retour PARTIAL de RFC 5267). Sur $this->aCapa uniquement
+	 * (capabilities actives) - Capabilities() garde la liste serveur reelle.
+	 */
+	public function disableCapability(string $sExtentionName) : void
+	{
+		if (\is_array($this->aCapa)) {
+			$this->aCapa = \array_values(\array_diff($this->aCapa,
+				[\strtoupper(\trim($sExtentionName))]));
+		}
+	}
+
+	/**
 	 * RFC 5161
 	 */
 	public function Enable(/*string|array*/ $mCapabilityNames) : void

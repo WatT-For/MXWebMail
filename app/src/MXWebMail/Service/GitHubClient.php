@@ -35,6 +35,11 @@ final class GitHubClient
 		$this->cacheFile = $app->storageDir() . '/cache/update-check.json';
 	}
 
+	private function t(string $key, array $params = []): string
+	{
+		return $this->app->locale()->t($key, $params);
+	}
+
 	private function cfg(): array
 	{
 		$upd = $this->app->config()->get('update', []);
@@ -108,7 +113,7 @@ final class GitHubClient
 			$rel = json_decode($this->get($manifest), true);
 		} else {
 			if ($repo === null) {
-				throw new \RuntimeException('update.repo non configuré', 400);
+				throw new \RuntimeException($this->t('errors.update_not_configured'), 400);
 			}
 			if ($channel === 'beta') {
 				$list = json_decode(

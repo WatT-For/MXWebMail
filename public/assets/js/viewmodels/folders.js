@@ -274,6 +274,13 @@ export class FolderListVM {
 		}, 400);
 	}
 
+	/** Dernier dossier consulté - restauré à la prochaine ouverture
+	 *  (état UI par compte). Silencieux comme persistCollapsed. */
+	persistLast(folder) {
+		this.app._lastFolder = folder; // hash vide ultérieur > dossier courant
+		api.post('/folders/last', { folder }).catch(() => {});
+	}
+
 	/** Étend les ancêtres du dossier actif s'il est masqué par un repli. */
 	expandActiveAncestors() {
 		const f = this.currentFolder();

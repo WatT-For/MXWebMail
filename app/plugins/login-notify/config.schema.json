@@ -1,0 +1,32 @@
+{
+	"folder": {
+		"label": "plugin.login-notify.f.folder",
+		"type": "string",
+		"default": "INBOX",
+		"help": "plugin.login-notify.f.folder.help"
+	},
+	"ignore_private": {
+		"label": "plugin.login-notify.f.ignore_private",
+		"type": "bool",
+		"default": false,
+		"help": "plugin.login-notify.f.ignore_private.help"
+	},
+	"mask_ip": {
+		"label": "plugin.login-notify.f.mask_ip",
+		"type": "bool",
+		"default": false,
+		"help": "plugin.login-notify.f.mask_ip.help"
+	},
+	"include_ua": {
+		"label": "plugin.login-notify.f.include_ua",
+		"type": "bool",
+		"default": true,
+		"help": "plugin.login-notify.f.include_ua.help"
+	},
+	"user_control": {
+		"label": "plugin.login-notify.f.user_control",
+		"type": "bool",
+		"default": true,
+		"help": "plugin.login-notify.f.user_control.help"
+	}
+}

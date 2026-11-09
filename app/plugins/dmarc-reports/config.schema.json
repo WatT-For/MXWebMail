@@ -1,0 +1,19 @@
+{
+	"host": {"label": "plugin.dmarc-reports.f.host", "type": "string", "default": ""},
+	"port": {"label": "plugin.dmarc-reports.f.port", "type": "integer", "default": 993},
+	"encryption": {
+		"label": "plugin.dmarc-reports.f.encryption", "type": "enum",
+		"options": {"ssl": "SSL/TLS", "starttls": "STARTTLS", "none": "plugin.dmarc-reports.f.none"},
+		"default": "ssl"
+	},
+	"user": {"label": "plugin.dmarc-reports.f.user", "type": "string", "default": ""},
+	"pass": {"label": "plugin.dmarc-reports.f.pass", "type": "password", "default": ""},
+	"folder": {"label": "plugin.dmarc-reports.f.folder", "type": "string", "default": "INBOX",
+		"help": "plugin.dmarc-reports.f.folder.help"},
+	"batch_size": {"label": "plugin.dmarc-reports.f.batch_size", "type": "integer", "default": 50,
+		"help": "plugin.dmarc-reports.f.batch_size.help"},
+	"delete_processed": {"label": "plugin.dmarc-reports.f.delete_processed", "type": "bool",
+		"default": false, "help": "plugin.dmarc-reports.f.delete_processed.help"},
+	"processed_folder": {"label": "plugin.dmarc-reports.f.processed_folder", "type": "string",
+		"default": "DMARC-Processed", "help": "plugin.dmarc-reports.f.processed_folder.help"}
+}

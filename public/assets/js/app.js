@@ -47,6 +47,7 @@ class AppVM {
 		};
 		this.debug = ko.observable(false);   // réglage admin Debug (logs console)
 		this.userSettings = {};              // réglages utilisateur (fusion user_defaults)
+		this._lastFolder = null;             // dernier dossier consulté (appdata, par compte)
 		this.folderPaneWidth = ko.observable(240);
 		this.messagePaneWidth = ko.observable(340);
 		this.layout = ko.observable('horizontal');
@@ -143,6 +144,7 @@ class AppVM {
 		this.pluginTabs = data.pluginTabs || [];
 		this.debug(!!data.debug);
 		this.userSettings = data.settings || {};
+		this._lastFolder = data.last_folder || null;
 		this.themeOptions(data.themes || []);
 		this.themeData = data.themeData || {};
 		// Thème valide uniquement : repli sur 'default' comme côté serveur (current())
@@ -185,6 +187,12 @@ class AppVM {
 			// selectFolder > pas de second chargement de liste.
 			this.messageList.folder(initialFolder);
 			this.messageList.page(1);
+			// Hash vide (dossier restauré) > URL canonisée en replaceState :
+			// reflète l'état sans empiler une entrée d'historique.
+			if (location.hash.replace(/^#\//, '') === '') {
+				history.replaceState(null, '', location.pathname + location.search
+					+ '#/' + encodeURIComponent(initialFolder));
+			}
 		}
 		const listP = initialFolder === null ? null : {
 			folder: initialFolder, page: 1, limit: this.messageList.limit,
@@ -229,7 +237,14 @@ class AppVM {
 					this._watch[f.fullName] = { unread: f.unread(), lastUid: 0 };
 				}
 			}
-			if (listP) {
+			const folderOk = this.folderList.folders()
+				.some(f => f.fullName === this.messageList.folder());
+			if (this.view() === 'mail' && !folderOk) {
+				// Dossier cible (restauré ou hash) disparu : repli INBOX -
+				// selectFolder le persiste, auto-réparation du réglage.
+				await this.messageList.selectFolder('INBOX');
+				bootListDone = true;
+			} else if (listP) {
 				bootListDone = true;
 				if (boot.list) {
 					this.messageList.applyData(boot.list);
@@ -262,16 +277,19 @@ class AppVM {
 	/** Dossier cible du hash courant pour le préchargement du boot -
 	 *  null pour la vue settings (pas de liste mail à charger). */
 	folderFromHash() {
-		const raw = location.hash.replace(/^#\//, '') || 'INBOX';
-		if (raw.split('/')[0] === '@settings') { return null; }
-		return safeDecode(raw);
+		const raw = location.hash.replace(/^#\//, '');
+		if (raw.split('/')[0] === '@settings' || this.popupIdentityPending) {
+			return null;
+		}
+		// Hash vide > dernier dossier consulté (réglage par compte).
+		return raw === '' ? (this._lastFolder || 'INBOX') : safeDecode(raw);
 	}
 
 	routeFromHash() {
 		// Le test de vue se fait sur le hash BRUT : '@settings' ne peut pas
 		// être produit par encodeURIComponent d'un nom de dossier ('@' > %40),
 		// donc un dossier nommé 'settings' (ou '@settings') ne masque pas la vue.
-		const raw = location.hash.replace(/^#\//, '') || 'INBOX';
+		const raw = location.hash.replace(/^#\//, '');
 		const [page, sub, detail] = raw.split('/');
 		if (page === '@settings') {
 			const entering = this.view() !== 'settings';
@@ -288,9 +306,11 @@ class AppVM {
 		this.view('mail');
 		this.settings.filterModal?.hide();
 		this.settings.identityModal?.hide();
-		const hash = safeDecode(raw);
-		if (hash !== this.messageList.folder()) {
-			this.messageList.selectFolder(hash); // hash complet : un dossier peut contenir '/'
+		// Hash vide > dernier dossier consulté ; le decode ne s'applique
+		// qu'au hash explicite (le nom stocké est déjà littéral).
+		const target = raw === '' ? (this._lastFolder || 'INBOX') : safeDecode(raw);
+		if (target !== this.messageList.folder()) {
+			this.messageList.selectFolder(target); // hash complet : un dossier peut contenir '/'
 		}
 	}
 

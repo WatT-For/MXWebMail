@@ -6,7 +6,7 @@ return [
 	'plugin.webmail-migration.description'        => 'Import data (address books, identities, settings, PGP keys, domains) from a RainLoop or SnappyMail installation',
 	'plugin.webmail-migration.tab'                => 'Webmail migration',
 	'plugin.webmail-migration.title'              => 'Import from RainLoop or SnappyMail',
-	'plugin.webmail-migration.intro'              => 'Imports data from a RainLoop or SnappyMail data directory (data/_data_/_default_) for existing users: address books, identities, settings, special folders, PGP keys and domain configurations. Run “Analyze” first, then “Run import”.',
+	'plugin.webmail-migration.intro'              => 'Imports data from a RainLoop or SnappyMail data directory (data/_data_/_default_) for existing users: address books, identities, settings, special folders, PGP keys and domain configurations. Run "Analyze" first, then "Run import".',
 	'plugin.webmail-migration.source_path'        => 'Server path to the RainLoop or SnappyMail data dir',
 	'plugin.webmail-migration.path_placeholder'   => '/var/www/<webmail>/data/_data_/_default_ (or any parent level)',
 	'plugin.webmail-migration.source_zip'         => '…or upload a ZIP of the data dir',

@@ -13,6 +13,6 @@ return [
 	'plugin.attachments-clamav.virus_found'        => 'Virus detectado en "{name}"',
 	'plugin.attachments-clamav.unavailable'        => 'Antivirus inaccesible',
 	'plugin.attachments-clamav.bad_response'       => 'Respuesta inesperada del escáner: {msg}',
-	'plugin.attachments-clamav.read_failed'         => 'No se puede leer el archivo “{name}”',
+	'plugin.attachments-clamav.read_failed'         => 'No se puede leer el archivo "{name}"',
 	'plugin.attachments-clamav.label'           => 'Antivirus ClamAV',
 ];

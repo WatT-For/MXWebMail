@@ -7,3 +7,9 @@
 
 # Paquets de release générés
 /dist/
+
+# Noms réservés Win32 (fichiers créés par erreur via redirections bash type 2>nul)
+nul
+con
+aux
+prn

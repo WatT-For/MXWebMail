@@ -53,6 +53,18 @@ Sous-onglets *Fonctionnalités* et *Défauts* :
   `dangerous_actions` ;
 - tous les réglages `user_defaults.*` (défauts utilisateurs).
 
+### Performance
+
+Sous-onglets *HTTP* et *Cache serveur* :
+
+- `http.*` : compression gzip (activation, niveau, taille minimale), `http.etag`,
+  TTL des assets thème/plugin, du favicon et du proxy d'images ;
+- `cache.*` : cache fichier applicatif (activation, TTL de la détection de
+  domaine et de la vérification de mise à jour, intervalle de purge).
+
+Détail des clés dans [configuration.md](configuration.md) (sections *HTTP* et
+*Cache applicatif*).
+
 ### Sécurité
 
 Sous-onglets *Compte*, *Double authentification* (si le plugin `two-factor-auth` est

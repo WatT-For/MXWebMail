@@ -9,11 +9,17 @@ public/                front controller (index.php) + assets
 app/src/MXWebMail/     code applicatif :
   Application/App.php  conteneur de services + dispatch + routes
   API.php, Utils.php   façades de compatibilité pour le code vendoré (MailSo/Lib)
-  Compat/              ponts de compatibilité MailSo (Actions, Config, Plugins)
+  Compat/              ponts de compatibilité MailSo (ActionsBridge,
+                       ConfigBridge, PluginsBridge)
   Config/              chargement/écriture de la configuration
   Controller/          PageController, ApiController, AdminController,
                        SetupController (assistant /setup, servi tant que
-                       storage/INSTALLED est absent - 404 ensuite)
+                       storage/INSTALLED est absent - 404 ensuite) ;
+    Api/               contrôleurs API par domaine (Messages, Folders,
+                       Contacts, Compose, Accounts, Settings, Filters,
+                       Pgp, Poll)
+    Admin/             contrôleurs admin par onglet (System, Domains, Users,
+                       Plugins, Themes)
   Http/                Router, Request, Response, JsonResponse
   Locale/              Translator + dictionnaires
   Plugin/              HookRegistry, PluginManager, PluginBase
@@ -21,7 +27,9 @@ app/src/MXWebMail/     code applicatif :
   Security/            Csrf, CredentialCrypt, Headers, IpMatch, TotpRequiredException, Wildcard
   Service/             AuthService, MailService, DomainDetector, OAuthService,
                        GitHubClient (HTTP Releases partagé), UpdateService (cœur),
-                       PluginPackageService (catalogue/install/remove plugins)
+                       PluginPackageService (catalogue/install/remove plugins),
+                       imports contacts (CsvContacts, VCardContacts,
+                       RainLoopContacts)
   Sieve/               ScriptBuilder - génération des règles de filtres
   Theme/               ThemeManager
 app/src/MailSo/        bibliothèque mail vendorée (non modifiée)
@@ -87,7 +95,7 @@ Voir [plugins.md](plugins.md) pour créer un plugin.
   `PluginRepository::delete()`). Verrou partagé `storage/update/update.lock` avec
   `UpdateService`. Staging dans `storage/update/plugins/`. Source alternative
   `update.plugins_local` (disque, dev/tests, sans vérification distante).
-- Le packaging (`tools.ps1 package`) exclut `app/plugins/*` du zip cœur - aucun
+- Le packaging du zip de release exclut `app/plugins/*` du zip cœur - aucun
   asset plugin n'est publié : bump `version` dans `plugin.json` + push sur la
   branche suivie = publication. Le zip exclut aussi les fichiers méta du dépôt
   (`.github/`, `docs/`, `README.md`, `CHANGELOG.md`, `SECURITY.md`,

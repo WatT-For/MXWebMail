@@ -16,8 +16,8 @@ Webmail auto-hébergé en **PHP 8.4**, inspiré de **SnappyMail**, **RainLoop** 
 - **Filtres Sieve** : assistant visuel de règles (modèles dont anti-spam) ou édition
   de scripts, activation, suppression.
 - **Panneau d'administration** : domaines (IMAP/SMTP/Sieve), utilisateurs, extensions,
-  thèmes, logs, mises à jour, paramètres de sécurité.
-- **15 plugins** installables depuis l'admin (catalogue lu dans le dépôt GitHub :
+  thèmes, logs, mises à jour, réglages de performance et de sécurité.
+- **23 plugins** installables depuis l'admin (catalogue lu dans le dépôt GitHub :
   installation, mise à jour, désinstallation) : 2FA (TOTP), anti-spoofing, avatars, listes
   noire/blanche, changement de mot de passe (poppassd/PDO/LDAP/Mailcow), PWA,
   étiquettes de couleur, etc.
@@ -53,6 +53,7 @@ voir **[docs/installation.md](docs/installation.md)**.
 | Traduction / langues | [docs/localisation.md](docs/localisation.md) |
 | Base de données | [docs/base-de-donnees.md](docs/base-de-donnees.md) |
 | Sécurité | [docs/securite.md](docs/securite.md) |
+| Fail2ban (journal auth, filtre, jail) | [docs/fail2ban.md](docs/fail2ban.md) |
 | Développement (architecture, hooks) | [docs/developpement.md](docs/developpement.md) |
 | Dépannage / FAQ | [docs/depannage.md](docs/depannage.md) |
 

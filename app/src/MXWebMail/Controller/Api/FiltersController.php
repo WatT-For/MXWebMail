@@ -55,7 +55,7 @@ final class FiltersController extends BaseController
 						}
 					} catch (\Throwable) {}
 				}
-				$source = \MXWebMail\Sieve\ScriptBuilder::compile($doc);
+				$source = \MXWebMail\Sieve\ScriptBuilder::compile($doc, $this->app->locale());
 			} catch (\InvalidArgumentException $e) {
 				return JsonResponse::error(
 					$this->t('errors.invalid_value', ['key' => 'rules'])
@@ -87,7 +87,8 @@ final class FiltersController extends BaseController
 		try {
 			$rules = (array) $request->input('rules', []);
 			$source = \MXWebMail\Sieve\ScriptBuilder::compile(
-				array_is_list($rules) ? ['rules' => $rules] : $rules);
+				array_is_list($rules) ? ['rules' => $rules] : $rules,
+				$this->app->locale());
 		} catch (\InvalidArgumentException $e) {
 			return JsonResponse::error(
 				$this->t('errors.invalid_value', ['key' => 'rules'])

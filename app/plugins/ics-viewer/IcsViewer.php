@@ -30,7 +30,7 @@ final class IcsViewer extends PluginBase
 		$folder = (string) $request->input('folder', 'INBOX');
 		$uid = (int) $request->input('uid', 0);
 		$mimeIndex = (string) $request->input('mime', '');
-		if ($uid <= 0 || $mimeIndex === '') {
+		if ($uid <= 0 || $mimeIndex === '' || strpbrk($folder, "\r\n") !== false) {
 			throw new \RuntimeException($this->t('plugin.ics-viewer.bad_params'), 400);
 		}
 

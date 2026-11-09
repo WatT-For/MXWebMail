@@ -49,32 +49,41 @@ final class ScriptBuilder
 		return is_array($doc) && isset($doc['rules']) ? $doc : null;
 	}
 
-	public static function marker(array $doc): string
+	public static function marker(array $doc, ?\MXWebMail\Locale\Translator $tr = null): string
 	{
 		$json = json_encode($doc, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 		if (!is_string($json) || strpbrk($json, "\r\n") !== false) {
-			throw new \InvalidArgumentException('doc non sérialisable sur une ligne');
+			self::fail($tr, 'doc_line');
 		}
 		return self::MARKER . $json;
 	}
 
+	/** Erreur de validation : message traduit si le traducteur est fourni,
+	 *  clé "sieve.err.<key>" sinon (tous les appelants de prod le passent). */
+	private static function fail(?\MXWebMail\Locale\Translator $tr, string $key,
+		array $params = []): never
+	{
+		throw new \InvalidArgumentException(
+			$tr?->t('sieve.err.' . $key, $params) ?? 'sieve.err.' . $key);
+	}
+
 	/** @throws \InvalidArgumentException sur schéma invalide */
-	public static function compile(array $doc): string
+	public static function compile(array $doc, ?\MXWebMail\Locale\Translator $tr = null): string
 	{
 		$vacation = isset($doc['vacation']) && is_array($doc['vacation'])
-			? self::vacation($doc['vacation']) : null;
-		$rules = self::rules($doc, $vacation !== null && !empty($vacation['enabled']));
+			? self::vacation($doc['vacation'], $tr) : null;
+		$rules = self::rules($doc, $vacation !== null && !empty($vacation['enabled']), $tr);
 		$require = [];
 		$blocks = [];
 		$normalized = ['version' => self::VERSION, 'rules' => []];
 
 		foreach ($rules as $rule) {
 			$rule = (array) $rule;
-			[$test, $conds] = self::conditions($rule, $require);
-			[$cmds, $actions] = self::actions($rule, $require);
+			[$test, $conds] = self::conditions($rule, $require, $tr);
+			[$cmds, $actions] = self::actions($rule, $require, $tr);
 			$blocks[] = 'if ' . $test . " {\n" . implode("\n", $cmds) . "\n}";
 			$normalized['rules'][] = [
-				'match' => self::match($rule),
+				'match' => self::match($rule, $tr),
 				'conditions' => $conds,
 				'actions' => $actions,
 			];
@@ -86,7 +95,7 @@ final class ScriptBuilder
 			}
 		}
 
-		$out = self::marker($normalized) . "\r\n";
+		$out = self::marker($normalized, $tr) . "\r\n";
 		if ($require) {
 			$require = array_values(array_unique($require));
 			sort($require);
@@ -97,22 +106,22 @@ final class ScriptBuilder
 
 	// ─── Normalisation + validation ───
 
-	private static function match(array $rule): string
+	private static function match(array $rule, ?\MXWebMail\Locale\Translator $tr): string
 	{
 		$match = (string) ($rule['match'] ?? 'all');
 		if (!in_array($match, ['all', 'any'], true)) {
-			throw new \InvalidArgumentException('match invalide');
+			self::fail($tr, 'match');
 		}
 		return $match;
 	}
 
-	private static function rules(array $doc, bool $allowEmpty = false): array
+	private static function rules(array $doc, bool $allowEmpty = false,
+		?\MXWebMail\Locale\Translator $tr = null): array
 	{
 		$rules = $doc['rules'] ?? null;
 		if (!is_array($rules) || count($rules) > 50
 			|| (!$allowEmpty && !count($rules))) {
-			throw new \InvalidArgumentException(
-				$allowEmpty ? 'rules : 50 règles max' : 'rules : 1 à 50 règles requises');
+			self::fail($tr, $allowEmpty ? 'rules_max' : 'rules');
 		}
 		return $rules;
 	}
@@ -122,38 +131,38 @@ final class ScriptBuilder
 	 * enabled, subject ≤200c sans CRLF, message ≤8K (requis si enabled),
 	 * days 1-30, bornes AAAA-MM-JJ (from ≤ to), addresses = emails valides.
 	 */
-	private static function vacation(array $v): array
+	private static function vacation(array $v, ?\MXWebMail\Locale\Translator $tr): array
 	{
 		$out = [
 			'enabled' => (bool) ($v['enabled'] ?? false),
-			'subject' => self::str($v['subject'] ?? '', 'subject', 200),
+			'subject' => self::str($v['subject'] ?? '', 'subject', 200, $tr),
 			'message' => (string) ($v['message'] ?? ''),
 			'days'    => (int) ($v['days'] ?? 1),
-			'from'    => self::str($v['from'] ?? '', 'from', 10),
-			'to'      => self::str($v['to'] ?? '', 'to', 10),
+			'from'    => self::str($v['from'] ?? '', 'from', 10, $tr),
+			'to'      => self::str($v['to'] ?? '', 'to', 10, $tr),
 			'addresses' => [],
 		];
 		if ($out['days'] < 1 || $out['days'] > 30) {
-			throw new \InvalidArgumentException('vacation.days : 1 à 30');
+			self::fail($tr, 'vacation_days');
 		}
 		foreach (['from', 'to'] as $k) {
 			if ($out[$k] !== ''
 				&& !preg_match('/^\d{4}-\d{2}-\d{2}$/', $out[$k])) {
-				throw new \InvalidArgumentException("vacation.{$k} : format AAAA-MM-JJ");
+				self::fail($tr, 'vacation_date', ['key' => $k]);
 			}
 		}
 		if ($out['from'] !== '' && $out['to'] !== '' && $out['from'] > $out['to']) {
-			throw new \InvalidArgumentException('vacation : début > fin');
+			self::fail($tr, 'vacation_range');
 		}
 		if (strlen($out['message']) > 8192
 			|| ($out['enabled'] && trim($out['message']) === '')) {
-			throw new \InvalidArgumentException('vacation.message invalide');
+			self::fail($tr, 'vacation_message');
 		}
 		foreach ((array) ($v['addresses'] ?? []) as $a) {
-			$a = self::str($a, 'addresses', 254);
+			$a = self::str($a, 'addresses', 254, $tr);
 			if ($a === '' || !filter_var($a, FILTER_VALIDATE_EMAIL)
 				|| count($out['addresses']) >= 20) {
-				throw new \InvalidArgumentException('vacation.addresses invalide');
+				self::fail($tr, 'vacation_addresses');
 			}
 			$out['addresses'][] = $a;
 		}
@@ -195,62 +204,65 @@ final class ScriptBuilder
 	}
 
 	/** @return array{0:string,1:array} test Sieve + conditions normalisées */
-	private static function conditions(array $rule, array &$require): array
+	private static function conditions(array $rule, array &$require,
+		?\MXWebMail\Locale\Translator $tr): array
 	{
 		$conds = $rule['conditions'] ?? null;
 		if (!is_array($conds) || !count($conds) || count($conds) > 20) {
-			throw new \InvalidArgumentException('conditions : 1 à 20 par règle');
+			self::fail($tr, 'conditions');
 		}
 		$tests = [];
 		$out = [];
 		foreach ($conds as $c) {
-			$tests[] = self::test((array) $c, $n, $require);
+			$tests[] = self::test((array) $c, $n, $require, $tr);
 			$out[] = $n;
 		}
 		if (count($tests) === 1) {
 			return [$tests[0], $out];
 		}
-		return [self::match($rule) === 'all'
+		return [self::match($rule, $tr) === 'all'
 			? 'allof (' . implode(', ', $tests) . ')'
 			: 'anyof (' . implode(', ', $tests) . ')', $out];
 	}
 
 	/** @return array{0:string[],1:array} commandes + actions normalisées */
-	private static function actions(array $rule, array &$require): array
+	private static function actions(array $rule, array &$require,
+		?\MXWebMail\Locale\Translator $tr): array
 	{
 		$actions = $rule['actions'] ?? null;
 		if (!is_array($actions) || !count($actions) || count($actions) > 20) {
-			throw new \InvalidArgumentException('actions : 1 à 20 par règle');
+			self::fail($tr, 'actions');
 		}
 		$cmds = [];
 		$out = [];
 		foreach ($actions as $a) {
-			$cmds[] = "\t" . self::command((array) $a, $require, $n);
+			$cmds[] = "\t" . self::command((array) $a, $require, $n, $tr);
 			$out[] = $n;
 		}
 		return [$cmds, $out];
 	}
 
-	private static function test(array $c, ?array &$normalized, array &$require): string
+	private static function test(array $c, ?array &$normalized, array &$require,
+		?\MXWebMail\Locale\Translator $tr): string
 	{
 		$field = (string) ($c['field'] ?? '');
 		$op = (string) ($c['op'] ?? '');
-		$value = self::str($c['value'] ?? '', 'value');
+		$value = self::str($c['value'] ?? '', 'value', 2000, $tr);
 		if ($field === 'header') {
-			$header = self::str($c['header'] ?? '', 'header', 100);
+			$header = self::str($c['header'] ?? '', 'header', 100, $tr);
 			if ($header === '' || str_contains($header, ':')
 				|| !preg_match('/^[\x21-\x7E]+$/', $header)) {
-				throw new \InvalidArgumentException('nom d’en-tête invalide');
+				self::fail($tr, 'header');
 			}
 		} else {
 			$header = self::FIELDS[$field]
-				?? throw new \InvalidArgumentException("champ inconnu : {$field}");
+				?? self::fail($tr, 'field', ['field' => $field]);
 		}
 		if ($value === '' && $op !== 'is') {
-			throw new \InvalidArgumentException('value requise');
+			self::fail($tr, 'value');
 		}
 		if (!in_array($op, self::OPS, true)) {
-			throw new \InvalidArgumentException("opérateur inconnu : {$op}");
+			self::fail($tr, 'operator', ['op' => $op]);
 		}
 		// :regex appartient à l'extension "regex" - la déclarer, sinon un
 		// serveur strict (Dovecot) rejette le script au CHECKSCRIPT.
@@ -276,20 +288,21 @@ final class ScriptBuilder
 		};
 	}
 
-	private static function command(array $a, array &$require, ?array &$normalized): string
+	private static function command(array $a, array &$require, ?array &$normalized,
+		?\MXWebMail\Locale\Translator $tr): string
 	{
 		$type = (string) ($a['type'] ?? '');
 		if (!in_array($type, self::ACTIONS, true)) {
-			throw new \InvalidArgumentException("action inconnue : {$type}");
+			self::fail($tr, 'action', ['type' => $type]);
 		}
 		if (($module = self::ACTION_MODULE[$type] ?? null) !== null) {
 			$require[] = $module;
 		}
-		$arg = self::str($a['arg'] ?? '', 'arg', 2000);
+		$arg = self::str($a['arg'] ?? '', 'arg', 2000, $tr);
 		$normalized = ['type' => $type];
 		if (in_array($type, ['fileinto', 'redirect', 'reject'], true)) {
 			if ($arg === '') {
-				throw new \InvalidArgumentException("arg requis : {$type}");
+				self::fail($tr, 'arg', ['type' => $type]);
 			}
 			$normalized['arg'] = $arg;
 			return $type . ' ' . self::q($arg) . ';';
@@ -305,11 +318,12 @@ final class ScriptBuilder
 	}
 
 	/** Rejette CR/LF/NUL dans les valeurs compilées (intégrité du script). */
-	private static function str(mixed $v, string $what, int $max = 2000): string
+	private static function str(mixed $v, string $what, int $max = 2000,
+		?\MXWebMail\Locale\Translator $tr = null): string
 	{
 		$v = (string) $v;
 		if (strlen($v) > $max || strpbrk($v, "\r\n\x00") !== false) {
-			throw new \InvalidArgumentException("{$what} invalide");
+			self::fail($tr, 'invalid', ['what' => $what]);
 		}
 		return $v;
 	}

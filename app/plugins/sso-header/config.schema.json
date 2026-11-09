@@ -1,0 +1,38 @@
+{
+	"header": {
+		"label": "plugin.sso-header.f.header",
+		"type": "string",
+		"default": "X-Forwarded-User",
+		"help": "plugin.sso-header.f.header.help"
+	},
+	"trusted_ips": {
+		"label": "plugin.sso-header.f.trusted_ips",
+		"type": "text",
+		"default": "",
+		"help": "plugin.sso-header.f.trusted_ips.help"
+	},
+	"master_pass": {
+		"label": "plugin.sso-header.f.master_pass",
+		"type": "password",
+		"default": "",
+		"help": "plugin.sso-header.f.master_pass.help"
+	},
+	"master_user": {
+		"label": "plugin.sso-header.f.master_user",
+		"type": "string",
+		"default": "",
+		"help": "plugin.sso-header.f.master_user.help"
+	},
+	"allowed_domains": {
+		"label": "plugin.sso-header.f.allowed_domains",
+		"type": "text",
+		"default": "",
+		"help": "plugin.sso-header.f.allowed_domains.help"
+	},
+	"hide_form": {
+		"label": "plugin.sso-header.f.hide_form",
+		"type": "bool",
+		"default": false,
+		"help": "plugin.sso-header.f.hide_form.help"
+	}
+}

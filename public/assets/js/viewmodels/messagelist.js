@@ -188,14 +188,19 @@ export class MessageListVM {
 
 	async selectFolder(folder) {
 		this.cancelReadTimer();
+		const changed = folder !== this.folder();
 		// Re-clic sur le dossier actif : reload sans fermer le mail ouvert.
-		if (folder !== this.folder()) {
+		if (changed) {
 			this.app.messageView.clear();
 		}
 		this.folder(folder);
 		this.page(1);
 		await this.load();
 		location.hash = '#/' + encodeURIComponent(folder);
+		// Mémorisé côté serveur (par compte) : restauré à la prochaine ouverture.
+		if (changed) {
+			this.app.folderList.persistLast(folder);
+		}
 	}
 
 	/** Clic sur la ligne : Ctrl/Meta = bascule la coche sans ouvrir,

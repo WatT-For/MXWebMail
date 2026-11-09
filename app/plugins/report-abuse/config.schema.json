@@ -1,0 +1,20 @@
+{
+	"abuse_address": {
+		"label": "plugin.report-abuse.f.abuse_address",
+		"type": "string",
+		"default": "",
+		"help": "plugin.report-abuse.f.abuse_address.help"
+	},
+	"subject_prefix": {
+		"label": "plugin.report-abuse.f.subject_prefix",
+		"type": "string",
+		"default": "[Signalement]",
+		"help": "plugin.report-abuse.f.subject_prefix.help"
+	},
+	"mark_spam": {
+		"label": "plugin.report-abuse.f.mark_spam",
+		"type": "bool",
+		"default": false,
+		"help": "plugin.report-abuse.f.mark_spam.help"
+	}
+}

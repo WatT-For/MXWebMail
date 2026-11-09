@@ -35,6 +35,11 @@ final class PluginPackageService
 		$this->gh = new GitHubClient($app);
 	}
 
+	private function t(string $key, array $params = []): string
+	{
+		return $this->app->locale()->t($key, $params);
+	}
+
 	// ─── Catalogue ───
 
 	/**
@@ -222,12 +227,12 @@ final class PluginPackageService
 	public function install(string $name): array
 	{
 		if (!preg_match('/^[a-z0-9-]+$/', $name)) {
-			throw new \RuntimeException('Nom de plugin invalide', 400);
+			throw new \RuntimeException($this->t('errors.pkg_invalid_name'), 400);
 		}
 		$local = $this->gh->pluginLocalDir();
 		if ($local === null) {
 			if (!$this->gh->configured()) {
-				throw new \RuntimeException('Catalogue non configuré', 400);
+				throw new \RuntimeException($this->t('errors.pkg_catalog_unconfigured'), 400);
 			}
 			$this->gh->requireExts();
 		}
@@ -273,7 +278,7 @@ final class PluginPackageService
 	public function remove(string $name): array
 	{
 		if (!preg_match('/^[a-z0-9-]+$/', $name)) {
-			throw new \RuntimeException('Nom de plugin invalide', 400);
+			throw new \RuntimeException($this->t('errors.pkg_invalid_name'), 400);
 		}
 		$target = "{$this->plugins}/$name";
 		// Garde anti-symlink/traversal : la cible réelle doit rester sous app/plugins/
@@ -282,18 +287,19 @@ final class PluginPackageService
 		if ($base !== false && $real !== false
 			&& !str_starts_with(str_replace('\\', '/', $real),
 				str_replace('\\', '/', $base) . '/')) {
-			throw new \RuntimeException('Chemin de plugin refusé', 400);
+			throw new \RuntimeException($this->t('errors.pkg_path_denied'), 400);
 		}
 		$exists = $real !== false && is_dir($target);
 		if (!$exists && !$this->app->pluginRepo()->has($name)) {
-			throw new \RuntimeException("Plugin \"$name\" inconnu", 404);
+			throw new \RuntimeException($this->t('errors.plugin_not_found', ['name' => $name]), 404);
 		}
 		$lock = $this->lock();
 		try {
-			$this->app->pluginRepo()->delete($name);
+			$this->preflight($name);
 			if ($exists) {
 				$this->rmrf($target);
 			}
+			$this->app->pluginRepo()->delete($name);
 			$this->invalidateCaches();
 			$this->app->log('info', "plugin $name désinstallé");
 			return ['removed' => $name];
@@ -310,7 +316,7 @@ final class PluginPackageService
 	{
 		$srcDir = rtrim($dir, '/\\') . '/' . $name;
 		if (!is_dir($srcDir) || !is_file("$srcDir/plugin.json")) {
-			throw new \RuntimeException("Plugin \"$name\" absent de la source locale", 404);
+			throw new \RuntimeException($this->t('errors.plugin_missing_local', ['name' => $name]), 404);
 		}
 		$this->rmrf($dest);
 		$root = "$dest/$name";
@@ -479,7 +485,7 @@ final class PluginPackageService
 			if ($lock) {
 				fclose($lock);
 			}
-			throw new \RuntimeException('Une mise à jour est en cours', 409);
+			throw new \RuntimeException($this->t('errors.updating'), 409);
 		}
 		return $lock;
 	}
@@ -514,8 +520,14 @@ final class PluginPackageService
 			new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
 			\RecursiveIteratorIterator::CHILD_FIRST
 		) as $f) {
-			$f->isDir() ? rmdir($f->getPathname()) : unlink($f->getPathname());
+			$ok = $f->isDir() ? @rmdir($f->getPathname()) : @unlink($f->getPathname());
+			if (!$ok) {
+				throw new \RuntimeException(
+					'Suppression impossible : ' . $f->getPathname(), 500);
+			}
 		}
-		rmdir($dir);
+		if (!@rmdir($dir)) {
+			throw new \RuntimeException("Suppression impossible : $dir", 500);
+		}
 	}
 }

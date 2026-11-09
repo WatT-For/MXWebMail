@@ -1,0 +1,26 @@
+{
+	"max_msgs_hour": {
+		"label": "plugin.send-rate-limit.f.max_msgs_hour",
+		"type": "integer",
+		"default": 0,
+		"help": "plugin.send-rate-limit.f.max_msgs_hour.help"
+	},
+	"max_msgs_day": {
+		"label": "plugin.send-rate-limit.f.max_msgs_day",
+		"type": "integer",
+		"default": 0,
+		"help": "plugin.send-rate-limit.f.max_msgs_day.help"
+	},
+	"max_rcpts_day": {
+		"label": "plugin.send-rate-limit.f.max_rcpts_day",
+		"type": "integer",
+		"default": 0,
+		"help": "plugin.send-rate-limit.f.max_rcpts_day.help"
+	},
+	"exempt": {
+		"label": "plugin.send-rate-limit.f.exempt",
+		"type": "text",
+		"default": "",
+		"help": "plugin.send-rate-limit.f.exempt.help"
+	}
+}

@@ -1,0 +1,12 @@
+{
+	"name": "sso-header",
+	"label": "plugin.sso-header.label",
+	"class": "SsoHeader",
+	"main": "SsoHeader.php",
+	"version": "0.1.1",
+	"description": "plugin.sso-header.description",
+	"hooks": ["app.routes", "app.head", "auth.provider",
+		"imap.before-connect", "smtp.before-connect", "sieve.before-connect"],
+	"min_app": "0.52.0",
+	"max_app": "0.99.0"
+}

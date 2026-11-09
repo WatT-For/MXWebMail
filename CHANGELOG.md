@@ -6,11 +6,35 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) -
 semver `0.MINOR.PATCH` en développement.
 Catégories, dans l'ordre : `Sécurité`, `Ajouté`, `Modifié`, `Corrigé`, `Obsolète`, `Supprimé`.
 
-## [Unreleased]
+## [0.53.0] - 2026-11-09
+
+### Ajouté
+
+- Nouveau plugin `always-cc-bcc` : destinataires Cc ou Bcc systématiques à l'envoi (archive de conformité, adresse de suivi), par compte ou tous - le Bcc reste invisible des autres destinataires.
+- Nouveau plugin `report-abuse` : bouton "Signaler" dans la barre d'actions - transfère les mails cochés en pièces jointes `.eml` vers une adresse abuse administrée, avec marquage spam optionnel (alimente l'apprentissage).
+- Nouveau plugin `vcf-viewer` : aperçu des pièces jointes `.vcf` dans le lecteur et import en un clic dans le carnet d'adresses.
+- Nouveau plugin `send-rate-limit` : quota d'envoi par compte (messages/heure, messages/jour, destinataires/jour) - amortit les dégâts d'un compte compromis.
+- Nouveau plugin `login-notify` : mail d'alerte au compte lors d'une connexion depuis une adresse IP inconnue (modèle Gmail), délivré non lu en boîte - opt-out par utilisateur.
+- Nouveau plugin `sso-header` : connexion automatique via proxy d'authentification (Authelia, authentik, oauth2-proxy) par en-tête de confiance - requiert un mot de passe maître IMAP et des IPs de proxy déclarées.
+- Nouveau plugin `dmarc-reports` : page admin agrégeant les rapports DMARC (rua) relevés dans une boîte IMAP dédiée - parsing XML/gzip, agrégats par domaine et par IP source.
 
 ### Modifié
 
-- Messages d'erreur GitHub et documentation : la clé de token d'accès n'est plus nommée publiquement.
+- Le webmail rouvre sur le dernier dossier consulté (mémorisé par compte) au lieu de retomber systématiquement sur INBOX - les liens `#/<dossier>` restent prioritaires ; un dossier disparu retombe sur INBOX proprement.
+
+### Corrigé
+
+- Dossiers spéciaux absents du serveur IMAP : la copie "Éléments envoyés" était perdue silencieusement, l'enregistrement de brouillon échouait en erreur et la suppression détruisait définitivement sans corbeille - les dossiers Sent/Drafts/Trash/Junk sont désormais créés automatiquement au premier usage (réponse IMAP `TRYCREATE`/`NONEXISTENT`).
+- Plugin `dmarc-reports` : boucle de récupération infinie quand `delete_processed` est désactivé (recherche `ALL` relivrant le même lot, le bouton "Relever" ne s'arrêtait jamais) - recherche `UNSEEN`, marquage `\Seen` garanti même en échec, borne côté JS.
+- Plugin `dmarc-reports` : rapports XML portant `xmlns="urn:ietf:params:xml:ns:dmarc"` ignorés silencieusement (XPath non préfixés) - requêtes en `local-name()`, rapport non reconnu n'est plus marqué traité.
+- Plugin `sso-header` : boucle de rechargement infinie de la page de connexion quand le compte SSO exige la 2FA - bloc de saisie TOTP affiché, flux SSO rejoué avec nouveau ticket + code au lieu d'un `location.reload()`.
+- Traductions : les 8 langues hors fr/en avaient ~105 clés restées en anglais (raccourcis clavier, actions post-suppression, signatures OpenPGP, plugins `dmarc-reports`, `login-notify`, `sso-header`, `send-rate-limit`, `vcf-viewer`) - désormais traduites.
+- Textes en dur i18n : libellé "Renvoyer" affiché en français à tous les non-français (clé de base anglaise erronée), noms de touches "Suppr/Échap/Entrée" de l'aide `?`, erreur de chargement des librairies, libellé "Connexion manuelle" SSO et une quinzaine de messages d'erreur admin/API - passés par les dictionnaires.
+- Listes de messages : la pagination serveur (IMAP ESORT, RFC 5267) n'était jamais exécutée - chaque affichage retombait sur le tri complet du dossier et un warning remplissait le log ; expansion des plages du résultat normalisée selon la RFC.
+- Anti-usurpation : les motifs "marque-mot" ("apple-security.xyz") n'étaient plus signalés en danger (seulement en avertissement) depuis la borne de longueur des labels - les motifs exacts sont désormais évalués sans borne, le contrôle flou reste limité aux longueurs proches.
+- Listes de messages : un serveur annonçant `ESORT` mais rejetant `RETURN (PARTIAL ...)` (réponse `BAD`, ex. Zimbra) provoquait un aller-retour IMAP perdu et deux warnings à chaque affichage - le refus est désormais mémorisé par compte et le tri classique utilisé directement.
+- Admin > Extensions : la désinstallation d'une extension rapportait un succès alors que son dossier n'avait pas pu être supprimé (droits insuffisants) - l'opération échoue désormais proprement comme l'installation.
+
 
 ## [0.52.0] - 2026-11-06
 

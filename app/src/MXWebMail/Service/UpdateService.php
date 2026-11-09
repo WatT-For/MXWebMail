@@ -45,6 +45,11 @@ final class UpdateService
 		$this->gh = new GitHubClient($app);
 	}
 
+	private function t(string $key, array $params = []): string
+	{
+		return $this->app->locale()->t($key, $params);
+	}
+
 	/** État local sans appel réseau - utilisable dans bootstrap(). */
 	public function status(): array
 	{
@@ -164,13 +169,13 @@ final class UpdateService
 	public function download(): array
 	{
 		if (!$this->gh->configured()) {
-			throw new \RuntimeException('Mise à jour non configurée', 400);
+			throw new \RuntimeException($this->t('errors.update_not_configured'), 400);
 		}
 		$this->gh->requireExts();
 		$rel = $this->gh->release(false);
 		$latest = $this->normalizeTag((string) $rel['tag_name']);
 		if (!version_compare($latest, APP_VERSION, '>')) {
-			throw new \RuntimeException('Déjà à jour', 400);
+			throw new \RuntimeException($this->t('errors.update_already_current'), 400);
 		}
 
 		// Reprise : même version déjà téléchargée/extraite
@@ -237,7 +242,7 @@ final class UpdateService
 				|| $name[0] === '/' || $name[0] === '\\'
 				|| preg_match('/^[a-zA-Z]:/', $name))) {
 				$zip->close();
-				throw new \RuntimeException("Entrée zip dangereuse : $name", 400);
+				throw new \RuntimeException($this->t('errors.update_entry_denied', ['name' => $name]), 400);
 			}
 		}
 		if (!$zip->extractTo($dest)) {
@@ -255,7 +260,7 @@ final class UpdateService
 		foreach (['app/src/bootstrap.php', 'public/index.php',
 			'app/config/config.example.php'] as $f) {
 			if (!is_file("$root/$f")) {
-				$this->rmrf($dest);
+				try { $this->rmrf($dest); } catch (\Throwable) {}
 				throw new \RuntimeException("Paquet invalide ($f absent)", 502);
 			}
 		}
@@ -266,7 +271,7 @@ final class UpdateService
 		if (is_file("$root/files.sha256")) {
 			$integrity = $this->verifyManifest($root);
 			if ($integrity !== true) {
-				$this->rmrf($dest);
+				try { $this->rmrf($dest); } catch (\Throwable) {}
 				throw new \RuntimeException(
 					'Intégrité du paquet invalide : ' . $integrity, 502);
 			}
@@ -421,7 +426,7 @@ final class UpdateService
 		if (($state['step'] ?? '') !== 'extracted' || !is_dir($root)
 			|| !str_starts_with(str_replace('\\', '/', $root),
 				str_replace('\\', '/', $this->dir) . '/extract-')) {
-			throw new \RuntimeException('Aucune mise à jour prête à appliquer', 400);
+			throw new \RuntimeException($this->t('errors.update_none_ready'), 400);
 		}
 		is_dir($this->dir) || mkdir($this->dir, 0700, true);
 		$lock = $this->lock();
@@ -538,7 +543,7 @@ final class UpdateService
 	{
 		$state = $this->readState();
 		if (($state['step'] ?? '') !== 'applied') {
-			throw new \RuntimeException('Aucune mise à jour à finaliser', 400);
+			throw new \RuntimeException($this->t('errors.update_nothing_pending'), 400);
 		}
 		$this->runMigrations();
 		// Reliquat des installs ≤ 0.44 : l'assistant /setup est intégré au
@@ -588,7 +593,7 @@ final class UpdateService
 			}
 		}
 		if ($backup === null) {
-			throw new \RuntimeException('Aucun backup de mise à jour disponible', 400);
+			throw new \RuntimeException($this->t('errors.update_no_backup'), 400);
 		}
 
 		$driver = (string) ($manifest['db']['driver'] ?? '');
@@ -805,7 +810,7 @@ final class UpdateService
 			if ($lock) {
 				fclose($lock);
 			}
-			throw new \RuntimeException('Une mise à jour est en cours', 409);
+			throw new \RuntimeException($this->t('errors.updating'), 409);
 		}
 		return $lock;
 	}
@@ -895,8 +900,14 @@ final class UpdateService
 			new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
 			\RecursiveIteratorIterator::CHILD_FIRST
 		) as $f) {
-			$f->isDir() ? rmdir($f->getPathname()) : unlink($f->getPathname());
+			$ok = $f->isDir() ? @rmdir($f->getPathname()) : @unlink($f->getPathname());
+			if (!$ok) {
+				throw new \RuntimeException(
+					'Suppression impossible : ' . $f->getPathname(), 500);
+			}
 		}
-		rmdir($dir);
+		if (!@rmdir($dir)) {
+			throw new \RuntimeException("Suppression impossible : $dir", 500);
+		}
 	}
 }

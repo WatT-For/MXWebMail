@@ -1,0 +1,24 @@
+{
+	"mode": {
+		"label": "plugin.always-cc-bcc.f.mode",
+		"type": "enum",
+		"options": {
+			"bcc": "plugin.always-cc-bcc.f.mode.bcc",
+			"cc": "plugin.always-cc-bcc.f.mode.cc"
+		},
+		"default": "bcc",
+		"help": "plugin.always-cc-bcc.f.mode.help"
+	},
+	"addresses": {
+		"label": "plugin.always-cc-bcc.f.addresses",
+		"type": "string",
+		"default": "",
+		"help": "plugin.always-cc-bcc.f.addresses.help"
+	},
+	"senders": {
+		"label": "plugin.always-cc-bcc.f.senders",
+		"type": "text",
+		"default": "*",
+		"help": "plugin.always-cc-bcc.f.senders.help"
+	}
+}

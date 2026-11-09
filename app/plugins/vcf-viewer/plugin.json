@@ -1,0 +1,11 @@
+{
+	"name": "vcf-viewer",
+	"label": "plugin.vcf-viewer.label",
+	"class": "VcfViewer",
+	"main": "VcfViewer.php",
+	"version": "0.1.0",
+	"description": "plugin.vcf-viewer.description",
+	"hooks": ["app.data"],
+	"min_app": "0.52.0",
+	"max_app": "0.99.0"
+}

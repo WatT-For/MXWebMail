@@ -3,9 +3,16 @@ declare(strict_types=1);
 
 namespace MXWebMail\Repository;
 
+use MXWebMail\Locale\Translator;
+
 final class IdentityRepository
 {
-	public function __construct(private Database $db) {}
+	public function __construct(private Database $db, private Translator $tr) {}
+
+	private function t(string $key, array $params = []): string
+	{
+		return $this->tr->t($key, $params);
+	}
 
 	public function allForUser(int $userId): array
 	{
@@ -48,11 +55,11 @@ final class IdentityRepository
 			}
 			$v = (string) $v;
 			if (strpbrk($v, "\r\n") !== false || !$this->validAddresses($v, $k === 'e')) {
-				throw new \InvalidArgumentException('invalid identity address', 400);
+				throw new \InvalidArgumentException($this->t('errors.invalid_identity'), 400);
 			}
 		}
 		if ($fields['e'] === '') {
-			throw new \InvalidArgumentException('identity email required');
+			throw new \InvalidArgumentException($this->t('errors.identity_email_required'));
 		}
 		if (!empty($data['id'])) {
 			$id = (int) $data['id'];
@@ -63,7 +70,7 @@ final class IdentityRepository
 		} else {
 			$accountId = (int) ($data['account_id'] ?? 0) ?: $this->defaultAccountId($userId);
 			if (!$accountId || !$this->accountBelongsTo($accountId, $userId)) {
-				throw new \RuntimeException('Aucun compte', 400);
+				throw new \RuntimeException($this->t('errors.account_not_found'), 400);
 			}
 			$pdo->prepare(
 				'INSERT INTO identities (account_id, name, email, reply_to, bcc, signature)
@@ -137,7 +144,7 @@ final class IdentityRepository
 		);
 		$stmt->execute(['id' => $identityId, 'u' => $userId]);
 		if (!$stmt->fetchColumn()) {
-			throw new \RuntimeException('Identité introuvable', 404);
+			throw new \RuntimeException($this->t('errors.identity_not_found'), 404);
 		}
 	}
 }

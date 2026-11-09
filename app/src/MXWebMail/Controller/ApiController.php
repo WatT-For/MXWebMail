@@ -166,6 +166,9 @@ final class ApiController extends Api\BaseController
 			// Dossiers surveillés pour la détection de nouveaux mails -
 			// lecture de réglage sans IMAP (évite un RTT /folders/notify au boot).
 			'notify_folders' => $this->app->mail()->notifyFolderList(),
+			// Dernier dossier consulté du compte actif, restauré à
+			// l'ouverture - réglage + cache fichier, pas d'IMAP non plus.
+			'last_folder' => $this->app->mail()->lastFolder(),
 		];
 		// Hook : les plugins injectent leurs données de boot
 		$data = $this->app->hooks()->filter('app.data', $data, $user);

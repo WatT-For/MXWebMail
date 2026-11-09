@@ -9,7 +9,7 @@ return [
 	'plugin.color-tags.col_name'            => 'Naam',
 	'plugin.color-tags.col_id'              => 'ID',
 	'plugin.color-tags.rules'               => 'Automatische regels',
-	'plugin.color-tags.rules_help'          => 'De eerste overeenkomende regel wordt toegepast (volgorde telt). „*“ = willekeurige reeks; meerdere patronen gescheiden door spatie of komma.',
+	'plugin.color-tags.rules_help'          => 'De eerste overeenkomende regel wordt toegepast (volgorde telt). „*" = willekeurige reeks; meerdere patronen gescheiden door spatie of komma.',
 	'plugin.color-tags.field_from'          => 'Van',
 	'plugin.color-tags.field_domain'        => 'Domein',
 	'plugin.color-tags.field_subject'       => 'Onderwerp',

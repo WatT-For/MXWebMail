@@ -442,15 +442,17 @@ final class AntiSpoofing extends PluginBase
 			}
 			// Typosquat / homoglyphe / mot-chevile sur le FQDN puis sur le
 			// label registrable ("apple-security.xyz", "paypa1.net") - la
-			// comparaison de label est bornée aux longueurs proches pour ne pas
-			// accuser un label légitime plus long ("onmicrosoft").
+			// comparaison floue du label est bornée aux longueurs proches pour
+			// ne pas accuser un label légitime plus long ("onmicrosoft") - les
+			// motifs exacts (marque-mot) sont évalués sans borne.
 			// L'égalité stricte des labels ("apple.fr" vs "apple.com") est
 			// volontairement exclue : signal ambigu > warning en second passage.
 			$pLabel = explode('.', self::orgDomain($p))[0] ?? '';
 			if (self::isLookalike($domain, $p)
 				|| ($sld !== '' && $pLabel !== '' && $sld !== $pLabel
-					&& abs(strlen($sld) - strlen($pLabel)) <= 1
-					&& self::isLookalike($sld, $pLabel))) {
+					&& (self::isLookalikeWords($sld, $pLabel)
+						|| (abs(strlen($sld) - strlen($pLabel)) <= 1
+							&& self::isLookalike($sld, $pLabel))))) {
 				return ['lookalike_domain', 'danger', $p];
 			}
 		}
@@ -472,17 +474,30 @@ final class AntiSpoofing extends PluginBase
 
 	private static function isLookalike(string $domain, string $protected): bool
 	{
-		foreach (['secure', 'login', 'account', 'verify', 'support', 'security', 'signin', 'web', 'mail'] as $w) {
-			if ($domain === "{$w}-{$protected}" || $domain === "{$protected}-{$w}"
-				|| $domain === "{$w}{$protected}" || $domain === "{$protected}{$w}") {
-				return true;
-			}
+		if (self::isLookalikeWords($domain, $protected)) {
+			return true;
 		}
 		$hom = ['o' => '0', 'l' => '1', 'i' => '1', 'e' => '3', 'a' => '4', 's' => '5', 'b' => '8', 'g' => '6', 't' => '7'];
 		if (strtr($domain, $hom) === strtr($protected, $hom)) {
 			return true;
 		}
 		return levenshtein($domain, $protected) <= 2;
+	}
+
+	/**
+	 * Motifs mot-chevile exacts : "secure-brand", "brand-login", "webbrand"…
+	 * Liste courte de termes de leurre - évaluable sans borne de longueur
+	 * (un label long legitime ne peut pas matcher un motif exact).
+	 */
+	private static function isLookalikeWords(string $a, string $b): bool
+	{
+		foreach (['secure', 'login', 'account', 'verify', 'support', 'security', 'signin', 'web', 'mail'] as $w) {
+			if ($a === "{$w}-{$b}" || $a === "{$b}-{$w}"
+				|| $a === "{$w}{$b}" || $a === "{$b}{$w}") {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/** minuscules + homoglyphes (Cyrillique…) > latin. */

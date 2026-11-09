@@ -13,7 +13,7 @@ return [
 	'plugin.pwa.f.background_color'      => 'Hintergrundfarbe',
 	'plugin.pwa.f.background_color.help' => 'Farbe des Startbildschirms (Splash)',
 	'plugin.pwa.f.display'               => 'Anzeigemodus',
-	'plugin.pwa.f.display.help'          => '„standalone“ = eigenes Fenster (empfohlen)',
+	'plugin.pwa.f.display.help'          => '„standalone" = eigenes Fenster (empfohlen)',
 	'plugin.pwa.f.icon_url'              => 'Symbol-URL',
 	'plugin.pwa.f.icon_url.help'         => 'Quadratisches PNG ≥512px; leer = eingebettete Standard-Symbole',
 	'plugin.pwa.label'                  => 'Web-App (PWA)',

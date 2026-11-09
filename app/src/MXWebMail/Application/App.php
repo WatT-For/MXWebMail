@@ -49,7 +49,7 @@ final class App
 
 	public function __construct(?string $rootDir = null, ?string $installDir = null)
 	{
-		defined('APP_VERSION') || define('APP_VERSION', '0.52.0'); // X-Mailer MailSo
+		defined('APP_VERSION') || define('APP_VERSION', '0.53.0'); // X-Mailer MailSo
 		// Prérequis du paquet de mise à jour - lus par regex dans le App.php du
 		// paquet extrait (UpdateService::checkRequirements) avant application.
 		defined('APP_REQ_PHP') || define('APP_REQ_PHP', '>=8.4');
@@ -241,7 +241,7 @@ final class App
 
 	public function pgp(): \MXWebMail\Repository\PgpRepository
 	{
-		return $this->pgp ??= new \MXWebMail\Repository\PgpRepository($this->db());
+		return $this->pgp ??= new \MXWebMail\Repository\PgpRepository($this->db(), $this->locale());
 	}
 
 	public function oauthApps(): \MXWebMail\Repository\OAuthAppRepository
@@ -251,7 +251,7 @@ final class App
 
 	public function identities(): \MXWebMail\Repository\IdentityRepository
 	{
-		return $this->identities ??= new \MXWebMail\Repository\IdentityRepository($this->db());
+		return $this->identities ??= new \MXWebMail\Repository\IdentityRepository($this->db(), $this->locale());
 	}
 
 	public function hooks(): HookRegistry
@@ -917,6 +917,7 @@ final class App
 		$router->post('/api/folders/notify', [$apiFolders, 'foldersNotifySet']);
 		$router->post('/api/folders/collapsed', [$apiFolders, 'foldersCollapsedSet']);
 		$router->post('/api/folders/hidden', [$apiFolders, 'foldersHiddenSet']);
+		$router->post('/api/folders/last', [$apiFolders, 'foldersLastSet']);
 
 		$router->get('/api/messages', [$apiMessages, 'messages']);
 		$router->get('/api/messages/{uid}', [$apiMessages, 'message']);

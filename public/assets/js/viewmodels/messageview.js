@@ -594,8 +594,8 @@ export class MessageViewVM {
 				.replace(/url\(\s*(["']?)([^"')\s]+)\1\s*\)/gi, cssUrl);
 		}
 		if (missing.size) {
-			console.warn('[mxwm] cid: sans pièce jointe correspondante :',
-				[...missing], '- cids disponibles :', [...cidMap.keys()]);
+			console.warn('[mxwm] cid: no matching attachment:',
+				[...missing], '- available cids:', [...cidMap.keys()]);
 		}
 		return blocked;
 	}
@@ -780,6 +780,42 @@ export class MessageViewVM {
 			}
 		} catch (e) {
 			await dialog.alert(e.message, { title: t('plugin.ics-viewer.attachment'), variant: 'danger' });
+		}
+	}
+
+	/** Aperçu d'une pièce jointe vCard (plugin vcf-viewer). */
+	async previewVcf(att) {
+		const m = this.message();
+		if (!m) { return; }
+		try {
+			const r = await api.get(`/plugin/vcf-viewer/card?folder=${encodeURIComponent(m.folder)}` +
+				`&uid=${m.uid}&mime=${encodeURIComponent(att.mimeIndex)}`);
+			const cards = r.cards || [];
+			if (!cards.length) {
+				await dialog.alert(t('plugin.vcf-viewer.none'),
+					{ title: t('plugin.vcf-viewer.title'), variant: 'info' });
+				return;
+			}
+			const lines = [];
+			for (const c of cards) {
+				lines.push('─'.repeat(30), c.name || '');
+				for (const e of c.emails || []) {
+					lines.push((e.type ? e.type + ': ' : '') + e.email);
+				}
+				const p = c.properties || {};
+				for (const k of ['org', 'tel', 'url', 'bday', 'nick', 'note']) {
+					if (p[k]) { lines.push(k + ': ' + p[k]); }
+				}
+			}
+			if (await dialog.confirm(lines.join('\n'),
+				{ title: t('plugin.vcf-viewer.title'), okLabel: t('plugin.vcf-viewer.add'), variant: 'info' })) {
+				const rep = await api.post('/plugin/vcf-viewer/import', {
+					folder: m.folder, uid: m.uid, mime: att.mimeIndex });
+				await dialog.alert(t('plugin.vcf-viewer.imported', { n: rep.imported ?? rep.added ?? cards.length }),
+					{ variant: 'success' });
+			}
+		} catch (e) {
+			await dialog.alert(e.message, { title: t('plugin.vcf-viewer.attachment'), variant: 'danger' });
 		}
 	}
 

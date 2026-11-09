@@ -19,7 +19,7 @@ return [
 	'plugin.change-password.too_short'        => 'The new password is too short',
 	'plugin.change-password.too_weak'         => 'The new password is too weak',
 	'plugin.change-password.pwned'            => 'This password appears in a known data breach',
-	'plugin.change-password.driver_unknown'   => 'Unknown driver “{driver}”',
+	'plugin.change-password.driver_unknown'   => 'Unknown driver "{driver}"',
 	'plugin.change-password.poppassd_down'    => 'poppassd unreachable ({host}:{port})',
 	'plugin.change-password.poppassd_failed'  => 'poppassd failure: {msg}',
 	'plugin.change-password.sql_missing'      => 'PDO driver SQL query not configured',

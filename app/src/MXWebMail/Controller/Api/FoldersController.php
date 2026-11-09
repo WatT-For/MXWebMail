@@ -153,7 +153,7 @@ final class FoldersController extends BaseController
 		// Un JSON en liste écraserait toutes les assignations (clés rejetées) :
 		// refusé plutôt que destructif.
 		if (!is_array($body) || ($body !== [] && array_is_list($body))) {
-			throw new \InvalidArgumentException('special folders map expected', 400);
+			throw new \InvalidArgumentException($this->t('errors.invalid_value', ['key' => 'special_folders']), 400);
 		}
 		$map = [];
 		foreach ($body as $role => $value) {
@@ -202,6 +202,16 @@ final class FoldersController extends BaseController
 		$this->requireCsrf();
 		$this->app->mail()->setHiddenFolders(
 			array_map(fn($f) => $this->noCrlf((string) $f, 'folder'), (array) $request->input('folders', [])));
+		return JsonResponse::ok();
+	}
+
+	/** Dernier dossier consulté, restauré à l'ouverture (état UI par compte). */
+	public function foldersLastSet(Request $request): JsonResponse
+	{
+		$this->requireAuth();
+		$this->requireCsrf();
+		$this->app->mail()->setLastFolder(
+			$this->noCrlf((string) $request->input('folder', ''), 'folder'));
 		return JsonResponse::ok();
 	}
 

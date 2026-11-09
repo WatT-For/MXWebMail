@@ -548,7 +548,11 @@ trait Messages
 								$aUids = [];
 								foreach (\explode(',', $sSet) as $sTok) {
 									if (\preg_match('/^(\d+):(\d+)$/', $sTok, $m)) {
-										$aUids = \array_merge($aUids, \range((int) $m[1], (int) $m[2]));
+										// RFC 5267 §3.2 : une plage s'expanse en
+										// croissant (12:10 équivaut à 10:12).
+										$aUids = \array_merge($aUids, \range(
+											\min((int) $m[1], (int) $m[2]),
+											\max((int) $m[1], (int) $m[2])));
 									} else if (\preg_match('/^\d+$/', $sTok)) {
 										$aUids[] = (int) $sTok;
 									}

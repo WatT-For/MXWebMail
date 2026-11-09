@@ -10,9 +10,9 @@ return [
 	'plugin.attachments-clamav.f.on_error.allow'   => 'Allow upload (log warning)',
 	'plugin.attachments-clamav.f.on_error.deny'    => 'Reject upload (fail-closed)',
 	'plugin.attachments-clamav.f.on_error.help'    => 'deny blocks every upload while clamd is down',
-	'plugin.attachments-clamav.virus_found'        => 'Virus detected in “{name}”',
+	'plugin.attachments-clamav.virus_found'        => 'Virus detected in "{name}"',
 	'plugin.attachments-clamav.unavailable'        => 'Virus scanner unreachable',
 	'plugin.attachments-clamav.bad_response'       => 'Unexpected scanner response: {msg}',
-	'plugin.attachments-clamav.read_failed'         => 'Cannot read file “{name}”',
+	'plugin.attachments-clamav.read_failed'         => 'Cannot read file "{name}"',
 	'plugin.attachments-clamav.label'           => 'ClamAV antivirus',
 ];

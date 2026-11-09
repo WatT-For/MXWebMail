@@ -94,7 +94,8 @@ final class ColorTags extends PluginBase
 		$tag    = $request->input('tag');
 		$tag    = $tag === null ? null : (string) $tag;
 
-		if ($folder === '' || !$uids || ($tag !== null && !preg_match(self::ID_RE, $tag))) {
+		if ($folder === '' || strpbrk($folder, "\r\n") !== false
+			|| !$uids || ($tag !== null && !preg_match(self::ID_RE, $tag))) {
 			throw new \RuntimeException($this->t('plugin.color-tags.error_params'), 400);
 		}
 		$mail = $this->app->mail();

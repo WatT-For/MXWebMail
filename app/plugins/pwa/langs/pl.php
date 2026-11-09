@@ -13,7 +13,7 @@ return [
 	'plugin.pwa.f.background_color'      => 'Kolor tła',
 	'plugin.pwa.f.background_color.help' => 'Kolor ekranu startowego (splash)',
 	'plugin.pwa.f.display'               => 'Tryb wyświetlania',
-	'plugin.pwa.f.display.help'          => '„standalone” = osobne okno (zalecane)',
+	'plugin.pwa.f.display.help'          => '„standalone" = osobne okno (zalecane)',
 	'plugin.pwa.f.icon_url'              => 'URL ikony',
 	'plugin.pwa.f.icon_url.help'         => 'Kwadratowy PNG ≥512px; puste = wbudowane ikony domyślne',
 	'plugin.pwa.label'                  => 'Aplikacja webowa (PWA)',

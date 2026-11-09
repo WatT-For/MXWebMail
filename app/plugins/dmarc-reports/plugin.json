@@ -1,0 +1,11 @@
+{
+	"name": "dmarc-reports",
+	"label": "plugin.dmarc-reports.label",
+	"class": "DmarcReports",
+	"main": "DmarcReports.php",
+	"version": "0.1.1",
+	"description": "plugin.dmarc-reports.description",
+	"hooks": ["admin.mounts"],
+	"min_app": "0.52.0",
+	"max_app": "0.99.0"
+}

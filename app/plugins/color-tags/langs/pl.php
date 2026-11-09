@@ -9,7 +9,7 @@ return [
 	'plugin.color-tags.col_name'            => 'Nazwa',
 	'plugin.color-tags.col_id'              => 'Identyfikator',
 	'plugin.color-tags.rules'               => 'Reguły automatyczne',
-	'plugin.color-tags.rules_help'          => 'Stosowana jest pierwsza pasująca reguła (kolejność ma znaczenie). „*” = dowolny ciąg; kilka wzorców oddzielonych spacją lub przecinkiem.',
+	'plugin.color-tags.rules_help'          => 'Stosowana jest pierwsza pasująca reguła (kolejność ma znaczenie). „*" = dowolny ciąg; kilka wzorców oddzielonych spacją lub przecinkiem.',
 	'plugin.color-tags.field_from'          => 'Od',
 	'plugin.color-tags.field_domain'        => 'Domena',
 	'plugin.color-tags.field_subject'       => 'Temat',

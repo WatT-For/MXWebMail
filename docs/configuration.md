@@ -1,9 +1,11 @@
 # Référence de configuration
 
 Le fichier `app/config/config.php` ne définit que les clés qui **écrasent** les valeurs
-par défaut (`app/src/MXWebMail/Config/Config.php`). Copiez `config.example.php` en
-`config.php` puis adaptez. Le panneau d'administration édite la plupart de ces clés par
-section ; seules certaines (`update.*` surtout) exigent une édition manuelle.
+par défaut (`app/config/config.example.php`, chargé par `Config.php`). Copiez
+`config.example.php` en `config.php` puis adaptez. Le panneau d'administration édite la
+plupart de ces clés par section ; seules certaines exigent une édition manuelle
+(`update.*` surtout, mais aussi `import_max_size`, `smime_ca_path`, `logs.max_size`
+et `logs.keep`).
 
 Les tableaux associatifs sont fusionnés en profondeur ; les listes sont remplacées.
 
@@ -86,6 +88,8 @@ sha1 de blob git) - n'est pas éditable via l'admin (sauf `channel`).
 | `dangerous_actions` | `true` | Autorise vider/supprimer un dossier, supprimer des messages (dont le déplacement vers la corbeille). |
 | `contacts_enable` | `true` | Carnet d'adresses + autocomplétion. |
 | `contacts_suggestions_limit` | `20` | Nombre max de suggestions d'autocomplétion (1-100). |
+| `import_max_size` | `100` | Taille max d'un `.mbox` importé (Mo) - les `.eml` gardent le plafond `attachment_max_size`. Non éditable dans l'admin. |
+| `smime_ca_path` | `''` | Chemin CA (fichier PEM) pour la confiance S/MIME ; vide = signature crypto vérifiée seule (`PKCS7_NOVERIFY`). Non éditable dans l'admin. |
 
 ## `user_defaults` - défauts des réglages utilisateur
 
@@ -99,6 +103,8 @@ celles-ci + celles déclarées par les plugins (hook `settings.allowed`).
 | `view_images` | `ask` | Images externes : `always` / `ask` / `match` (expéditeur connu). |
 | `msg_default_action` | `reply` | Bouton répondre par défaut : `reply` / `reply_all`. |
 | `mark_read_delay` | `5` | Secondes avant de marquer lu un message ouvert (0 = immédiat). |
+| `compose_autosave` | `60` | Secondes entre enregistrements automatiques du brouillon (0 = jamais). |
+| `mdn_mode` | `ask` | Accusés de réception : `ask` (bandeau de demande) / `never` (masqué). |
 | `autologout` | `30` | Minutes d'inactivité avant déconnexion (0 = jamais). Ne révoque pas le jeton "Rester connecté" : la session est restaurée silencieusement à la visite suivante. |
 | `list_refresh` | `5` | Minutes entre réactualisations auto (0 = jamais). |
 | `notify_new_mail` | `false` | Notification navigateur à l'arrivée d'un mail. |
@@ -177,8 +183,6 @@ invalidation manuelle n'est requise.
 | `logs.level` | `LOG_WARNING` | `LOG_DEBUG` pour tracer le protocole. |
 | `logs.syslog` | `false` | Doublon vers `syslog()` si le log fichier est inactif. |
 | `logs.time_zone` | `''` | Fuseau des horodatages (ex. `Europe/Paris`) ; vide = serveur. |
-| `import_max_size` | `100` | Taille max d'un `.mbox` importé (Mo) - les `.eml` gardent le plafond `attachment_max_size`. |
-| `smime_ca_path` | `''` | Chemin CA (fichier PEM) pour la confiance S/MIME ; vide = signature crypto vérifiée seule (`PKCS7_NOVERIFY`). |
 | `logs.max_size` | `5` | Rotation au-delà de N Mio - vaut pour `mail.log`, `app.log` et le journal d'auth. |
 | `logs.keep` | `3` | Rotations conservées (`app.1.log` … `app.{keep}.log`, plafond 20). |
 

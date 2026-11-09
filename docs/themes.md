@@ -27,7 +27,7 @@ app/templates/<name>/
 {
 	"name": "dark",
 	"label": "Sombre",
-	"version": "0.11.0",
+	"version": "0.13.0",
 	"extends": "default"
 }
 ```

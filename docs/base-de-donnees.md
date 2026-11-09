@@ -30,7 +30,7 @@ est posé et signalé dans *À propos* - les migrations sont alors suspendues.
 | Table | Contenu |
 |---|---|
 | `meta` | paires clé/valeur (`schema_version`, `contacts_moved`, …). |
-| `users` | `username` (unique), `display_name`, `is_admin`, `disabled`, `created_at`, `last_login_at`. |
+| `users` | `username` (unique), `display_name`, `is_admin`, `disabled`, `session_epoch` (incrémenté par "Forcer la déconnexion" - rejette les sessions actives à la requête suivante), `created_at`, `last_login_at`. |
 | `accounts` | comptes IMAP des utilisateurs : `email`, `imap_user`, `imap_pass` (chiffré), `is_default` (compte principal, modifiable dans Réglages > Comptes), `position` (ordre d'affichage des comptes secondaires, réordonnable par glisser-déposer dans Réglages > Comptes), `auth` (`password`, `google`, `microsoft`, `yahoo` - OAuth2 : `imap_pass` stocke alors le *refresh token* chiffré). |
 | `oauth_apps` | applications OAuth2 par utilisateur : `provider`, `client_id`, `secret` (chiffré), `tenant` - une app par `(user_id, provider)` (voir [domaines.md](domaines.md) §8). |
 | `user_settings` | réglages utilisateur (clé/valeur), PK `(user_id, key)`. |

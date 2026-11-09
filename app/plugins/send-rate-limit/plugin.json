@@ -1,0 +1,11 @@
+{
+	"name": "send-rate-limit",
+	"label": "plugin.send-rate-limit.label",
+	"class": "SendRateLimit",
+	"main": "SendRateLimit.php",
+	"version": "0.1.0",
+	"description": "plugin.send-rate-limit.description",
+	"hooks": ["message.before-send"],
+	"min_app": "0.52.0",
+	"max_app": "0.99.0"
+}

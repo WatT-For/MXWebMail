@@ -239,7 +239,7 @@ final class ThemeManager
 		foreach ($this->schema($name) as $key => $f) {
 			$raw = $saved[$key] ?? $f['default'] ?? null;
 			try {
-				$out[$key] = $this->coerce($raw, $f);
+				$out[$key] = $this->coerce($raw, $f, $key);
 			} catch (\Throwable) {
 				$out[$key] = $f['default'] ?? null;
 			}
@@ -255,7 +255,7 @@ final class ThemeManager
 			if (!array_key_exists($key, $raw)) {
 				continue;
 			}
-			$out[$key] = $this->coerce($raw[$key], $f);
+			$out[$key] = $this->coerce($raw[$key], $f, $key);
 		}
 		return $out;
 	}
@@ -393,7 +393,7 @@ JS;
 
 	// ─── Helpers ───
 
-	private function coerce(mixed $value, array $f): mixed
+	private function coerce(mixed $value, array $f, string $key = ''): mixed
 	{
 		return match ($f['type'] ?? 'string') {
 			'bool'    => (bool) $value,
@@ -403,9 +403,11 @@ JS;
 			// ou à la teinte automatique (clés *_dark)
 			'color'   => $this->validHex($value)
 				?? ($value === '' || $value === null
-					? '' : throw new \RuntimeException('couleur invalide', 400)),
+					? '' : throw new \RuntimeException(
+						$this->app->locale()->t('errors.invalid_value', ['key' => $key ?: 'color']), 400)),
 			'enum'    => in_array($value, array_keys((array) ($f['options'] ?? [])), true)
-				? $value : throw new \RuntimeException('valeur enum invalide', 400),
+				? $value : throw new \RuntimeException(
+					$this->app->locale()->t('errors.invalid_value', ['key' => $key ?: 'enum']), 400),
 			default   => (string) $value,
 		};
 	}

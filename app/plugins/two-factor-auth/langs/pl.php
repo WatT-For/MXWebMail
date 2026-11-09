@@ -7,7 +7,7 @@ return [
 	'plugin.two-factor-auth.tab'                => 'Uwierzytelnianie dwuskładnikowe',
 	'plugin.two-factor-auth.issuer'             => 'Nazwa usługi wyświetlana w aplikacji TOTP',
 	'plugin.two-factor-auth.f.label'              => 'Nazwa konta w aplikacji TOTP',
-	'plugin.two-factor-auth.f.label.help'         => '„Pełny adres” zachowuje e-mail; „Część lokalna” usuwa @domenę - niektóre aplikacje dobierają ikonę według domeny.',
+	'plugin.two-factor-auth.f.label.help'         => '„Pełny adres" zachowuje e-mail; „Część lokalna" usuwa @domenę - niektóre aplikacje dobierają ikonę według domeny.',
 	'plugin.two-factor-auth.f.label.email'        => 'Pełny adres',
 	'plugin.two-factor-auth.f.label.local'        => 'Część lokalna (przed @)',
 	'plugin.two-factor-auth.icon_url'           => 'URL ikony (parametr image=)',

@@ -114,7 +114,7 @@ final class PluginsController extends BaseController
 				? $posted[$key]
 				: ($stored[$key] ?? (is_array($def) ? ($def['default'] ?? '') : ''));
 			try {
-				$out[$key] = self::coercePluginValue($key, $raw, is_array($def) ? $def : []);
+				$out[$key] = $this->coercePluginValue($key, $raw, is_array($def) ? $def : []);
 			} catch (\RuntimeException) {
 				return JsonResponse::error(
 					$this->t('errors.invalid_value', ['key' => $key]), 'validation', 400);
@@ -139,9 +139,10 @@ final class PluginsController extends BaseController
 		return preg_match('/^[a-z0-9\-]+$/i', $name) ? $name : null;
 	}
 
-	private static function coercePluginValue(string $key, mixed $v, array $def): mixed
+	private function coercePluginValue(string $key, mixed $v, array $def): mixed
 	{
-		$fail = fn() => throw new \RuntimeException("Valeur invalide pour $key", 400);
+		$fail = fn() => throw new \RuntimeException(
+			$this->t('errors.invalid_value', ['key' => $key]), 400);
 		$type = $def['type'] ?? 'string';
 		if ($type === 'enum') {
 			$opts = (array) ($def['options'] ?? []);

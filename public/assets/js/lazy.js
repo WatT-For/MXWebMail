@@ -5,6 +5,8 @@
  * systématique dans app.php). Promesse mutualisée par URL : appels
  * concurrents dédupliqués, échec > retry possible au prochain appel.
  */
+import { t } from './i18n.js';
+
 const pending = {};
 
 function loadScript(src) {
@@ -14,7 +16,7 @@ function loadScript(src) {
 		s.onload = resolve;
 		s.onerror = () => {
 			delete pending[src];
-			reject(new Error('Chargement impossible : ' + src));
+			reject(new Error(t('errors.load', { msg: src })));
 		};
 		document.head.appendChild(s);
 	});

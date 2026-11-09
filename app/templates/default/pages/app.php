@@ -442,6 +442,13 @@
 										<i class="fa-solid fa-calendar-days"></i>
 									</button>
 									<!-- /ko -->
+									<!-- ko if: $root.features().vcf_viewer
+										&& (mime === 'text/vcard' || mime === 'text/x-vcard' || /\.vcf$/i.test(name || '')) -->
+									<button class="btn btn-sm btn-icon btn-outline-primary"
+										data-bind="click: () => $parents[1].previewVcf($data), tooltip: 'plugin.vcf-viewer.title'">
+										<i class="fa-solid fa-address-card"></i>
+									</button>
+									<!-- /ko -->
 									<!-- ko if: $parents[1].isPreviewable($data) -->
 									<button class="btn btn-sm btn-icon btn-outline-primary"
 										data-bind="click: () => $parents[1].preview($data), tooltip: 'app.preview'">
@@ -1724,7 +1731,7 @@
 						<tbody>
 							<tr><td class="text-nowrap"><kbd>↑</kbd> <kbd>↓</kbd> / <kbd>k</kbd> <kbd>j</kbd></td><td><?= $t('app.shortcuts.nav') ?></td></tr>
 							<tr><td><kbd>x</kbd></td><td><?= $t('app.shortcuts.check') ?></td></tr>
-							<tr><td><kbd>Suppr</kbd></td><td><?= $t('app.shortcuts.delete') ?></td></tr>
+							<tr><td><kbd><?= $t('app.shortcuts.key_delete') ?></kbd></td><td><?= $t('app.shortcuts.delete') ?></td></tr>
 							<tr><td><kbd>r</kbd> / <kbd>a</kbd></td><td><?= $t('app.shortcuts.reply') ?></td></tr>
 							<tr><td><kbd>f</kbd></td><td><?= $t('app.shortcuts.forward') ?></td></tr>
 							<tr><td><kbd>e</kbd></td><td><?= $t('app.shortcuts.archive') ?></td></tr>
@@ -1734,8 +1741,8 @@
 							<tr><td><kbd>m</kbd></td><td><?= $t('app.shortcuts.move') ?></td></tr>
 							<tr><td><kbd>c</kbd></td><td><?= $t('app.shortcuts.compose') ?></td></tr>
 							<tr><td><kbd>/</kbd></td><td><?= $t('app.shortcuts.search') ?></td></tr>
-							<tr><td><kbd>Échap</kbd></td><td><?= $t('app.shortcuts.escape') ?></td></tr>
-							<tr><td><kbd>Ctrl</kbd>+<kbd>Entrée</kbd></td><td><?= $t('app.shortcuts.send') ?></td></tr>
+							<tr><td><kbd><?= $t('app.shortcuts.key_escape') ?></kbd></td><td><?= $t('app.shortcuts.escape') ?></td></tr>
+							<tr><td><kbd>Ctrl</kbd>+<kbd><?= $t('app.shortcuts.key_enter') ?></kbd></td><td><?= $t('app.shortcuts.send') ?></td></tr>
 							<tr><td><kbd>?</kbd></td><td><?= $t('app.shortcuts.help') ?></td></tr>
 						</tbody>
 					</table>
