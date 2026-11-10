@@ -23,7 +23,8 @@ Les tableaux associatifs sont fusionnés en profondeur ; les listes sont remplac
 |---|---|---|
 | `app_name` | `MXWebMail` | Nom affiché (titre, PWA, TOTP). |
 | `favicon` | `''` | Fichier favicon uploadé dans `storage/branding`, servi via `/favicon.ico` ; vide = icône par défaut. |
-| `sponsor_url` | `https://github.com/sponsors/WatT-For` | Lien "Sponsor" GitHub (bouton admin + paramètres webmail) ; vide = masqué. |
+| `website_url` | `https://mxrelay.fr/webmail/` | Lien du site officiel (bouton admin) ; vide = masqué. |
+| `sponsor_url` | `https://mxrelay.fr/webmail/don` | Lien "Sponsor" vers la page de dons (bouton admin + paramètres webmail) ; vide = masqué. |
 | `debug` | `false` | Renvoie les erreurs internes aux clients API (jamais en production). |
 | `language` | `auto` | `auto` = `Accept-Language` du navigateur ; sinon code d'une langue installée (`fr`, `en`…). Repli final `en`. |
 

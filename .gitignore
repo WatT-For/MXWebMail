@@ -13,3 +13,10 @@ nul
 con
 aux
 prn
+
+# Fichiers parasites IDE/OS et restes de merges
+.idea/
+.DS_Store
+Thumbs.db
+*.bak
+*.orig

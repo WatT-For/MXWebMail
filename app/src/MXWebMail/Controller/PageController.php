@@ -246,10 +246,11 @@ final class PageController
 		$vars['assets'] = $vars['base'] . '/assets/v' . APP_VERSION;
 		// Favicon versionné par le mtime du fichier servi (bust l'upload admin)
 		$vars['faviconUrl'] = $vars['base'] . '/favicon.ico?v=' . $this->faviconVersion();
-		// Lien "Sponsor" GitHub (clé config sponsor_url ; vide = bouton masqué)
+		// Lien "Sponsor" vers la page de dons (clé config sponsor_url ;
+		// vide = bouton masqué)
 		$vars['sponsorUrl'] = (string) $this->app->config()->get('sponsor_url', '');
-		// Lien du dépôt GitHub officiel (GitHubClient::REPO ; vide = bouton masqué)
-		$vars['githubUrl'] = $this->app->github()->repoUrl() ?? '';
+		// Lien du site officiel (clé config website_url ; vide = bouton masqué)
+		$vars['websiteUrl'] = (string) $this->app->config()->get('website_url', '');
 		// Thème actif - pour construire les URLs d'assets du template.
 		// themeVer = mtime du CSS résolu : une édition sans bump de theme.json
 		// change le ?v= (le cache long + immutable reste sûr).

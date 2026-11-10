@@ -15,6 +15,7 @@ return [
 	'common.close'   => 'Cerrar',
 	'common.back'    => 'Atrás',
 	'common.sponsor' => 'Patrocinar',
+	'common.website' => 'Sitio web',
 	'common.confirm' => 'Confirmar',
 	'common.refresh' => 'Actualizar',
 	'common.test'    => 'Probar',

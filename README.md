@@ -1,23 +1,29 @@
 # MXWebMail
 
+[![Licence AGPL-3.0](https://img.shields.io/badge/licence-AGPL--3.0-blue.svg)](LICENSE)
+[![PHP >= 8.4](https://img.shields.io/badge/PHP-%3E%3D8.4-777BB4)](docs/fr/installation.md)
+[![GitHub release](https://img.shields.io/github/v/release/WatT-For/MXWebMail)](https://github.com/WatT-For/MXWebMail/releases)
+
 Webmail auto-hébergé en **PHP 8.4**, inspiré de **SnappyMail**, **RainLoop** et
 **Roundcube**, autour d'une architecture MVC claire. Frontend **Knockout + Bootstrap 5.3** (sans jQuery), bibliothèque
-**MailSo** vendorée pour IMAP/SMTP/Sieve, stockage **SQLite** ou **MariaDB**.
+**MailSo** vendorée pour IMAP/SMTP/Sieve, stockage **SQLite**, **MariaDB** ou **MySQL**.
+Site officiel : [mxrelay.fr/webmail](https://mxrelay.fr/webmail/).
 
 ## Fonctionnalités
 
 - **Messagerie complète** : dossiers IMAP, recherche avancée, tri côté serveur (SORT),
   sélection multiple, suivi, spam, quota, ACL de dossiers.
-- **Composition** : éditeur HTML (TinyMCE) ou texte, identités multiples, signatures,
-  brouillons, pièces jointes, comptes IMAP secondaires.
-- **Chiffrement OpenPGP** entièrement côté navigateur (OpenPGP.js) - les clés privées ne
-  quittent jamais le poste.
-- **Carnet de contacts** avec autocomplétion, synchronisation CardDAV et annuaire LDAP.
+- **Composition** : éditeur HTML TinyMCE (partie texte générée automatiquement),
+  identités multiples, signatures, brouillons, pièces jointes, comptes IMAP secondaires.
+- **Chiffrement OpenPGP** entièrement côté navigateur (OpenPGP.js) - les clés privées
+  sont stockées protégées par passphrase et jamais déchiffrées côté serveur.
+- **Carnet de contacts** avec autocomplétion - synchronisation CardDAV et annuaire
+  LDAP via plugins.
 - **Filtres Sieve** : assistant visuel de règles (modèles dont anti-spam) ou édition
   de scripts, activation, suppression.
 - **Panneau d'administration** : domaines (IMAP/SMTP/Sieve), utilisateurs, extensions,
   thèmes, logs, mises à jour, réglages de performance et de sécurité.
-- **23 plugins** installables depuis l'admin (catalogue lu dans le dépôt GitHub :
+- **30 plugins** installables depuis l'admin (catalogue lu dans le dépôt GitHub :
   installation, mise à jour, désinstallation) : 2FA (TOTP), anti-spoofing, avatars, listes
   noire/blanche, changement de mot de passe (poppassd/PDO/LDAP/Mailcow), PWA,
   étiquettes de couleur, etc.
@@ -38,24 +44,24 @@ Webmail auto-hébergé en **PHP 8.4**, inspiré de **SnappyMail**, **RainLoop** 
    crée le schéma de base et pose le verrou - `/setup` répond ensuite 404.
 
 Détails (Apache/Nginx, installation manuelle, sortie de `app/` hors racine web) :
-voir **[docs/installation.md](docs/installation.md)**.
+voir **[docs/fr/installation.md](docs/fr/installation.md)**.
 
 ## Documentation
 
 | Sujet | Fichier |
 |---|---|
-| Installation et déploiement | [docs/installation.md](docs/installation.md) |
-| Référence de configuration (`config.php`) | [docs/configuration.md](docs/configuration.md) |
-| Panneau d'administration | [docs/administration.md](docs/administration.md) |
-| Configuration des domaines / serveurs mail | [docs/domaines.md](docs/domaines.md) |
-| Plugins (catalogue GitHub + développement) | [docs/plugins.md](docs/plugins.md) |
-| Thèmes | [docs/themes.md](docs/themes.md) |
-| Traduction / langues | [docs/localisation.md](docs/localisation.md) |
-| Base de données | [docs/base-de-donnees.md](docs/base-de-donnees.md) |
-| Sécurité | [docs/securite.md](docs/securite.md) |
-| Fail2ban (journal auth, filtre, jail) | [docs/fail2ban.md](docs/fail2ban.md) |
-| Développement (architecture, hooks) | [docs/developpement.md](docs/developpement.md) |
-| Dépannage / FAQ | [docs/depannage.md](docs/depannage.md) |
+| Installation et déploiement | [docs/fr/installation.md](docs/fr/installation.md) |
+| Référence de configuration (`config.php`) | [docs/fr/configuration.md](docs/fr/configuration.md) |
+| Panneau d'administration | [docs/fr/administration.md](docs/fr/administration.md) |
+| Configuration des domaines / serveurs mail | [docs/fr/domaines.md](docs/fr/domaines.md) |
+| Plugins (catalogue GitHub + développement) | [docs/fr/plugins.md](docs/fr/plugins.md) |
+| Thèmes | [docs/fr/themes.md](docs/fr/themes.md) |
+| Traduction / langues | [docs/fr/localisation.md](docs/fr/localisation.md) |
+| Base de données | [docs/fr/base-de-donnees.md](docs/fr/base-de-donnees.md) |
+| Sécurité | [docs/fr/securite.md](docs/fr/securite.md) |
+| Fail2ban (journal auth, filtre, jail) | [docs/fr/fail2ban.md](docs/fr/fail2ban.md) |
+| Développement (architecture, hooks) | [docs/fr/developpement.md](docs/fr/developpement.md) |
+| Dépannage / FAQ | [docs/fr/depannage.md](docs/fr/depannage.md) |
 
 Index complet : [docs/README.md](docs/README.md).
 
@@ -73,7 +79,7 @@ Signalement de vulnérabilités : **jamais en issue publique** - voir
 ## Stack technique
 
 PHP 8.4 · Knockout.js · Bootstrap 5.3 · TinyMCE · OpenPGP.js · MailSo (vendoré) ·
-sabre/vobject (vCard) · MariaDB 10.11 / SQLite · Apache ou Nginx.
+Sabre (vobject, xml, uri) · MariaDB / MySQL ou SQLite · Apache ou Nginx.
 
 ## Licence
 

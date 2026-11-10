@@ -14,5 +14,5 @@ labels: enhancement
 <!-- Solution imaginée, alternatives éventuelles -->
 
 **Remarque** : les extensions sont souvent réalisables en **plugin** ou **thème**
-sans toucher au cœur - voir `docs/plugins.md` et `docs/themes.md`. Pour une
+sans toucher au cœur - voir `docs/fr/plugins.md` et `docs/fr/themes.md`. Pour une
 fonctionnalité cœur, discuter ici avant toute PR évite le travail perdu.

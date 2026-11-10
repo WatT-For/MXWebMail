@@ -38,4 +38,4 @@ est crédité dans l'avis de sécurité, sauf demande contraire.
   sauf si notre intégration est en cause).
 
 Le modèle de sécurité et les recommandations de durcissement sont décrits dans
-[docs/securite.md](docs/securite.md).
+[docs/fr/securite.md](docs/fr/securite.md).

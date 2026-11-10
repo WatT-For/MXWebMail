@@ -15,6 +15,7 @@ return [
 	'common.close'   => 'Kapat',
 	'common.back'    => 'Geri',
 	'common.sponsor' => 'Sponsor ol',
+	'common.website' => 'Web sitesi',
 	'common.confirm' => 'Onayla',
 	'common.refresh' => 'Yenile',
 	'common.test'    => 'Test et',

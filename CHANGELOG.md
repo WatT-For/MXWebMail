@@ -6,6 +6,17 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) -
 semver `0.MINOR.PATCH` en développement.
 Catégories, dans l'ordre : `Sécurité`, `Ajouté`, `Modifié`, `Corrigé`, `Obsolète`, `Supprimé`.
 
+## [0.54.0] - 2026-11-10
+
+### Ajouté
+
+- Documentation `docs/` traduite dans les 9 autres langues du webmail (en, de, es, it, nl, pl, pt, ru, tr) - chaque langue a son dossier `docs/<lang>/`, le français (`docs/fr/`) reste la version de référence, sélecteur de langue en tête de chaque `README.md`.
+
+### Corrigé
+
+- `README.md` : affirmations corrigées pour refléter le code (clés privées OpenPGP stockées chiffrées par passphrase côté serveur, éditeur HTML TinyMCE sans mode texte, CardDAV/LDAP via plugins, MySQL reconnu aux côtés de MariaDB, paquets Sabre complets) - ajout des badges et du lien vers le site officiel.
+- Zone "mise à jour" de la carte "À propos" refondue sur une seule ligne : le numéro de version n'apparaît plus jusqu'à trois fois (badge actuel + badge `latest` + nom de release), les boutons sont strictement contextuels à l'état (paquet en attente affiché via `v{state.version}`), et le bouton "Télécharger" ne persiste plus à côté d'"Appliquer" après un téléchargement réussi.
+
 ## [0.53.0] - 2026-11-09
 
 ### Ajouté
@@ -407,13 +418,13 @@ Catégories, dans l'ordre : `Sécurité`, `Ajouté`, `Modifié`, `Corrigé`, `Ob
 - Lien vers le dépôt GitHub dans le panel d'administration (navbar + onglet
   "À propos")
 - Documentation de la sémantique des `exceptions` des plugins listes
-  noire/blanche (`docs/plugins.md`)
+  noire/blanche (`docs/fr/plugins.md`)
 
 ## [0.40.0] - 2026-10-27
 
 ### Ajouté
 
-- Documentation d'intégration fail2ban (`docs/fail2ban.md`) : filtre `filter.d`,
+- Documentation d'intégration fail2ban (`docs/fr/fail2ban.md`) : filtre `filter.d`,
   jail, rotation logrotate, pièges fuseau horaire et `trusted_proxies`
 
 ### Corrigé
@@ -563,7 +574,14 @@ Première release publiée de MXWebMail - webmail auto-hébergé en PHP 8.4, ins
 - Credentials IMAP chiffrés (XSalsa20-Poly1305, libsodium) en session et en base
 - Corps des messages sanitisés ; images externes via proxy anti-SSRF
 
-[Unreleased]: https://github.com/WatT-For/MXWebMail/compare/v0.44.0...HEAD
+[Unreleased]: https://github.com/WatT-For/MXWebMail/compare/v0.54.0...HEAD
+[0.54.0]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.54.0
+[0.53.0]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.53.0
+[0.52.0]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.52.0
+[0.51.0]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.51.0
+[0.50.0]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.50.0
+[0.49.0]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.49.0
+[0.47.0]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.47.0
 [0.44.0]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.44.0
 [0.43.0]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.43.0
 [0.42.0]: https://github.com/WatT-For/MXWebMail/releases/tag/v0.42.0

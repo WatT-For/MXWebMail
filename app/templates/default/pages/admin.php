@@ -18,8 +18,8 @@
 		<?php if ($sponsorUrl !== ''): ?>
 		<a class="btn btn-sm btn-outline-light me-2" href="<?= htmlspecialchars($sponsorUrl) ?>" target="_blank" rel="noopener"><i class="fa-solid fa-heart"></i> <?= $t('common.sponsor') ?></a>
 		<?php endif; ?>
-		<?php if ($githubUrl !== ''): ?>
-		<a class="btn btn-sm btn-outline-light me-2" href="<?= htmlspecialchars($githubUrl) ?>" target="_blank" rel="noopener"><i class="fa-brands fa-github"></i> GitHub</a>
+		<?php if ($websiteUrl !== ''): ?>
+		<a class="btn btn-sm btn-outline-light me-2" href="<?= htmlspecialchars($websiteUrl) ?>" target="_blank" rel="noopener"><i class="fa-solid fa-globe"></i> <?= $t('common.website') ?></a>
 		<?php endif; ?>
 		<a class="btn btn-sm btn-outline-light me-2" href="<?= $base ?>/"><i class="fa-solid fa-envelope"></i> <?= $t('admin.webmail') ?></a>
 		<button class="btn btn-sm btn-outline-light" data-bind="click: logout"><i class="fa-solid fa-right-from-bracket"></i></button>
@@ -530,18 +530,56 @@
 						<i class="fa-solid fa-rotate" data-bind="css:{'fa-spin': updateBusy()==='check'}"></i>
 						<?= $t('admin.update.check') ?>
 					</button>
-					<!-- ko if: updateResult() -->
+					<!-- ko if: updatePending() -->
+					<span class="badge text-bg-warning"
+						data-bind="attr:{title: $root.t('admin.update.pending', {ver: updateInfo().state.version})}">v<span data-bind="text: updateInfo().state.version"></span></span>
+					<!-- /ko -->
+					<!-- ko if: !updatePending() && updateResult() -->
 					<!-- ko if: updateResult().up_to_date -->
 					<span class="badge text-bg-success"><?= $t('admin.update.up_to_date') ?></span>
 					<!-- /ko -->
 					<!-- ko if: !updateResult().up_to_date -->
-					<span class="badge text-bg-primary">v<span data-bind="text: updateResult().latest"></span></span>
-					<strong class="small" data-bind="text: updateResult().name || updateResult().tag"></strong>
+					<span class="badge text-bg-primary"
+						data-bind="attr:{title: updateResult().name || updateResult().tag}">v<span data-bind="text: updateResult().latest"></span></span>
 					<!-- ko if: updateResult().html_url -->
 					<a data-bind="attr:{href: updateResult().html_url}" target="_blank" rel="noopener">
 						<i class="fa-solid fa-arrow-up-right-from-square"></i></a>
 					<!-- /ko -->
 					<!-- /ko -->
+					<!-- /ko -->
+					<!-- ko if: (!updatePending() && updateResult() && !updateResult().up_to_date && updateResult().has_asset) || updateStep()==='downloaded' -->
+					<button class="btn btn-sm btn-primary" type="button"
+						data-bind="click: downloadUpdate, disable: !!updateBusy()">
+						<i class="fa-solid fa-download" data-bind="css:{'fa-spin': updateBusy()==='download'}"></i>
+						<span data-bind="text: updateBusy()==='download' ? $root.t('admin.update.downloading') : $root.t('admin.update.download')"></span>
+					</button>
+					<!-- /ko -->
+					<!-- ko if: updateStep()==='extracted' -->
+					<button class="btn btn-sm btn-danger" type="button"
+						data-bind="click: applyUpdate, disable: !!updateBusy()">
+						<i class="fa-solid fa-triangle-exclamation" data-bind="css:{'fa-beat': updateBusy()==='apply'}"></i>
+						<span data-bind="text: updateBusy()==='apply' ? $root.t('admin.update.applying') : $root.t('admin.update.apply')"></span>
+					</button>
+					<!-- /ko -->
+					<!-- ko if: updatePending() -->
+					<button class="btn btn-sm btn-outline-secondary" type="button"
+						data-bind="click: resetUpdate, disable: !!updateBusy()">
+						<?= $t('admin.update.reset') ?>
+					</button>
+					<!-- /ko -->
+					<!-- ko if: updateInfo().state && updateInfo().state.migrations_pending -->
+					<button class="btn btn-sm btn-warning" type="button"
+						data-bind="click: finalizeUpdate, disable: !!updateBusy()">
+						<?= $t('admin.update.finalize') ?>
+					</button>
+					<!-- /ko -->
+					<!-- ko if: updateInfo().rollback -->
+					<button class="btn btn-sm btn-outline-danger" type="button"
+						data-bind="click: rollbackUpdate, disable: !!updateBusy(),
+							attr: {title: $root.t('admin.update.rollback_title', {from: updateInfo().rollback.from, to: updateInfo().rollback.to})}">
+						<i class="fa-solid fa-rotate-left"></i>
+						<?= $t('admin.update.rollback') ?>
+					</button>
 					<!-- /ko -->
 					<!-- /ko -->
 					<!-- ko if: updateInfo() && !updateInfo().configured -->
@@ -557,45 +595,9 @@
 				</div>
 				<!-- /ko -->
 				<!-- ko if: updateInfo().state && updateInfo().state.migrations_pending -->
-				<div class="alert alert-warning py-2 mt-2 mb-0 small d-flex align-items-center gap-2">
-					<i class="fa-solid fa-database"></i>
+				<div class="alert alert-warning py-2 mt-2 mb-0 small">
+					<i class="fa-solid fa-database me-1"></i>
 					<span data-bind="text: $root.t('admin.update.migrations_pending')"></span>
-					<button class="btn btn-sm btn-warning" type="button"
-						data-bind="click: finalizeUpdate, disable: !!updateBusy()">
-						<?= $t('admin.update.finalize') ?>
-					</button>
-				</div>
-				<!-- /ko -->
-				<!-- ko if: (updateResult() && !updateResult().up_to_date && updateResult().has_asset) || updateStep()==='downloaded' || updateStep()==='extracted' || updateInfo().rollback -->
-				<div class="d-flex gap-2 mt-2 flex-wrap">
-					<!-- ko if: (updateResult() && !updateResult().up_to_date && updateResult().has_asset) || updateStep()==='downloaded' -->
-					<button class="btn btn-sm btn-primary" type="button"
-						data-bind="click: downloadUpdate, disable: !!updateBusy()">
-						<i class="fa-solid fa-download" data-bind="css:{'fa-spin': updateBusy()==='download'}"></i>
-						<span data-bind="text: updateBusy()==='download' ? $root.t('admin.update.downloading') : $root.t('admin.update.download')"></span>
-					</button>
-					<!-- /ko -->
-					<!-- ko if: updateStep()==='extracted' -->
-					<button class="btn btn-sm btn-danger" type="button"
-						data-bind="click: applyUpdate, disable: !!updateBusy()">
-						<i class="fa-solid fa-triangle-exclamation" data-bind="css:{'fa-beat': updateBusy()==='apply'}"></i>
-						<span data-bind="text: updateBusy()==='apply' ? $root.t('admin.update.applying') : $root.t('admin.update.apply')"></span>
-					</button>
-					<!-- /ko -->
-					<!-- ko if: updateStep()==='downloaded' || updateStep()==='extracted' -->
-					<button class="btn btn-sm btn-outline-secondary" type="button"
-						data-bind="click: resetUpdate, disable: !!updateBusy()">
-						<?= $t('admin.update.reset') ?>
-					</button>
-					<!-- /ko -->
-					<!-- ko if: updateInfo().rollback -->
-					<button class="btn btn-sm btn-outline-danger" type="button"
-						data-bind="click: rollbackUpdate, disable: !!updateBusy(),
-							attr: {title: $root.t('admin.update.rollback_title', {from: updateInfo().rollback.from, to: updateInfo().rollback.to})}">
-						<i class="fa-solid fa-rotate-left"></i>
-						<?= $t('admin.update.rollback') ?>
-					</button>
-					<!-- /ko -->
 				</div>
 				<!-- /ko -->
 				<!-- /ko -->

@@ -51,3 +51,11 @@ pas une clé connue).
 
 L'anglais est la langue de base : toute nouvelle clé doit d'abord être ajoutée dans
 `en.php`, et chaque dictionnaire doit rester à parité avec `en`.
+
+## 7. Documentation traduite
+
+Chaque langue du webmail a son dossier `docs/<lang>/` (`fr`, `de`, `en`, `es`,
+`it`, `nl`, `pl`, `pt`, `ru`, `tr`) avec les mêmes noms de fichiers. Le français
+de `docs/fr/` est la version de référence : toute modification d'un document
+canonique doit être répercutée dans les traductions, et tout nouvel article doit
+être créé dans chaque langue.

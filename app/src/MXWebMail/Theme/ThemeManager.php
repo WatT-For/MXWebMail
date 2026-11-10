@@ -139,7 +139,8 @@ final class ThemeManager
 	 * Chaîne d'héritage : [name, extends, …, 'default']. "default" est
 	 * toujours en dernier recours, même si la chaîne est cassée (extends
 	 * absent/invalide > manifeste vide > default ; cycle/profondeur > 8 >
-	 * coupure + base). Les erreurs sont signalées par tools.ps1 check.
+	 * coupure + base). Les erreurs sont détectées par la vérification
+	 * statique du projet.
 	 */
 	public function chain(string $name): array
 	{

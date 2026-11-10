@@ -15,8 +15,11 @@ return [
 	// Nom du fichier favicon uploadé dans app/storage/branding (admin > Général) ;
 	// vide = icône MXWebMail par défaut. Servi via /favicon.ico.
 	'favicon'    => '',
-	// Lien "Sponsor" GitHub (bouton admin + paramètres webmail) ; vide = masqué.
-	'sponsor_url' => 'https://github.com/sponsors/WatT-For',
+	// Lien du site officiel (bouton admin) ; vide = masqué.
+	'website_url' => 'https://mxrelay.fr/webmail/',
+	// Lien "Sponsor" vers la page de dons (bouton admin + paramètres webmail) ;
+	// vide = masqué.
+	'sponsor_url' => 'https://mxrelay.fr/webmail/don',
 	'debug'      => false,          // affiche les erreurs internes aux clients API (jamais en production)
 	// 'auto' = Accept-Language du navigateur ; sinon code d'un fichier
 	// app/src/MXWebMail/Locale/<lang>.php (en, fr…). Repli final : 'en'.

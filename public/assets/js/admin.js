@@ -72,6 +72,7 @@ class AdminVM {
 		this.updateBusy = ko.observable('');     // 'check' | 'download' | 'apply' | ''
 		this.updateErr = ko.observable('');
 		this.updateStep = ko.pureComputed(() => this.updateInfo()?.state?.step || '');
+		this.updatePending = ko.pureComputed(() => ['downloaded', 'extracted'].includes(this.updateStep()));
 		this.aboutExtensions = ko.pureComputed(() =>
 			Object.entries(this.about()?.extensions || {}).map(([name, ok]) => ({ name, ok: !!ok })));
 		this.aboutMissingCount = ko.pureComputed(() =>
@@ -357,6 +358,10 @@ class AdminVM {
 		this.updateErr(''); this.updateBusy('download');
 		try {
 			await api.post('/admin/update/download');
+			// Le résultat du check est consommé par l'état (step downloaded/
+			// extracted) - sinon le badge v{latest} + le bouton Télécharger
+			// resteraient affichés à côté du paquet en attente.
+			this.updateResult(null);
 			await this.refreshUpdateStatus();
 		} catch (e) { this.updateErr(e.message); }
 		finally { this.updateBusy(''); }

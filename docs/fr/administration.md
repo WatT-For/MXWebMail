@@ -192,7 +192,7 @@ Voir [themes.md](themes.md).
 ### À propos
 
 Version (`APP_VERSION`), PHP/SAPI/limites, pilote et taille de la base, chemins,
-extensions chargées. Un lien vers le dépôt GitHub officiel est affiché dans la
+extensions chargées. Un lien vers le site officiel est affiché dans la
 navbar. La carte d'en-tête intègre aussi les **mises à jour** via GitHub
 Releases (vérification, téléchargement, application, restauration) :
 
