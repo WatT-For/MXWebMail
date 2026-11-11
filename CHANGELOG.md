@@ -6,6 +6,12 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) -
 semver `0.MINOR.PATCH` en développement.
 Catégories, dans l'ordre : `Sécurité`, `Ajouté`, `Modifié`, `Corrigé`, `Obsolète`, `Supprimé`.
 
+## [0.54.2] - 2026-11-11
+
+### Corrigé
+
+- Le dernier dossier consulté n'était mémorisé que lors d'un clic dans la colonne des dossiers : une ouverture directe par lien `#/<dossier>` ou la bascule de compte (retour forcé sur `#/INBOX`) laissaient une valeur périmée qui était restaurée à la place du dossier réellement consulté - le dossier affiché au démarrage est désormais mémorisé dès qu'il diffère.
+
 ## [0.54.1] - 2026-11-11
 
 ### Corrigé

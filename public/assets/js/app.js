@@ -187,6 +187,12 @@ class AppVM {
 			// selectFolder > pas de second chargement de liste.
 			this.messageList.folder(initialFolder);
 			this.messageList.page(1);
+			// Le dossier résolu au boot n'est pas passé par selectFolder :
+			// le persister quand il diffère du dernier consulté mémorisé
+			// (hash explicite '#/X', '#/INBOX' forcé par la bascule de compte).
+			if (initialFolder !== this._lastFolder) {
+				this.folderList.persistLast(initialFolder);
+			}
 			// Hash vide (dossier restauré) > URL canonisée en replaceState :
 			// reflète l'état sans empiler une entrée d'historique.
 			if (location.hash.replace(/^#\//, '') === '') {
