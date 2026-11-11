@@ -2,8 +2,8 @@
 
 *Aus dem Französischen übersetzt - die französische Version ist maßgeblich.*
 
-MXWebMail läuft mit **SQLite** (Standard) oder **MariaDB/MySQL**. Der Treiber
-wird über `db_dsn` in `config.php` gewählt.
+MXWebMail läuft mit **SQLite** (Standard), **MariaDB >= 10.x** oder
+**MySQL >= 8.0**. Der Treiber wird über `db_dsn` in `config.php` gewählt.
 
 ## 1. Verbindung
 
@@ -17,10 +17,14 @@ PDO-Optionen: `ERRMODE_EXCEPTION`, `FETCH_ASSOC`, `EMULATE_PREPARES=false`.
 
 ## 2. Migrationen
 
-Das Schema ist **portabel** zwischen SQLite/MariaDB (Auto-Increment-Primärschlüssel
-an den Treiber angepasst). Migrationen sind versioniert
-(`meta.schema_version`) und werden beim ersten Datenbankzugriff automatisch
-angewendet (`App::db()`), auch während der Installation.
+Das Schema ist **portabel** zwischen SQLite/MariaDB/MySQL
+(Auto-Increment-Primärschlüssel an den Treiber angepasst; MySQL >= 8.0 für die
+in v12 genutzten SQL-Fensterfunktionen erforderlich). Migrationen sind
+versioniert (`meta.schema_version`) und werden beim ersten Datenbankzugriff
+automatisch angewendet (`App::db()`), auch während der Installation. Unter dem
+`mysql`-Treiber werden bereits vorhandene Objekte (Spalte, Index) über
+`information_schema` erkannt: ein erneuter Lauf nach einem Abbruch mitten in
+der Migration ist idempotent.
 
 Nach einem Code-Update löst der Tab *Über* die **Finalisierung** aus
 (`/api/admin/update/finalize`): die Migrationen der neuen Version laufen im
@@ -76,7 +80,7 @@ Die Migration `contacts_moved` kopiert die Kontakte einmalig von der globalen
 Datenbank in diese Dateien (Transaktion + `INSERT OR IGNORE`, selbstheilend)
 und löscht dann die globalen Tabellen.
 
-## 6. Von SQLite zu MariaDB wechseln
+## 6. Von SQLite zu MariaDB/MySQL wechseln
 
 1. Im Admin (*Datenbank*) DSN/Host/Port/Name/Benutzer/Passwort von MariaDB
    eintragen. Der Verbindungstest ist **obligatorisch** und legt die Datenbank
@@ -92,5 +96,5 @@ und löscht dann die globalen Tabellen.
 
 - SQLite: `app/storage/db/webmail.sqlite` (+ `db/users/*.sqlite`) und `app.key`
   kopieren.
-- MariaDB: die Datenbank mit `mysqldump` sichern, plus `app.key` und
-  `db/users/*.sqlite`.
+- MariaDB/MySQL: die Datenbank mit `mysqldump` sichern (oder `mariadb-dump`
+  unter MariaDB), plus `app.key` und `db/users/*.sqlite`.

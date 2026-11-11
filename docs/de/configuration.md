@@ -67,7 +67,8 @@ IMAP/SMTP/Sieve-Server werden **pro Domain** im Admin konfiguriert (siehe
 ## Updates
 
 Das offizielle Repository ist in `GitHubClient::REPO` (`WatT-For/MXWebMail`)
-verriegelt. Dieser Abschnitt - vom Kern-Updater und dem Plugin-Katalog geteilt
+verriegelt und **öffentlich**: Prüfung und Download funktionieren ohne Token.
+Dieser Abschnitt - vom Kern-Updater und dem Plugin-Katalog geteilt
 (im Repo am Ref `update.plugins_ref` gelesen, jede heruntergeladene Datei per
 git-blob-sha1 verifiziert) - ist nicht über den Admin editierbar (außer
 `channel`).

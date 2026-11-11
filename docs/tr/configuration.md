@@ -68,7 +68,8 @@ olarak hizmet eder.
 
 ## Güncellemeler
 
-Resmi repo `GitHubClient::REPO`'da kilitli (`WatT-For/MXWebMail`). Bu
+Resmi repo `GitHubClient::REPO`'da kilitli (`WatT-For/MXWebMail`) ve **genel**:
+denetim ve indirme token olmadan çalışır. Bu
 bölüm - çekirdek güncelleyici ve eklenti kataloğu (repoda
 `update.plugins_ref` ref'inde okunan, indirilen her dosya sha1 git-blob ile
 doğrulanır) tarafından ortak - admin'de düzenlenebilir değil (`channel`

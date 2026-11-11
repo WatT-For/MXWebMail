@@ -231,8 +231,9 @@ przywrócenie):
   przywrócenia bazy;
 - akcja *Reinicjalizuj* by porzucić pobrany/wypakowany pakiet.
 
-> Oficjalne repozytorium jest zaryglowane w `GitHubClient::REPO`:
-> weryfikacja jest wyłączona dopóki nie jest wypełnione. `update.channel`
+> Oficjalne repozytorium jest zaryglowane w `GitHubClient::REPO` i
+> **publiczne**: weryfikacja działa bez konfiguracji i tokenu (wyłączona tylko
+> dopóki stała nie jest wypełniona). `update.channel`
 > pozostaje edytowalny tutaj; `update.repo` ustawia się ręcznie w
 > `config.php`.
 

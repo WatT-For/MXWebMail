@@ -233,8 +233,9 @@ Releases (controle, download, toepassing, herstel):
 - actie *Herinitialiseren* om een gedownload/uitgepakt pakket te laten
   vallen.
 
-> De officiele repository is vergrendeld in `GitHubClient::REPO`: de check is
-> uitgeschakeld zolang die niet ingevuld is. `update.channel` blijft hier
+> De officiele repository is vergrendeld in `GitHubClient::REPO` en **publiek**:
+> de check werkt zonder configuratie of token (alleen uitgeschakeld zolang de
+> constante niet ingevuld is). `update.channel` blijft hier
 > bewerkbaar; `update.repo` wordt handmatig in `config.php` ingesteld.
 
 ## 3. Schrijven van `config.php`

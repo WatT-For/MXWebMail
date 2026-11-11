@@ -95,7 +95,8 @@ Eklenti oluşturmak için bkz. [plugins.md](plugins.md).
   `download_url` taşır, `pickUrl()` ile çözümlenir: `config.php`'de PAT
   ayarlıysa `releases/assets/<id>` API uç noktası
   (`Accept: application/octet-stream`) - `browser_download_url`'in 404
-  döndürdüğü özel repoda zorunlu - aksi halde `browser_download_url`.
+  döndürdüğü özel fork'ta zorunlu, aksi halde isteğe bağlı (API kotası) -
+  aksi halde `browser_download_url` (resmi repo genel).
   Eklenti önbellekleri: `plugins-ref.json` (TTL `update_ttl`),
   `plugins-tree-<sha>.json` ve `plugin-manifest-<name>-<sha>.json`
   (değişmez).

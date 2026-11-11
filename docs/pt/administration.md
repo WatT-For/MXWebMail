@@ -234,8 +234,9 @@ restauro):
   ficheiros sem restauração da base;
 - ação *Reinicializar* para abandonar um pacote descarregado/extraído.
 
-> O repositório oficial está bloqueado em `GitHubClient::REPO`: a
-> verificação está desativada enquanto não estiver informado.
+> O repositório oficial está bloqueado em `GitHubClient::REPO` e é **público**:
+> a verificação funciona sem configuração nem token (desativada apenas enquanto
+> a constante não estiver informada).
 > `update.channel` continua editável aqui; `update.repo` ajusta-se
 > manualmente em `config.php`.
 

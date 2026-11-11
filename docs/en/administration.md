@@ -217,8 +217,9 @@ download, apply, restore):
   restore;
 - *Reset* action to abandon a downloaded/extracted package.
 
-> The official repository is locked in `GitHubClient::REPO`: the check is
-> disabled as long as it is not set. `update.channel` stays editable here;
+> The official repository is locked in `GitHubClient::REPO` and **public**: the
+> check works with no configuration or token (it is disabled only while the
+> constant is not set). `update.channel` stays editable here;
 > `update.repo` is set manually in `config.php`.
 
 ## 3. Writing `config.php`

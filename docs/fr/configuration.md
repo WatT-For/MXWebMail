@@ -64,7 +64,8 @@ Les serveurs IMAP/SMTP/Sieve se configurent **par domaine** dans l'admin (voir
 
 ## Mises à jour
 
-Le dépôt officiel est verrouillé dans `GitHubClient::REPO` (`WatT-For/MXWebMail`).
+Le dépôt officiel est verrouillé dans `GitHubClient::REPO` (`WatT-For/MXWebMail`)
+et **public** : la vérification et le téléchargement fonctionnent sans token.
 Cette section - partagée par l'updater cœur et le catalogue plugins (lu dans le
 dépôt au ref `update.plugins_ref`, chaque fichier téléchargé étant vérifié par
 sha1 de blob git) - n'est pas éditable via l'admin (sauf `channel`).

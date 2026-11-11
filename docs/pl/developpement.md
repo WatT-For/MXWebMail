@@ -94,8 +94,9 @@ Zob. [plugins.md](plugins.md) by stworzyć wtyczkę.
   `storage/cache/update-check.json`. Każdy obcięty asset niesie
   `download_url`, rozwiązywany przez `pickUrl()`: endpoint API
   `releases/assets/<id>` (`Accept: application/octet-stream`) jeśli PAT jest
-  skonfigurowany w `config.php` - obowiązkowy na prywatnym repo, gdzie
-  `browser_download_url` zwraca 404 - inaczej `browser_download_url`.
+  skonfigurowany w `config.php` - obowiązkowy na prywatnym forku, gdzie
+  `browser_download_url` zwraca 404, opcjonalny poza tym (limit API) -
+  inaczej `browser_download_url` (oficjalne repo jest publiczne).
   Cache wtyczek: `plugins-ref.json` (TTL `update_ttl`),
   `plugins-tree-<sha>.json` i `plugin-manifest-<name>-<sha>.json`
   (niezmienne).

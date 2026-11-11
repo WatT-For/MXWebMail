@@ -160,11 +160,13 @@ SVG and any active type are refused - and the response carries
   sum (release `<zip>.sha256` file) then `files.sha256` (embedded per-file
   manifest, checked after extraction); the `APP_REQ_PHP`/`APP_REQ_FROM`
   constants of the package's `App.php` declare the prerequisites (PHP version,
-  minimum source version) enforced before copying. As long as the repo stays
-  **private**, a GitHub PAT (`Contents: Read` access to the repo) configured in
-  `config.php` is required: the API, assets (served via the
-  `releases/assets/<id>` endpoint - `browser_download_url` returns 404 on a
-  private repo even when authenticated) and `raw` depend on it.
+  minimum source version) enforced before copying. The official repo is
+  **public**: the API, assets and `raw` work without a token (GitHub's anonymous
+  API quota is covered by the `cache.update_ttl` cache). An optional GitHub PAT
+  (`Contents: Read` access to the repo) configured in `config.php` may raise the
+  quota or serve a private fork via `update.repo` - assets are then served via
+  the `releases/assets/<id>` endpoint (`browser_download_url` returns 404 on a
+  private repo even when authenticated).
   `update.plugins_local` and `update.manifest_url` (alternative release
   manifest) are reserved for dev/tests - editable only via `config.php`, never
   via the admin API. During file copying, the `storage/update/applying` flag

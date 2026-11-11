@@ -171,11 +171,13 @@ solo conservan scheme+host+ruta (nunca la query, que puede contener tokens).
   embarcado, controlado tras extracción); las constantes
   `APP_REQ_PHP`/`APP_REQ_FROM` del `App.php` del paquete declaran los
   prerrequisitos (versión PHP, versión fuente mínima) aplicados antes de la
-  copia. Mientras el repo siga **privado**, se requiere un PAT de GitHub
-  (acceso `Contents: Read` al repo) configurado en `config.php`: la API, los
-  assets (servidos vía el endpoint `releases/assets/<id>` - el
-  `browser_download_url` devuelve 404 en repo privado incluso autenticado) y
-  los `raw` dependen de él. `update.plugins_local` y `update.manifest_url`
+  copia. El repo oficial es **público**: la API, los assets y los `raw`
+  funcionan sin token (la cuota anónima de la API de GitHub queda cubierta por
+  la caché `cache.update_ttl`). Un PAT de GitHub opcional (acceso
+  `Contents: Read` al repo) configurado en `config.php` puede elevar la cuota
+  o servir un fork privado vía `update.repo` - los assets se sirven entonces
+  por el endpoint `releases/assets/<id>` (`browser_download_url` devuelve 404
+  en repo privado incluso autenticado). `update.plugins_local` y `update.manifest_url`
   (manifiesto de release alternativo) están reservados al dev/tests -
   modificables solo vía `config.php`, nunca vía la API admin. Durante la copia
   de los archivos, el flag `storage/update/applying` corta la API de usuario

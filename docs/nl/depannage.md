@@ -97,17 +97,20 @@ datamigratietool.
 
 **"Fout: Niet gevonden op GitHub … private repo of ontbrekende resource"**
 De officiële repository is vergrendeld (`GitHubClient::REPO` =
-`WatT-For/MXWebMail`). GitHub geeft 404 - niet 403 - terug voor een
-ontbrekende resource of onvoldoende toegang; het bericht noemt het
-schuldige endpoint (`releases/latest`, `commits/…` of een `raw`-pad van de
-plugin-catalogus). Een aanhoudende 404 betekent meestal een ontbrekende
-resource (geen release gepubliceerd, onbekende `update.plugins_ref`).
+`WatT-For/MXWebMail`) en **publiek**: geen token vereist. GitHub geeft 404 -
+niet 403 - terug voor een ontbrekende resource of onvoldoende toegang; het
+bericht noemt het schuldige endpoint (`releases/latest`, `commits/…` of een
+`raw`-pad van de plugin-catalogus). Een aanhoudende 404 betekent meestal een
+ontbrekende resource (geen release gepubliceerd, onbekende
+`update.plugins_ref`). Het geval "private repo" betreft alleen een via
+`update.repo` + PAT in `config.php` geconfigureerde fork.
 
 **HTTP 404 op `…/releases/download/…` (plugin-catalogus of update-download)**
-Op een private repo geeft de `browser_download_url` van assets zelfs met een
-geldige token 404 terug. Verholpen sinds 0.36.1: assets worden gedownload
-via het API-endpoint `releases/assets/<id>` als een PAT is geconfigureerd in
-`config.php`.
+Op de publieke officiële repo werkt `browser_download_url`. Het geval is
+alleen relevant voor een private fork via `update.repo`:
+`browser_download_url` geeft daar zelfs met een geldige token 404 terug -
+verholpen sinds 0.36.1, assets worden dan gedownload via het API-endpoint
+`releases/assets/<id>` als een PAT is geconfigureerd in `config.php`.
 
 **De site antwoordt 503 "update" / onderhoudspagina tijdens een update**
 Normaal: de flag `app/storage/update/applying` onderbreekt de gebruikers-API

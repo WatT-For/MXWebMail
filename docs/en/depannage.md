@@ -92,16 +92,20 @@ contact files are kept). There is no data migration tool.
 ## Updates
 
 **"Failure: Not found on GitHub … private repo or missing resource"**
-The official repository is locked (`GitHubClient::REPO` = `WatT-For/MXWebMail`).
-GitHub returns 404 - not 403 - for a missing resource or insufficient access;
-the message names the faulty endpoint (`releases/latest`, `commits/…` or a
-`raw` path of the plugin catalog). A persistent 404 generally means a missing
-resource (no release published, unknown `update.plugins_ref`).
+The official repository is locked (`GitHubClient::REPO` = `WatT-For/MXWebMail`)
+and **public**: no token is required. GitHub returns 404 - not 403 - for a
+missing resource or insufficient access; the message names the faulty endpoint
+(`releases/latest`, `commits/…` or a `raw` path of the plugin catalog). A
+persistent 404 generally means a missing resource (no release published,
+unknown `update.plugins_ref`). The "private repo" case only concerns a fork
+configured via `update.repo` + PAT in `config.php`.
 
 **HTTP 404 on `…/releases/download/…` (plugin catalog or update download)**
-On a private repo, the assets' `browser_download_url` returns 404 even with a
-valid token. Fixed as of 0.36.1: assets are downloaded via the API endpoint
-`releases/assets/<id>` when a PAT is configured in `config.php`.
+On the public official repo, `browser_download_url` works. The case only
+matters for a private fork via `update.repo`: `browser_download_url` returns
+404 there even with a valid token - fixed as of 0.36.1, assets are then
+downloaded via the API endpoint `releases/assets/<id>` when a PAT is
+configured in `config.php`.
 
 **The site answers 503 "update" / maintenance page during an update**
 Normal: the `app/storage/update/applying` flag cuts the user API while files

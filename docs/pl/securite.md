@@ -170,11 +170,13 @@ scheme+host+ścieżkę (nigdy query, która może zawierać tokeny).
   `files.sha256` (osadzony manifest per-plik, kontrolowany po wypakowaniu);
   stałe `APP_REQ_PHP`/`APP_REQ_FROM` `App.php` pakietu deklarują wymagania
   (wersja PHP, minimalna wersja źródłowa) stosowane przed kopiowaniem.
-  Dopóki repo pozostaje **prywatne**, wymagany jest PAT GitHub (dostęp
-  `Contents: Read` do repo) skonfigurowany w `config.php`: API, assety
-  (serwowane przez endpoint `releases/assets/<id>` -
-  `browser_download_url` zwraca 404 na prywatnym repo nawet
-  uwierzytelniony) i `raw` od niego zależą. `update.plugins_local` i
+  Oficjalne repo jest **publiczne**: API, assety i `raw` działają bez tokena
+  (anonimowy limit API GitHub pokrywa pamięć podręczna `cache.update_ttl`).
+  Opcjonalny PAT GitHub (dostęp `Contents: Read` do repo) skonfigurowany w
+  `config.php` może zwiększyć limit lub obsłużyć prywatny fork przez
+  `update.repo` - assety są wtedy serwowane przez endpoint
+  `releases/assets/<id>` (`browser_download_url` zwraca 404 na prywatnym repo
+  nawet uwierzytelniony). `update.plugins_local` i
   `update.manifest_url` (alternatywny manifest release) są zarezerwowane
   dla dev/testów - zmienialne tylko przez `config.php`, nigdy przez API
   admina. Podczas kopiowania plików flaga `storage/update/applying`

@@ -176,11 +176,13 @@ scheme+host+pad (nooit de query, die tokens kan bevatten).
   per-bestand-manifest, gecontroleerd na uitpakken); de constanten
   `APP_REQ_PHP`/`APP_REQ_FROM` van het `App.php` van het pakket declareren de
   vereisten (PHP-versie, minimale bronversie) die vóór het kopiëren worden
-  afgedwongen. Zolang de repo **private** blijft, is een GitHub-PAT
-  (`Contents: Read`-toegang tot de repo) vereist, geconfigureerd in
-  `config.php`: de API, de assets (geserveerd via het endpoint
-  `releases/assets/<id>` - de `browser_download_url` geeft 404 op een
-  private repo, ook geauthenticeerd) en de `raw`'s hangen ervan af.
+  afgedwongen. De officiële repo is **publiek**: de API, de assets en de
+  `raw`'s werken zonder token (het anonieme API-quota van GitHub wordt gedekt
+  door de `cache.update_ttl`-cache). Een optionele, in `config.php`
+  geconfigureerde GitHub-PAT (`Contents: Read`-toegang tot de repo) kan het
+  quota verhogen of een private fork bedienen via `update.repo` - assets
+  worden dan geserveerd via het endpoint `releases/assets/<id>`
+  (`browser_download_url` geeft 404 op een private repo, ook geauthenticeerd).
   `update.plugins_local` en `update.manifest_url` (alternatief
   release-manifest) zijn voorbehouden aan dev/tests - alleen aanpasbaar via
   `config.php`, nooit via de admin-API. Tijdens het kopiëren onderbreekt de

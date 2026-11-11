@@ -48,9 +48,9 @@ wynieść `app/` poza webroot, przenieś folder i dostosuj tę ścieżkę
      przez `upload_max_filesize`/`post_max_size`). Limit per plik
      `attachment_max_size` jest zapisywany pochodnie: `min(25,
      attachments_max_total)`.
-   - **Baza danych**: SQLite (domyślnie) lub MariaDB/MySQL. Przy MariaDB
-     wykonywany jest prawdziwy test połączenia; baza jest tworzona
-     (`utf8mb4`) przy instalacji.
+   - **Baza danych**: SQLite (domyślnie), MariaDB >= 10.x lub MySQL >= 8.0.
+     Przy MariaDB/MySQL wykonywany jest prawdziwy test połączenia; baza jest
+     tworzona (`utf8mb4`) przy instalacji.
    - **Administrator**: lokalne konto admina (`admin_user` + hasło ≥ 8
      znaków). Jeśli zostawisz te pola puste, login admina spada na
      użytkownika `is_admin` uwierzytelnionego przez IMAP (zob.

@@ -2,8 +2,8 @@
 
 *Fransızcadan çevrilmiştir - Fransızca sürüm esastır.*
 
-MXWebMail **SQLite** (varsayılan) veya **MariaDB/MySQL** ile çalışır.
-Sürücü `config.php` içinde `db_dsn` ile seçilir.
+MXWebMail **SQLite** (varsayılan), **MariaDB >= 10.x** veya **MySQL >= 8.0**
+ile çalışır. Sürücü `config.php` içinde `db_dsn` ile seçilir.
 
 ## 1. Bağlantı
 
@@ -18,10 +18,13 @@ PDO seçenekleri: `ERRMODE_EXCEPTION`, `FETCH_ASSOC`,
 
 ## 2. Geçişler
 
-Şema SQLite/MariaDB arasında **taşınabilir** (otomatik artan birincil
-anahtarlar sürücüye uyarlanmış). Geçişler sürümlenir (`meta.schema_version`)
-ve veritabanına ilk erişimde (`App::db()`) otomatik uygulanır, kurulum
-dahil.
+Şema SQLite/MariaDB/MySQL arasında **taşınabilir** (otomatik artan birincil
+anahtarlar sürücüye uyarlanmış; v12'de kullanılan SQL pencere fonksiyonları
+için MySQL >= 8.0 gerekli). Geçişler sürümlenir (`meta.schema_version`) ve
+veritabanına ilk erişimde (`App::db()`) otomatik uygulanır, kurulum dahil.
+`mysql` sürücüsünde zaten mevcut nesneler (sütun, indeks) `information_schema`
+üzerinden algılanır: yarım kalan geçiş sonrası yeniden çalıştırma
+idempotent'tir.
 
 Kod güncellemesinden sonra *Hakkında* sekmesi **sonuçlandırma**
 (`/api/admin/update/finalize`) çalıştırır: yeni sürümün geçişleri admin
@@ -76,7 +79,7 @@ Bu **MariaDB altında da geçerli**: kişisel veriler SQLite dosyalarında kalı
 kopyalar (işlem + `INSERT OR IGNORE`, kendini onaran), ardından genel
 tabloları siler.
 
-## 6. SQLite'tan MariaDB'ye geçiş
+## 6. SQLite'tan MariaDB/MySQL'e geçiş
 
 1. Admin'de (*Veritabanı*) MariaDB DSN/host/port/ad/kullanıcı/parola
    girin. Bağlantı testi **zorunlu**dur ve taban yoksa onu oluşturur
@@ -91,5 +94,5 @@ tabloları siler.
 
 - SQLite: `app/storage/db/webmail.sqlite` (+ `db/users/*.sqlite`) ve
   `app.key`'i kopyalayın.
-- MariaDB: tabanı `mysqldump` ile dökün, artı `app.key` ve
-  `db/users/*.sqlite`.
+- MariaDB/MySQL: tabanı `mysqldump` ile dökün (MariaDB'de `mariadb-dump`),
+  artı `app.key` ve `db/users/*.sqlite`.

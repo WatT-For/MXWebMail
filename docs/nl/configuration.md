@@ -68,7 +68,8 @@ parameters.
 ## Updates
 
 De officiele repository is vergrendeld in `GitHubClient::REPO`
-(`WatT-For/MXWebMail`). Deze sectie - gedeeld door de kern-updater en de
+(`WatT-For/MXWebMail`) en **publiek**: check en download werken zonder token.
+Deze sectie - gedeeld door de kern-updater en de
 plugin-catalogus (gelezen in de repo op ref `update.plugins_ref`, elk
 gedownload bestand geverifieerd op git-blob-sha1) - is niet via de admin
 bewerkbaar (behalve `channel`).

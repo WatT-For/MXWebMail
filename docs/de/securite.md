@@ -174,11 +174,13 @@ derselben Regel.
   `files.sha256` (eingebettetes Pro-Datei-Manifest, nach Extraktion geprüft);
   die `APP_REQ_PHP`/`APP_REQ_FROM`-Konstanten des `App.php` des Pakets
   deklarieren die Voraussetzungen (PHP-Version, minimale Quellversion), die vor
-  dem Kopieren durchgesetzt werden. Solange das Repo **privat** bleibt, ist ein
-  in `config.php` konfiguriertes GitHub-PAT (`Contents: Read`-Zugriff auf das
-  Repo) erforderlich: API, Assets (über den `releases/assets/<id>`-Endpunkt
-  ausgeliefert - `browser_download_url` liefert auf privatem Repo selbst
-  authentifiziert 404) und `raw` hängen davon ab. `update.plugins_local` und
+  dem Kopieren durchgesetzt werden. Das offizielle Repo ist **öffentlich**:
+  API, Assets und `raw` funktionieren ohne Token (die anonyme API-Quote von
+  GitHub wird durch den `cache.update_ttl`-Cache abgedeckt). Ein optionales,
+  in `config.php` konfiguriertes GitHub-PAT (`Contents: Read`-Zugriff) kann
+  die Quote erhöhen oder einen privaten Fork über `update.repo` bedienen -
+  Assets werden dann über den `releases/assets/<id>`-Endpunkt ausgeliefert
+  (`browser_download_url` liefert auf privatem Repo selbst authentifiziert 404). `update.plugins_local` und
   `update.manifest_url` (alternatives Release-Manifest) sind für Dev/Tests
   reserviert - nur via `config.php` editierbar, nie via Admin-API. Während des
   Dateikopiens unterbricht das `storage/update/applying`-Flag die

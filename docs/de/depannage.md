@@ -98,15 +98,19 @@ Datenmigrationstool.
 
 **"Fehler: Auf GitHub nicht gefunden … privates Repo oder fehlende Ressource"**
 Das offizielle Repository ist verriegelt (`GitHubClient::REPO` =
-`WatT-For/MXWebMail`). GitHub liefert 404 - nicht 403 - für eine fehlende
-Ressource oder unzureichenden Zugriff; die Meldung nennt den fehlerhaften
-Endpunkt (`releases/latest`, `commits/…` oder einen `raw`-Pfad des
-Plugin-Katalogs). Ein anhaltender 404 bedeutet in der Regel eine fehlende
-Ressource (keine Release veröffentlicht, unbekannter `update.plugins_ref`).
+`WatT-For/MXWebMail`) und **öffentlich**: kein Token erforderlich. GitHub
+liefert 404 - nicht 403 - für eine fehlende Ressource oder unzureichenden
+Zugriff; die Meldung nennt den fehlerhaften Endpunkt (`releases/latest`,
+`commits/…` oder einen `raw`-Pfad des Plugin-Katalogs). Ein anhaltender 404
+bedeutet in der Regel eine fehlende Ressource (keine Release veröffentlicht,
+unbekannter `update.plugins_ref`). Der Fall "privates Repo" betrifft nur
+einen über `update.repo` + PAT in `config.php` konfigurierten Fork.
 
 **HTTP 404 auf `…/releases/download/…` (Plugin-Katalog oder Update-Download)**
-Auf privatem Repo liefert die `browser_download_url` der Assets selbst mit
-gültigem Token 404. Seit 0.36.1 behoben: Assets werden über den API-Endpunkt
+Auf dem öffentlichen offiziellen Repo funktioniert `browser_download_url`.
+Der Fall betrifft nur einen privaten Fork über `update.repo`:
+`browser_download_url` liefert dort selbst mit gültigem Token 404 - seit
+0.36.1 behoben, Assets werden dann über den API-Endpunkt
 `releases/assets/<id>` heruntergeladen, wenn ein PAT in `config.php`
 konfiguriert ist.
 

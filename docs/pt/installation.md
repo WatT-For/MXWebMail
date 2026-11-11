@@ -49,9 +49,9 @@ relativo).
      `upload_max_filesize`/`post_max_size`). O limite por ficheiro
      `attachment_max_size` é escrito derivado: `min(25,
      attachments_max_total)`.
-   - **Base de dados**: SQLite (predefinição) ou MariaDB/MySQL. Em MariaDB,
-     efetua-se um teste de ligação real; a base é criada (`utf8mb4`) na
-     instalação.
+   - **Base de dados**: SQLite (predefinição), MariaDB >= 10.x ou
+     MySQL >= 8.0. Em MariaDB/MySQL, efetua-se um teste de ligação real; a
+     base é criada (`utf8mb4`) na instalação.
    - **Administrador**: conta admin local (`admin_user` + palavra-passe ≥ 8
      caracteres). Se deixar estes campos vazios, o login admin recai sobre
      um utilizador `is_admin` autenticado via IMAP (ver

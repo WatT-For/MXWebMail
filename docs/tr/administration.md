@@ -223,8 +223,9 @@ eder (denetim, indirme, uygulama, geri yükleme):
   işaretler;
 - indirilen/açılan paketi terk etmek için *Sıfırla* eylemi.
 
-> Resmi repo `GitHubClient::REPO`'da kilitli: dolu olana kadar denetim
-> devre dışı. `update.channel` burada düzenlenebilir kalır; `update.repo`
+> Resmi repo `GitHubClient::REPO`'da kilitli ve **genel**: denetim
+> yapılandırma veya token olmadan çalışır (yalnızca sabit dolu değilken devre
+> dışı). `update.channel` burada düzenlenebilir kalır; `update.repo`
 > `config.php`'de elle ayarlanır.
 
 ## 3. `config.php` yazımı

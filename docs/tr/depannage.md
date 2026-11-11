@@ -94,15 +94,19 @@ başına kişi dosyaları korunur). Veri taşıma aracı yok.
 ## Güncellemeler
 
 **"Hata: GitHub'da bulunamadı … özel repo veya eksik kaynak"**
-Resmi repo kilitli (`GitHubClient::REPO` = `WatT-For/MXWebMail`). GitHub
-eksik kaynak veya yetersiz erişim için 403 değil 404 döndürür; mesaj suçlu
-uç noktayı gösterir (`releases/latest`, `commits/…` veya eklenti
-kataloğunun `raw` yolu). Kalıcı 404 genelde eksik kaynak anlamına gelir
-(yayınlanmış release yok, bilinmeyen `update.plugins_ref`).
+Resmi repo kilitli (`GitHubClient::REPO` = `WatT-For/MXWebMail`) ve
+**genel**: token gerekmez. GitHub eksik kaynak veya yetersiz erişim için
+403 değil 404 döndürür; mesaj suçlu uç noktayı gösterir (`releases/latest`,
+`commits/…` veya eklenti kataloğunun `raw` yolu). Kalıcı 404 genelde eksik
+kaynak anlamına gelir (yayınlanmış release yok, bilinmeyen
+`update.plugins_ref`). "Özel repo" durumu yalnızca `update.repo` +
+`config.php`'de PAT ile yapılandırılmış bir fork'u ilgilendirir.
 
 **`…/releases/download/…` üzerinde HTTP 404 (eklenti kataloğu veya güncelleme indirmesi)**
-Özel repoda assetlerin `browser_download_url`'i geçerli token ile bile 404
-döndürür. 0.36.1'den itibaren düzeltildi: `config.php`'de PAT yapılandırılmışsa
+Genel resmi repoda `browser_download_url` çalışır. Durum yalnızca
+`update.repo` üzerinden özel bir fork için geçerlidir:
+`browser_download_url` orada geçerli token ile bile 404 döndürür -
+0.36.1'den itibaren düzeltildi, `config.php`'de PAT yapılandırılmışsa
 assetler `releases/assets/<id>` API uç noktasından indirilir.
 
 **Güncelleme sırasında site 503 "update" / bakım sayfası veriyor**

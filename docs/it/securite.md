@@ -167,11 +167,13 @@ conservano solo scheme+host+path (mai la query, che può contenere token).
   della release) poi `files.sha256` (manifest per-file incorporato,
   controllato dopo l'estrazione); le costanti `APP_REQ_PHP`/`APP_REQ_FROM`
   dell'`App.php` del pacchetto dichiarano i prerequisiti (versione PHP,
-  versione sorgente minima) applicati prima della copia. Finché il repo resta
-  **privato**, è richiesto un PAT GitHub (accesso `Contents: Read` al repo)
-  configurato in `config.php`: l'API, gli asset (serviti via l'endpoint
-  `releases/assets/<id>` - il `browser_download_url` restituisce 404 su repo
-  privato anche autenticato) e i `raw` dipendono da esso.
+  versione sorgente minima) applicati prima della copia. Il repo ufficiale è
+  **pubblico**: l'API, gli asset e i `raw` funzionano senza token (la quota
+  anonima dell'API GitHub è coperta dalla cache `cache.update_ttl`). Un PAT
+  GitHub opzionale (accesso `Contents: Read` al repo) configurato in
+  `config.php` può elevare la quota o servire un fork privato via `update.repo`
+  - gli asset passano allora per l'endpoint `releases/assets/<id>` (il
+  `browser_download_url` restituisce 404 su repo privato anche autenticato).
   `update.plugins_local` e `update.manifest_url` (manifest di release
   alternativo) sono riservati a dev/test - modificabili solo via
   `config.php`, mai via l'API admin. Durante la copia dei file, il flag

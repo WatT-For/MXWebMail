@@ -216,8 +216,9 @@ Releases (vérification, téléchargement, application, restauration) :
   sans restauration de base ;
 - action *Réinitialiser* pour abandonner un paquet téléchargé/extrait.
 
-> Le dépôt officiel est verrouillé dans `GitHubClient::REPO` : la vérification est
-> désactivée tant qu'il n'est pas renseigné. `update.channel` reste modifiable ici ;
+> Le dépôt officiel est verrouillé dans `GitHubClient::REPO` et **public** : la
+> vérification fonctionne sans configuration ni token (elle est désactivée tant
+> que la constante n'est pas renseignée). `update.channel` reste modifiable ici ;
 > `update.repo` se règle manuellement dans `config.php`.
 
 ## 3. Écriture de `config.php`

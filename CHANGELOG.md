@@ -6,6 +6,13 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) -
 semver `0.MINOR.PATCH` en développement.
 Catégories, dans l'ordre : `Sécurité`, `Ajouté`, `Modifié`, `Corrigé`, `Obsolète`, `Supprimé`.
 
+## [0.54.1] - 2026-11-11
+
+### Corrigé
+
+- Filtres Sieve : les refus du serveur ManageSieve (NO/BAD sur `CHECKSCRIPT`, `PUTSCRIPT`, `GETSCRIPT`, `SETACTIVE`, `DELETESCRIPT`) retournaient une 500 masquée "Erreur interne" - ils affichent désormais le motif du serveur en 400 (404 `NONEXISTENT`, 401 login refusé, 503 hôte injoignable), et les extensions `require` non annoncées sont refusées localement avant envoi.
+- Migrations bloquées sur MySQL vanilla : `CREATE INDEX IF NOT EXISTS` (schéma v13) est une syntaxe MariaDB/SQLite que MySQL rejette (erreur 1064), ce qui figeait `schema_version` et rendait l'application inutilisable. La syntaxe est désormais dispatchée par driver et les re-runs sur driver `mysql` (MySQL comme MariaDB) sautent via `information_schema` les colonnes et index déjà créés - un échec à mi-migration ne bloque plus la reprise.
+
 ## [0.54.0] - 2026-11-10
 
 ### Ajouté

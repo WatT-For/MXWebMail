@@ -67,7 +67,8 @@ Los servidores IMAP/SMTP/Sieve se configuran **por dominio** en el admin (ver
 ## Actualizaciones
 
 El repositorio oficial está bloqueado en `GitHubClient::REPO`
-(`WatT-For/MXWebMail`). Esta sección - compartida por el updater núcleo y el
+(`WatT-For/MXWebMail`) y es **público**: la verificación y la descarga
+funcionan sin token. Esta sección - compartida por el updater núcleo y el
 catálogo de plugins (leído en el repo en el ref `update.plugins_ref`, cada
 archivo descargado verificado por sha1 de blob git) - no es editable vía el
 admin (salvo `channel`).

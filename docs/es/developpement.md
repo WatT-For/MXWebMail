@@ -94,8 +94,9 @@ Ver [plugins.md](plugins.md) para crear un plugin.
   `storage/cache/update-check.json`. Cada asset truncado lleva
   `download_url`, resuelto por `pickUrl()`: endpoint API
   `releases/assets/<id>` (`Accept: application/octet-stream`) si un PAT está
-  configurado en `config.php` - obligatorio en repo privado donde
-  `browser_download_url` devuelve 404 - si no, `browser_download_url`.
+  configurado en `config.php` - obligatorio en un fork privado donde
+  `browser_download_url` devuelve 404, opcional si no (cuota API) - si no,
+  `browser_download_url` (el repo oficial es público).
   Cachés de plugins: `plugins-ref.json` (TTL `update_ttl`),
   `plugins-tree-<sha>.json` y `plugin-manifest-<name>-<sha>.json`
   (inmutables).

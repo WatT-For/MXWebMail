@@ -157,10 +157,13 @@ dans `trusted_proxies` (CIDR). La détection HTTPS (`isHttps`) suit la même rè
   sha256 de l'asset (fichier `<zip>.sha256` de la release) puis `files.sha256`
   (manifeste par fichier embarqué, contrôlé après extraction) ; les constantes
   `APP_REQ_PHP`/`APP_REQ_FROM` du `App.php` du paquet déclarent les prérequis
-  (version PHP, version source minimale) appliqués avant copie. Tant que le dépôt reste **privé**, un PAT GitHub
-  (accès `Contents: Read` au dépôt) configuré dans `config.php` est requis : l'API, les assets (servis via
-  l'endpoint `releases/assets/<id>` - le `browser_download_url` renvoie 404 sur
-  dépôt privé même authentifié) et les `raw` en dépendent. `update.plugins_local`
+  (version PHP, version source minimale) appliqués avant copie. Le dépôt officiel
+  est **public** : l'API, les assets et les `raw` fonctionnent sans token (le quota
+  anonyme de l'API GitHub est couvert par le cache `cache.update_ttl`). Un PAT GitHub
+  optionnel (accès `Contents: Read` au dépôt) peut être configuré dans `config.php`
+  pour relever le quota ou servir un fork privé via `update.repo` - les assets
+  passent alors par l'endpoint `releases/assets/<id>` (`browser_download_url`
+  renvoie 404 sur dépôt privé même authentifié). `update.plugins_local`
   et `update.manifest_url` (manifeste de release alternatif) sont réservés au
   dev/tests - modifiables uniquement via `config.php`, jamais via l'API admin.
   Pendant la copie des fichiers, le flag `storage/update/applying` coupe l'API

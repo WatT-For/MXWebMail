@@ -901,6 +901,16 @@ export class SettingsVM {
 
 	newFilter(tpl = 'empty') {
 		this.filtersError('');
+		// Gabarit exigeant une extension Sieve non annoncée (ex. fileinto
+		// absent du serveur) : erreur explicite plutôt que refus au save.
+		const missing = templateRules(tpl, {})
+			.flatMap(r => r.actions || [])
+			.map(a => ACTIONS.find(x => x.value === a.type)?.module)
+			.find(m => m && !this.sieveModules().includes(m));
+		if (missing) {
+			this.filtersError(t('errors.sieve_module', { module: missing }));
+			return;
+		}
 		this.filterMode('assistant');
 		this.compiledSource('');
 		this.editingFilter({ name: tpl === 'empty' ? '' : t('settings.filters.tpl_' + tpl),

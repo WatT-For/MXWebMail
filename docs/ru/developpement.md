@@ -93,8 +93,9 @@ inline-блок в зоне `section` (напр. `security-account`); с `tab` +
   `storage/cache/update-check.json`. Каждый обрезанный ассет несёт
   `download_url`, разрешаемый `pickUrl()`: эндпоинт API `releases/assets/<id>`
   (`Accept: application/octet-stream`) если PAT настроен в `config.php` -
-  обязательно на приватном репо, где `browser_download_url` отдаёт 404 -
-  иначе `browser_download_url`. Кэши плагинов: `plugins-ref.json` (TTL
+  обязательно на приватном форке, где `browser_download_url` отдаёт 404,
+  опционально иначе (квота API) - иначе `browser_download_url` (официальный
+  репо публичный). Кэши плагинов: `plugins-ref.json` (TTL
   `update_ttl`), `plugins-tree-<sha>.json` и
   `plugin-manifest-<name>-<sha>.json` (неизменные).
 - `PluginPackageService`: `catalog()`, `install()` (стейджит каждый файл

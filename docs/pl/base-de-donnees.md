@@ -2,8 +2,8 @@
 
 *Tłumaczenie z francuskiego - wersja francuska jest wiążąca.*
 
-MXWebMail działa z **SQLite** (domyślnie) lub **MariaDB/MySQL**. Sterownik
-wybiera się przez `db_dsn` w `config.php`.
+MXWebMail działa z **SQLite** (domyślnie), **MariaDB >= 10.x** lub
+**MySQL >= 8.0**. Sterownik wybiera się przez `db_dsn` w `config.php`.
 
 ## 1. Połączenie
 
@@ -17,10 +17,13 @@ Opcje PDO: `ERRMODE_EXCEPTION`, `FETCH_ASSOC`, `EMULATE_PREPARES=false`.
 
 ## 2. Migracje
 
-Schemat jest **przenośny** między SQLite/MariaDB (klucze główne
-autoincrementowane dopasowane do sterownika). Migracje są wersjonowane
+Schemat jest **przenośny** między SQLite/MariaDB/MySQL (klucze główne
+autoincrementowane dopasowane do sterownika; MySQL >= 8.0 wymagany dla funkcji
+okienkowych SQL używanych w v12). Migracje są wersjonowane
 (`meta.schema_version`) i stosowane automatycznie przy pierwszym dostępie do
-bazy (`App::db()`), także podczas instalacji.
+bazy (`App::db()`), także podczas instalacji. Pod sterownikiem `mysql` obiekty
+już obecne (kolumna, indeks) są wykrywane przez `information_schema`: ponowne
+uruchomienie po nieudanej migracji w połowie jest idempotentne.
 
 Po aktualizacji kodu, zakładka *Informacje* uruchamia **finalizację**
 (`/api/admin/update/finalize`): migracje nowej wersji wykonują się w
@@ -75,7 +78,7 @@ Migracja `contacts_moved` kopiuje jednorazowo kontakty z bazy globalnej do
 tych plików (transakcja + `INSERT OR IGNORE`, samonaprawcza), a potem
 usuwa tabele globalne.
 
-## 6. Przejście z SQLite na MariaDB
+## 6. Przejście z SQLite na MariaDB/MySQL
 
 1. W adminie (*Baza danych*), podaj DSN/host/port/nazwę/użytkownika/hasło
    MariaDB. Test połączenia jest **obowiązkowy** i tworzy bazę (`utf8mb4`,
@@ -90,5 +93,5 @@ usuwa tabele globalne.
 
 - SQLite: skopiuj `app/storage/db/webmail.sqlite` (+ `db/users/*.sqlite`) i
   `app.key`.
-- MariaDB: zrób dump bazy przez `mysqldump`, plus `app.key` i
-  `db/users/*.sqlite`.
+- MariaDB/MySQL: zrób dump bazy przez `mysqldump` (lub `mariadb-dump` pod
+  MariaDB), plus `app.key` i `db/users/*.sqlite`.

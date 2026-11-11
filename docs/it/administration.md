@@ -231,8 +231,9 @@ ripristino):
   ripristino del database;
 - azione *Reinizializza* per abbandonare un pacchetto scaricato/estratto.
 
-> Il repository ufficiale è bloccato in `GitHubClient::REPO`: la verifica è
-> disattivata finché non è compilato. `update.channel` resta modificabile
+> Il repository ufficiale è bloccato in `GitHubClient::REPO` ed è **pubblico**:
+> la verifica funziona senza configurazione né token (è disattivata solo
+> finché la costante non è compilata). `update.channel` resta modificabile
 > qui; `update.repo` si imposta manualmente in `config.php`.
 
 ## 3. Scrittura di `config.php`

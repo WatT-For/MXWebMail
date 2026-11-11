@@ -48,9 +48,9 @@ anpassen (absolut oder relativ).
      auf 25 MB begrenzt und durch `upload_max_filesize`/`post_max_size`
      beschränkt). Das Limit pro Datei `attachment_max_size` wird abgeleitet
      geschrieben: `min(25, attachments_max_total)`.
-   - **Datenbank**: SQLite (Standard) oder MariaDB/MySQL. Bei MariaDB wird ein
-     echter Verbindungstest durchgeführt; die Datenbank wird bei der
-     Installation angelegt (`utf8mb4`).
+   - **Datenbank**: SQLite (Standard), MariaDB >= 10.x oder MySQL >= 8.0. Bei
+     MariaDB/MySQL wird ein echter Verbindungstest durchgeführt; die Datenbank
+     wird bei der Installation angelegt (`utf8mb4`).
    - **Administrator**: lokales Admin-Konto (`admin_user` + Passwort ≥ 8
      Zeichen). Lassen Sie diese Felder leer, fällt der Admin-Login auf einen
      via IMAP authentifizierten `is_admin`-Benutzer zurück (siehe

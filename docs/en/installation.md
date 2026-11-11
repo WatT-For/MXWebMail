@@ -45,9 +45,9 @@ relative).
      25 MB by default and bounded by `upload_max_filesize`/`post_max_size`).
      The per-file limit `attachment_max_size` is written derived:
      `min(25, attachments_max_total)`.
-   - **Database**: SQLite (default) or MariaDB/MySQL. With MariaDB, a real
-     connection test is performed; the database is created (`utf8mb4`) at
-     install time.
+   - **Database**: SQLite (default), MariaDB >= 10.x or MySQL >= 8.0. With
+     MariaDB/MySQL, a real connection test is performed; the database is
+     created (`utf8mb4`) at install time.
    - **Administrator**: local admin account (`admin_user` + password ≥ 8
      characters). If you leave these fields empty, admin login falls back to an
      `is_admin` user authenticated via IMAP (see

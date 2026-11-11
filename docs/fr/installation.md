@@ -41,8 +41,9 @@ de la racine web, déplacez le dossier puis adaptez ce chemin (absolu ou relatif
      cumulée maximale des pièces jointes (`attachments_max_total`, plafonnée à 25 Mo par
      défaut et bornée par `upload_max_filesize`/`post_max_size`). La limite par fichier
      `attachment_max_size` est écrite en dérivée : `min(25, attachments_max_total)`.
-   - **Base de données** : SQLite (défaut) ou MariaDB/MySQL. En MariaDB, un test de
-     connexion réel est effectué ; la base est créée (`utf8mb4`) à l'installation.
+   - **Base de données** : SQLite (défaut), MariaDB >= 10.x ou MySQL >= 8.0. En
+     MariaDB/MySQL, un test de connexion réel est effectué ; la base est créée
+     (`utf8mb4`) à l'installation.
    - **Administrateur** : compte admin local (`admin_user` + mot de passe ≥ 8 caractères).
      Si vous laissez ces champs vides, le login admin retombe sur un utilisateur `is_admin`
      authentifié via IMAP (voir [administration.md](administration.md)).

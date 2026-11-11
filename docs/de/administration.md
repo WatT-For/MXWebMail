@@ -229,9 +229,11 @@ Releases (Prüfung, Download, Anwendung, Wiederherstellung):
 - *Zurücksetzen*-Aktion, um ein heruntergeladenes/entpacktes Paket zu
   verwerfen.
 
-> Das offizielle Repository ist in `GitHubClient::REPO` verriegelt: die Prüfung
-> ist deaktiviert, solange es nicht gesetzt ist. `update.channel` bleibt hier
-> editierbar; `update.repo` wird manuell in `config.php` eingestellt.
+> Das offizielle Repository ist in `GitHubClient::REPO` verriegelt und
+> **öffentlich**: die Prüfung funktioniert ohne Konfiguration oder Token (sie
+> ist nur deaktiviert, solange die Konstante nicht gesetzt ist).
+> `update.channel` bleibt hier editierbar; `update.repo` wird manuell in
+> `config.php` eingestellt.
 
 ## 3. Schreiben von `config.php`
 

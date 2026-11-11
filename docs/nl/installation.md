@@ -50,9 +50,9 @@ app/storage/       runtime: db, cache, logs, tmp, app.key, INSTALLED - nooit in 
      `upload_max_filesize`/`post_max_size`). De limiet per bestand
      `attachment_max_size` wordt afgeleid geschreven: `min(25,
      attachments_max_total)`.
-   - **Database**: SQLite (standaard) of MariaDB/MySQL. Bij MariaDB wordt
-     een echte verbindingstest gedaan; de database wordt aangemaakt
-     (`utf8mb4`) bij de installatie.
+   - **Database**: SQLite (standaard), MariaDB >= 10.x of MySQL >= 8.0. Bij
+     MariaDB/MySQL wordt een echte verbindingstest gedaan; de database wordt
+     aangemaakt (`utf8mb4`) bij de installatie.
    - **Beheerder**: lokaal admin-account (`admin_user` + wachtwoord ≥ 8
      tekens). Laat u deze velden leeg, dan valt de admin-login terug op een
      `is_admin`-gebruiker geauthenticeerd via IMAP (zie

@@ -231,8 +231,9 @@ GitHub Releases (verificación, descarga, aplicación, restauración):
   archivos sin restauración de base;
 - acción *Reinicializar* para abandonar un paquete descargado/extraído.
 
-> El repositorio oficial está bloqueado en `GitHubClient::REPO`: la
-> verificación está desactivada mientras no esté informado. `update.channel`
+> El repositorio oficial está bloqueado en `GitHubClient::REPO` y es
+> **público**: la verificación funciona sin configuración ni token (solo está
+> desactivada mientras la constante no esté informada). `update.channel`
 > sigue editable aquí; `update.repo` se ajusta manualmente en `config.php`.
 
 ## 3. Escritura de `config.php`

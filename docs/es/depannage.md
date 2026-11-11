@@ -97,17 +97,20 @@ migración de datos.
 
 **"Fallo: No encontrado en GitHub … repo privado o recurso ausente"**
 El repositorio oficial está bloqueado (`GitHubClient::REPO` =
-`WatT-For/MXWebMail`). GitHub devuelve 404 - no 403 - para un recurso ausente
-o un acceso insuficiente; el mensaje indica el endpoint culpable
-(`releases/latest`, `commits/…` o una ruta `raw` del catálogo de plugins). Un
-404 persistente significa en general un recurso ausente (ninguna release
-publicada, `update.plugins_ref` desconocido).
+`WatT-For/MXWebMail`) y es **público**: no se requiere token. GitHub devuelve
+404 - no 403 - para un recurso ausente o un acceso insuficiente; el mensaje
+indica el endpoint culpable (`releases/latest`, `commits/…` o una ruta `raw`
+del catálogo de plugins). Un 404 persistente significa en general un recurso
+ausente (ninguna release publicada, `update.plugins_ref` desconocido). El
+caso "repo privado" solo concierne a un fork configurado vía `update.repo` +
+PAT en `config.php`.
 
 **HTTP 404 en `…/releases/download/…` (catálogo de plugins o descarga de actualización)**
-En repo privado, el `browser_download_url` de los assets devuelve 404 incluso
-con un token válido. Corregido a partir de la 0.36.1: los assets se descargan
-vía el endpoint API `releases/assets/<id>` cuando un PAT está configurado en
-`config.php`.
+En el repo oficial público, `browser_download_url` funciona. El caso solo
+tiene sentido para un fork privado vía `update.repo`: `browser_download_url`
+devuelve allí 404 incluso con un token válido - corregido a partir de la
+0.36.1, los assets se descargan entonces vía el endpoint API
+`releases/assets/<id>` cuando un PAT está configurado en `config.php`.
 
 **El sitio responde 503 "update" / página de mantenimiento durante una actualización**
 Normal: el flag `app/storage/update/applying` corta la API de usuario durante

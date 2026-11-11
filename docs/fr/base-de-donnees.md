@@ -1,7 +1,7 @@
 # Base de données
 
-MXWebMail fonctionne avec **SQLite** (défaut) ou **MariaDB/MySQL**. Le pilote est choisi
-par `db_dsn` dans `config.php`.
+MXWebMail fonctionne avec **SQLite** (défaut), **MariaDB >= 10.x** ou **MySQL >= 8.0**.
+Le pilote est choisi par `db_dsn` dans `config.php`.
 
 ## 1. Connexion
 
@@ -13,9 +13,12 @@ Options PDO : `ERRMODE_EXCEPTION`, `FETCH_ASSOC`, `EMULATE_PREPARES=false`.
 
 ## 2. Migrations
 
-Le schéma est **portable** SQLite/MariaDB (clés primaires auto-incrément adaptées au
-driver). Les migrations sont versionnées (`meta.schema_version`) et appliquées
+Le schéma est **portable** SQLite/MariaDB/MySQL (clés primaires auto-incrément adaptées
+au driver ; MySQL >= 8.0 requis pour les fonctions de fenêtrage SQL utilisées en v12).
+Les migrations sont versionnées (`meta.schema_version`) et appliquées
 automatiquement au premier accès à la base (`App::db()`), y compris pendant l'installation.
+Sous driver `mysql`, les objets déjà présents (colonne, index) sont détectés via
+`information_schema` : un re-run après échec à mi-migration est idempotent.
 
 Après une mise à jour du code, l'onglet *À propos* déclenche la **finalisation**
 (`/api/admin/update/finalize`) : les migrations de la nouvelle version tournent en
@@ -67,7 +70,7 @@ La migration `contacts_moved` copie une seule fois les contacts de la base globa
 fichiers (transaction + `INSERT OR IGNORE`, auto-réparante), puis supprime les tables
 globales.
 
-## 6. Passer de SQLite à MariaDB
+## 6. Passer de SQLite à MariaDB/MySQL
 
 1. Dans l'admin (*Base de données*), renseignez le DSN/hôte/port/nom/utilisateur/mot de
    passe MariaDB. Le test de connexion est **obligatoire** et crée la base (`utf8mb4`,
@@ -81,5 +84,6 @@ globales.
 ## 7. Sauvegarde / restauration
 
 - SQLite : copiez `app/storage/db/webmail.sqlite` (+ `db/users/*.sqlite`) et `app.key`.
-- MariaDB : sauvegardez la base avec `mysqldump`, plus `app.key` et `db/users/*.sqlite`.
+- MariaDB/MySQL : sauvegardez la base avec `mysqldump` (ou `mariadb-dump` sous MariaDB),
+  plus `app.key` et `db/users/*.sqlite`.
 

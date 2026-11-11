@@ -1156,13 +1156,69 @@ final class MailService
 			$settings = AuthService::sieveSettings($domain);
 			$this->applyAuth($settings);
 
-			$this->sieveClient = new \MailSo\Sieve\SieveClient();
-			$this->sieveClient->SetLogger(\MXWebMail\API::Logger());
-			$this->app->hooks()->run('sieve.before-connect', $this->sieveClient, $settings);
-			$this->sieveClient->Connect($settings);
-			$this->sieveClient->Login($settings);
+			$client = new \MailSo\Sieve\SieveClient();
+			$client->SetLogger(\MXWebMail\API::Logger());
+			$this->app->hooks()->run('sieve.before-connect', $client, $settings);
+			try {
+				$client->Connect($settings);
+				$client->Login($settings);
+			} catch (\MailSo\Sieve\Exceptions\LoginException $e) {
+				// NO/BAD pendant le login (credentials refusés par le
+				// backend ManageSieve - ex. secondaire dont le mot de
+				// passe Sieve diffère de l'IMAP) > refus d'authentification.
+				throw new UserFacingException(
+					$this->t('errors.bad_credentials'), 401, $e);
+			} catch (\MailSo\Net\Exceptions\ConnectionException
+				| \MailSo\Net\Exceptions\SocketReadException
+				| \MailSo\Net\Exceptions\SocketReadTimeoutException
+				| \MailSo\Net\Exceptions\SocketWriteException
+				| \MailSo\Sieve\Exceptions\ResponseException $e) {
+				// Réseau, TLS, bannière illisible : serveur ManageSieve
+				// injoignable ou défaillant - host dans le message, détail
+				// technique déjà tracé dans mail.log.
+				throw new UserFacingException($this->t('errors.sieve_unreachable',
+					['host' => $settings->host]), 503, $e);
+			}
+			$this->sieveClient = $client;
 		}
 		return $this->sieveClient;
+	}
+
+	/**
+	 * Exécute une commande ManageSieve avec mapping des erreurs : sans lui,
+	 * tout NO/BAD remonte en NegativeResponseException (code 0) > 500
+	 * "Erreur interne" opaque. (NONEXISTENT) > 404, autre refus > 400
+	 * avec le motif serveur nettoyé, login > 401.
+	 */
+	private function sieveRun(callable $fn): mixed
+	{
+		try {
+			return $fn($this->sieve());
+		} catch (\MailSo\Sieve\Exceptions\LoginException $e) {
+			throw new UserFacingException($this->t('errors.bad_credentials'), 401, $e);
+		} catch (\MailSo\Sieve\Exceptions\NegativeResponseException $e) {
+			if (str_contains($e->getMessage(), '(NONEXISTENT)')) {
+				throw new UserFacingException(
+					$this->t('errors.filter_not_found'), 404, $e);
+			}
+			throw new UserFacingException(
+				$this->t('errors.sieve_rejected',
+					['detail' => self::sieveErrorDetail($e->getMessage())]), 400, $e);
+		}
+	}
+
+	/**
+	 * Dernière ligne d'un NO/BAD ManageSieve > texte affichable : CRLF
+	 * aplaties, préfixes "NO "/"BAD " et noms de fichier temporaires
+	 * Dovecot ("<epoch>.M..P...<host>.tmp:" - qui fuiterait l'hostname)
+	 * retirés.
+	 */
+	private static function sieveErrorDetail(string $message): string
+	{
+		$detail = (string) preg_replace('/\s*\r?\n\s*/', ' ', trim($message));
+		$detail = (string) preg_replace('/^(NO|BAD)\s+/i', '', $detail);
+		$detail = trim((string) preg_replace('/[0-9]+\.\S*\.tmp:\s*/', '', $detail));
+		return $detail !== '' ? $detail : 'NO';
 	}
 
 	/** Scripts + modules Sieve annoncés par le serveur (l'assistant les
@@ -1170,7 +1226,7 @@ final class MailService
 	public function filtersList(): array
 	{
 		$out = [];
-		foreach ($this->sieve()->ListScripts() as $name => $active) {
+		foreach ($this->sieveRun(fn($s) => $s->ListScripts()) as $name => $active) {
 			$out[] = ['name' => $name, 'active' => (bool) $active];
 		}
 		return ['scripts' => $out, 'modules' => $this->sieve()->Modules()];
@@ -1178,12 +1234,46 @@ final class MailService
 
 	public function filterGet(string $name): string
 	{
-		return $this->sieve()->GetScript($name);
+		return $this->sieveRun(fn($s) => $s->GetScript($name));
 	}
 
 	public function filterCheck(string $source): void
 	{
-		$this->sieve()->CheckScript($source);
+		// Pré-contrôle local des extensions "require" : refus immédiat et
+		// lisible, indépendant du support CHECKSCRIPT (sauté si le serveur
+		// n'annonce pas sa capacité SIEVE).
+		$modules = $this->sieve()->Modules();
+		if ($modules
+			&& preg_match_all('/^\s*require\s+(\[[^\]]*\]|"[^"]+")\s*;/im',
+				$source, $m)) {
+			$missing = [];
+			foreach ($m[1] as $capList) {
+				foreach ((array) (json_decode($capList, true) ?? []) as $cap) {
+					if (!in_array(strtolower((string) $cap), $modules, true)) {
+						$missing[] = (string) $cap;
+					}
+				}
+			}
+			if ($missing) {
+				throw new UserFacingException(
+					$this->t('errors.sieve_module',
+						['module' => implode(', ', $missing)]), 400);
+			}
+		}
+		try {
+			$this->sieve()->CheckScript($source);
+		} catch (\MailSo\Sieve\Exceptions\NegativeResponseException $e) {
+			// BAD = commande inconnue du serveur (CHECKSCRIPT optionnelle,
+			// RFC 5804) : PUTSCRIPT rejouera la validation - ne pas bloquer.
+			if (str_starts_with($e->getMessage(), 'BAD')) {
+				$this->app->log('warning',
+					'CHECKSCRIPT non supporte : ' . $e->getMessage());
+				return;
+			}
+			throw new UserFacingException(
+				$this->t('errors.sieve_rejected',
+					['detail' => self::sieveErrorDetail($e->getMessage())]), 400, $e);
+		}
 	}
 
 	/** $oldName non null ≠ $name : renommage (PUT nouveau + DELETE ancien -
@@ -1192,30 +1282,48 @@ final class MailService
 	 *  actif et l'état actif est ainsi conservé. */
 	public function filterSave(string $name, string $source, ?string $oldName = null): void
 	{
-		$this->sieve()->PutScript($name, $source);
+		$this->sieveRun(fn($s) => $s->PutScript($name, $source));
 		if ($oldName !== null && $oldName !== $name
-			&& array_key_exists($oldName, $scripts = $this->sieve()->ListScripts())) {
+			&& array_key_exists($oldName,
+				$scripts = $this->sieveRun(fn($s) => $s->ListScripts()))) {
 			if ($scripts[$oldName]) {
-				$this->sieve()->SetActiveScript($name);
+				$this->sieveRun(fn($s) => $s->SetActiveScript($name));
 			}
-			$this->sieve()->DeleteScript($oldName);
+			try {
+				$this->sieveRun(fn($s) => $s->DeleteScript($oldName));
+			} catch (UserFacingException $e) {
+				// Ancien nom déjà supprimé entre LISTSCRIPTS et DELETE :
+				// NONEXISTENT est l'état attendu > on continue.
+				if ($e->getCode() !== 404) { throw $e; }
+			}
 		}
 	}
 
 	public function filterActivate(string $name): void
 	{
-		$this->sieve()->SetActiveScript($name);
+		$this->sieveRun(fn($s) => $s->SetActiveScript($name));
 	}
 
 	/** SETACTIVE "" : désactive le script actif (RFC 5804). */
 	public function filterDeactivate(): void
 	{
-		$this->sieve()->SetActiveScript('');
+		$this->sieveRun(fn($s) => $s->SetActiveScript(''));
 	}
 
 	public function filterDelete(string $name): void
 	{
-		$this->sieve()->DeleteScript($name);
+		$this->sieveRun(fn($s) => $s->DeleteScript($name));
+	}
+
+	/** GetScript tolérant : script disparu entre LISTSCRIPTS et GETSCRIPT > null. */
+	private function sieveGetOrNull(string $name): ?string
+	{
+		try {
+			return $this->sieveRun(fn($s) => $s->GetScript($name));
+		} catch (UserFacingException $e) {
+			if ($e->getCode() !== 404) { throw $e; }
+			return null;
+		}
 	}
 
 	/**
@@ -1227,15 +1335,17 @@ final class MailService
 	public function vacationGet(): array
 	{
 		$sieve = $this->sieve();
-		$scripts = $sieve->ListScripts();
+		$scripts = $this->sieveRun(fn($s) => $s->ListScripts());
 		$active = null;
 		$managed = [];
 		$docs = [];
 		foreach (array_keys($scripts) as $name) {
 			// Un seul GetScript par script : le doc de l'actif est réutilisé
 			// ci-dessous au lieu d'être re-fetché (N+1 round-trips avant).
-			$docs[$name] = \MXWebMail\Sieve\ScriptBuilder::parseMarker(
-				$sieve->GetScript((string) $name));
+			$src = $this->sieveGetOrNull((string) $name);
+			$docs[$name] = $src === null
+				? null
+				: \MXWebMail\Sieve\ScriptBuilder::parseMarker($src);
 			if ($docs[$name] !== null) {
 				$managed[] = $name;
 			}
@@ -1265,12 +1375,14 @@ final class MailService
 			throw new \RuntimeException(
 				$this->t('errors.sieve_module', ['module' => 'vacation']), 400);
 		}
-		$scripts = $sieve->ListScripts();
+		$scripts = $this->sieveRun(fn($s) => $s->ListScripts());
 		$active = null;
 		$managed = [];
 		foreach (array_keys($scripts) as $name) {
-			$doc = \MXWebMail\Sieve\ScriptBuilder::parseMarker(
-				$sieve->GetScript((string) $name));
+			$src = $this->sieveGetOrNull((string) $name);
+			$doc = $src === null
+				? null
+				: \MXWebMail\Sieve\ScriptBuilder::parseMarker($src);
 			if ($doc !== null) {
 				$managed[(string) $name] = $doc;
 			}
@@ -1291,10 +1403,10 @@ final class MailService
 		$doc['vacation'] = $vacation;
 		$source = \MXWebMail\Sieve\ScriptBuilder::compile($doc, $this->app->locale());
 		$this->filterCheck($source);
-		$sieve->PutScript($target, $source);
+		$this->sieveRun(fn($s) => $s->PutScript($target, $source));
 		// Activation uniquement si le répondeur est actif et le script ne l'est pas
 		if (!empty($vacation['enabled']) && $active !== $target) {
-			$sieve->SetActiveScript($target);
+			$this->sieveRun(fn($s) => $s->SetActiveScript($target));
 		}
 	}
 

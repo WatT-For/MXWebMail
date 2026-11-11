@@ -67,7 +67,8 @@ Serwery IMAP/SMTP/Sieve konfiguruje się **per domena** w adminie (zob.
 ## Aktualizacje
 
 Oficjalne repozytorium jest zaryglowane w `GitHubClient::REPO`
-(`WatT-For/MXWebMail`). Ta sekcja - współdzielona przez updater rdzenia i
+(`WatT-For/MXWebMail`) i **publiczne**: weryfikacja i pobieranie działają bez
+tokenu. Ta sekcja - współdzielona przez updater rdzenia i
 katalog wtyczek (czytany w repo na ref `update.plugins_ref`, każdy pobrany
 plik weryfikowany po sha1 bloba git) - nie jest edytowalna przez admina
 (poza `channel`).

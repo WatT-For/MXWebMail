@@ -47,9 +47,9 @@ app/storage/       runtime: db, cache, logs, tmp, app.key, INSTALLED - asla webr
      ile sınırlı ve `upload_max_filesize`/`post_max_size` ile kısıtlı).
      Dosya başına limit `attachment_max_size` türetilerek yazılır:
      `min(25, attachments_max_total)`.
-   - **Veritabanı**: SQLite (varsayılan) veya MariaDB/MySQL. MariaDB için
-     gerçek bağlantı testi yapılır; taban kurulumda oluşturulur
-     (`utf8mb4`).
+   - **Veritabanı**: SQLite (varsayılan), MariaDB >= 10.x veya MySQL >= 8.0.
+     MariaDB/MySQL için gerçek bağlantı testi yapılır; taban kurulumda
+     oluşturulur (`utf8mb4`).
    - **Yönetici**: yerel admin hesabı (`admin_user` + parola ≥ 8 karakter).
      Bu alanları boş bırakırsanız admin girişi IMAP ile doğrulanan
      `is_admin` kullanıcısına düşer (bkz.

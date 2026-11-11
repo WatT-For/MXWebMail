@@ -2,8 +2,8 @@
 
 *Traducido del francés - la versión francesa es la que hace fe.*
 
-MXWebMail funciona con **SQLite** (por defecto) o **MariaDB/MySQL**. El driver
-se elige mediante `db_dsn` en `config.php`.
+MXWebMail funciona con **SQLite** (por defecto), **MariaDB >= 10.x** o
+**MySQL >= 8.0**. El driver se elige mediante `db_dsn` en `config.php`.
 
 ## 1. Conexión
 
@@ -16,10 +16,13 @@ Opciones PDO: `ERRMODE_EXCEPTION`, `FETCH_ASSOC`, `EMULATE_PREPARES=false`.
 
 ## 2. Migraciones
 
-El esquema es **portable** entre SQLite/MariaDB (claves primarias
-autoincrementadas adaptadas al driver). Las migraciones están versionadas
+El esquema es **portable** entre SQLite/MariaDB/MySQL (claves primarias
+autoincrementadas adaptadas al driver; MySQL >= 8.0 requerido por las funciones
+de ventana SQL usadas en v12). Las migraciones están versionadas
 (`meta.schema_version`) y se aplican automáticamente en el primer acceso a la
-base (`App::db()`), incluso durante la instalación.
+base (`App::db()`), incluso durante la instalación. Bajo el driver `mysql`,
+los objetos ya presentes (columna, índice) se detectan vía `information_schema`:
+una re-ejecución tras un fallo a mitad de migración es idempotente.
 
 Tras una actualización del código, la pestaña *Acerca de* dispara la
 **finalización** (`/api/admin/update/finalize`): las migraciones de la nueva
@@ -74,7 +77,7 @@ La migración `contacts_moved` copia una sola vez los contactos de la base
 global a estos archivos (transacción + `INSERT OR IGNORE`, autorreparable), y
 luego elimina las tablas globales.
 
-## 6. Pasar de SQLite a MariaDB
+## 6. Pasar de SQLite a MariaDB/MySQL
 
 1. En el admin (*Base de datos*), indique el DSN/host/puerto/nombre/usuario/
    contraseña de MariaDB. La prueba de conexión es **obligatoria** y crea la
@@ -90,5 +93,5 @@ luego elimina las tablas globales.
 
 - SQLite: copie `app/storage/db/webmail.sqlite` (+ `db/users/*.sqlite`) y
   `app.key`.
-- MariaDB: haga un dump de la base con `mysqldump`, más `app.key` y
-  `db/users/*.sqlite`.
+- MariaDB/MySQL: haga un dump de la base con `mysqldump` (o `mariadb-dump` en
+  MariaDB), más `app.key` y `db/users/*.sqlite`.

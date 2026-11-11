@@ -98,16 +98,20 @@ danych.
 
 **"Błąd: Nie znaleziono na GitHub … prywatne repo lub brakujący zasób"**
 Oficjalne repozytorium jest zaryglowane (`GitHubClient::REPO` =
-`WatT-For/MXWebMail`). GitHub zwraca 404 - nie 403 - dla brakującego
-zasobu lub niewystarczającego dostępu; wiadomość wskazuje winny endpoint
-(`releases/latest`, `commits/…` lub ścieżkę `raw` katalogu wtyczek).
-Trwały 404 oznacza zwykle brakujący zasób (żadna release opublikowana,
-nieznany `update.plugins_ref`).
+`WatT-For/MXWebMail`) i **publiczne**: token nie jest wymagany. GitHub
+zwraca 404 - nie 403 - dla brakującego zasobu lub niewystarczającego
+dostępu; wiadomość wskazuje winny endpoint (`releases/latest`, `commits/…`
+lub ścieżkę `raw` katalogu wtyczek). Trwały 404 oznacza zwykle brakujący
+zasób (żadna release opublikowana, nieznany `update.plugins_ref`).
+Przypadek "prywatne repo" dotyczy tylko forka skonfigurowanego przez
+`update.repo` + PAT w `config.php`.
 
 **HTTP 404 na `…/releases/download/…` (katalog wtyczek lub pobieranie aktualizacji)**
-Na prywatnym repo `browser_download_url` assetów zwraca 404 nawet z
-ważnym tokenem. Naprawione od 0.36.1: assety są pobierane przez endpoint
-API `releases/assets/<id>` gdy PAT jest skonfigurowany w `config.php`.
+Na publicznym oficjalnym repo `browser_download_url` działa. Przypadek ma
+sens tylko dla prywatnego forka przez `update.repo`: `browser_download_url`
+zwraca tam 404 nawet z ważnym tokenem - naprawione od 0.36.1, assety są
+wtedy pobierane przez endpoint API `releases/assets/<id>` gdy PAT jest
+skonfigurowany w `config.php`.
 
 **Strona odpowiada 503 "update" / strona konserwacji podczas aktualizacji**
 Normalne: flaga `app/storage/update/applying` przecina API użytkownika

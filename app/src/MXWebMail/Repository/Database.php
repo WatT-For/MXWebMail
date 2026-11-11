@@ -106,11 +106,13 @@ final class Database
 		);
 
 		// Transaction par version : sous SQLite le DDL est transactionnel
-		// (échec = retour complet à l'état $version) ; sous MariaDB le DDL
-		// auto-commit et PDO le détecte - commit() jetterait "no active
-		// transaction". Les ALTER sont idempotents (ADD COLUMN IF NOT EXISTS)
-		// donc un re-run après échec est sain.
+		// (échec = retour complet à l'état $version) ; sous MariaDB/MySQL le
+		// DDL auto-commit et PDO le détecte - commit() jetterait "no active
+		// transaction". Les ALTER sont idempotents (ADD COLUMN IF NOT EXISTS
+		// sous MariaDB, alreadyApplied() sinon) donc un re-run après échec
+		// est sain.
 		$useTx = $this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite';
+		$isMysql = $this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql';
 		foreach ($this->migrations as $i => $sqlList) {
 			if ($i <= $version) {
 				continue;
@@ -120,6 +122,9 @@ final class Database
 					$this->pdo->beginTransaction();
 				}
 				foreach ($sqlList as $sql) {
+					if ($isMysql && $this->alreadyApplied($sql)) {
+						continue;
+					}
 					$this->pdo->exec($sql);
 				}
 				$this->setMeta('schema_version', (string) $i);
@@ -133,6 +138,37 @@ final class Database
 				throw $e;
 			}
 		}
+	}
+
+	/**
+	 * Driver mysql (MySQL et MariaDB) : le DDL auto-commit - un échec à
+	 * mi-migration laisse des objets créés et le re-run échouerait sur
+	 * "Duplicate column/key name". MySQL ne connaît pas IF NOT EXISTS pour
+	 * ADD COLUMN / CREATE INDEX : existence vérifiée dans information_schema
+	 * (DATABASE() NULL > 0 > statement exécuté normalement). SQLite est
+	 * couvert par la transaction et n'appelle jamais cette méthode.
+	 */
+	private function alreadyApplied(string $sql): bool
+	{
+		if (preg_match(
+			'/ALTER\s+TABLE\s+`?(\w+)`?\s+ADD\s+COLUMN\s+(?:IF\s+NOT\s+EXISTS\s+)?`?(\w+)`?/i',
+			$sql, $m)) {
+			$st = $this->pdo->prepare(
+				'SELECT COUNT(*) FROM information_schema.COLUMNS
+				 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?');
+			$st->execute([$m[1], $m[2]]);
+			return (bool) $st->fetchColumn();
+		}
+		if (preg_match(
+			'/CREATE\s+(?:UNIQUE\s+)?INDEX\s+(?:IF\s+NOT\s+EXISTS\s+)?`?(\w+)`?\s+ON\s+`?(\w+)`?/i',
+			$sql, $m)) {
+			$st = $this->pdo->prepare(
+				'SELECT COUNT(*) FROM information_schema.STATISTICS
+				 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?');
+			$st->execute([$m[2], $m[1]]);
+			return (bool) $st->fetchColumn();
+		}
+		return false;
 	}
 
 	public function meta(string $key): ?string
@@ -172,9 +208,14 @@ final class Database
 		$pk = $driver === 'sqlite' ? 'INTEGER PRIMARY KEY' : 'INTEGER AUTO_INCREMENT PRIMARY KEY';
 		// ADD COLUMN IF NOT EXISTS : MariaDB uniquement (MySQL ne le supporte
 		// pas, SQLite le gère via la transaction). Rend un re-run idempotent
-		// après un échec à mi-migration.
-		$addCol = \str_contains((string) $pdo->getAttribute(PDO::ATTR_SERVER_VERSION), 'MariaDB')
-			? 'ADD COLUMN IF NOT EXISTS' : 'ADD COLUMN';
+		// après un échec à mi-migration - relayé par alreadyApplied() sur le
+		// driver mysql (MySQL compris, sans IF NOT EXISTS).
+		$isMaria = \str_contains((string) $pdo->getAttribute(PDO::ATTR_SERVER_VERSION), 'MariaDB');
+		$addCol = $isMaria ? 'ADD COLUMN IF NOT EXISTS' : 'ADD COLUMN';
+		// CREATE INDEX IF NOT EXISTS : supporté par SQLite et MariaDB, pas
+		// par MySQL (erreur 1064) - alreadyApplied() assure l'idempotence.
+		$createIndex = ($driver === 'sqlite' || $isMaria)
+			? 'CREATE INDEX IF NOT EXISTS' : 'CREATE INDEX';
 		return [
 
 		1 => [
@@ -362,7 +403,7 @@ final class Database
 		// Index de jointure : chargement des identités par compte et
 		// UserRepository::all balayaient la table sans index dédié.
 		13 => [
-			'CREATE INDEX IF NOT EXISTS identities_account ON identities(account_id)',
+			"$createIndex identities_account ON identities(account_id)",
 		],
 
 		// Epoch de session : incrémenté par l'admin pour tuer les sessions

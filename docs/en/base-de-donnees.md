@@ -2,8 +2,8 @@
 
 *Translated from French - the French version is authoritative.*
 
-MXWebMail runs on **SQLite** (default) or **MariaDB/MySQL**. The driver is chosen
-via `db_dsn` in `config.php`.
+MXWebMail runs on **SQLite** (default), **MariaDB >= 10.x** or **MySQL >= 8.0**.
+The driver is chosen via `db_dsn` in `config.php`.
 
 ## 1. Connection
 
@@ -15,10 +15,13 @@ PDO options: `ERRMODE_EXCEPTION`, `FETCH_ASSOC`, `EMULATE_PREPARES=false`.
 
 ## 2. Migrations
 
-The schema is **portable** across SQLite/MariaDB (auto-increment primary keys
-adapted to the driver). Migrations are versioned (`meta.schema_version`) and
-applied automatically on first database access (`App::db()`), including during
-installation.
+The schema is **portable** across SQLite/MariaDB/MySQL (auto-increment primary
+keys adapted to the driver; MySQL >= 8.0 required for the SQL window functions
+used in v12). Migrations are versioned (`meta.schema_version`) and applied
+automatically on first database access (`App::db()`), including during
+installation. Under the `mysql` driver, objects already present (column, index)
+are detected via `information_schema`: a re-run after a mid-migration failure
+is idempotent.
 
 After a code update, the *About* tab triggers **finalization**
 (`/api/admin/update/finalize`): the new version's migrations run in admin
@@ -72,7 +75,7 @@ The `contacts_moved` migration copies contacts once from the global database to
 these files (transaction + `INSERT OR IGNORE`, self-healing), then drops the
 global tables.
 
-## 6. Switching from SQLite to MariaDB
+## 6. Switching from SQLite to MariaDB/MySQL
 
 1. In the admin (*Database*), fill in the MariaDB DSN/host/port/name/user/
    password. The connection test is **mandatory** and creates the database
@@ -86,4 +89,5 @@ global tables.
 ## 7. Backup / restore
 
 - SQLite: copy `app/storage/db/webmail.sqlite` (+ `db/users/*.sqlite`) and `app.key`.
-- MariaDB: dump the database with `mysqldump`, plus `app.key` and `db/users/*.sqlite`.
+- MariaDB/MySQL: dump the database with `mysqldump` (or `mariadb-dump` on
+  MariaDB), plus `app.key` and `db/users/*.sqlite`.

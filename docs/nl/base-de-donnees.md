@@ -2,8 +2,8 @@
 
 *Vertaald uit het Frans - de Franse versie is leidend.*
 
-MXWebMail werkt met **SQLite** (standaard) of **MariaDB/MySQL**. De driver wordt
-gekozen via `db_dsn` in `config.php`.
+MXWebMail werkt met **SQLite** (standaard), **MariaDB >= 10.x** of
+**MySQL >= 8.0**. De driver wordt gekozen via `db_dsn` in `config.php`.
 
 ## 1. Verbinding
 
@@ -17,10 +17,14 @@ PDO-opties: `ERRMODE_EXCEPTION`, `FETCH_ASSOC`, `EMULATE_PREPARES=false`.
 
 ## 2. Migraties
 
-Het schema is **portable** tussen SQLite/MariaDB (auto-increment
-primaire sleutels aangepast aan de driver). Migraties zijn versieerd
+Het schema is **portable** tussen SQLite/MariaDB/MySQL (auto-increment
+primaire sleutels aangepast aan de driver; MySQL >= 8.0 vereist voor de
+SQL-windowfuncties gebruikt in v12). Migraties zijn versieerd
 (`meta.schema_version`) en worden automatisch toegepast bij de eerste
-databasetoegang (`App::db()`), ook tijdens de installatie.
+databasetoegang (`App::db()`), ook tijdens de installatie. Onder de
+`mysql`-driver worden reeds aanwezige objecten (kolom, index) via
+`information_schema` gedetecteerd: een re-run na een mislukte migratie halverwege
+is idempotent.
 
 Na een code-update triggert de tab *Over* de **afronding**
 (`/api/admin/update/finalize`): de migraties van de nieuwe versie draaien in
@@ -76,7 +80,7 @@ De migratie `contacts_moved` kopieert eenmalig de contacten van de globale
 database naar deze bestanden (transactie + `INSERT OR IGNORE`,
 zelfherstellend), en verwijdert daarna de globale tabellen.
 
-## 6. Van SQLite naar MariaDB overstappen
+## 6. Van SQLite naar MariaDB/MySQL overstappen
 
 1. In de admin (*Database*), vul de MariaDB DSN/host/poort/naam/gebruiker/
    wachtwoord in. De verbindingstest is **verplicht** en maakt de database
@@ -92,5 +96,5 @@ zelfherstellend), en verwijdert daarna de globale tabellen.
 
 - SQLite: kopieer `app/storage/db/webmail.sqlite` (+ `db/users/*.sqlite`) en
   `app.key`.
-- MariaDB: maak een dump van de database met `mysqldump`, plus `app.key` en
-  `db/users/*.sqlite`.
+- MariaDB/MySQL: maak een dump van de database met `mysqldump` (of
+  `mariadb-dump` onder MariaDB), plus `app.key` en `db/users/*.sqlite`.

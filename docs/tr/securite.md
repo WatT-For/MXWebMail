@@ -164,10 +164,13 @@ aynı kuralı izler.
   (gömülü dosya başına manifesto, açmadan sonra denetlenir); paketin
   `APP_REQ_PHP`/`APP_REQ_FROM` `App.php` sabitleri gereksinimleri
   (PHP sürümü, minimum kaynak sürüm) beyan eder, kopyalamadan önce
-  uygulanır. Repo **özel** kaldığı sürece `config.php`'de yapılandırılmış
-  GitHub PAT gerekir (repoya `Contents: Read` erişimi): API, assetler
-  (`releases/assets/<id>` uç noktasından sunulur - `browser_download_url`
-  özel repoda doğrulanmış olsa bile 404 döndürür) ve `raw` ona bağlıdır.
+  uygulanır. Resmi repo **genel**: API, assetler ve `raw` tokensız çalışır
+  (GitHub'un anonim API kotası `cache.update_ttl` önbelleğiyle karşılanır).
+  `config.php`'de yapılandırılmış isteğe bağlı bir GitHub PAT (repoya
+  `Contents: Read` erişimi) kotayı yükseltebilir veya `update.repo` üzerinden
+  özel bir fork'a hizmet verebilir - assetler o zaman `releases/assets/<id>`
+  uç noktasından sunulur (`browser_download_url` özel repoda doğrulanmış olsa
+  bile 404 döndürür).
   `update.plugins_local` ve `update.manifest_url` (alternatif release
   manifestosu) dev/testlere ayrılmış - yalnızca `config.php` üzerinden
   değişir, asla admin API'si ile. Dosya kopyalama sırasında
