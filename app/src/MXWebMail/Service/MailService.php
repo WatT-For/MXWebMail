@@ -293,10 +293,11 @@ final class MailService
 
 	/**
 	 * Recherche sur tous les dossiers sélectionnables+abonnés : même syntaxe
-	 * de requête que messages(), résultats fusionnés triés date desc.
+	 * de requête que messages(), résultats fusionnés triés date desc et
+	 * paginés (offset/limit sur le jeu fusionné).
 	 * Plafonds : 50 dossiers scannés, 50 résultats par dossier.
 	 */
-	public function searchAllFolders(string $search, int $limit): array
+	public function searchAllFolders(string $search, int $offset, int $limit): array
 	{
 		$folders = array_values(array_filter($this->folders(),
 			fn($f) => !empty($f['isSelectable']) && !empty($f['isSubscribed'])));
@@ -322,12 +323,12 @@ final class MailService
 			}
 		}
 		usort($all, fn($a, $b) => ($b['date'] ?? 0) <=> ($a['date'] ?? 0));
-		$truncated = $truncated || count($all) > $limit;
+		$truncated = $truncated || count($all) > $offset + $limit;
 		return [
 			'total' => count($all),
 			'folder' => '*',
 			'truncated' => $truncated,
-			'messages' => array_slice($all, 0, $limit),
+			'messages' => array_slice($all, $offset, $limit),
 			'threadsSupported' => false,
 		];
 	}

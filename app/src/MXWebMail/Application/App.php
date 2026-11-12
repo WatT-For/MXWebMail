@@ -49,7 +49,7 @@ final class App
 
 	public function __construct(?string $rootDir = null, ?string $installDir = null)
 	{
-		defined('APP_VERSION') || define('APP_VERSION', '0.54.2'); // X-Mailer MailSo
+		defined('APP_VERSION') || define('APP_VERSION', '0.54.3'); // X-Mailer MailSo
 		// Prérequis du paquet de mise à jour - lus par regex dans le App.php du
 		// paquet extrait (UpdateService::checkRequirements) avant application.
 		defined('APP_REQ_PHP') || define('APP_REQ_PHP', '>=8.4');

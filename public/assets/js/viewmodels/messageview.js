@@ -1031,8 +1031,10 @@ export class MessageViewVM {
 		try {
 			const r = await api.post(`/messages/${m.uid}/spam`, { folder: m.folder, spam });
 			ml.unmarkMoved(m.folder, m.uid);
-			// Stratégie réelle ≠ prédiction : resync complet (cas rare).
+			// Stratégie réelle ≠ prédiction : resync complet (cas rare) ;
+			// déplacement conforme : resync silencieux (backfill + total).
 			if ((r.strategy === 'move') !== expectMove) { await ml.load(); }
+			else if (expectMove) { await ml.load(true); }
 		} catch (e) {
 			ml.unmarkMoved(m.folder, m.uid);
 			if (expectMove && !m.isSeen()) { ml.adjustUnread(1, m.folder); }
@@ -1079,7 +1081,7 @@ export class MessageViewVM {
 		// Avance sur le voisin selon after_delete, sinon lecteur fermé.
 		ml.cancelReadTimer();
 		await ml.advanceOrClear();
-		ml.refresh();
+		await ml.load(true);
 	}
 
 	async markUnread() {
@@ -1107,7 +1109,7 @@ export class MessageViewVM {
 		// Avance sur le voisin selon after_delete, sinon lecteur fermé.
 		ml.cancelReadTimer();
 		await ml.advanceOrClear();
-		ml.refresh();
+		await ml.load(true);
 	}
 
 	async moveWithPicker() {

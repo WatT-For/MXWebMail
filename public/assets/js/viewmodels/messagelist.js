@@ -125,6 +125,15 @@ export class MessageListVM {
 		const global = this.searchScope() === 'all' && this.searchQuery() !== '';
 		if (!global) { this.threadsSupported(!!data.threadsSupported); }
 		this.total(data.total || 0);
+		// Page devenue hors limites (retraits, expunge externe) : clamp sur la
+		// dernière page valide + rechargement silencieux - couvre load() et la
+		// section "list" du poll. La réponse hors limites (vide par définition)
+		// n'est pas appliquée : les lignes courantes restent jusqu'au resync.
+		if (this.page() > this.totalPages()) {
+			this.page(this.totalPages());
+			queueMicrotask(() => this.load(true));
+			return;
+		}
 		const rows = (data.messages || [])
 			.filter(m => !this._gone.has(this.goneKey(m.folder, m.uid)));
 		// Les sous-lignes de fils dépliés (isChild) vivent dans messages() :
@@ -283,11 +292,16 @@ export class MessageListVM {
 		}
 		this._readTimer = setTimeout(() => {
 			this._readTimer = null;
-			// Ne marque lu que si le message est encore celui affiché
-			if (!message.isSelected() || !this.messages().includes(message)) { return; }
+			// Ne marque lu que si le message est encore celui affiché - testé
+			// via requestedUid du lecteur : un rebuild de la liste remplace les
+			// MessageModel, includes() sur l'ancienne instance serait faux.
+			const mv = this.app.messageView;
+			if (mv.requestedUid !== message.uid
+				|| mv.requestedFolder !== message.folder) { return; }
 			api.post(`/messages/${message.uid}/flags`,
 				{ folder: message.folder, flag: '\\Seen', set: true }).catch(() => {});
-			this.markSeen(message);
+			this.markSeen(this.messages().find(
+				x => x.uid === message.uid && x.folder === message.folder) || message);
 		}, delay * 1000);
 	}
 
@@ -620,7 +634,10 @@ export class MessageListVM {
 	 *  resync - sinon elles filtreraient les messages restaurés. */
 	async settleBatch(list, fail) {
 		list.forEach(m => this.unmarkMoved(m.folder, m.uid));
-		if (fail) { this.error(fail); await this.load(); }
+		if (fail) { this.error(fail); }
+		// Succès : resync silencieux - la pagination offset côté serveur exige
+		// le backfill des lignes retirées et le nouveau total ; échec : voile.
+		await this.load(!fail);
 	}
 
 	async bulkDelete() {
@@ -804,6 +821,7 @@ export class MessageListVM {
 					if (!m.isSeen()) { this.adjustUnread(-1, m.folder); }
 					this.messages.remove(m);
 					this.closeViewerIfRemoved();
+					moved = true;
 				} else if (v.strategy !== 'move' && expectMove) {
 					resync = true;
 				}
@@ -813,6 +831,6 @@ export class MessageListVM {
 			}
 			this.unmarkMoved(m.folder, m.uid);
 		});
-		if (resync) { await this.load(); this.closeViewerIfRemoved(); }
+		if (resync || moved) { await this.load(true); this.closeViewerIfRemoved(); }
 	}
 }

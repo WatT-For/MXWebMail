@@ -140,7 +140,7 @@ abstract class BaseController
 		$threadUid = (int) ($p['thread_uid'] ?? 0);
 		// folder=* : recherche multi-dossiers (fusion triée date desc).
 		$data = $folder === '*'
-			? $mail->searchAllFolders($search, $limit)
+			? $mail->searchAllFolders($search, ($page - 1) * $limit, $limit)
 			: $mail->messages($folder, ($page - 1) * $limit, $limit,
 				$search, $sort, $threads, $threadUid);
 		$data['page'] = $page;

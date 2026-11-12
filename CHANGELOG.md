@@ -6,6 +6,13 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) -
 semver `0.MINOR.PATCH` en développement.
 Catégories, dans l'ordre : `Sécurité`, `Ajouté`, `Modifié`, `Corrigé`, `Obsolète`, `Supprimé`.
 
+## [0.54.3] - 2026-11-12
+
+### Corrigé
+
+- Suppression/déplacement de mails pendant une recherche : la liste n'était pas resynchronisée après une action groupée réussie - la page gardait un trou, le compteur et le paging restaient sur l'ancien total et les messages remontés dans la fenêtre courante étaient définitivement sautés (page suivante vide ou résultats manquants). La page est désormais rechargée silencieusement après chaque retrait confirmé, la page courante est recalée automatiquement quand le total la fait sortir des limites, et la recherche multi-dossiers pagine réellement (le paramètre page était ignoré).
+- Marquage "lu" différé (`mark_read_delay`) : un rechargement de la liste survenu pendant le délai (suppression, poll) empêchait le flag `\Seen` d'être posé - le message affiché restait non lu.
+
 ## [0.54.2] - 2026-11-11
 
 ### Corrigé
