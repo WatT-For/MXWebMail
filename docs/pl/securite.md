@@ -17,7 +17,9 @@ niepowodzenie usuwa token. Każdy token rejestruje **IP przy wydaniu** (`ip`),
 widoczne w Ustawienia > Sesje by wykryć nieznaną sesję. Tokeny są tam
 wymieniane i odwoływalne, a bieżący token jest odwoływany przy **ręcznym**
 wylogowaniu (wylogowanie z nieaktywności `autologout` go zachowuje: sesja
-jest przywracana cicho przy następnej wizycie).
+jest przywracana cicho przy następnej wizycie). Każda nowa sesja (zwykłe
+logowanie lub przywrócenie) otwiera się na ostatnio używanym koncie -
+z powrotem do konta domyślnego.
 
 ### CSRF
 

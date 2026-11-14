@@ -113,8 +113,18 @@ final class SettingsController extends BaseController
 		if (!$handled) {
 			return JsonResponse::error($this->t('errors.no_password_driver'), 'unavailable');
 		}
-		// Le nouveau mot de passe devient le credential IMAP de session
-		$_SESSION['imap_pass'] = CredentialCrypt::encrypt($new, $this->app->storageDir());
+		// Le nouveau mot de passe devient le credential du compte principal :
+		// ligne accounts (remember-me / bascule) + session si elle est
+		// positionnée dessus (sur un secondaire on ne touche pas
+		// $_SESSION['imap_pass'] - c'est le credential du secondaire).
+		$enc = CredentialCrypt::encrypt($new, $this->app->storageDir());
+		$this->app->db()->pdo()->prepare(
+			'UPDATE accounts SET imap_pass = :ip WHERE user_id = :u AND is_default = 1')
+			->execute(['ip' => $enc,
+				'u' => (int) $_SESSION['user_id']]);
+		if (empty($_SESSION['acct_secondary'])) {
+			$_SESSION['imap_pass'] = $enc;
+		}
 		return JsonResponse::ok();
 	}
 

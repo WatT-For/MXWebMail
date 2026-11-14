@@ -18,7 +18,9 @@ registreert het **IP bij uitgifte** (`ip`), het **laatst bekende IP**
 Sessies om een onbekende sessie op te merken. De tokens zijn daar opgesomd en
 intrekbbaar, en het huidige token wordt ingetrokken bij **handmatige**
 uitlog (de inactiviteits-uitlog `autologout` bewaart hem: de sessie wordt
-dan stil hersteld bij het volgende bezoek).
+dan stil hersteld bij het volgende bezoek). Elke nieuwe sessie (normale
+login of herstel) opent op het laatst gebruikte account - met terugval op
+het standaardaccount.
 
 ### CSRF
 

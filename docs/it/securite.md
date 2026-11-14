@@ -17,7 +17,9 @@ IP** noto (`last_ip`, a ogni ripristino) e lo User-Agent - visibili in
 Impostazioni > Sessioni per individuare una sessione sconosciuta. I token vi
 sono elencati e revocabili, e il token corrente è revocato alla disconnessione
 **manuale** (la disconnessione per inattività `autologout` lo preserva: la
-sessione è allora ripristinata silenziosamente alla visita seguente).
+sessione è allora ripristinata silenziosamente alla visita seguente). Ogni
+nuova sessione (login normale o ripristino) si posiziona sull'ultimo account
+consultato - con ripiego sull'account predefinito.
 
 ### CSRF
 

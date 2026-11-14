@@ -17,7 +17,9 @@ issuance** (`ip`), the **last known IP** (`last_ip`, on each restore) and the
 User-Agent - visible in Settings > Sessions to spot an unknown session. Tokens
 are listed and revocable there, and the current token is revoked on **manual**
 logout (inactivity logout `autologout` preserves it: the session is then
-silently restored on the next visit).
+silently restored on the next visit). Any new session (regular login or
+restore) resumes on the last consulted account - falling back to the
+default account.
 
 ### CSRF
 

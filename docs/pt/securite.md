@@ -18,7 +18,8 @@ User-Agent - visíveis em Definições > Sessões para detetar uma sessão
 desconhecida. Os tokens são aí listados e revogáveis, e o token atual é
 revogado no encerramento de sessão **manual** (o encerramento por
 inatividade `autologout` preserva-o: a sessão é restaurada silenciosamente
-na visita seguinte).
+na visita seguinte). Toda nova sessão (login normal ou restauro)
+posiciona-se na última conta consultada - com retorno à conta por defeito.
 
 ### CSRF
 

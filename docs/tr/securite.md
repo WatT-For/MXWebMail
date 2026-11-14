@@ -17,7 +17,9 @@ IP'yi** (`ip`), **son bilinen IP'yi** (`last_ip`, her geri yüklemede) ve
 User-Agent'ı kaydeder - bilinmeyen oturumu tespit için Ayarlar > Oturumlar'da
 görünür. Belirteçler orada listelenir ve iptal edilebilir; mevcut belirteç
 **manuel** çıkışta iptal edilir (`autologout` hareketsizlik çıkışı onu
-korur: oturum sonraki ziyarette sessizce geri yüklenir).
+korur: oturum sonraki ziyarette sessizce geri yüklenir). Her yeni oturum
+(normal giriş veya geri yükleme) son kullanılan hesapta açılır - varsayılan
+hesaba dönüşle.
 
 ### CSRF
 

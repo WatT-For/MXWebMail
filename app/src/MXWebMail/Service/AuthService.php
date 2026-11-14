@@ -137,6 +137,13 @@ final class AuthService
 		$_SESSION['session_epoch']  = (int) ($user['session_epoch'] ?? 0);
 		unset($_SESSION['oauth_pending']);
 
+		// Dernier compte consulté restauré (secondaire inclus) - le domaine
+		// résolu par mapping ci-dessus ne s'applique qu'au compte provisionné.
+		$restored = $this->restorableAccount((int) $user['id']);
+		if ($restored && (int) $restored['id'] !== $accountId) {
+			$this->sessionAccount($restored);
+		}
+
 		$this->resetRateLimit($email);
 		return ['email' => $email];
 	}
@@ -255,13 +262,10 @@ final class AuthService
 
 		session_regenerate_id(true);
 		$_SESSION['user_id']    = (int) $row['user_id'];
-		$_SESSION['account_id'] = (int) $account['id'];
-		$_SESSION['email']      = (string) $account['email'];
-		// Copie du ciphertext - même schéma CredentialCrypt (comme accountSwitch).
-		$_SESSION['imap_pass']  = (string) $account['imap_pass'];
-		$_SESSION['domain']     = $domainName;
-		$_SESSION['acct_auth']      = 'password';
-		$_SESSION['acct_secondary'] = false;
+		// Dernier compte consulté restauré - repli sur le compte par défaut
+		// déjà re-vérifié en IMAP ci-dessus.
+		$this->sessionAccount(
+			$this->restorableAccount((int) $row['user_id']) ?? $account);
 		// L'epoch courant requis par isLoggedIn (ce chemin ne charge pas la
 		// ligne users - lecture dédiée, indexée).
 		$_SESSION['session_epoch']  = (int) ($this->app->users()
@@ -571,6 +575,42 @@ final class AuthService
 			'email' => $email];
 	}
 
+	/**
+	 * Champs de session du compte actif depuis une ligne accounts -
+	 * mutualise switchAccount et la restauration du dernier compte
+	 * consulté (login / remember). NE PAS utiliser pour le compte
+	 * provisionné dans login() : son domaine est celui résolu par
+	 * mapping ($domain['name']), pas le domaine dérivé de l'email.
+	 */
+	private function sessionAccount(array $account): void
+	{
+		$_SESSION['account_id'] = (int) $account['id'];
+		$_SESSION['email']      = $account['email'];
+		// Le credential est déjà chiffré avec la même clé applicative
+		$_SESSION['imap_pass']  = $account['imap_pass'];
+		$_SESSION['domain']     = substr($account['email'], strrpos($account['email'], '@') + 1);
+		$_SESSION['acct_auth']      = (string) ($account['auth'] ?? 'password');
+		$_SESSION['acct_secondary'] = !(int) $account['is_default'];
+	}
+
+	/**
+	 * Dernier compte consulté (réglage last_account, écrit par
+	 * switchAccount) validé : la ligne doit toujours appartenir à
+	 * l'utilisateur. null > repli sur le compte par défaut.
+	 */
+	private function restorableAccount(int $userId): ?array
+	{
+		$id = (int) $this->app->settings()->get($userId, 'last_account', 0);
+		if ($id <= 0) {
+			return null;
+		}
+		$stmt = $this->app->db()->pdo()->prepare(
+			'SELECT * FROM accounts WHERE id = :id AND user_id = :u');
+		$stmt->execute(['id' => $id, 'u' => $userId]);
+		$row = $stmt->fetch();
+		return $row ?: null;
+	}
+
 	/** Bascule la session sur un autre compte du même utilisateur. */
 	public function switchAccount(int $userId, int $accountId): array
 	{
@@ -582,13 +622,9 @@ final class AuthService
 		if (!$account) {
 			throw new \RuntimeException($this->t('errors.account_not_found'), 404);
 		}
-		$_SESSION['account_id'] = (int) $account['id'];
-		$_SESSION['email']      = $account['email'];
-		// Le mot de passe est déjà chiffré avec la même clé applicative
-		$_SESSION['imap_pass']  = $account['imap_pass'];
-		$_SESSION['domain']     = substr($account['email'], strrpos($account['email'], '@') + 1);
-		$_SESSION['acct_auth']      = (string) ($account['auth'] ?? 'password');
-		$_SESSION['acct_secondary'] = !(int) $account['is_default'];
+		$this->sessionAccount($account);
+		// Dernier compte consulté : restauré à la prochaine ouverture.
+		$this->app->settings()->set($userId, 'last_account', $accountId);
 		// Le MailService mémoïsé (App::mail) transporte les credentials/caches
 		// de l'ancien compte : reconnexion forcée au prochain client().
 		$this->app->mail()->disconnect();
@@ -605,6 +641,10 @@ final class AuthService
 		$stmt->execute(['id' => $accountId, 'u' => $userId]);
 		if (!$stmt->rowCount()) {
 			throw new \RuntimeException($this->t('errors.account_not_found_or_main'), 404);
+		}
+		// Le compte supprimé ne doit pas rester mémorisé comme dernier consulté.
+		if ((int) $this->app->settings()->get($userId, 'last_account', 0) === $accountId) {
+			$this->app->settings()->set($userId, 'last_account', null);
 		}
 	}
 

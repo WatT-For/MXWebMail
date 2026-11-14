@@ -6,6 +6,13 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) -
 semver `0.MINOR.PATCH` en développement.
 Catégories, dans l'ordre : `Sécurité`, `Ajouté`, `Modifié`, `Corrigé`, `Obsolète`, `Supprimé`.
 
+## [0.54.4] - 2026-11-14
+
+### Corrigé
+
+- Le webmail se rouvrait toujours sur le compte par défaut après une reconnexion (session expirée pendant la nuit, login ou "Rester connecté") : le dernier compte consulté est désormais mémorisé à chaque bascule et restauré à l'établissement de la session, avec repli sur le compte par défaut - le `last_folder` du bon compte est du coup correctement restauré aussi.
+- Changement de mot de passe alors que la session est positionnée sur un compte secondaire : le credential IMAP de session du secondaire était écrasé par le nouveau mot de passe du principal (connexions IMAP en échec jusqu'au prochain login) - la session n'est plus touchée dans ce cas et la ligne `accounts` du compte principal est mise à jour.
+
 ## [0.54.3] - 2026-11-12
 
 ### Corrigé

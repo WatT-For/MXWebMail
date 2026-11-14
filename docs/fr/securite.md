@@ -15,7 +15,9 @@ connue (`last_ip`, à chaque restauration) et le User-Agent - visibles dans
 Paramètres > Sessions pour repérer une session inconnue. Les jetons y sont listés
 et révocables, et le jeton courant est révoqué à la déconnexion **manuelle**
 (la déconnexion d'inactivité `autologout` le préserve : la session est alors
-restaurée silencieusement à la visite suivante).
+restaurée silencieusement à la visite suivante). Toute nouvelle session
+(login classique comme restauration) se positionne sur le dernier compte
+consulté - repli sur le compte par défaut.
 
 ### CSRF
 

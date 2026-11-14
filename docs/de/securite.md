@@ -19,7 +19,9 @@ User-Agent auf - sichtbar in Einstellungen > Sitzungen, um eine unbekannte
 Sitzung zu erkennen. Tokens werden dort gelistet und sind widerrufbar, und das
 aktuelle Token wird bei **manueller** Abmeldung widerrufen (die
 Inaktivitäts-Abmeldung `autologout` erhält es: die Sitzung wird dann beim
-nächsten Besuch still wiederhergestellt).
+nächsten Besuch still wiederhergestellt). Jede neue Sitzung (normale
+Anmeldung oder Wiederherstellung) startet auf dem zuletzt genutzten Konto -
+Rückfall auf das Standardkonto.
 
 ### CSRF
 

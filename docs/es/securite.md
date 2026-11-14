@@ -18,7 +18,8 @@ y el User-Agent - visibles en Ajustes > Sesiones para detectar una sesión
 desconocida. Los tokens se listan allí y son revocables, y el token actual se
 revoca en el cierre de sesión **manual** (el cierre por inactividad
 `autologout` lo preserva: la sesión se restaura silenciosamente en la visita
-siguiente).
+siguiente). Toda sesión nueva (login normal o restauración) se posiciona en
+la última cuenta consultada - con repliegue a la cuenta por defecto.
 
 ### CSRF
 
