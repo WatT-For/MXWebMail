@@ -56,9 +56,10 @@ final class API
 			$enabled = is_array($logs) ? ($logs['enabled'] ?? true) : (bool) $cfg->get('logs_enabled', true);
 			if ($enabled) {
 				$file = new \MailSo\Log\Drivers\File(self::app()->storageDir() . '/logs/mail.log');
-				if (is_array($logs) && ($logs['time_zone'] ?? '') !== '') {
-					try { $file->SetTimeZone((string) $logs['time_zone']); } catch (\Throwable) {}
-				}
+				// time_zone vide = fuseau du serveur (date.timezone / défaut PHP) ;
+				// sinon le driver MailSo resterait sur son défaut codé UTC.
+				$tz = is_array($logs) ? trim((string) ($logs['time_zone'] ?? '')) : '';
+				try { $file->SetTimeZone('' !== $tz ? $tz : \date_default_timezone_get()); } catch (\Throwable) {}
 				$logger->append($file);
 				if (is_array($logs) && isset($logs['level'])) {
 					$logger->SetLevel((int) $logs['level']);

@@ -109,7 +109,7 @@ final class LoginNotify extends PluginBase
 		$raw = "From: {$me}\r\nTo: {$me}\r\nSubject: {$subject}\r\n"
 			. 'Date: ' . date(\DateTimeInterface::RFC2822) . "\r\n"
 			. 'Message-ID: <' . bin2hex(random_bytes(8)) . '@'
-				. (string) ($_SESSION['domain'] ?? 'localhost') . ">\r\n"
+				. \MailSo\Smtp\SmtpClient::EhloHelper() . ">\r\n"
 			. "MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n"
 			. "Content-Transfer-Encoding: quoted-printable\r\n"
 			. "Auto-Submitted: auto-generated\r\n\r\n"

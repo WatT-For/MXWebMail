@@ -375,7 +375,7 @@ final class ComposeController extends BaseController
 		}
 		$message->SetInReplyTo(str_replace(["\r", "\n"], '', (string) $request->input('inReplyTo', '')));
 		$message->SetReferences(str_replace(["\r", "\n"], '', (string) $request->input('references', '')));
-		$message->RegenerateMessageId($_SESSION['domain'] ?? '');
+		$message->RegenerateMessageId(\MailSo\Smtp\SmtpClient::EhloHelper());
 
 		$html = (string) $request->input('html', '');
 		$plain = (string) $request->input('plain', '');

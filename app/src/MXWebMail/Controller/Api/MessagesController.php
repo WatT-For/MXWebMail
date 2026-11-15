@@ -133,7 +133,7 @@ final class MessagesController extends BaseController
 		$m->SetTo($rcpt);
 		$m->SetSubject($this->t('app.mdn_subject', ['s' => (string) ($msg['subject'] ?? '')]));
 		$m->SetInReplyTo(str_replace(["\r", "\n"], '', (string) ($msg['messageId'] ?? '')));
-		$m->RegenerateMessageId($_SESSION['domain'] ?? '');
+		$m->RegenerateMessageId(\MailSo\Smtp\SmtpClient::EhloHelper());
 		$m->Headers->AddByName(\MailSo\Mime\Enumerations\Header::CONTENT_TYPE,
 			'multipart/report; report-type=disposition-notification');
 

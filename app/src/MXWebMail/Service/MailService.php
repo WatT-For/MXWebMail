@@ -1513,7 +1513,7 @@ final class MailService
 			. 'Resent-From: <' . ($_SESSION['email'] ?? '') . ">\r\n"
 			. 'Resent-To: <' . $to . ">\r\n"
 			. 'Resent-Message-ID: <' . bin2hex(random_bytes(16))
-				. '@' . ($_SESSION['domain'] ?? 'localhost') . ">\r\n");
+				. '@' . \MailSo\Smtp\SmtpClient::EhloHelper() . ">\r\n");
 		rewind($raw); // le callback mimeStream l'a laissé en fin de flux
 		stream_copy_to_stream($raw, $out);
 		fclose($raw);
@@ -1521,6 +1521,11 @@ final class MailService
 		$this->smtpSendRaw($_SESSION['email'] ?? null, [$to],
 			$out, fstat($out)['size'] ?? 0);
 	}
+
+	/** Hôtes SMTP exigeant des en-têtes en ordre canonique (Free : 550 Spam
+	 *  Detected sinon - l'ordre technique-en-tête de MailSo est un fingerprint
+	 *  de bot pour leur filtre, constaté par bissection openssl). */
+	private const SMTP_CANONICAL_HEADERS = ['smtp.free.fr'];
 
 	/** Corps SMTP partagé send/bounce : résolution domaine + auth + dialogue
 	 *  (MailFrom/Rcpt/DATA). $mailFrom null > username des settings. */
@@ -1530,6 +1535,11 @@ final class MailService
 			$_SESSION['domain'] ?? '', !empty($_SESSION['acct_secondary']));
 		$settings = AuthService::smtpSettings($domain);
 		$this->applyAuth($settings);
+
+		if (\in_array(\strtolower($settings->host), self::SMTP_CANONICAL_HEADERS, true)) {
+			$stream = self::canonicalizeHeaders($stream);
+			$size = fstat($stream)['size'] ?? $size;
+		}
 
 		$smtp = new \MailSo\Smtp\SmtpClient();
 		$smtp->SetLogger(\MXWebMail\API::Logger());
@@ -1574,6 +1584,76 @@ final class MailService
 			// En cas d'exception mid-dialogue la socket resterait ouverte.
 			try { $smtp->Disconnect(); } catch (\Throwable) {}
 		}
+	}
+
+	/** En-têtes que Free rejette quelle que soit leur position (prouvé par
+	 *  rejeu) : retirés du DATA. Disposition-Notification-To dégrade l'accusé
+	 *  de réception en envoi simple, X-Originating-IP concerne le plugin
+	 *  optionnel éponyme. */
+	private const SMTP_OMIT_HEADERS = [
+		'Disposition-Notification-To:', 'X-Originating-IP:'];
+
+	/** Réordonne le bloc d'en-têtes du flux RFC822 : Resent-* d'abord (champs
+	 *  prepended, RFC 5322 §3.6.6), puis identité From/Reply-To/To/Cc/Subject/
+	 *  Date, puis Message-ID/In-Reply-To/References (threading, exigé avant le
+	 *  bloc MIME par Free), puis le reste dans l'ordre d'origine, puis
+	 *  MIME-Version/Content-Type/CTE en fin. Les en-têtes SMTP_OMIT_HEADERS
+	 *  sont supprimés. MailSo fige l'ordre dans ToStream() (défauts ajoutés
+	 *  en tête) d'où la réécriture post-sérialisation. Corps et pliures
+	 *  d'en-têtes préservés. */
+	private static function canonicalizeHeaders($stream)
+	{
+		$raw = stream_get_contents($stream);
+		fclose($stream);
+		$pos = strpos($raw, "\r\n\r\n");
+		$head = false === $pos ? $raw : substr($raw, 0, $pos);
+		$rest = false === $pos ? '' : substr($raw, $pos);
+		// Rattache les lignes pliées (continuation espace/tab) à leur en-tête.
+		$headers = [];
+		foreach (explode("\r\n", $head) as $line) {
+			if ('' !== $line && ' ' !== $line[0] && "\t" !== $line[0]) {
+				$headers[] = $line;
+			} elseif ($headers) {
+				$headers[count($headers) - 1] .= "\r\n" . $line;
+			}
+		}
+		$out = [];
+		foreach (['Resent-', 'From:', 'Reply-To:', 'To:', 'Cc:', 'Subject:',
+			'Date:', 'Message-ID:', 'In-Reply-To:', 'References:'] as $prefix) {
+			foreach ($headers as $i => $h) {
+				if (0 === stripos($h, $prefix)) {
+					$out[] = $h;
+					unset($headers[$i]);
+				}
+			}
+		}
+		$mime = [];
+		foreach (['MIME-Version:', 'Content-Type:',
+			'Content-Transfer-Encoding:'] as $prefix) {
+			foreach ($headers as $i => $h) {
+				if (0 === stripos($h, $prefix)) {
+					$mime[] = $h;
+					unset($headers[$i]);
+				}
+			}
+		}
+		foreach (self::SMTP_OMIT_HEADERS as $prefix) {
+			foreach ($headers as $i => $h) {
+				if (0 === stripos($h, $prefix)) {
+					unset($headers[$i]);
+				}
+			}
+		}
+		foreach ($headers as $h) {
+			$out[] = $h;
+		}
+		foreach ($mime as $h) {
+			$out[] = $h;
+		}
+		$outStream = fopen('php://temp', 'w+b');
+		fwrite($outStream, implode("\r\n", $out) . $rest);
+		rewind($outStream);
+		return $outStream;
 	}
 
 	// ─── Sérialisation ───

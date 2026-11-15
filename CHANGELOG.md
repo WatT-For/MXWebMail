@@ -6,6 +6,13 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) -
 semver `0.MINOR.PATCH` en développement.
 Catégories, dans l'ordre : `Sécurité`, `Ajouté`, `Modifié`, `Corrigé`, `Obsolète`, `Supprimé`.
 
+## [0.54.5] - 2026-11-15
+
+### Corrigé
+
+- Les mails sortants étaient refusés par certains serveurs SMTP (Free : `550 5.7.1 Spam Detected`) : leur filtre rejette les messages dont les en-têtes techniques (`MIME-Version`, `Content-Type`...) précèdent l'identité (`From`, `To`, `Subject`, `Date`) ou qui portent `Disposition-Notification-To` / `X-Originating-IP`. Les en-têtes sont désormais réordonnés de façon canonique vers `smtp.free.fr` (les demandes d'accusé de réception y sont ignorées, l'envoi reste délivré), et le `Message-ID` est généré sur le nom d'hôte du webmail (le même que l'`EHLO`) plutôt que le domaine du compte.
+- Le journal `mail.log` retombait sur UTC quand `logs.time_zone` était vide ; il suit désormais le fuseau du serveur (`date.timezone` / défaut PHP).
+
 ## [0.54.4] - 2026-11-14
 
 ### Corrigé
