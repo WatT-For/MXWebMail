@@ -3,7 +3,7 @@
 	"label": "plugin.black-list.label",
 	"class": "BlackList",
 	"main": "BlackList.php",
-	"version": "0.13.1",
+	"version": "0.13.2",
 	"description": "plugin.black-list.description",
 	"hooks": ["auth.login.mapped"]
 }

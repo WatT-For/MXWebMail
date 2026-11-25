@@ -25,13 +25,7 @@ final class CardDavContacts extends PluginBase
 	public function register(HookRegistry $hooks): void
 	{
 		$hooks->on('app.data', function (array $data) {
-			$data['pluginTabs'][] = [
-				'id'     => 'carddav-contacts',
-				'label'  => 'plugin.carddav-contacts.tab',
-				'icon'   => 'fa-book',
-				'js'     => 'carddav.js',
-				'plugin' => 'carddav-contacts',
-			];
+			$data['pluginTabs'][] = $this->userTab('carddav.js', 'fa-book');
 			return $data;
 		});
 	}

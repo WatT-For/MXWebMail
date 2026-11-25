@@ -30,57 +30,13 @@ if (!is_file($boot)) {
 require $boot;
 
 $app = new MXWebMail\Application\App($appDir, dirname($appDir));
-$storage = $app->storageDir();
-$dir = $storage . '/update';
+$dir = $app->storageDir() . '/update';
 is_dir($dir) || mkdir($dir, 0700, true);
 
-$result = ['ok' => true, 'at' => date('c'), 'version' => APP_VERSION, 'errors' => []];
-
-try {
-	$app->db()->migrate();
-	try {
-		$v = $app->db()->meta('schema_version');
-		$result['schema_version'] = $v === null ? null : (int) $v;
-	} catch (\Throwable) {
-		$result['schema_version'] = null;
-	}
-} catch (\Throwable $e) {
-	$result['ok'] = false;
-	$result['errors'][] = 'globale : ' . $e->getMessage();
-}
-
-foreach (glob($storage . '/db/users/*.sqlite') ?: [] as $f) {
-	try {
-		MXWebMail\Repository\Database::sqliteFile($f)->migrate();
-	} catch (\Throwable $e) {
-		$result['ok'] = false;
-		$result['errors'][] = basename($f) . ' : ' . $e->getMessage();
-	}
-}
-
-@unlink($storage . '/cache/classmap.php');
-
-// Reliquat des installs ≤ 0.44 : l'assistant /setup est intégré au cœur -
-// le fichier standalone ne doit pas rester dans le webroot. installDir()
-// peut être deviné faux si app/ est relocalisé : non bloquant.
-try {
-	$setupDir = $app->installDir() . '/public/setup';
-	if (is_dir($setupDir)) {
-		$ok = true;
-		// Récursif (même motif qu'UpdateService::rmrf) : glob('*') raterait
-		// les fichiers cachés (.htaccess) et les sous-dossiers > rmdir échoue.
-		foreach (new \RecursiveIteratorIterator(
-				new \RecursiveDirectoryIterator($setupDir,
-					\FilesystemIterator::SKIP_DOTS),
-				\RecursiveIteratorIterator::CHILD_FIRST) as $f) {
-			$r = $f->isDir() && !$f->isLink()
-				? @rmdir($f->getPathname()) : @unlink($f->getPathname());
-			$r || ($ok = false);
-		}
-		$ok = $ok && @rmdir($setupDir);
-		$result['setup_removed'] = $ok;
-	}
-} catch (\Throwable) {}
+// Logique partagée avec UpdateService::finalize : migrations globale +
+// bases contacts, purge classmap/opcache, nettoyage public/setup.
+$result = $app->updater()->postUpdateMaintenance()
+	+ ['at' => date('c'), 'version' => APP_VERSION];
 
 file_put_contents("$dir/post-update.json",
 	json_encode($result, JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . "\n");

@@ -3,7 +3,7 @@
 	"label": "plugin.ldap-contacts.label",
 	"class": "LdapContacts",
 	"main": "LdapContacts.php",
-	"version": "0.12.2",
+	"version": "0.12.3",
 	"description": "plugin.ldap-contacts.description",
 	"hooks": ["contacts.provider"]
 }

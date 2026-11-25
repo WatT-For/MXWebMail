@@ -2,14 +2,11 @@
 declare(strict_types=1);
 
 namespace MXWebMail\Controller\Api;
-use MXWebMail\Application\App;
 use MXWebMail\Http\JsonResponse;
 use MXWebMail\Http\Request;
 use MXWebMail\Http\Response;
-use MXWebMail\Security\CredentialCrypt;
-use MXWebMail\Security\Csrf;
-use MXWebMail\Security\TotpRequiredException;
-use MXWebMail\Service\MailService;
+use MXWebMail\Validation\Rule;
+use MXWebMail\UserFacingException;
 
 
 
@@ -19,22 +16,21 @@ final class AccountsController extends BaseController
 	public function accounts(Request $request): JsonResponse
 	{
 		$this->requireReadOnly();
-		$uid = (int) $_SESSION['user_id'];
+		$uid = $this->app->sessionUserId();
 		return JsonResponse::ok(array_map(
-			fn($a) => $a + ['active' => (int) $a['id'] === (int) ($_SESSION['account_id'] ?? 0)],
+			fn($a) => $a + ['active' => (int) $a['id'] === $this->app->sessionAccountId()],
 			$this->app->auth()->accounts($uid)
 		));
 	}
 
 	public function accountAdd(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		if (!$this->app->config()->get('allow_additional_accounts', true)) {
-			return JsonResponse::error($this->t('errors.accounts_off'), 'forbidden', 403);
+			throw new UserFacingException($this->t('errors.accounts_off'), 403, jsonCode: 'forbidden');
 		}
 		$r = $this->app->auth()->addAccount(
-			(int) $_SESSION['user_id'],
+			$this->app->sessionUserId(),
 			(string) $request->input('email'),
 			(string) $request->input('password')
 		);
@@ -50,21 +46,19 @@ final class AccountsController extends BaseController
 	 */
 	public function accountOauthBegin(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		if (!$this->app->config()->get('allow_additional_accounts', true)) {
-			return JsonResponse::error($this->t('errors.accounts_off'), 'forbidden', 403);
+			throw new UserFacingException($this->t('errors.accounts_off'), 403, jsonCode: 'forbidden');
 		}
 		$email = trim(mb_strtolower((string) $request->input('email', '')));
-		$domainName = str_contains($email, '@')
-			? substr($email, strrpos($email, '@') + 1) : '';
+		$domainName = Rule::emailDomain($email);
 		$domain = $domainName !== '' ? $this->app->auth()->domainFor($domainName, true) : [];
 		$provider = (string) (\MXWebMail\Service\AuthService::domainOptions($domain)['oauth'] ?? '');
 		$oauth = $this->app->oauth();
 		if (empty($domain['id']) || $provider === '') {
 			return JsonResponse::ok(['url' => null]);
 		}
-		$app = $oauth->appFor((int) $_SESSION['user_id'], $provider);
+		$app = $oauth->appFor($this->app->sessionUserId(), $provider);
 		if ($app === null) {
 			return JsonResponse::ok(['url' => null, 'provider' => $provider,
 				'needs_app' => true, 'redirect_uri' => $oauth->redirectUri()]);
@@ -82,7 +76,7 @@ final class AccountsController extends BaseController
 	public function accountOauthCallback(Request $request): Response
 	{
 		$pending = $_SESSION['oauth_pending'] ?? null;
-		if (empty($_SESSION['user_id']) || !is_array($pending)) {
+		if ($this->app->sessionUserId() === 0 || !is_array($pending)) {
 			unset($_SESSION['oauth_pending']);
 			return Response::redirect(\MXWebMail\Http\Request::basePath() . '/');
 		}
@@ -99,7 +93,7 @@ final class AccountsController extends BaseController
 				return $this->oauthDone(false, 'state');
 			}
 			$app = $this->app->oauth()->appFor(
-				(int) $_SESSION['user_id'], (string) $pending['provider']);
+				$this->app->sessionUserId(), (string) $pending['provider']);
 			if ($app === null) {
 				return $this->oauthDone(false, 'failed');
 			}
@@ -112,7 +106,7 @@ final class AccountsController extends BaseController
 				return $this->oauthDone(false, 'email_mismatch');
 			}
 			$this->app->auth()->addAccountOauth(
-				(int) $_SESSION['user_id'],
+				$this->app->sessionUserId(),
 				(string) $pending['email'],
 				(string) $tokens['access_token'],
 				(string) $tokens['refresh_token'],
@@ -148,8 +142,9 @@ final class AccountsController extends BaseController
 		$this->requireReadOnly();
 		$repo = $this->app->oauthApps();
 		return JsonResponse::ok([
-			'apps'         => $repo->allFor((int) $_SESSION['user_id']),
+			'apps'         => $repo->allFor($this->app->sessionUserId()),
 			'providers'    => $repo->allowedProviders(),
+			'labels'       => \MXWebMail\Service\OAuthService::providerLabels(),
 			'redirect_uri' => $this->app->oauth()->redirectUri(),
 		]);
 	}
@@ -162,16 +157,14 @@ final class AccountsController extends BaseController
 	 */
 	public function oauthAppSave(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		$repo = $this->app->oauthApps();
 		$provider = (string) $request->input('provider', '');
 		if (!in_array($provider, \MXWebMail\Service\OAuthService::providers(), true)
 			|| !in_array($provider, $repo->allowedProviders(), true)) {
-			return JsonResponse::error(
-				$this->t('errors.invalid_value', ['key' => 'provider']), 'validation', 400);
+			throw new UserFacingException($this->t('errors.invalid_value', ['key' => 'provider']), 400, jsonCode: 'validation');
 		}
-		$uid = (int) $_SESSION['user_id'];
+		$uid = $this->app->sessionUserId();
 		$clientId = $this->noCrlf(
 			trim((string) $request->input('client_id', '')), 'client_id');
 		$secret = $this->noCrlf(trim((string) $request->input('secret', '')), 'secret');
@@ -180,8 +173,7 @@ final class AccountsController extends BaseController
 		if ($clientId === '' || strlen($clientId) > 255 || strlen($secret) > 255
 			|| (!$exists && $secret === '')
 			|| ($tenant !== '' && !preg_match('/^[A-Za-z0-9.\-]+$/', $tenant))) {
-			return JsonResponse::error(
-				$this->t('errors.invalid_value', ['key' => 'client_id']), 'validation', 400);
+			throw new UserFacingException($this->t('errors.invalid_value', ['key' => 'client_id']), 400, jsonCode: 'validation');
 		}
 		$repo->save($uid, $provider, $clientId,
 			$secret !== '' ? $secret : null,
@@ -191,46 +183,41 @@ final class AccountsController extends BaseController
 
 	public function oauthAppDelete(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		$this->app->oauthApps()->delete(
-			(int) $_SESSION['user_id'], (string) $request->input('provider', ''));
+			$this->app->sessionUserId(), (string) $request->input('provider', ''));
 		return JsonResponse::ok();
 	}
 
 	public function accountSwitch(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		return JsonResponse::ok(
-			$this->app->auth()->switchAccount((int) $_SESSION['user_id'], (int) $request->params['id'])
+			$this->app->auth()->switchAccount($this->app->sessionUserId(), (int) $request->params['id'])
 		);
 	}
 
 	public function accountDelete(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
-		$this->app->auth()->removeAccount((int) $_SESSION['user_id'], (int) $request->params['id']);
+		$this->requireWrite();
+		$this->app->auth()->removeAccount($this->app->sessionUserId(), (int) $request->params['id']);
 		return JsonResponse::ok();
 	}
 
 	public function accountDefault(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		$this->app->auth()->setDefaultAccount(
-			(int) $_SESSION['user_id'], (int) $request->params['id']);
+			$this->app->sessionUserId(), (int) $request->params['id']);
 		return JsonResponse::ok();
 	}
 
 	/** Réordonnancement des comptes secondaires (glisser-déposer). */
 	public function accountOrder(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		$this->app->auth()->reorderAccounts(
-			(int) $_SESSION['user_id'],
+			$this->app->sessionUserId(),
 			array_map('intval', (array) $request->input('ids', [])));
 		return JsonResponse::ok();
 	}

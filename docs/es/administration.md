@@ -110,7 +110,7 @@ Aplicaciones OAuth2*).
 ### Usuarios
 
 Lista + búsqueda de usuarios, con botón de actualización (icono) para
-recargar la lista. Por usuario (modal, pestañas *Perfil*, *Ajustes*,
+recargar la lista. Por usuario (página dedicada `#/users/<id>`, pestañas *Perfil*, *Ajustes*,
 *Cuentas/Identidades*, *Sesiones*):
 
 - `display_name`, `is_admin`, `disabled`;

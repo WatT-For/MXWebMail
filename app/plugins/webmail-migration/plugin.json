@@ -3,7 +3,7 @@
 	"label": "plugin.webmail-migration.label",
 	"class": "WebmailMigration",
 	"main": "WebmailMigration.php",
-	"version": "0.1.2",
+	"version": "0.1.3",
 	"description": "plugin.webmail-migration.description",
 	"hooks": ["admin.mounts"]
 }

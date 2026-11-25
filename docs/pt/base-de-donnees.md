@@ -38,7 +38,7 @@ assinalado em *Sobre* - as migrações ficam então suspensas.
 
 | Tabela | Conteúdo |
 |---|---|
-| `meta` | pares chave/valor (`schema_version`, `contacts_moved`, …). |
+| `meta` | pares chave/valor (`schema_version`, `plugin_<name>_schema_version`, `contacts_moved`, …). |
 | `users` | `username` (único), `display_name`, `is_admin`, `disabled`, `session_epoch` (incrementado por "Forçar encerramento de sessão" - rejeita as sessões ativas no pedido seguinte), `created_at`, `last_login_at`. |
 | `accounts` | contas IMAP dos utilizadores: `email`, `imap_user`, `imap_pass` (cifrado), `is_default` (conta principal, modificável em Definições > Contas), `position` (ordem de visualização das contas secundárias, reordenável por arrastar e largar em Definições > Contas), `auth` (`password`, `google`, `microsoft`, `yahoo` - OAuth2: `imap_pass` armazena então o *refresh token* cifrado). |
 | `oauth_apps` | aplicações OAuth2 por utilizador: `provider`, `client_id`, `secret` (cifrado), `tenant` - uma app por `(user_id, provider)` (ver [domaines.md](domaines.md) §8). |

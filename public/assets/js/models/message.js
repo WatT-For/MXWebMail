@@ -1,4 +1,5 @@
 import { t, lang } from '../i18n.js';
+import { formatSize } from '../ui/format.js';
 
 /**
  * Modèle d'un message côté vue : wrap les données API en observables.
@@ -73,10 +74,6 @@ export class MessageModel {
 
 	/** Taille lisible (size est en octets, unités binaires o/Ko/Mo/Go). */
 	sizeLabel() {
-		const b = Number(this.size) || 0;
-		if (b >= 1073741824) { return (b / 1073741824).toFixed(1) + ' ' + t('unit.gb'); }
-		if (b >= 1048576) { return (b / 1048576).toFixed(1) + ' ' + t('unit.mb'); }
-		if (b >= 1024) { return Math.round(b / 1024) + ' ' + t('unit.kb'); }
-		return b + ' ' + t('unit.b');
+		return formatSize(this.size);
 	}
 }

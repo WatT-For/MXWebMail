@@ -2,14 +2,9 @@
 declare(strict_types=1);
 
 namespace MXWebMail\Controller\Api;
-use MXWebMail\Application\App;
 use MXWebMail\Http\JsonResponse;
 use MXWebMail\Http\Request;
-use MXWebMail\Http\Response;
-use MXWebMail\Security\CredentialCrypt;
-use MXWebMail\Security\Csrf;
-use MXWebMail\Security\TotpRequiredException;
-use MXWebMail\Service\MailService;
+use MXWebMail\UserFacingException;
 
 
 
@@ -34,8 +29,7 @@ final class FiltersController extends BaseController
 
 	public function filterSave(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		// Deux formats : {name, source} (mode source) ou {name, rules}
 		// (assistant - compilation serveur via ScriptBuilder ; rules =
 		// doc complet ou simple tableau de règles).
@@ -57,20 +51,18 @@ final class FiltersController extends BaseController
 				}
 				$source = \MXWebMail\Sieve\ScriptBuilder::compile($doc, $this->app->locale());
 			} catch (\InvalidArgumentException $e) {
-				return JsonResponse::error(
-					$this->t('errors.invalid_value', ['key' => 'rules'])
-						. ' - ' . $e->getMessage(), 'validation', 400);
+				throw new UserFacingException($this->t('errors.invalid_value', ['key' => 'rules'])
+						. ' - ' . $e->getMessage(), 400, jsonCode: 'validation');
 			}
 		} else {
 			$source = (string) $request->input('source', '');
 			if (trim($source) === '') {
-				return JsonResponse::error($this->t('errors.empty_script'), 'empty');
+				throw new UserFacingException($this->t('errors.empty_script'), jsonCode: 'empty');
 			}
 		}
 		$name = $this->noCrlf((string) $request->input('name'), 'name');
 		if (trim($name) === '') {
-			return JsonResponse::error(
-				$this->t('errors.invalid_value', ['key' => 'name']), 'validation', 400);
+			throw new UserFacingException($this->t('errors.invalid_value', ['key' => 'name']), 400, jsonCode: 'validation');
 		}
 		$oldName = $this->noCrlf((string) $request->input('old_name', ''), 'old_name');
 		// Vérif syntaxique côté serveur Sieve avant PUT
@@ -82,41 +74,36 @@ final class FiltersController extends BaseController
 	/** Prévisualisation de la source générée par l'assistant (rien d'écrit). */
 	public function filterCompile(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		try {
 			$rules = (array) $request->input('rules', []);
 			$source = \MXWebMail\Sieve\ScriptBuilder::compile(
 				array_is_list($rules) ? ['rules' => $rules] : $rules,
 				$this->app->locale());
 		} catch (\InvalidArgumentException $e) {
-			return JsonResponse::error(
-				$this->t('errors.invalid_value', ['key' => 'rules'])
-					. ' - ' . $e->getMessage(), 'validation', 400);
+			throw new UserFacingException($this->t('errors.invalid_value', ['key' => 'rules'])
+					. ' - ' . $e->getMessage(), 400, jsonCode: 'validation');
 		}
 		return JsonResponse::ok(['source' => $source]);
 	}
 
 	public function filterActivate(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		$this->app->mail()->filterActivate($this->noCrlf((string) $request->input('name'), 'name'));
 		return JsonResponse::ok();
 	}
 
 	public function filterDeactivate(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		$this->app->mail()->filterDeactivate();
 		return JsonResponse::ok();
 	}
 
 	public function filterDelete(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		$this->app->mail()->filterDelete($this->noCrlf((string) $request->input('name'), 'name'));
 		return JsonResponse::ok();
 	}
@@ -129,8 +116,7 @@ final class FiltersController extends BaseController
 
 	public function vacationSave(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		$v = (array) $request->json();
 		$from = trim((string) ($v['from'] ?? ''));
 		$to = trim((string) ($v['to'] ?? ''));
@@ -142,29 +128,29 @@ final class FiltersController extends BaseController
 			(array) ($v['addresses'] ?? []))));
 		if ($days === false || $days < 1 || $days > 30 || strlen($subject) > 200
 			|| strlen($message) > 8192) {
-			return JsonResponse::error($this->t('errors.invalid_value', ['key' => 'vacation']), 'validation', 400);
+			throw new UserFacingException($this->t('errors.invalid_value', ['key' => 'vacation']), 400, jsonCode: 'validation');
 		}
 		foreach ([$from, $to] as $d) {
 			if ($d !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) {
-				return JsonResponse::error($this->t('errors.invalid_value', ['key' => 'vacation']), 'validation', 400);
+				throw new UserFacingException($this->t('errors.invalid_value', ['key' => 'vacation']), 400, jsonCode: 'validation');
 			}
 		}
 		if ($from !== '' && $to !== '' && $from > $to) {
-			return JsonResponse::error($this->t('errors.invalid_value', ['key' => 'vacation']), 'validation', 400);
+			throw new UserFacingException($this->t('errors.invalid_value', ['key' => 'vacation']), 400, jsonCode: 'validation');
 		}
 		if ($enabled && trim($message) === '') {
-			return JsonResponse::error($this->t('errors.invalid_value', ['key' => 'vacation']), 'validation', 400);
+			throw new UserFacingException($this->t('errors.invalid_value', ['key' => 'vacation']), 400, jsonCode: 'validation');
 		}
 		// :addresses ⊆ adresses du compte + identités déclarées (sinon le
 		// répondeur partirait pour des courriers adressés à d'autres).
-		$allowed = [mb_strtolower((string) $_SESSION['email'])];
-		foreach ($this->app->identities()->allForUser((int) $_SESSION['user_id']) as $i) {
+		$allowed = [mb_strtolower($this->app->sessionEmail())];
+		foreach ($this->app->identities()->allForUser($this->app->sessionUserId()) as $i) {
 			$allowed[] = mb_strtolower((string) $i['email']);
 		}
 		$addresses = array_values(array_intersect(
 			array_map('mb_strtolower', $addresses), array_unique($allowed)));
 		if (!$addresses) {
-			$addresses = [mb_strtolower((string) $_SESSION['email'])];
+			$addresses = [mb_strtolower($this->app->sessionEmail())];
 		}
 		$this->app->mail()->vacationSave([
 			'enabled' => $enabled, 'subject' => $subject, 'message' => $message,

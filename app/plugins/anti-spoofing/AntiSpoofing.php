@@ -5,6 +5,7 @@ namespace Plugin;
 
 use MXWebMail\Plugin\HookRegistry;
 use MXWebMail\Plugin\PluginBase;
+use MXWebMail\Validation\Rule;
 
 /**
  * Détection d'usurpation d'adresse / de domaine dans le lecteur de message.
@@ -43,7 +44,7 @@ final class AntiSpoofing extends PluginBase
 		$fromEmail = $first?->GetEmail() ?? '';
 		$fromName  = $first?->GetDisplayName() ?? '';
 		$fromDomain = $fromEmail !== ''
-			? \MailSo\Base\Utils::getEmailAddressDomain($fromEmail) : '';
+			? Rule::emailDomain($fromEmail) : '';
 
 		$headers = $msg->Headers;
 		$returnPath = $headers
@@ -55,7 +56,7 @@ final class AntiSpoofing extends PluginBase
 		if ($this->flag('check_envelope')
 			&& $fromDomain !== '' && $returnPath !== ''
 			&& !self::isVerp($returnPath)) {
-			$rpDomain = \MailSo\Base\Utils::getEmailAddressDomain($returnPath);
+			$rpDomain = Rule::emailDomain($returnPath);
 			if ($rpDomain !== '' && strcasecmp($rpDomain, $fromDomain) !== 0) {
 				$alerts[] = $this->alert('envelope_mismatch', 'warning', [
 					'from' => $fromEmail, 'return_path' => $returnPath,
@@ -70,7 +71,7 @@ final class AntiSpoofing extends PluginBase
 
 		// 2. Reply-To ≠ From
 		if ($this->flag('check_reply_to') && $replyToEmail !== '' && $fromDomain !== '') {
-			$rtDomain = \MailSo\Base\Utils::getEmailAddressDomain($replyToEmail);
+			$rtDomain = Rule::emailDomain($replyToEmail);
 			if ($rtDomain !== '' && strcasecmp($rtDomain, $fromDomain) !== 0) {
 				$alerts[] = $this->alert('reply_to_mismatch', 'warning', [
 					'from' => $fromEmail, 'reply_to' => $replyToEmail,
@@ -112,7 +113,7 @@ final class AntiSpoofing extends PluginBase
 				$domains[] = $fromDomain;
 			}
 			if ($replyToEmail !== '') {
-				$domains[] = \MailSo\Base\Utils::getEmailAddressDomain($replyToEmail);
+				$domains[] = Rule::emailDomain($replyToEmail);
 			}
 			foreach (array_unique($domains) as $domain) {
 				if ($domain === '' || $this->isProtected($domain, $protected)) {
@@ -262,16 +263,12 @@ final class AntiSpoofing extends PluginBase
 	/** Bool de config (défaut true : getConfig() renvoie [] tant que l'admin n'a rien sauvegardé). */
 	private function flag(string $key): bool
 	{
-		return (bool) ($this->config[$key] ?? true);
+		return $this->configBool($key, true);
 	}
 
 	private function csv(string $key, string $default): array
 	{
-		$raw = trim((string) ($this->config[$key] ?? ''));
-		if ($raw === '') {
-			$raw = $default; // champ vide > liste par défaut (pas de désactivation)
-		}
-		return array_values(array_filter(array_map('trim', explode(',', $raw))));
+		return $this->configCsv($key, $default);
 	}
 
 	/**
@@ -282,9 +279,9 @@ final class AntiSpoofing extends PluginBase
 	private function protectedDomains(): array
 	{
 		$domains = $this->csv('protected_domains', self::DEFAULT_PROTECTED);
-		$email = (string) ($_SESSION['email'] ?? '');
+		$email = $this->app->sessionEmail();
 		if ($email !== '') {
-			$domains[] = \MailSo\Base\Utils::getEmailAddressDomain($email);
+			$domains[] = Rule::emailDomain($email);
 		}
 		try {
 			foreach ($this->app->domains()->all() as $d) {
@@ -297,16 +294,7 @@ final class AntiSpoofing extends PluginBase
 			static fn(string $d): string => strtolower(trim($d)), $domains))));
 	}
 
-	private static function firstEmail(?\MailSo\Mime\EmailCollection $col): ?\MailSo\Mime\Email
-	{
-		if (!$col || !count($col)) {
-			return null;
-		}
-		foreach ($col as $email) {
-			return $email;
-		}
-		return null;
-	}
+
 
 	/** "<x@y>" > "x@y" ; "<>" (bounce) ou vide > ''. */
 	private static function normalizeReturnPath(string $v): string
@@ -537,7 +525,7 @@ final class AntiSpoofing extends PluginBase
 	{
 		$v = ltrim(strtolower(trim($v, " \t\"")), '@');
 		if (str_contains($v, '@')) {
-			$v = \MailSo\Base\Utils::getEmailAddressDomain($v);
+			$v = Rule::emailDomain($v);
 		}
 		return $v;
 	}

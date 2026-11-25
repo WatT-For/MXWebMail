@@ -103,10 +103,10 @@ abstract class SecFetch
 		// activation utilisateur - le navigateur retire Sec-Fetch-User après
 		// chaque redirection (portails, liens réécrits, méta refresh,
 		// prerender). Les POST/fetch/sous-ressources cross-site restent
-		// filtrés par matchAnyRule() + le jeton CSRF.
+		// filtrés par matchAnyRule() + le jeton CSRF. HEAD = sémantique GET.
 		return static::dest('document')
 			&& static::mode('navigate')
-			&& 'GET' === $_SERVER['REQUEST_METHOD'];
+			&& in_array($_SERVER['REQUEST_METHOD'], ['GET', 'HEAD'], true);
 	}
 
 	public static function isSameOrigin() : bool

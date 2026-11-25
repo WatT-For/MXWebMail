@@ -46,7 +46,7 @@ final class SeasonalDecorations extends PluginBase
 	 */
 	private function head(string $base): string
 	{
-		if (!$this->app->isLoggedIn() && empty($this->config['show_on_login'] ?? true)) {
+		if (!$this->app->isLoggedIn() && !$this->configBool('show_on_login', true)) {
 			return '';
 		}
 		$event = $this->currentEvent();
@@ -86,8 +86,6 @@ final class SeasonalDecorations extends PluginBase
 			(string) @file_get_contents($dir . '/scenes.json'), true);
 		$list = is_array($scenes[$event] ?? null) ? $scenes[$event] : [];
 		$urls = $pos = $size = [];
-		$b = htmlspecialchars($base, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-		$v = rawurlencode($this->version());
 		foreach ($list as $o) {
 			$svg = basename((string) ($o['svg'] ?? ''));
 			$p = trim((string) ($o['pos'] ?? ''));
@@ -96,7 +94,10 @@ final class SeasonalDecorations extends PluginBase
 				|| !is_file("{$dir}/assets/{$svg}.svg")) {
 				continue;
 			}
-			$urls[] = "url('{$b}/assets/plugin/seasonal-decorations/{$svg}.svg?v={$v}')";
+			$urls[] = "url('"
+				. htmlspecialchars($this->assetUrl($base, "{$svg}.svg"),
+					ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+				. "')";
 			$pos[] = $p;
 			$size[] = $s;
 		}
@@ -118,7 +119,7 @@ final class SeasonalDecorations extends PluginBase
 		$today = (int) date('md');
 		$year  = (int) date('Y');
 		foreach (self::EVENTS as $name => $row) {
-			if (!($this->config[$row['on']] ?? true)) {
+			if (!$this->configBool($row['on'], true)) {
 				continue;
 			}
 			$hit = isset($row['before'])
@@ -155,8 +156,8 @@ final class SeasonalDecorations extends PluginBase
 	private function inEasterWindow(int $year): bool
 	{
 		$row = self::EVENTS['easter'];
-		$before = max(0, min(30, (int) ($this->config[$row['before']] ?? $row['b'])));
-		$after  = max(0, min(30, (int) ($this->config[$row['after']]  ?? $row['a'])));
+		$before = max(0, min(30, $this->configInt($row['before'], $row['b'])));
+		$after  = max(0, min(30, $this->configInt($row['after'],  $row['a'])));
 		[$m, $d] = self::easterSunday($year);
 		$easter = new \DateTimeImmutable(sprintf('%04d-%02d-%02d', $year, $m, $d));
 		$today  = date('Y-m-d');

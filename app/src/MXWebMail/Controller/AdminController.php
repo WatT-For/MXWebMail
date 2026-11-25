@@ -3,10 +3,10 @@ declare(strict_types=1);
 
 namespace MXWebMail\Controller;
 
-use MXWebMail\Application\App;
 use MXWebMail\Http\JsonResponse;
 use MXWebMail\Http\Request;
 use MXWebMail\Security\Csrf;
+use MXWebMail\UserFacingException;
 
 /**
  * API admin : une seule administration globale (multi-domaine inclus).
@@ -17,7 +17,7 @@ final class AdminController extends Admin\BaseController
 	public function login(Request $request): JsonResponse
 	{
 		if (!Csrf::verifyRequest()) {
-			return JsonResponse::error($this->t('errors.csrf'), 'csrf', 403);
+			throw new UserFacingException($this->t('errors.csrf'), 403, jsonCode: 'csrf');
 		}
 		$this->requireAdminIp();
 		$user = (string) $request->input('user', $request->input('email', ''));
@@ -32,7 +32,7 @@ final class AdminController extends Admin\BaseController
 			if ($cfgUser !== '' && $cfgHash !== '') {
 				// Compte admin local - indépendant d'IMAP
 				if (!hash_equals($cfgUser, $user) || !password_verify($password, $cfgHash)) {
-					throw new \RuntimeException($this->t('errors.bad_credentials'), 401);
+					throw new UserFacingException($this->t('errors.bad_credentials'), 401, jsonCode: 'auth');
 				}
 				// TOTP du compte local : délégué au plugin two-factor-auth
 				// (admin.post-login - plugin désactivé = non exigé).
@@ -55,29 +55,16 @@ final class AdminController extends Admin\BaseController
 				// sinon un non-admin repart avec une session valide.
 				$auth->logout();
 				$this->app->logAuth('admin:' . $user, 'AUTH FAILED (403)');
-				return JsonResponse::error($this->t('errors.admin_required'), 'forbidden', 403);
+				throw new UserFacingException($this->t('errors.admin_required'), 403, jsonCode: 'forbidden');
 			}
 			$_SESSION['admin'] = (int) $u['id'];
 			$auth->resetRateLimit($rateKey);
 			$this->app->logAuth('admin:' . $user, 'AUTH OK');
 			return JsonResponse::ok();
 		} catch (\MXWebMail\Security\TotpRequiredException $e) {
-			if (trim((string) $request->input('totp', '')) !== '') {
-				$auth->recordFailedAttempt($rateKey);
-				$this->app->logAuth('admin:' . $user, 'AUTH FAILED (totp)');
-			}
-			return JsonResponse::error($e->getMessage(), 'totp_required', 401);
+			$this->loginTotpError($request, $rateKey, 'admin:' . $user);
 		} catch (\Throwable $e) {
-			// Un 429 = tentative déjà bloquée : ne pas prolonger le verrou.
-			if ($e->getCode() !== 429) {
-				$auth->recordFailedAttempt($rateKey);
-			}
-			$this->app->logAuth('admin:' . $user, 'AUTH FAILED (' . $e->getCode() . ')');
-			$this->app->log('warning', 'Login admin échoué: ' . $e->getMessage());
-			if (in_array($e->getCode(), [401, 403, 429], true)) {
-				return JsonResponse::error($e->getMessage(), 'auth', $e->getCode());
-			}
-			return JsonResponse::error($this->t('errors.bad_credentials'), 'auth', 401);
+			$this->loginError($e, $rateKey, 'admin:' . $user, 'errors.bad_credentials');
 		}
 	}
 

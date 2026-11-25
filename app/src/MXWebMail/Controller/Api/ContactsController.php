@@ -2,14 +2,10 @@
 declare(strict_types=1);
 
 namespace MXWebMail\Controller\Api;
-use MXWebMail\Application\App;
 use MXWebMail\Http\JsonResponse;
 use MXWebMail\Http\Request;
 use MXWebMail\Http\Response;
-use MXWebMail\Security\CredentialCrypt;
-use MXWebMail\Security\Csrf;
-use MXWebMail\Security\TotpRequiredException;
-use MXWebMail\Service\MailService;
+use MXWebMail\UserFacingException;
 
 
 
@@ -21,7 +17,7 @@ final class ContactsController extends BaseController
 		$this->requireReadOnly();
 		$this->requireContacts();
 		$q = $this->noCrlf((string) $request->input('q', ''), 'q');
-		$userId = (int) $_SESSION['user_id'];
+		$userId = $this->app->sessionUserId();
 		$limit = (int) $this->app->config()->get('contacts_suggestions_limit', 20);
 		$data = $q === ''
 			? $this->app->contacts()->all($userId)
@@ -45,24 +41,22 @@ final class ContactsController extends BaseController
 		$this->requireContacts();
 		$name = $this->noCrlf((string) $request->input('name', ''), 'name');
 		return JsonResponse::ok(
-			$this->app->contacts()->expandGroup((int) $_SESSION['user_id'], $name));
+			$this->app->contacts()->expandGroup($this->app->sessionUserId(), $name));
 	}
 
 	public function contactSave(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		$this->requireContacts();
-		$id = $this->app->contacts()->save((int) $_SESSION['user_id'], (array) $request->json());
+		$id = $this->app->contacts()->save($this->app->sessionUserId(), (array) $request->json());
 		return JsonResponse::ok(['id' => $id]);
 	}
 
 	public function contactDelete(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		$this->requireContacts();
-		$this->app->contacts()->delete((int) $_SESSION['user_id'], (int) $request->input('id'));
+		$this->app->contacts()->delete($this->app->sessionUserId(), (int) $request->input('id'));
 		return JsonResponse::ok();
 	}
 
@@ -73,18 +67,9 @@ final class ContactsController extends BaseController
 	 */
 	public function contactsImport(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		$this->requireContacts();
-		$f = $request->files['file'] ?? null;
-		if (!is_array($f) || (int) ($f['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK
-			|| !is_uploaded_file((string) ($f['tmp_name'] ?? ''))) {
-			return JsonResponse::error($this->t('errors.bad_upload'), 'bad_upload');
-		}
-		if ((int) ($f['size'] ?? 0) > 5 * 1024 * 1024) {
-			return JsonResponse::error(
-				$this->t('errors.file_too_big', ['mb' => 5]), 'too_big', 400);
-		}
+		$f = $this->requireUpload($request, 'file', 5 * 1024 * 1024);
 		$tmp = (string) $f['tmp_name'];
 		$source = '';
 		if (\MXWebMail\Service\RainLoopContacts::isSqlite(
@@ -101,18 +86,16 @@ final class ContactsController extends BaseController
 				if (!$items
 					&& \MXWebMail\Service\RainLoopContacts::ownerCount($pdo) > 1) {
 					// RuntimeException : non interceptée par le catch PDOException.
-					throw new \RuntimeException(
-						$this->t('settings.contacts_import_multi'), 400);
+					throw new UserFacingException($this->t('settings.contacts_import_multi'), 400);
 				}
 			} catch (\PDOException) {
-				throw new \RuntimeException(
-					$this->t('settings.contacts_import_bad_sqlite'), 400);
+				throw new UserFacingException($this->t('settings.contacts_import_bad_sqlite'), 400);
 			}
 			$source = 'rainloop';
 		} else {
 			$raw = file_get_contents($tmp);
 			if ($raw === false || trim($raw) === '') {
-				return JsonResponse::error($this->t('errors.bad_upload'), 'bad_upload');
+				throw new UserFacingException($this->t('errors.bad_upload'), jsonCode: 'bad_upload');
 			}
 			// .csv > parseur CSV (mapping heuristique) ; tout le reste = vCard.
 			$items = str_ends_with(strtolower((string) ($f['name'] ?? '')), '.csv')
@@ -120,10 +103,10 @@ final class ContactsController extends BaseController
 				: \MXWebMail\Service\VCardContacts::parse($raw);
 		}
 		if (!$items) {
-			throw new \RuntimeException($this->t('settings.contacts_import_none'), 400);
+			throw new UserFacingException($this->t('settings.contacts_import_none'), 400);
 		}
 		$report = $this->app->contacts()->import(
-			(int) $_SESSION['user_id'], $items, $source);
+			$this->app->sessionUserId(), $items, $source);
 		return JsonResponse::ok($report);
 	}
 
@@ -133,7 +116,7 @@ final class ContactsController extends BaseController
 		$this->requireReadOnly();
 		$this->requireContacts();
 		$vcf = \MXWebMail\Service\VCardContacts::export(
-			$this->app->contacts()->exportRows((int) $_SESSION['user_id']));
+			$this->app->contacts()->exportRows($this->app->sessionUserId()));
 		return new Response($vcf, 200, [
 			'Content-Type'        => 'text/vcard; charset=utf-8',
 			'Content-Disposition' => 'attachment; filename="contacts.vcf"',
@@ -143,7 +126,7 @@ final class ContactsController extends BaseController
 	private function requireContacts(): void
 	{
 		if (!$this->app->config()->get('contacts_enable', true)) {
-			throw new \RuntimeException($this->t('errors.contacts_off'), 403);
+			throw new UserFacingException($this->t('errors.contacts_off'), 403, jsonCode: 'forbidden');
 		}
 	}
 }

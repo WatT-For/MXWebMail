@@ -1,17 +1,8 @@
-<!doctype html>
-<html lang="<?= htmlspecialchars($lang) ?>" <?= $themeHtmlAttrs ?>>
-<head>
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title><?= htmlspecialchars($app->config()->get('app_name')) ?></title>
-	<link rel="icon" href="<?= $faviconUrl ?>">
-	<link rel="stylesheet" href="<?= $assets ?>/vendor/bootstrap/css/bootstrap.min.css">
-	<link rel="stylesheet" href="<?= $assets ?>/vendor/fontawesome/css/all.min.css">
-	<link id="theme-css" rel="stylesheet" href="<?= $base ?>/assets/theme/<?= $theme ?>/app.css?v=<?= $themeVer ?>">
-	<?= $themeHead ?>
-	<?= $themeScript ?>
-	<!-- openpgp (~540K) et tinymce (~500K) chargés à la demande via js/lazy.js -->
-	<?= $pluginHead ?>
+<?php
+$headTitle = '';
+$headPlugin = true;
+// openpgp (~540K) et tinymce (~500K) chargés à la demande via js/lazy.js
+$headExtra = <<<'HTML'
 	<style>
 	/* Splash de démarrage : HTML/CSS pur affiché dès le 1er paint (avant
 	   knockout.js), retiré en fondu par app.js une fois l'interface prête.
@@ -30,7 +21,9 @@
 		#app-splash { transition: none; }
 	}
 	</style>
-</head>
+HTML;
+require $partial('_head');
+?>
 <body>
 <div id="app-splash" role="status">
 	<div class="brand-logo"><?= htmlspecialchars($app->config()->get('app_name')) ?></div>
@@ -281,19 +274,8 @@
 
 			<div class="pane-footer p-2 border-top justify-content-between small">
 				<span class="text-muted" data-bind="text: $root.t('app.message_count', { n: total() })"></span>
-				<div class="btn-group btn-group-sm">
-					<button class="btn btn-sm btn-icon btn-outline-secondary"
-						data-bind="click: prevPage, disable: page() <= 1, tooltip: 'app.page_prev',
-							attr: { 'aria-label': $root.t('app.page_prev') }">
-						<i class="fa-solid fa-chevron-left"></i>
-					</button>
-					<span class="btn btn-outline-secondary disabled" data-bind="text: page() + ' / ' + totalPages()"></span>
-					<button class="btn btn-sm btn-icon btn-outline-secondary"
-						data-bind="click: nextPage, disable: page() >= totalPages(), tooltip: 'app.page_next',
-							attr: { 'aria-label': $root.t('app.page_next') }">
-						<i class="fa-solid fa-chevron-right"></i>
-					</button>
-				</div>
+				<div class="btn-group btn-group-sm"
+					data-bind="template: {name: 'pager-tpl', data: {prev: prevPage, next: nextPage, page: page, total: totalPages}}"></div>
 			</div>
 
 			<!-- Voile de chargement centré sur la colonne -->
@@ -335,7 +317,7 @@
 							</div>
 							<div><?= $t('app.to') ?> <span data-bind="text: $parent.headerText('to')"></span></div>
 							<div data-bind="visible: cc && cc.length" style="display:none"><?= $t('app.cc') ?> <span data-bind="text: $parent.headerText('cc')"></span></div>
-							<div data-bind="text: new Date(date * 1000).toLocaleString($root.lang)"></div>
+							<div data-bind="text: $root.fmtTs(date)"></div>
 						</div>
 					</div>
 					<div class="d-flex flex-column align-items-end align-self-stretch gap-1">
@@ -573,162 +555,105 @@
 			<h5><?= $t('common.general') ?></h5>
 			<div class="card"><div class="card-body">
 				<div class="row">
+					<?php
+					// Ligne de réglage : label [+ tooltip i18n "<clé>_help"] + zone
+					// de contrôle - seuls l'input/select/case varient par ligne.
+					// $sRow('settings.x', help?, 'for-id') ... contrôle ... $sRowEnd()
+					$sRow = function (string $label, bool $help = false,
+						string $for = '') use ($t): void { ?>
 					<div class="col-12 col-xxl-6">
 						<div class="row align-items-center mb-2">
-							<label class="col-md-4 col-form-label col-form-label-sm"><?= $t('settings.messages_per_page') ?></label>
-							<div class="col-md-8">
+							<label class="col-md-4 col-form-label col-form-label-sm"<?= $for === '' ? '' : ' for="' . htmlspecialchars($for) . '"' ?>><?= $t($label) ?><?php if ($help): ?> <i class="fa-regular fa-circle-question help-icon" tabindex="0"
+								data-bind="tooltip: '<?= $label ?>_help'"></i><?php endif; ?></label>
+							<div class="col-md-8"><?php };
+					$sRowEnd = function (): void { ?></div></div></div><?php };
+					?>
+					<?php $sRow('settings.messages_per_page'); ?>
 								<select class="form-select form-select-sm" data-bind="value: values().messages_per_page">
 									<option value="25">25</option><option value="50">50</option>
 									<option value="100">100</option><option value="200">200</option>
 								</select>
-							</div>
-						</div>
-					</div>
-					<div class="col-12 col-xxl-6">
-						<div class="row align-items-center mb-2">
-							<label class="col-md-4 col-form-label col-form-label-sm"><?= $t('settings.layout') ?></label>
-							<div class="col-md-8">
+					<?php $sRowEnd(); ?>
+					<?php $sRow('settings.layout'); ?>
 								<select class="form-select form-select-sm" data-bind="value: values().layout">
 									<option value="horizontal"><?= $t('settings.layout.horizontal') ?></option>
 									<option value="vertical"><?= $t('settings.layout.vertical') ?></option>
 								</select>
-							</div>
-						</div>
-					</div>
-					<div class="col-12 col-xxl-6">
-						<div class="row align-items-center mb-2">
-							<label class="col-md-4 col-form-label col-form-label-sm"><?= $t('settings.view_images') ?> <i class="fa-regular fa-circle-question help-icon" tabindex="0"
-								data-bind="tooltip: 'settings.view_images_help'"></i></label>
-							<div class="col-md-8">
+					<?php $sRowEnd(); ?>
+					<?php $sRow('settings.view_images', true); ?>
 								<select class="form-select form-select-sm" data-bind="value: values().view_images">
 									<option value="ask"><?= $t('settings.view_images.ask') ?></option>
 									<option value="match"><?= $t('settings.view_images.match') ?></option>
 									<option value="always"><?= $t('settings.view_images.always') ?></option>
 								</select>
-							</div>
-						</div>
-					</div>
-					<div class="col-12 col-xxl-6">
-						<div class="row align-items-center mb-2">
-							<label class="col-md-4 col-form-label col-form-label-sm"><?= $t('settings.reply_button') ?></label>
-							<div class="col-md-8">
+					<?php $sRowEnd(); ?>
+					<?php $sRow('settings.mdn_mode', true); ?>
+								<select class="form-select form-select-sm" data-bind="value: values().mdn_mode">
+									<option value="ask"><?= $t('settings.mdn_mode.ask') ?></option>
+									<option value="never"><?= $t('settings.mdn_mode.never') ?></option>
+								</select>
+					<?php $sRowEnd(); ?>
+					<?php $sRow('settings.reply_button'); ?>
 								<select class="form-select form-select-sm" data-bind="value: values().msg_default_action">
 									<option value="reply"><?= $t('app.reply') ?></option>
 									<option value="reply_all"><?= $t('app.reply_all') ?></option>
 								</select>
-							</div>
-						</div>
-					</div>
-					<div class="col-12 col-xxl-6">
-						<div class="row align-items-center mb-2">
-							<label class="col-md-4 col-form-label col-form-label-sm"><?= $t('settings.after_delete') ?></label>
-							<div class="col-md-8">
+					<?php $sRowEnd(); ?>
+					<?php $sRow('settings.after_delete'); ?>
 								<select class="form-select form-select-sm" data-bind="value: values().after_delete">
 									<option value="next"><?= $t('settings.after_delete.next') ?></option>
 									<option value="prev"><?= $t('settings.after_delete.prev') ?></option>
 									<option value="close"><?= $t('settings.after_delete.close') ?></option>
 								</select>
-							</div>
-						</div>
-					</div>
-					<div class="col-12 col-xxl-6">
-						<div class="row align-items-center mb-2">
-							<label class="col-md-4 col-form-label col-form-label-sm" for="st-keys"><?= $t('settings.keyboard_shortcuts') ?> <i class="fa-regular fa-circle-question help-icon" tabindex="0"
-								data-bind="tooltip: 'settings.keyboard_shortcuts_help'"></i></label>
-							<div class="col-md-8"><div class="form-check">
+					<?php $sRowEnd(); ?>
+					<?php $sRow('settings.keyboard_shortcuts', true, 'st-keys'); ?>
+								<div class="form-check">
 								<input class="form-check-input" type="checkbox" id="st-keys" data-bind="checked: values().keyboard_shortcuts">
-							</div></div>
-						</div>
-					</div>
-					<div class="col-12 col-xxl-6">
-						<div class="row align-items-center mb-2">
-							<label class="col-md-4 col-form-label col-form-label-sm"><?= $t('settings.mark_read_delay') ?></label>
-							<div class="col-md-8">
+							</div>
+					<?php $sRowEnd(); ?>
+					<?php $sRow('settings.mark_read_delay'); ?>
 								<input type="number" min="0" max="300" class="form-control form-control-sm" data-bind="value: values().mark_read_delay">
-							</div>
-						</div>
-					</div>
-					<div class="col-12 col-xxl-6">
-						<div class="row align-items-center mb-2">
-							<label class="col-md-4 col-form-label col-form-label-sm" for="st-autosave"><?= $t('settings.contacts_autosave') ?> <i class="fa-regular fa-circle-question help-icon" tabindex="0"
-								data-bind="tooltip: 'settings.contacts_autosave_help'"></i></label>
-							<div class="col-md-8"><div class="form-check">
+					<?php $sRowEnd(); ?>
+					<?php $sRow('settings.contacts_autosave', true, 'st-autosave'); ?>
+								<div class="form-check">
 								<input class="form-check-input" type="checkbox" id="st-autosave" data-bind="checked: values().contacts_autosave">
-							</div></div>
-						</div>
-					</div>
-					<div class="col-12 col-xxl-6">
-						<div class="row align-items-center mb-2">
-							<label class="col-md-4 col-form-label col-form-label-sm"><?= $t('settings.compose_autosave') ?> <i class="fa-regular fa-circle-question help-icon" tabindex="0"
-								data-bind="tooltip: 'settings.compose_autosave_help'"></i></label>
-							<div class="col-md-8">
+							</div>
+					<?php $sRowEnd(); ?>
+					<?php $sRow('settings.compose_autosave', true); ?>
 								<input type="number" min="0" max="300" class="form-control form-control-sm" data-bind="value: values().compose_autosave">
-							</div>
-						</div>
-					</div>
-					<div class="col-12 col-xxl-6">
-						<div class="row align-items-center mb-2">
-							<label class="col-md-4 col-form-label col-form-label-sm"><?= $t('settings.autologout') ?></label>
-							<div class="col-md-8">
+					<?php $sRowEnd(); ?>
+					<?php $sRow('settings.autologout'); ?>
 								<input type="number" min="0" max="1440" class="form-control form-control-sm" data-bind="value: values().autologout">
-							</div>
-						</div>
-					</div>
-					<div class="col-12 col-xxl-6">
-						<div class="row align-items-center mb-2">
-							<label class="col-md-4 col-form-label col-form-label-sm"><?= $t('settings.list_refresh') ?></label>
-							<div class="col-md-8">
+					<?php $sRowEnd(); ?>
+					<?php $sRow('settings.list_refresh'); ?>
 								<select class="form-select form-select-sm" data-bind="options: refreshOptions,
 									optionsText: 'label', optionsValue: 'value', value: values().list_refresh"></select>
-							</div>
-						</div>
-					</div>
-					<div class="col-12 col-xxl-6">
-						<div class="row align-items-center mb-2">
-							<label class="col-md-4 col-form-label col-form-label-sm" for="st-notify"><?= $t('settings.notify_new_mail') ?> <i class="fa-regular fa-circle-question help-icon" tabindex="0"
-								data-bind="tooltip: 'settings.notify_new_mail_help'"></i></label>
-							<div class="col-md-8">
+					<?php $sRowEnd(); ?>
+					<?php $sRow('settings.notify_new_mail', true, 'st-notify'); ?>
 								<div class="form-check">
 									<input class="form-check-input" type="checkbox" id="st-notify"
 										data-bind="checked: values().notify_new_mail, event: { change: toggleNotify }">
 								</div>
-							</div>
-						</div>
-					</div>
-					<div class="col-12 col-xxl-6">
-						<div class="row align-items-center mb-2">
-							<label class="col-md-4 col-form-label col-form-label-sm"><?= $t('settings.theme') ?></label>
-							<div class="col-md-8">
+					<?php $sRowEnd(); ?>
+					<?php $sRow('settings.theme'); ?>
 								<select class="form-select form-select-sm" data-bind="options: $root.themeOptions, optionsText: (i) => $root.t(i.label), optionsValue: 'name', value: values().theme"></select>
-							</div>
-						</div>
-					</div>
-					<div class="col-12 col-xxl-6">
-						<div class="row align-items-center mb-2">
-							<label class="col-md-4 col-form-label col-form-label-sm" for="st-threads"><?= $t('settings.list_threads') ?> <i class="fa-regular fa-circle-question help-icon" tabindex="0"
-								data-bind="tooltip: 'settings.list_threads_help'"></i></label>
-							<div class="col-md-8"><div class="form-check">
+					<?php $sRowEnd(); ?>
+					<?php $sRow('settings.list_threads', true, 'st-threads'); ?>
+								<div class="form-check">
 								<input class="form-check-input" type="checkbox" id="st-threads" data-bind="checked: values().list_threads">
 							</div>
-							<div class="form-text" data-bind="visible: $root.messageList.threadsSupported() === false" style="display:none"><?= $t('settings.list_threads_unsupported') ?></div></div>
-						</div>
-					</div>
-					<div class="col-12 col-xxl-6">
-						<div class="row align-items-center mb-2">
-							<label class="col-md-4 col-form-label col-form-label-sm" for="st-empty-trash"><?= $t('settings.empty_trash_logout') ?></label>
-							<div class="col-md-8"><div class="form-check">
+							<div class="form-text" data-bind="visible: $root.messageList.threadsSupported() === false" style="display:none"><?= $t('settings.list_threads_unsupported') ?></div>
+					<?php $sRowEnd(); ?>
+					<?php $sRow('settings.empty_trash_logout', false, 'st-empty-trash'); ?>
+								<div class="form-check">
 								<input class="form-check-input" type="checkbox" id="st-empty-trash" data-bind="checked: values().empty_trash_on_logout">
-							</div></div>
-						</div>
-					</div>
-					<div class="col-12 col-xxl-6">
-						<div class="row align-items-center mb-2">
-							<label class="col-md-4 col-form-label col-form-label-sm" for="st-empty-junk"><?= $t('settings.empty_junk_logout') ?></label>
-							<div class="col-md-8"><div class="form-check">
+							</div>
+					<?php $sRowEnd(); ?>
+					<?php $sRow('settings.empty_junk_logout', false, 'st-empty-junk'); ?>
+								<div class="form-check">
 								<input class="form-check-input" type="checkbox" id="st-empty-junk" data-bind="checked: values().empty_junk_on_logout">
-							</div></div>
-						</div>
-					</div>
+							</div>
+					<?php $sRowEnd(); ?>
 				</div>
 				<button class="btn btn-primary btn-sm" data-bind="click: saveSettings"><?= $t('common.save') ?></button>
 			</div></div>
@@ -840,7 +765,7 @@
 									<button class="btn btn-sm btn-icon btn-outline-secondary" style="display:none"
 										data-bind="visible: !isSystem, click: () => $root.folderList.renameFolder($data.folder), tooltip: 'app.rename'"><i class="fa-solid fa-pen"></i></button>
 									<button class="btn btn-sm btn-icon btn-outline-secondary" style="display:none"
-										data-bind="visible: !isSystem, click: () => $root.folderList.editAcl($data.folder), tooltip: 'folders.acl_title'"><i class="fa-solid fa-user-lock"></i></button>
+										data-bind="visible: !isSystem && $root.imapCaps().acl, click: () => $root.folderList.editAcl($data.folder), tooltip: 'folders.acl_title'"><i class="fa-solid fa-user-lock"></i></button>
 									<button class="btn btn-sm btn-icon btn-outline-danger" style="display:none"
 										data-bind="visible: !isSystem && $root.features().dangerous_actions !== false, click: () => $root.folderList.deleteFolder($data.folder), tooltip: 'common.delete'"><i class="fa-solid fa-trash"></i></button>
 								</td>
@@ -872,8 +797,8 @@
 						<label class="col-md-4 col-form-label col-form-label-sm" for="eml-target"><?= $t('settings.import_folder') ?></label>
 						<div class="col-md-8">
 							<select class="form-select form-select-sm" id="eml-target"
-								data-bind="options: $root.folderList.folders, optionsText: 'label',
-									optionsValue: 'fullName', value: importFolder, disable: importBusy"></select>
+								data-bind="options: importFolderOptions, optionsText: 'label',
+									optionsValue: 'value', value: importFolder, disable: importBusy"></select>
 						</div>
 					</div>
 					<label class="btn btn-sm btn-primary mb-0" data-bind="css: { disabled: importBusy }">
@@ -990,19 +915,8 @@
 				</tbody>
 			</table>
 			<div class="d-flex justify-content-end mt-1" data-bind="visible: contactsTotalPages() > 1" style="display:none">
-				<div class="btn-group btn-group-sm">
-					<button class="btn btn-sm btn-icon btn-outline-secondary"
-						data-bind="click: contactsPrevPage, disable: contactsPageEff() <= 1,
-							tooltip: 'app.page_prev', attr: { 'aria-label': $root.t('app.page_prev') }">
-						<i class="fa-solid fa-chevron-left"></i>
-					</button>
-					<span class="btn btn-outline-secondary disabled" data-bind="text: contactsPageEff() + ' / ' + contactsTotalPages()"></span>
-					<button class="btn btn-sm btn-icon btn-outline-secondary"
-						data-bind="click: contactsNextPage, disable: contactsPageEff() >= contactsTotalPages(),
-							tooltip: 'app.page_next', attr: { 'aria-label': $root.t('app.page_next') }">
-						<i class="fa-solid fa-chevron-right"></i>
-					</button>
-				</div>
+				<div class="btn-group btn-group-sm"
+					data-bind="template: {name: 'pager-tpl', data: {prev: contactsPrevPage, next: contactsNextPage, page: contactsPageEff, total: contactsTotalPages}}"></div>
 			</div>
 			<div class="text-center py-4" data-bind="visible: contactsLoading" style="display:none">
 				<span class="spinner-border spinner-border-sm text-secondary" role="status"></span>
@@ -1247,81 +1161,15 @@
 				<div class="modal-body">
 					<!-- ko toast: { value: error, variant: 'danger' } --><!-- /ko -->
 
-					<div class="mb-2 position-relative">
-						<div class="form-control form-control-sm addr-field d-flex flex-wrap align-items-center gap-1"
-							data-bind="click: () => document.getElementById('compose-to-input').focus()">
-							<!-- ko foreach: to -->
-							<span class="addr-chip" data-bind="css:{'addr-chip-invalid':!!$data.invalid}, attr:{title:email}">
-								<span data-bind="text: name || email"></span>
-								<button type="button" class="addr-chip-x" title="<?= $t('common.delete') ?>"
-									data-bind="click: () => $parent.removeChip('to', $data)"><i class="fa-solid fa-xmark"></i></button>
-							</span>
-							<!-- /ko -->
-							<input id="compose-to-input" class="addr-input" type="text" autocomplete="off"
-								placeholder="<?= $t('compose.to') ?>"
-								data-bind="value: toText, valueUpdate: 'input', event: {
-									input: () => onAddrInput('to'),
-									keydown: (d,e) => onAddrKey('to', e),
-									blur: onAddrBlur }">
-						</div>
-						<div class="list-group compose-suggestions position-absolute w-100 shadow" style="z-index:1055" role="listbox"
-							data-bind="foreach: suggestions, visible: suggestField()==='to' && suggestions().length">
-							<a class="list-group-item list-group-item-action py-1 small" href="#" role="option"
-								data-bind="event:{mousedown:(d,e)=>{e.preventDefault();$parent.applySuggestion('to',$data);}},
-									css:{active:$index()===$parent.suggestIndex()},
-									text: $data.group ? $root.t('compose.group', {name: $data.group, n: $data.count}) : ($data.name ? $data.name + ' - ' : '') + $data.email"></a>
-						</div>
-					</div>
-					<div class="mb-2 position-relative" style="display:none" data-bind="visible: showCc() || !!cc().length || !!ccText()">
-						<div class="form-control form-control-sm addr-field d-flex flex-wrap align-items-center gap-1"
-							data-bind="click: () => document.getElementById('compose-cc-input').focus()">
-							<!-- ko foreach: cc -->
-							<span class="addr-chip" data-bind="css:{'addr-chip-invalid':!!$data.invalid}, attr:{title:email}">
-								<span data-bind="text: name || email"></span>
-								<button type="button" class="addr-chip-x" title="<?= $t('common.delete') ?>"
-									data-bind="click: () => $parent.removeChip('cc', $data)"><i class="fa-solid fa-xmark"></i></button>
-							</span>
-							<!-- /ko -->
-							<input id="compose-cc-input" class="addr-input" type="text" autocomplete="off"
-								placeholder="<?= $t('compose.cc') ?>"
-								data-bind="value: ccText, valueUpdate: 'input', event: {
-									input: () => onAddrInput('cc'),
-									keydown: (d,e) => onAddrKey('cc', e),
-									blur: onAddrBlur }">
-						</div>
-						<div class="list-group compose-suggestions position-absolute w-100 shadow" style="z-index:1055" role="listbox"
-							data-bind="foreach: suggestions, visible: suggestField()==='cc' && suggestions().length">
-							<a class="list-group-item list-group-item-action py-1 small" href="#" role="option"
-								data-bind="event:{mousedown:(d,e)=>{e.preventDefault();$parent.applySuggestion('cc',$data);}},
-									css:{active:$index()===$parent.suggestIndex()},
-									text: $data.group ? $root.t('compose.group', {name: $data.group, n: $data.count}) : ($data.name ? $data.name + ' - ' : '') + $data.email"></a>
-						</div>
-					</div>
-					<div class="mb-2 position-relative" style="display:none" data-bind="visible: showBcc() || !!bcc().length || !!bccText()">
-						<div class="form-control form-control-sm addr-field d-flex flex-wrap align-items-center gap-1"
-							data-bind="click: () => document.getElementById('compose-bcc-input').focus()">
-							<!-- ko foreach: bcc -->
-							<span class="addr-chip" data-bind="css:{'addr-chip-invalid':!!$data.invalid}, attr:{title:email}">
-								<span data-bind="text: name || email"></span>
-								<button type="button" class="addr-chip-x" title="<?= $t('common.delete') ?>"
-									data-bind="click: () => $parent.removeChip('bcc', $data)"><i class="fa-solid fa-xmark"></i></button>
-							</span>
-							<!-- /ko -->
-							<input id="compose-bcc-input" class="addr-input" type="text" autocomplete="off"
-								placeholder="<?= $t('compose.bcc') ?>"
-								data-bind="value: bccText, valueUpdate: 'input', event: {
-									input: () => onAddrInput('bcc'),
-									keydown: (d,e) => onAddrKey('bcc', e),
-									blur: onAddrBlur }">
-						</div>
-						<div class="list-group compose-suggestions position-absolute w-100 shadow" style="z-index:1055" role="listbox"
-							data-bind="foreach: suggestions, visible: suggestField()==='bcc' && suggestions().length">
-							<a class="list-group-item list-group-item-action py-1 small" href="#" role="option"
-								data-bind="event:{mousedown:(d,e)=>{e.preventDefault();$parent.applySuggestion('bcc',$data);}},
-									css:{active:$index()===$parent.suggestIndex()},
-									text: $data.group ? $root.t('compose.group', {name: $data.group, n: $data.count}) : ($data.name ? $data.name + ' - ' : '') + $data.email"></a>
-						</div>
-					</div>
+					<div data-bind="template: {name: 'addr-field-tpl', data: {
+						field: 'to', inputId: 'compose-to-input', ph: 'compose.to',
+						chips: to, text: toText, show: null }}"></div>
+					<div data-bind="template: {name: 'addr-field-tpl', data: {
+						field: 'cc', inputId: 'compose-cc-input', ph: 'compose.cc',
+						chips: cc, text: ccText, show: showCc }}"></div>
+					<div data-bind="template: {name: 'addr-field-tpl', data: {
+						field: 'bcc', inputId: 'compose-bcc-input', ph: 'compose.bcc',
+						chips: bcc, text: bccText, show: showBcc }}"></div>
 					<div class="mb-2">
 						<input class="form-control form-control-sm" placeholder="<?= $t('compose.subject') ?>" data-bind="value: subject">
 					</div>
@@ -1432,7 +1280,7 @@
 								<strong class="text-body"><?= $t('app.cc') ?></strong>
 								<span data-bind="text: $parent.addrText(cc)"></span></div>
 							<div data-bind="visible: date">
-								<span data-bind="text: new Date(date * 1000).toLocaleString($parent.app.lang)"></span></div>
+								<span data-bind="text: $root.fmtTs(date)"></span></div>
 						</div>
 						<!-- /ko -->
 						<div id="eml-preview-body" class="mail-body" style="max-height:60vh;overflow:auto"></div>
@@ -1752,12 +1600,61 @@
 	</div>
 </div>
 
-<script nonce="<?= $nonce ?>">
-	window.MXWM = <?= $mxwmJson ?>;
+<!-- Pagination prev/next partagée (liste messages, contacts) :
+     data = {prev, next : handlers ; page, total : observables} -->
+<script type="text/html" id="pager-tpl">
+	<button class="btn btn-sm btn-icon btn-outline-secondary"
+		data-bind="click: prev, disable: page() <= 1, tooltip: 'app.page_prev',
+			attr: { 'aria-label': $root.t('app.page_prev') }">
+		<i class="fa-solid fa-chevron-left"></i>
+	</button>
+	<span class="btn btn-outline-secondary disabled" data-bind="text: page() + ' / ' + total()"></span>
+	<button class="btn btn-sm btn-icon btn-outline-secondary"
+		data-bind="click: next, disable: page() >= total(), tooltip: 'app.page_next',
+			attr: { 'aria-label': $root.t('app.page_next') }">
+		<i class="fa-solid fa-chevron-right"></i>
+	</button>
 </script>
-<script src="<?= $i18nUrl ?>"></script>
-<script src="<?= $assets ?>/vendor/knockout/knockout.js"></script>
-<script src="<?= $assets ?>/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
-<script type="module" src="<?= $assets ?>/js/dist/app.js"></script>
+
+<!-- Champ destinataires To/Cc/Bcc du compose (chips + input + suggestions) :
+     data = {field:'to'|'cc'|'bcc', inputId, ph (clé i18n), chips, text,
+     show (observable de dépliage Cc/Cci, null pour To toujours visible)} ;
+     le contexte parent est le ComposeVM. -->
+<script type="text/html" id="addr-field-tpl">
+	<div class="mb-2 position-relative" style="display:none"
+		data-bind="visible: !show || show() || !!chips().length || !!text()">
+		<div class="form-control form-control-sm addr-field d-flex flex-wrap align-items-center gap-1"
+			data-bind="click: () => document.getElementById(inputId).focus()">
+			<!-- ko foreach: chips -->
+			<span class="addr-chip" data-bind="css:{'addr-chip-invalid':!!$data.invalid}, attr:{title:email}">
+				<span data-bind="text: name || email"></span>
+				<button type="button" class="addr-chip-x" title="<?= $t('common.delete') ?>"
+					data-bind="click: () => $parents[1].removeChip($parent.field, $data)"><i class="fa-solid fa-xmark"></i></button>
+			</span>
+			<!-- /ko -->
+			<input class="addr-input" type="text" autocomplete="off"
+				data-bind="attr:{ id: inputId, placeholder: $root.t(ph) },
+					value: text, valueUpdate: 'input', event: {
+					input: () => $parent.onAddrInput(field),
+					keydown: (d,e) => $parent.onAddrKey(field, e),
+					blur: $parent.onAddrBlur }">
+		</div>
+		<div class="list-group compose-suggestions position-absolute w-100 shadow" style="z-index:1055" role="listbox"
+			data-bind="foreach: $parent.suggestions,
+				visible: $parent.suggestField()===field && $parent.suggestions().length">
+			<a class="list-group-item list-group-item-action py-1 small" href="#" role="option"
+				data-bind="event:{mousedown:(d,e)=>{e.preventDefault();$parents[1].applySuggestion($parent.field,$data);}},
+					css:{active:$index()===$parents[1].suggestIndex()},
+					text: $data.group ? $root.t('compose.group', {name: $data.group, n: $data.count}) : ($data.name ? $data.name + ' - ' : '') + $data.email"></a>
+		</div>
+	</div>
+</script>
+
+<?php
+$scriptsKo = true;
+$scriptsBs = true;
+$scriptsModule = 'js/dist/app.js';
+require $partial('_scripts');
+?>
 </body>
 </html>

@@ -99,6 +99,8 @@ La chaîne de résolution est `name > extends > … > default` (implicite si abs
 Exemple : `dark` et `midnight` ne fournissent que `assets/app.css` et leur
 `theme.json`/schéma ; tout le reste (pages, dictionnaires) est repris de `default`.
 
+Le layout commun vit dans `default/assets/base.css` : chaque `app.css` l'importe via `@import url("base.css")` (résolu dans la chaîne d'héritage), puis n'ajoute que ses variables `:root` et ses surcharges.
+
 ## 3. Créer un thème
 
 1. Créez `app/templates/<name>/theme.json` (avec éventuellement `extends`).

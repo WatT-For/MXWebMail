@@ -102,7 +102,7 @@ d'application OAuth2 sont enregistrés par chaque utilisateur
 ### Utilisateurs
 
 Liste + recherche d'utilisateurs, avec bouton d'actualisation (icône) pour recharger la liste.
-Par utilisateur (modale, onglets *Profil*, *Réglages*,
+Par utilisateur (page dédiée `#/users/<id>`, onglets *Profil*, *Réglages*,
 *Comptes/Identités*, *Sessions*) :
 
 - `display_name`, `is_admin`, `disabled` ;

@@ -4,6 +4,9 @@ declare(strict_types=1);
 namespace MXWebMail\Service;
 
 use MXWebMail\Application\App;
+use MXWebMail\Cache\FileCache;
+use MXWebMail\Files;
+use MXWebMail\Locale\Translates;
 use MXWebMail\Security\CredentialCrypt;
 use MXWebMail\UserFacingException;
 
@@ -13,6 +16,8 @@ use MXWebMail\UserFacingException;
  */
 final class MailService
 {
+	use Translates;
+
 	public const SPECIAL_ROLES = ['sent', 'drafts', 'trash', 'junk', 'archive'];
 
 	private ?\MailSo\Mail\MailClient $client = null;
@@ -20,6 +25,7 @@ final class MailService
 	private ?array $specialMap = null;
 	private ?array $userFolderSet = null;
 	private ?array $folderRows = null;
+	private ?FileCache $fc = null;
 
 	public function __construct(private App $app) {}
 
@@ -31,14 +37,14 @@ final class MailService
 	 */
 	private function applyAuth(\MailSo\Net\ConnectSettings $settings): void
 	{
-		$settings->username = $settings->fixUsername($_SESSION['email']);
-		if (($_SESSION['acct_auth'] ?? 'password') !== 'password') {
+		$settings->username = $settings->fixUsername($this->app->sessionEmail());
+		if (($this->app->sessionAuthProvider()) !== 'password') {
 			$settings->passphrase = $this->app->oauth()->accessToken(
-				(int) $_SESSION['account_id'], (int) $_SESSION['user_id']);
+				$this->app->sessionAccountId(), $this->app->sessionUserId());
 			$settings->SASLMechanisms = ['OAUTHBEARER', 'XOAUTH2'];
 			return;
 		}
-		$password = CredentialCrypt::decrypt($_SESSION['imap_pass'], $this->app->storageDir());
+		$password = CredentialCrypt::decrypt($this->app->sessionImapPass(), $this->app->storageDir());
 		if ($password === null) {
 			throw new \RuntimeException($this->t('errors.unauthenticated'), 401);
 		}
@@ -49,11 +55,11 @@ final class MailService
 	public function client(): \MailSo\Mail\MailClient
 	{
 		if ($this->client === null) {
-			if (empty($_SESSION['email']) || empty($_SESSION['imap_pass'])) {
+			if ($this->app->sessionEmail() === '' || $this->app->sessionImapPass() === '') {
 				throw new \RuntimeException($this->t('errors.unauthenticated'), 401);
 			}
 			$domain = $this->app->auth()->domainFor(
-				$_SESSION['domain'] ?? '', !empty($_SESSION['acct_secondary']));
+				$this->app->sessionDomain(), $this->app->isSecondaryAccount());
 
 			$settings = AuthService::imapSettings($domain);
 			$this->applyAuth($settings);
@@ -64,25 +70,7 @@ final class MailService
 			$imap = $client->ImapClient();
 			$imap->Settings = $settings;
 			$this->app->hooks()->run('imap.before-connect', $imap, $settings);
-			try {
-				$imap->Connect($settings);
-				$imap->Login($settings);
-			} catch (\MailSo\Imap\Exceptions\LoginException $e) {
-				// NO/BAD du serveur pendant le login (credentials, compte
-				// suspendu, méthode refusée) > refus d'authentification.
-				throw new UserFacingException(
-					$this->t('errors.bad_credentials'), 401, $e);
-			} catch (\MailSo\Net\Exceptions\ConnectionException
-				| \MailSo\Net\Exceptions\SocketReadException
-				| \MailSo\Net\Exceptions\SocketReadTimeoutException
-				| \MailSo\Net\Exceptions\SocketWriteException
-				| \MailSo\Imap\Exceptions\ResponseException $e) {
-				// Réseau, TLS, EOF mid-handshake, bannière illisible : le
-				// serveur est injoignable ou défaillant - host dans le
-				// message, détail technique déjà tracé dans mail.log.
-				throw new UserFacingException($this->t('errors.imap_unreachable',
-					['host' => $settings->host]), 503, $e);
-			}
+			$this->connectClient($imap, $settings, 'errors.imap_unreachable');
 
 			$this->client = $client;
 		}
@@ -101,10 +89,8 @@ final class MailService
 		try { $this->sieveClient?->Disconnect(); } catch (\Throwable) {}
 		$this->client = $this->sieveClient = null;
 		$this->specialMap = $this->userFolderSet = $this->folderRows = null;
-		foreach (glob($this->app->storageDir() . '/cache/folders-'
-				. (int) ($_SESSION['user_id'] ?? 0) . '-*.json') ?: [] as $f) {
-			@unlink($f);
-		}
+		Files::gcGlob($this->app->storageDir() . '/cache/folders-'
+			. $this->app->sessionUserId() . '-*.json');
 	}
 
 	// ─── Dossiers ───
@@ -192,26 +178,36 @@ final class MailService
 		// (requireReadOnly), une écriture $_SESSION serait perdue.
 		// Écriture évitée si identique : le JSON est déterministe - un tick de
 		// poll sans changement ne doit pas réécrire le fichier.
-		if (($f = $this->folderCacheFile())) {
-			$json = json_encode($out);
-			if (!is_file($f) || (string) @file_get_contents($f) !== $json) {
+		if (($f = $this->folderCacheName())) {
+			$json = (string) json_encode($out);
+			if ($this->fileCache()->get($f) !== $json) {
 				// Purge des caches d'autres comptes/sessions mortes (> 30 j).
-				foreach (glob($this->app->storageDir() . '/cache/folders-*.json') ?: [] as $stale) {
-					if ((int) filemtime($stale) < time() - 2592000) { @unlink($stale); }
-				}
-				@mxwm_atomic_write($f, $json);
+				Files::gcGlob($this->app->storageDir() . '/cache/folders-*.json', 2592000);
+				$this->fileCache()->set($f, $json);
 			}
 		}
 		return $this->folderRows = $out;
 	}
 
-	/** Cache fichier par (utilisateur, compte) - survit à la session fermée. */
-	private function folderCacheFile(): ?string
+	/** Le dossier existe-t-il côté serveur (fullName exact). */
+	public function folderExists(string $fullName): bool
 	{
-		$uid = (int) ($_SESSION['user_id'] ?? 0);
-		$acct = (int) ($_SESSION['account_id'] ?? 0);
-		return $uid > 0 ? $this->app->storageDir()
-			. "/cache/folders-$uid-$acct.json" : null;
+		return in_array($fullName,
+			array_column($this->folders(), 'fullName'), true);
+	}
+
+	/** Cache storage/cache/ non gouverné par cache.enabled (fast-path appdata). */
+	private function fileCache(): FileCache
+	{
+		return $this->fc ??= new FileCache($this->app->storageDir() . '/cache');
+	}
+
+	/** Nom du cache fichier par (utilisateur, compte) - survit à la session fermée. */
+	private function folderCacheName(): ?string
+	{
+		$uid = $this->app->sessionUserId();
+		$acct = $this->app->sessionAccountId();
+		return $uid > 0 ? "folders-$uid-$acct.json" : null;
 	}
 
 	/**
@@ -221,10 +217,8 @@ final class MailService
 	 */
 	private function folderCacheRead(): ?array
 	{
-		$f = $this->folderCacheFile();
-		$c = $f !== null && is_file($f)
-			? json_decode((string) file_get_contents($f), true) : null;
-		return is_array($c) ? $c : null;
+		$f = $this->folderCacheName();
+		return $f !== null ? $this->fileCache()->getJson($f) : null;
 	}
 
 	/**
@@ -246,7 +240,7 @@ final class MailService
 	private function invalidateFolderCache(): void
 	{
 		$this->folderRows = null;
-		($f = $this->folderCacheFile()) && is_file($f) && @unlink($f);
+		($f = $this->folderCacheName()) !== null && $this->fileCache()->delete($f);
 	}
 
 	/**
@@ -260,9 +254,39 @@ final class MailService
 		return \MXWebMail\API::Actions()->Cacher();
 	}
 
+	/**
+	 * Connect+Login d'un client MailSo (ImapClient ou SieveClient) avec
+	 * mapping des erreurs : NO/BAD pendant le login (credentials refusés,
+	 * compte suspendu, méthode refusée) > 401 ; réseau, TLS, EOF
+	 * mid-handshake ou bannière illisible > 503 $unreachableKey (host dans
+	 * le message, détail technique déjà tracé dans mail.log).
+	 */
+	private function connectClient(object $proto, object $settings,
+		string $unreachableKey): void
+	{
+		try {
+			$proto->Connect($settings);
+			$proto->Login($settings);
+		} catch (\MailSo\Imap\Exceptions\LoginException
+			| \MailSo\Sieve\Exceptions\LoginException $e) {
+			throw new UserFacingException(
+				$this->t('errors.bad_credentials'), 401, $e);
+		} catch (\MailSo\Net\Exceptions\ConnectionException
+			| \MailSo\Net\Exceptions\SocketReadException
+			| \MailSo\Net\Exceptions\SocketReadTimeoutException
+			| \MailSo\Net\Exceptions\SocketWriteException
+			| \MailSo\Imap\Exceptions\ResponseException
+			| \MailSo\Sieve\Exceptions\ResponseException $e) {
+			throw new UserFacingException($this->t($unreachableKey,
+				['host' => $settings->host]), 503, $e);
+		}
+	}
+
 	// ─── Messages ───
 
-	public function messages(string $folder, int $offset, int $limit, string $search = '', string $sort = 'REVERSE DATE', bool $threads = false, int $threadUid = 0): array
+	/** Paramètres communs des listes IMAP (messages() et searchAllFolders()). */
+	private function listParams(string $folder, int $offset, int $limit,
+		string $search, string $sort): \MailSo\Mail\MessageListParams
 	{
 		$params = new \MailSo\Mail\MessageListParams();
 		$params->sFolderName = $folder;
@@ -271,9 +295,15 @@ final class MailService
 		$params->sSearch = $search;
 		$params->sSort = $sort;
 		$params->bUseSort = true;
+		$params->oCacher = $this->cacher();
+		return $params;
+	}
+
+	public function messages(string $folder, int $offset, int $limit, string $search = '', string $sort = 'REVERSE DATE', bool $threads = false, int $threadUid = 0): array
+	{
+		$params = $this->listParams($folder, $offset, $limit, $search, $sort);
 		$params->bUseThreads = $threads || $threadUid > 0;
 		$params->iThreadUid = $threadUid;
-		$params->oCacher = $this->cacher();
 
 		$collection = $this->client()->MessageList($params);
 		$out = [
@@ -304,14 +334,7 @@ final class MailService
 		$truncated = count($folders) > 50;
 		$all = [];
 		foreach (array_slice($folders, 0, 50) as $f) {
-			$params = new \MailSo\Mail\MessageListParams();
-			$params->sFolderName = $f['fullName'];
-			$params->iOffset = 0;
-			$params->iLimit = 50;
-			$params->sSearch = $search;
-			$params->sSort = 'REVERSE DATE';
-			$params->bUseSort = true;
-			$params->oCacher = $this->cacher();
+			$params = $this->listParams($f['fullName'], 0, 50, $search, 'REVERSE DATE');
 			try {
 				$collection = $this->client()->MessageList($params);
 			} catch (\Throwable) {
@@ -373,8 +396,8 @@ final class MailService
 		if ($info->UIDVALIDITY) {
 			$cacheFile = $this->app->storageDir() . '/cache/att/'
 				. sha1(implode('|', [
-					(string) ($_SESSION['account_id'] ?? 0),
-					(string) ($_SESSION['email'] ?? ''),
+					(string) $this->app->sessionAccountId(),
+					$this->app->sessionEmail(),
 					$folder, $info->UIDVALIDITY, $uid])) . '.list.json';
 			if (is_file($cacheFile)) {
 				$c = json_decode((string) file_get_contents($cacheFile), true);
@@ -480,9 +503,6 @@ final class MailService
 	}
 
 	/**
-	 * Le serveur supporte-t-il le keyword perso $Junk (PERMANENTFLAGS \*) ?
-	 */
-	/**
 	 * Le dossier permet-il de persister ce flag/keyword (PERMANENTFLAGS) ?
 	 */
 	public function supportsKeyword(string $folder, string $keyword): bool
@@ -491,6 +511,9 @@ final class MailService
 			->IsFlagSupported($keyword);
 	}
 
+	/**
+	 * Le serveur supporte-t-il le keyword perso $Junk (PERMANENTFLAGS \*) ?
+	 */
 	public function supportsJunkKeyword(string $folder): bool
 	{
 		return $this->supportsKeyword($folder, \MailSo\Imap\Enumerations\MessageFlag::JUNK);
@@ -628,8 +651,7 @@ final class MailService
 	public function specialFolderMap(): array
 	{
 		if ($this->specialMap === null) {
-			$all = $this->decodeSetting($this->folderPrefs()['special_folders'] ?? null);
-			$this->specialMap = (array) ($all[(string) ($_SESSION['account_id'] ?? 0)] ?? []);
+			$this->specialMap = (array) $this->accountFolderEntry('special_folders');
 		}
 		return $this->specialMap;
 	}
@@ -640,14 +662,8 @@ final class MailService
 		// que isset($map[$role]) signifie "override explicite".
 		$map = array_filter($map,
 			fn($v) => is_string($v) && $v !== '' && $v !== 'auto');
-		$uid = (int) $_SESSION['user_id'];
-		$raw = $this->folderPrefs()['special_folders'] ?? [];
-		$all = is_array($raw) ? $raw : (json_decode((string) $raw, true) ?: []);
-		$all[(string) ($_SESSION['account_id'] ?? 0)] = $map;
-		$this->app->settings()->set($uid, 'special_folders', $all);
+		$this->updateAccountPref('special_folders', fn() => $map, true);
 		$this->specialMap = $map;
-		$this->folderPrefs = null; // réglage réécrit : cache de lecture périmé
-		$this->invalidateFolderCache(); // rôles effectifs recalculés
 	}
 
 	/**
@@ -657,13 +673,7 @@ final class MailService
 	 */
 	public function userFolderSet(): array
 	{
-		if ($this->userFolderSet === null) {
-			$all = $this->decodeSetting($this->folderPrefs()['user_folders'] ?? null);
-			$names = array_map('strval',
-				(array) ($all[(string) ($_SESSION['account_id'] ?? 0)] ?? []));
-			$this->userFolderSet = array_fill_keys($names, true);
-		}
-		return $this->userFolderSet;
+		return $this->userFolderSet ??= $this->accountFolderSet('user_folders');
 	}
 
 	/**
@@ -677,7 +687,7 @@ final class MailService
 	private function folderPrefs(): array
 	{
 		return $this->folderPrefs ??= $this->app->settings()->getMany(
-			(int) ($_SESSION['user_id'] ?? 0),
+			$this->app->sessionUserId(),
 			['special_folders', 'user_folders', 'collapsed_folders', 'hidden_folders',
 				'notify_folders', 'last_folder']);
 	}
@@ -689,16 +699,56 @@ final class MailService
 	}
 
 	/**
+	 * Entrée du compte actif dans une préférence dossier stockée en carte
+	 * JSON {account_id: valeur} (null si absente).
+	 */
+	private function accountFolderEntry(string $setting): mixed
+	{
+		$all = $this->decodeSetting($this->folderPrefs()[$setting] ?? null);
+		return $all[(string) $this->app->sessionAccountId()] ?? null;
+	}
+
+	/** Set fullName => true de l'entrée "liste de noms" du compte actif. */
+	private function accountFolderSet(string $setting): array
+	{
+		$names = array_map('strval', (array) $this->accountFolderEntry($setting));
+		return array_fill_keys($names, true);
+	}
+
+	/**
+	 * Préférence dossier par compte (carte JSON {account_id: valeur}) :
+	 * $mutate reçoit l'entrée du compte actif et retourne la nouvelle -
+	 * retour vide (null/[]/'') = entrée retirée ; carte vide = réglage
+	 * supprimé. folderPrefs est invalidé dans tous les cas et le cache
+	 * fichier des dossiers si $invalidateFolders (rôles/flags recalculés).
+	 */
+	private function updateAccountPref(string $setting, callable $mutate,
+		bool $invalidateFolders = false): void
+	{
+		$all = $this->decodeSetting($this->folderPrefs()[$setting] ?? null);
+		$key = (string) $this->app->sessionAccountId();
+		$new = $mutate($all[$key] ?? null);
+		if ($new === null || $new === [] || $new === '') {
+			unset($all[$key]);
+		} else {
+			$all[$key] = $new;
+		}
+		$this->app->settings()->set($this->app->sessionUserId(), $setting,
+			array_filter($all) === [] ? null : $all);
+		$this->folderPrefs = null;
+		if ($invalidateFolders) {
+			$this->invalidateFolderCache();
+		}
+	}
+
+	/**
 	 * Set des fullName des dossiers repliés dans la colonne latérale
 	 * (compte actif) - état UI persisté par compte, même stockage que
 	 * special_folders / notify_folders.
 	 */
 	private function collapsedFolderSet(): array
 	{
-		$all = $this->decodeSetting($this->folderPrefs()['collapsed_folders'] ?? null);
-		$names = array_map('strval',
-			(array) ($all[(string) ($_SESSION['account_id'] ?? 0)] ?? []));
-		return array_fill_keys($names, true);
+		return $this->accountFolderSet('collapsed_folders');
 	}
 
 	/**
@@ -711,18 +761,7 @@ final class MailService
 			array_column($this->cachedFolders(), 'fullName'), true);
 		$names = array_values(array_filter(array_map('strval', $names),
 			fn($n) => isset($existing[$n])));
-		$uid = (int) $_SESSION['user_id'];
-		$all = $this->decodeSetting($this->folderPrefs()['collapsed_folders'] ?? null);
-		$key = (string) ($_SESSION['account_id'] ?? 0);
-		if ($names === []) {
-			unset($all[$key]);
-		} else {
-			$all[$key] = $names;
-		}
-		$this->app->settings()->set($uid, 'collapsed_folders',
-			array_filter($all) === [] ? null : $all);
-		$this->folderPrefs = null;
-		$this->invalidateFolderCache(); // flag 'collapsed' des lignes recalculé
+		$this->updateAccountPref('collapsed_folders', fn() => $names, true);
 	}
 
 	/**
@@ -732,10 +771,7 @@ final class MailService
 	 */
 	private function hiddenFolderSet(): array
 	{
-		$all = $this->decodeSetting($this->folderPrefs()['hidden_folders'] ?? null);
-		$names = array_map('strval',
-			(array) ($all[(string) ($_SESSION['account_id'] ?? 0)] ?? []));
-		return array_fill_keys($names, true);
+		return $this->accountFolderSet('hidden_folders');
 	}
 
 	/**
@@ -750,18 +786,7 @@ final class MailService
 				fn($f) => empty($f['system'])), 'fullName')), true);
 		$names = array_values(array_filter(array_map('strval', $names),
 			fn($n) => isset($allowed[$n])));
-		$uid = (int) $_SESSION['user_id'];
-		$all = $this->decodeSetting($this->folderPrefs()['hidden_folders'] ?? null);
-		$key = (string) ($_SESSION['account_id'] ?? 0);
-		if ($names === []) {
-			unset($all[$key]);
-		} else {
-			$all[$key] = $names;
-		}
-		$this->app->settings()->set($uid, 'hidden_folders',
-			array_filter($all) === [] ? null : $all);
-		$this->folderPrefs = null;
-		$this->invalidateFolderCache(); // flag 'hidden' des lignes recalculé
+		$this->updateAccountPref('hidden_folders', fn() => $names, true);
 	}
 
 	/**
@@ -772,8 +797,7 @@ final class MailService
 	 */
 	public function lastFolder(): ?string
 	{
-		$all = $this->decodeSetting($this->folderPrefs()['last_folder'] ?? null);
-		$name = (string) ($all[(string) ($_SESSION['account_id'] ?? 0)] ?? '');
+		$name = (string) ($this->accountFolderEntry('last_folder') ?? '');
 		if ($name === '') {
 			return null;
 		}
@@ -798,16 +822,8 @@ final class MailService
 	{
 		$exists = array_fill_keys(
 			array_column($this->cachedFolders(), 'fullName'), true);
-		$all = $this->decodeSetting($this->folderPrefs()['last_folder'] ?? null);
-		$key = (string) ($_SESSION['account_id'] ?? 0);
-		if ($name !== '' && isset($exists[$name])) {
-			$all[$key] = $name;
-		} else {
-			unset($all[$key]);
-		}
-		$this->app->settings()->set((int) $_SESSION['user_id'], 'last_folder',
-			$all === [] ? null : $all);
-		$this->folderPrefs = null;
+		$this->updateAccountPref('last_folder',
+			fn() => $name !== '' && isset($exists[$name]) ? $name : null);
 	}
 
 	/** Trace des dossiers créés via l'interface (une écriture pour le lot). */
@@ -848,18 +864,10 @@ final class MailService
 
 	private function updateUserFolders(callable $fn): void
 	{
-		$uid = (int) $_SESSION['user_id'];
-		$raw = $this->folderPrefs()['user_folders'] ?? [];
-		$all = is_array($raw) ? $raw : (json_decode((string) $raw, true) ?: []);
-		$key = (string) ($_SESSION['account_id'] ?? 0);
-		$names = array_map('strval', (array) ($all[$key] ?? []));
-		$all[$key] = array_values(array_unique(array_map('strval', $fn($names))));
-		// array_filter vide = plus aucun compte tracké > ligne supprimée.
-		$this->app->settings()->set($uid, 'user_folders',
-			array_filter($all) === [] ? null : $all);
+		$this->updateAccountPref('user_folders', fn($names)
+			=> array_values(array_unique(array_map('strval',
+				$fn(array_map('strval', (array) ($names ?? [])))))), true);
 		$this->userFolderSet = null;
-		$this->folderPrefs = null; // réglage réécrit : cache de lecture périmé
-		$this->invalidateFolderCache(); // exemptions de fallback modifiées
 	}
 
 	/**
@@ -870,10 +878,8 @@ final class MailService
 	 */
 	public function notifyFolderList(): array
 	{
-		$raw = $this->folderPrefs()['notify_folders'] ?? [];
-		$all = is_array($raw) ? $raw : (json_decode((string) $raw, true) ?: []);
 		$names = array_values(array_filter(array_map('strval',
-			(array) ($all[(string) ($_SESSION['account_id'] ?? 0)] ?? [])),
+			(array) $this->accountFolderEntry('notify_folders')),
 			fn($n) => $n !== '' && strcasecmp($n, 'INBOX') !== 0));
 		return array_values(array_unique(array_merge(['INBOX'], $names)));
 	}
@@ -883,11 +889,7 @@ final class MailService
 		$existing = array_column($this->folders(), 'fullName');
 		$names = array_values(array_filter(array_unique(array_map('strval', $names)),
 			fn($n) => in_array($n, $existing, true) && strcasecmp($n, 'INBOX') !== 0));
-		$uid = (int) $_SESSION['user_id'];
-		$raw = $this->folderPrefs()['notify_folders'] ?? [];
-		$all = is_array($raw) ? $raw : (json_decode((string) $raw, true) ?: []);
-		$all[(string) ($_SESSION['account_id'] ?? 0)] = $names;
-		$this->app->settings()->set($uid, 'notify_folders', $all);
+		$this->updateAccountPref('notify_folders', fn() => $names);
 	}
 
 	/**
@@ -975,23 +977,7 @@ final class MailService
 	 */
 	public function junkFolder(): ?string
 	{
-		if (($this->specialFolderMap()['junk'] ?? null) === 'none') {
-			return null;
-		}
-		$folders = $this->cachedFolders();
-		foreach ($folders as $f) {
-			if ($f['special'] === 'junk') {
-				return $f['fullName'];
-			}
-		}
-		$junkNames = array_map('mb_strtolower', self::FOLDER_FALLBACKS['junk']);
-		foreach ($folders as $f) {
-			if (($f['isSelectable'] ?? true) !== false && self::isRoleCandidate($f)
-				&& in_array(mb_strtolower((string) $f['name']), $junkNames, true)) {
-				return $f['fullName'];
-			}
-		}
-		return null;
+		return $this->existingSpecialFolder('junk');
 	}
 
 	/**
@@ -1000,19 +986,28 @@ final class MailService
 	 */
 	public function trashFolder(): ?string
 	{
-		if (($this->specialFolderMap()['trash'] ?? null) === 'none') {
+		return $this->existingSpecialFolder('trash');
+	}
+
+	/**
+	 * Résolution d'un rôle réellement existant : 'none' assigné > null,
+	 * special-use en priorité puis noms usuels - jamais de nom deviné.
+	 */
+	private function existingSpecialFolder(string $role): ?string
+	{
+		if (($this->specialFolderMap()[$role] ?? null) === 'none') {
 			return null;
 		}
 		$folders = $this->cachedFolders();
 		foreach ($folders as $f) {
-			if ($f['special'] === 'trash') {
+			if ($f['special'] === $role) {
 				return $f['fullName'];
 			}
 		}
-		$trashNames = array_map('mb_strtolower', self::FOLDER_FALLBACKS['trash']);
+		$names = array_map('mb_strtolower', self::FOLDER_FALLBACKS[$role]);
 		foreach ($folders as $f) {
 			if (($f['isSelectable'] ?? true) !== false && self::isRoleCandidate($f)
-				&& in_array(mb_strtolower((string) $f['name']), $trashNames, true)) {
+				&& in_array(mb_strtolower((string) $f['name']), $names, true)) {
 				return $f['fullName'];
 			}
 		}
@@ -1039,19 +1034,29 @@ final class MailService
 		return ['inbox' => $inbox, 'system' => $system];
 	}
 
-	/** Ajoute un message brut (EML) dans un dossier via IMAP APPEND. Retourne l'UID. */
-	public function appendMessage(string $rawMessage, string $folder, array $flags = ['\\Seen'], int $internalDate = 0): int
+	/**
+	 * Écrit $rawMessage dans un fichier temporaire passé à $fn, supprimé
+	 * ensuite quoi qu'il arrive (APPEND exige un chemin ou un stream).
+	 */
+	private function withTempMessage(string $rawMessage, callable $fn): mixed
 	{
 		$tmpDir = $this->app->storageDir() . '/tmp';
-		is_dir($tmpDir) || mkdir($tmpDir, 0700, true);
+		Files::ensureDir($tmpDir);
 		$tmp = tempnam($tmpDir, 'append_');
 		file_put_contents($tmp, $rawMessage);
 		try {
-			return $this->appendRetryCreate($folder,
-				fn() => $this->client()->MessageAppendFile($tmp, $folder, $flags, $internalDate));
+			return $fn($tmp);
 		} finally {
 			@unlink($tmp);
 		}
+	}
+
+	/** Ajoute un message brut (EML) dans un dossier via IMAP APPEND. Retourne l'UID. */
+	public function appendMessage(string $rawMessage, string $folder, array $flags = ['\\Seen'], int $internalDate = 0): int
+	{
+		return $this->withTempMessage($rawMessage, fn(string $tmp) =>
+			$this->appendRetryCreate($folder,
+				fn() => $this->client()->MessageAppendFile($tmp, $folder, $flags, $internalDate)));
 	}
 
 	/**
@@ -1112,24 +1117,22 @@ final class MailService
 	 */
 	public function replaceMessage(string $rawMessage, string $folder, int $uid, array $flags = ['\\Seen']): ?int
 	{
-		$tmpDir = $this->app->storageDir() . '/tmp';
-		is_dir($tmpDir) || mkdir($tmpDir, 0700, true);
-		$tmp = tempnam($tmpDir, 'append_');
-		file_put_contents($tmp, $rawMessage);
-		$fp = fopen($tmp, 'rb');
-		try {
-			$imap = $this->client()->ImapClient();
-			$new = $this->appendRetryCreate($folder, function () use ($imap, $folder, $uid, $fp, $tmp, $flags) {
-				rewind($fp); // stream consommé par la tentative précédente
-				return $imap->MessageReplaceStream($folder, $uid, $fp, filesize($tmp), $flags);
-			});
-			// REPLACE conserve l'UID ; fallback append > nouvel UID (ou
-			// null sans UIDPLUS > la réf client n'est juste pas mise à jour).
-			return $new ?? ($uid > 0 && $imap->hasCapability('REPLACE') ? $uid : null);
-		} finally {
-			is_resource($fp) && fclose($fp);
-			@unlink($tmp);
-		}
+		return $this->withTempMessage($rawMessage,
+			function (string $tmp) use ($folder, $uid, $flags) {
+			$fp = fopen($tmp, 'rb');
+			try {
+				$imap = $this->client()->ImapClient();
+				$new = $this->appendRetryCreate($folder, function () use ($imap, $folder, $uid, $fp, $tmp, $flags) {
+					rewind($fp); // stream consommé par la tentative précédente
+					return $imap->MessageReplaceStream($folder, $uid, $fp, filesize($tmp), $flags);
+				});
+				// REPLACE conserve l'UID ; fallback append > nouvel UID (ou
+				// null sans UIDPLUS > la réf client n'est juste pas mise à jour).
+				return $new ?? ($uid > 0 && $imap->hasCapability('REPLACE') ? $uid : null);
+			} finally {
+				is_resource($fp) && fclose($fp);
+			}
+		});
 	}
 
 	/**
@@ -1149,7 +1152,7 @@ final class MailService
 	{
 		if ($this->sieveClient === null) {
 			$domain = $this->app->auth()->domainFor(
-				$_SESSION['domain'] ?? '', !empty($_SESSION['acct_secondary']));
+				$this->app->sessionDomain(), $this->app->isSecondaryAccount());
 			if (empty($domain['sieve_host'])) {
 				throw new \RuntimeException(
 					$this->t('errors.sieve_not_configured', ['domain' => $domain['name'] ?? '']), 400);
@@ -1160,26 +1163,7 @@ final class MailService
 			$client = new \MailSo\Sieve\SieveClient();
 			$client->SetLogger(\MXWebMail\API::Logger());
 			$this->app->hooks()->run('sieve.before-connect', $client, $settings);
-			try {
-				$client->Connect($settings);
-				$client->Login($settings);
-			} catch (\MailSo\Sieve\Exceptions\LoginException $e) {
-				// NO/BAD pendant le login (credentials refusés par le
-				// backend ManageSieve - ex. secondaire dont le mot de
-				// passe Sieve diffère de l'IMAP) > refus d'authentification.
-				throw new UserFacingException(
-					$this->t('errors.bad_credentials'), 401, $e);
-			} catch (\MailSo\Net\Exceptions\ConnectionException
-				| \MailSo\Net\Exceptions\SocketReadException
-				| \MailSo\Net\Exceptions\SocketReadTimeoutException
-				| \MailSo\Net\Exceptions\SocketWriteException
-				| \MailSo\Sieve\Exceptions\ResponseException $e) {
-				// Réseau, TLS, bannière illisible : serveur ManageSieve
-				// injoignable ou défaillant - host dans le message, détail
-				// technique déjà tracé dans mail.log.
-				throw new UserFacingException($this->t('errors.sieve_unreachable',
-					['host' => $settings->host]), 503, $e);
-			}
+			$this->connectClient($client, $settings, 'errors.sieve_unreachable');
 			$this->sieveClient = $client;
 		}
 		return $this->sieveClient;
@@ -1328,6 +1312,29 @@ final class MailService
 	}
 
 	/**
+	 * Scripts ManageSieve classés en un passage : [nom du script actif
+	 * (null si aucun), {nom: doc marqueur parsé|null}]. Un seul GetScript
+	 * par script (N+1 round-trips sinon) - le doc de l'actif est réutilisé
+	 * par l'appelant au lieu d'être re-fetché.
+	 */
+	private function sieveScriptDocs(): array
+	{
+		$scripts = $this->sieveRun(fn($s) => $s->ListScripts());
+		$active = null;
+		$docs = [];
+		foreach (array_keys($scripts) as $name) {
+			$src = $this->sieveGetOrNull((string) $name);
+			$docs[$name] = $src === null
+				? null
+				: \MXWebMail\Sieve\ScriptBuilder::parseMarker($src);
+			if ($scripts[$name]) {
+				$active = (string) $name;
+			}
+		}
+		return [$active, $docs];
+	}
+
+	/**
 	 * Configuration du répondeur d'absence (Sieve vacation) : lue dans le
 	 * doc géré (marqueur MXWM-RULES) du script actif. 'managed' indique si
 	 * le script actif est géré par l'assistant - un script externe n'est
@@ -1336,24 +1343,8 @@ final class MailService
 	public function vacationGet(): array
 	{
 		$sieve = $this->sieve();
-		$scripts = $this->sieveRun(fn($s) => $s->ListScripts());
-		$active = null;
-		$managed = [];
-		$docs = [];
-		foreach (array_keys($scripts) as $name) {
-			// Un seul GetScript par script : le doc de l'actif est réutilisé
-			// ci-dessous au lieu d'être re-fetché (N+1 round-trips avant).
-			$src = $this->sieveGetOrNull((string) $name);
-			$docs[$name] = $src === null
-				? null
-				: \MXWebMail\Sieve\ScriptBuilder::parseMarker($src);
-			if ($docs[$name] !== null) {
-				$managed[] = $name;
-			}
-			if ($scripts[$name]) {
-				$active = $name;
-			}
-		}
+		[$active, $docs] = $this->sieveScriptDocs();
+		$managed = array_map('strval', array_keys(array_filter($docs)));
 		$vacation = $active !== null && in_array($active, $managed, true)
 			? ($docs[$active]['vacation'] ?? null) : null;
 		return [
@@ -1376,21 +1367,8 @@ final class MailService
 			throw new \RuntimeException(
 				$this->t('errors.sieve_module', ['module' => 'vacation']), 400);
 		}
-		$scripts = $this->sieveRun(fn($s) => $s->ListScripts());
-		$active = null;
-		$managed = [];
-		foreach (array_keys($scripts) as $name) {
-			$src = $this->sieveGetOrNull((string) $name);
-			$doc = $src === null
-				? null
-				: \MXWebMail\Sieve\ScriptBuilder::parseMarker($src);
-			if ($doc !== null) {
-				$managed[(string) $name] = $doc;
-			}
-			if ($scripts[$name]) {
-				$active = (string) $name;
-			}
-		}
+		[$active, $docs] = $this->sieveScriptDocs();
+		$managed = array_filter($docs);
 		if ($active !== null) {
 			if (!isset($managed[$active])) {
 				throw new \RuntimeException($this->t('errors.sieve_unmanaged'), 409);
@@ -1412,6 +1390,13 @@ final class MailService
 	}
 
 	// ─── ACL dossiers ───
+
+	/** Capabilities IMAP du compte actif exposables à l'UI (connexion déjà
+	 *  ouverte : simple lecture du tableau de caps actives). */
+	public function capabilities(): array
+	{
+		return ['acl' => $this->client()->ImapClient()->hasCapability('ACL')];
+	}
 
 	/** 400 explicite si le serveur n'a pas la capacité ACL (sinon réponse vide
 	 *  indistinguable de "aucun droit"). */
@@ -1449,6 +1434,26 @@ final class MailService
 	 * $meta (sortie d'attachmentList) permet à MessageMimeStream de sauter
 	 * le FETCH d'en-têtes MIME quand les champs sont déjà connus.
 	 */
+	/**
+	 * Contenu décodé d'une pièce jointe ($mimeIndex '' = message complet),
+	 * capé à $maxBytes. null si paramètres invalides (uid, CRLF injecté
+	 * dans le nom de dossier) ou PJ absente/illisible - l'appelant garde
+	 * sa propre erreur localisée (plugins ics/vcf/report).
+	 */
+	public function attachmentContent(string $folder, int $uid,
+		string $mimeIndex, int $maxBytes): ?string
+	{
+		if ($uid <= 0 || strpbrk($folder, "\r\n") !== false) {
+			return null;
+		}
+		$raw = null;
+		$ok = $this->mimeStream($folder, $uid, $mimeIndex,
+			function ($r) use (&$raw, $maxBytes) {
+				$raw = stream_get_contents($r, $maxBytes);
+			});
+		return ($ok && is_string($raw) && $raw !== '') ? $raw : null;
+	}
+
 	public function mimeStream(string $folder, int $uid, string $mimeIndex, callable $cb, ?array $meta = null): bool
 	{
 		return $this->client()->MessageMimeStream(
@@ -1510,7 +1515,7 @@ final class MailService
 		$out = fopen('php://temp', 'w+b');
 		fwrite($out,
 			'Resent-Date: ' . date(\DateTimeInterface::RFC2822) . "\r\n"
-			. 'Resent-From: <' . ($_SESSION['email'] ?? '') . ">\r\n"
+			. 'Resent-From: <' . $this->app->sessionEmail() . ">\r\n"
 			. 'Resent-To: <' . $to . ">\r\n"
 			. 'Resent-Message-ID: <' . bin2hex(random_bytes(16))
 				. '@' . \MailSo\Smtp\SmtpClient::EhloHelper() . ">\r\n");
@@ -1518,7 +1523,7 @@ final class MailService
 		stream_copy_to_stream($raw, $out);
 		fclose($raw);
 		rewind($out);
-		$this->smtpSendRaw($_SESSION['email'] ?? null, [$to],
+		$this->smtpSendRaw(($this->app->sessionEmail() ?: null), [$to],
 			$out, fstat($out)['size'] ?? 0);
 	}
 
@@ -1532,7 +1537,7 @@ final class MailService
 	private function smtpSendRaw(?string $mailFrom, array $rcpts, $stream, int $size): void
 	{
 		$domain = $this->app->auth()->domainFor(
-			$_SESSION['domain'] ?? '', !empty($_SESSION['acct_secondary']));
+			$this->app->sessionDomain(), $this->app->isSecondaryAccount());
 		$settings = AuthService::smtpSettings($domain);
 		$this->applyAuth($settings);
 
@@ -1593,6 +1598,15 @@ final class MailService
 	private const SMTP_OMIT_HEADERS = [
 		'Disposition-Notification-To:', 'X-Originating-IP:'];
 
+	/** En-têtes placés en tête du bloc canonique, dans cet ordre. */
+	private const LEADING_HEADERS = [
+		'Resent-', 'From:', 'Reply-To:', 'To:', 'Cc:', 'Subject:', 'Date:',
+		'Message-ID:', 'In-Reply-To:', 'References:'];
+
+	/** En-têtes MIME relégués en fin de bloc canonique, dans cet ordre. */
+	private const TRAILING_HEADERS = [
+		'MIME-Version:', 'Content-Type:', 'Content-Transfer-Encoding:'];
+
 	/** Réordonne le bloc d'en-têtes du flux RFC822 : Resent-* d'abord (champs
 	 *  prepended, RFC 5322 §3.6.6), puis identité From/Reply-To/To/Cc/Subject/
 	 *  Date, puis Message-ID/In-Reply-To/References (threading, exigé avant le
@@ -1617,43 +1631,46 @@ final class MailService
 				$headers[count($headers) - 1] .= "\r\n" . $line;
 			}
 		}
-		$out = [];
-		foreach (['Resent-', 'From:', 'Reply-To:', 'To:', 'Cc:', 'Subject:',
-			'Date:', 'Message-ID:', 'In-Reply-To:', 'References:'] as $prefix) {
-			foreach ($headers as $i => $h) {
-				if (0 === stripos($h, $prefix)) {
-					$out[] = $h;
-					unset($headers[$i]);
-				}
-			}
-		}
-		$mime = [];
-		foreach (['MIME-Version:', 'Content-Type:',
-			'Content-Transfer-Encoding:'] as $prefix) {
-			foreach ($headers as $i => $h) {
-				if (0 === stripos($h, $prefix)) {
-					$mime[] = $h;
-					unset($headers[$i]);
-				}
-			}
-		}
-		foreach (self::SMTP_OMIT_HEADERS as $prefix) {
-			foreach ($headers as $i => $h) {
-				if (0 === stripos($h, $prefix)) {
-					unset($headers[$i]);
-				}
-			}
-		}
+		// Un passage : chaque en-tête reçoit son rang canonique (LEADING
+		// < reste < TRAILING) ; le tri stable préserve l'ordre d'origine
+		// au sein du "reste". Les en-têtes omis sont supprimés.
+		$ranked = [];
 		foreach ($headers as $h) {
-			$out[] = $h;
+			$rank = self::headerOrderRank($h);
+			if ($rank !== null) {
+				$ranked[] = [$rank, $h];
+			}
 		}
-		foreach ($mime as $h) {
-			$out[] = $h;
-		}
+		usort($ranked, fn($a, $b) => $a[0] <=> $b[0]); // stable depuis PHP 8.0
+		$out = array_column($ranked, 1);
 		$outStream = fopen('php://temp', 'w+b');
 		fwrite($outStream, implode("\r\n", $out) . $rest);
 		rewind($outStream);
 		return $outStream;
+	}
+
+	/**
+	 * Rang canonique d'un en-tête : LEADING_HEADERS (0..n) < reste < TRAILING
+	 * (+1 décalage pour rester après le rang "reste"). null = en-tête omis.
+	 */
+	private static function headerOrderRank(string $h): ?int
+	{
+		foreach (self::SMTP_OMIT_HEADERS as $p) {
+			if (0 === stripos($h, $p)) {
+				return null;
+			}
+		}
+		foreach (self::LEADING_HEADERS as $i => $p) {
+			if (0 === stripos($h, $p)) {
+				return $i;
+			}
+		}
+		foreach (self::TRAILING_HEADERS as $i => $p) {
+			if (0 === stripos($h, $p)) {
+				return count(self::LEADING_HEADERS) + 1 + $i;
+			}
+		}
+		return count(self::LEADING_HEADERS);
 	}
 
 	// ─── Sérialisation ───
@@ -1705,7 +1722,7 @@ final class MailService
 		foreach ($m[1] ?? [] as $target) {
 			if (stripos($target, 'mailto:') === 0 && $mailto === null) {
 				$mailto = $target;
-			} else if (preg_match('#^https?://#i', $target) && $url === null) {
+			} elseif (preg_match('#^https?://#i', $target) && $url === null) {
 				$url = $target;
 			}
 		}
@@ -1773,8 +1790,4 @@ final class MailService
 		]);
 	}
 
-	private function t(string $key, array $params = []): string
-	{
-		return $this->app->locale()->t($key, $params);
-	}
 }

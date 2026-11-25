@@ -108,7 +108,7 @@ gebruiker geregistreerd (*Instellingen > OAuth2-applicaties*).
 ### Gebruikers
 
 Lijst + zoeken naar gebruikers, met verversknop (icoon) om de lijst te
-herladen. Per gebruiker (modaal, tabs *Profiel*, *Instellingen*,
+herladen. Per gebruiker (eigen pagina `#/users/<id>`, tabs *Profiel*, *Instellingen*,
 *Accounts/Identiteiten*, *Sessies*):
 
 - `display_name`, `is_admin`, `disabled`;

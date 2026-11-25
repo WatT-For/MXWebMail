@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace Plugin;
 
-use MailSo\Base\Http;
 use MXWebMail\Http\Request;
 use MXWebMail\Http\Response;
 use MXWebMail\Http\Router;
@@ -23,8 +22,8 @@ final class Filelink extends PluginBase
 	{
 		$hooks->on('app.data', function (array $data, ?array $user) {
 			if ($user) {
-				$data['features']['filelink'] = [
-					'max_size' => $this->maxSize()];
+				$data['features'] += $this->feature('filelink',
+					['max_size' => $this->maxSize()]);
 			}
 			return $data;
 		});
@@ -35,19 +34,17 @@ final class Filelink extends PluginBase
 
 	private function dir(): string
 	{
-		$dir = $this->app->storageDir() . '/filelink';
-		is_dir($dir) || mkdir($dir, 0750, true);
-		return $dir;
+		return $this->app->storageSubDir('filelink', 0750);
 	}
 
 	private function maxSize(): int
 	{
-		return max(1, (int) ($this->config['max_size'] ?? 100));
+		return max(1, $this->configInt('max_size', 100));
 	}
 
 	private function ttl(): int
 	{
-		return max(1, (int) ($this->config['ttl_days'] ?? 30)) * 86400;
+		return max(1, $this->configInt('ttl_days', 30)) * 86400;
 	}
 
 	/** POST /api/plugin/filelink/upload - fichier > {url,name,size}. */
@@ -79,11 +76,9 @@ final class Filelink extends PluginBase
 			'ts'   => time(), 'user_id' => (int) $user['id'],
 		]));
 		// URL absolue : le lien part dans le corps du mail chez le
-		// destinataire - scheme + host courants + sous-chemin éventuel.
-		$http = Http::SingletonInstance();
-		$base = ($http->IsSecure() ? 'https' : 'http') . '://'
-			. $http->GetHost(false, false) . Request::basePath();
-		return ['url' => $base . '/filelink/' . $token,
+		// destinataire - scheme + host validés + sous-chemin éventuel
+		// (publicUrl filtre HTTP_HOST : nom/punycode/IPv6/port, sinon localhost).
+		return ['url' => $this->app->publicUrl('/filelink/' . $token),
 			'name' => $name, 'size' => $size];
 	}
 
@@ -99,24 +94,27 @@ final class Filelink extends PluginBase
 			? json_decode((string) file_get_contents($file . '.json'), true)
 			: null;
 		// Ouverture avant en-têtes : un fichier disparu entre is_file et
-		// l'ouverture (GC concurrente, suppression) doit rendre 410, pas 500.
+		// l'envoi (GC concurrente, suppression) doit rendre 410, pas un 200 vide.
 		$in = is_file($file) ? @fopen($file, 'rb') : false;
 		if ($in === false || !is_array($meta)
 			|| (int) ($meta['ts'] ?? 0) < time() - $this->ttl()) {
 			is_resource($in) && fclose($in);
 			return $this->gone();
 		}
-		$name = str_replace(['"', "\r", "\n"], '', (string) $meta['name']);
-		header('Content-Type: application/octet-stream');
-		header('Content-Disposition: attachment; filename="' . $name . '"');
-		header('Content-Length: ' . (int) (fstat($in)['size'] ?? 0));
-		header('X-Content-Type-Options: nosniff');
-		header('X-Robots-Tag: noindex');
-		$out = fopen('php://output', 'wb');
-		stream_copy_to_stream($in, $out);
+		$size = (int) (fstat($in)['size'] ?? 0);
 		fclose($in);
-		fclose($out);
-		return new Response('');
+		$name = str_replace(['"', '\\', "\r", "\n"], '', (string) $meta['name']);
+		// filename= (repli ASCII) + filename*=UTF-8'' (RFC 5987) : un nom
+		// accentué arrive intact chez les clients modernes.
+		$ascii = (string) preg_replace('/[^\x20-\x7E]/', '_', $name);
+		return Response::file($file, 200, [
+			'Content-Type' => 'application/octet-stream',
+			'Content-Disposition' => 'attachment; filename="' . $ascii
+				. '"; filename*=UTF-8\'\'' . rawurlencode($name),
+			'Content-Length' => (string) $size,
+			'X-Content-Type-Options' => 'nosniff',
+			'X-Robots-Tag' => 'noindex',
+		]);
 	}
 
 	private function gone(): Response

@@ -108,7 +108,7 @@ Benutzer registriert (*Einstellungen > OAuth2-Apps*).
 ### Benutzer
 
 Liste + Benutzersuche, mit Aktualisierungs-Button (Icon) zum Neuladen der
-Liste. Pro Benutzer (Modale, Tabs *Profil*, *Einstellungen*,
+Liste. Pro Benutzer (eigene Seite `#/users/<id>`, Tabs *Profil*, *Einstellungen*,
 *Konten/Identitäten*, *Sitzungen*):
 
 - `display_name`, `is_admin`, `disabled`;

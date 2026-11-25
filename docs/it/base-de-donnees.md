@@ -40,7 +40,7 @@ migrazioni restano allora sospese.
 
 | Tabella | Contenuto |
 |---|---|
-| `meta` | coppie chiave/valore (`schema_version`, `contacts_moved`, …). |
+| `meta` | coppie chiave/valore (`schema_version`, `plugin_<name>_schema_version`, `contacts_moved`, …). |
 | `users` | `username` (univoco), `display_name`, `is_admin`, `disabled`, `session_epoch` (incrementato da "Forza disconnessione" - respinge le sessioni attive alla richiesta successiva), `created_at`, `last_login_at`. |
 | `accounts` | account IMAP degli utenti: `email`, `imap_user`, `imap_pass` (cifrato), `is_default` (account principale, modificabile in Impostazioni > Account), `position` (ordine di visualizzazione degli account secondari, riordinabile via drag-and-drop in Impostazioni > Account), `auth` (`password`, `google`, `microsoft`, `yahoo` - OAuth2: `imap_pass` memorizza allora il *refresh token* cifrato). |
 | `oauth_apps` | applicazioni OAuth2 per utente: `provider`, `client_id`, `secret` (cifrato), `tenant` - un'app per `(user_id, provider)` (vedi [domaines.md](domaines.md) §8). |

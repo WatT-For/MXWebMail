@@ -10,7 +10,8 @@ plugins, temas).
 ```
 public/                front controller (index.php) + assets
 app/src/MXWebMail/     código da aplicação:
-  Application/App.php  contentor de serviços + dispatch + rotas
+  Application/App.php  contentor de serviços + dispatch
+                       (rotas declarativas em app/routes.php)
   API.php, Utils.php   fachadas de compatibilidade para o código vendorado (MailSo/Lib)
   Compat/              pontes de compatibilidade MailSo (ActionsBridge,
                        ConfigBridge, PluginsBridge)
@@ -31,6 +32,7 @@ app/src/MXWebMail/     código da aplicação:
   Service/             AuthService, MailService, DomainDetector, OAuthService,
                        GitHubClient (HTTP Releases partilhado), UpdateService (núcleo),
                        PluginPackageService (catálogo/install/remove de plugins),
+                       LdapConnect (abertura LDAP partilhada dos plugins),
                        importações de contactos (CsvContacts, VCardContacts,
                        RainLoopContacts)
   Sieve/               ScriptBuilder - geração de regras de filtros
@@ -39,6 +41,7 @@ app/src/MailSo/        biblioteca de correio vendorada (sem modificações)
 app/src/Sabre/         sabre/vobject+xml+uri (vCard CardDAV)
 app/src/Lib/           utilidades MXWebMailLib (classmap)
 app/src/bootstrap.php  carregador automático próprio
+app/routes.php         tabela de rotas [METODO, caminho, [Classe, 'action']]
 ```
 
 - **Frontend**: Knockout + Bootstrap 5.3, módulos ES em `public/assets/js/`

@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace MXWebMail\Service;
 
 use MXWebMail\Application\App;
+use MXWebMail\Files;
+use MXWebMail\Locale\Translates;
 
 /**
  * Installation / mise à jour / suppression des plugins lus directement dans
@@ -21,6 +23,8 @@ use MXWebMail\Application\App;
  */
 final class PluginPackageService
 {
+	use Translates;
+
 	private GitHubClient $gh;
 	private string $dir;      // storage/update
 	private string $work;     // storage/update/plugins
@@ -32,12 +36,7 @@ final class PluginPackageService
 		$this->dir = $app->storageDir() . '/update';
 		$this->work = $this->dir . '/plugins';
 		$this->plugins = $app->rootDir() . '/plugins';
-		$this->gh = new GitHubClient($app);
-	}
-
-	private function t(string $key, array $params = []): string
-	{
-		return $this->app->locale()->t($key, $params);
+		$this->gh = $app->github();
 	}
 
 	// ─── Catalogue ───
@@ -125,7 +124,7 @@ final class PluginPackageService
 				'description' => (string) ($m['description'] ?? ''),
 				'min_app'     => (string) ($m['min_app'] ?? ''),
 				'max_app'     => (string) ($m['max_app'] ?? ''),
-				'size'        => $this->dirSize(dirname($f)),
+				'size'        => Files::dirSize(dirname($f)),
 			];
 		}
 		return $out;
@@ -205,15 +204,8 @@ final class PluginPackageService
 			return null;
 		}
 		// GC : manifestes obsolètes du même plugin (blob sha différents)
-		foreach (glob("$cacheDir/plugin-manifest-$name-*.json") ?: [] as $old) {
-			if ($old !== $file) {
-				@unlink($old);
-			}
-		}
-		$tmp = $file . '.' . getmypid() . '.tmp';
-		if (file_put_contents($tmp, json_encode($mf, JSON_UNESCAPED_SLASHES)) !== false) {
-			rename($tmp, $file) || @unlink($tmp);
-		}
+		Files::gcGlob("$cacheDir/plugin-manifest-$name-*.json", 0, $file);
+		mxwm_atomic_write($file, json_encode($mf, JSON_UNESCAPED_SLASHES));
 		return $mf;
 	}
 
@@ -236,7 +228,7 @@ final class PluginPackageService
 			}
 			$this->gh->requireExts();
 		}
-		$lock = $this->lock();
+		$lock = Files::lock($this->dir . '/update.lock', $this->t('errors.updating'));
 		try {
 			$extract = $this->work . '/extract-' . $name;
 			try {
@@ -261,11 +253,10 @@ final class PluginPackageService
 					'verified' => $verified,
 				];
 			} finally {
-				$this->rmrf($extract);
+				Files::rmrf($extract);
 			}
 		} finally {
-			flock($lock, LOCK_UN);
-			fclose($lock);
+			Files::unlock($lock);
 		}
 	}
 
@@ -293,19 +284,18 @@ final class PluginPackageService
 		if (!$exists && !$this->app->pluginRepo()->has($name)) {
 			throw new \RuntimeException($this->t('errors.plugin_not_found', ['name' => $name]), 404);
 		}
-		$lock = $this->lock();
+		$lock = Files::lock($this->dir . '/update.lock', $this->t('errors.updating'));
 		try {
 			$this->preflight($name);
 			if ($exists) {
-				$this->rmrf($target);
+				Files::rmrf($target);
 			}
 			$this->app->pluginRepo()->delete($name);
 			$this->invalidateCaches();
 			$this->app->log('info', "plugin $name désinstallé");
 			return ['removed' => $name];
 		} finally {
-			flock($lock, LOCK_UN);
-			fclose($lock);
+			Files::unlock($lock);
 		}
 	}
 
@@ -318,7 +308,7 @@ final class PluginPackageService
 		if (!is_dir($srcDir) || !is_file("$srcDir/plugin.json")) {
 			throw new \RuntimeException($this->t('errors.plugin_missing_local', ['name' => $name]), 404);
 		}
-		$this->rmrf($dest);
+		Files::rmrf($dest);
 		$root = "$dest/$name";
 		$base = str_replace('\\', '/', $srcDir);
 		foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(
@@ -351,12 +341,11 @@ final class PluginPackageService
 			throw new \RuntimeException(
 				"Plugin \"$name\" absent du dépôt (ref {$src['ref']})", 404);
 		}
-		$this->rmrf($dest);
+		Files::rmrf($dest);
 		$root = "$dest/$name";
 		foreach ($files as $rel => $meta) {
 			// Anti-traversal (défense en profondeur - la source est l'API GitHub)
-			if ($rel === '' || str_contains($rel, '..') || str_contains($rel, '\\')
-				|| $rel[0] === '/' || preg_match('/^[a-zA-Z]:/', $rel)) {
+			if (!Files::safeRelPath($rel)) {
 				throw new \RuntimeException("Chemin refusé : $rel", 502);
 			}
 			$raw = $this->gh->get($this->gh->rawUrl($src['sha'], $prefix . $rel));
@@ -434,7 +423,7 @@ final class PluginPackageService
 			$v = (string) ($this->localManifest($name)['version'] ?? '');
 			$previous = $v !== '' ? $v : null;
 			foreach (glob($this->work . "/backup-$name-*", GLOB_ONLYDIR) ?: [] as $old) {
-				$this->rmrf($old); // un seul backup conservé par plugin
+				Files::rmrf($old); // un seul backup conservé par plugin
 			}
 			$backup = $this->work . '/backup-' . $name . '-' . date('YmdHis');
 			if (!rename($target, $backup)) {
@@ -476,58 +465,10 @@ final class PluginPackageService
 			: [];
 	}
 
-	/** Verrou partagé avec UpdateService (storage/update/update.lock). */
-	private function lock()
-	{
-		is_dir($this->dir) || mkdir($this->dir, 0700, true);
-		$lock = fopen($this->dir . '/update.lock', 'c');
-		if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) {
-			if ($lock) {
-				fclose($lock);
-			}
-			throw new \RuntimeException($this->t('errors.updating'), 409);
-		}
-		return $lock;
-	}
-
 	private function invalidateCaches(): void
 	{
 		// Classmap (MailSo/Lib rescan au prochain hit) + opcache
-		@unlink($this->app->storageDir() . '/cache/classmap.php');
-		if (function_exists('opcache_reset')) {
-			@opcache_reset();
-		}
+		$this->app->invalidateCodeCaches();
 	}
 
-	private function dirSize(string $dir): int
-	{
-		$n = 0;
-		foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator(
-				$dir, \FilesystemIterator::SKIP_DOTS)) as $f) {
-			if ($f->isFile()) {
-				$n += $f->getSize();
-			}
-		}
-		return $n;
-	}
-
-	private function rmrf(string $dir): void
-	{
-		if (!is_dir($dir)) {
-			return;
-		}
-		foreach (new \RecursiveIteratorIterator(
-			new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
-			\RecursiveIteratorIterator::CHILD_FIRST
-		) as $f) {
-			$ok = $f->isDir() ? @rmdir($f->getPathname()) : @unlink($f->getPathname());
-			if (!$ok) {
-				throw new \RuntimeException(
-					'Suppression impossible : ' . $f->getPathname(), 500);
-			}
-		}
-		if (!@rmdir($dir)) {
-			throw new \RuntimeException("Suppression impossible : $dir", 500);
-		}
-	}
 }

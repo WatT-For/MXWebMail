@@ -183,6 +183,7 @@ başınadır** (örn. `carddav-contacts`, `color-tags`, hesap durumu için
 app/plugins/benim-eklentim/
 ├── plugin.json          # manifesto
 ├── BenimEklentim.php    # ana sınıf
+├── migrations.php       # (opsiyonel) sürümlenmiş DB şeması
 ├── config.schema.json   # (opsiyonel) admin yapılandırma şeması
 ├── langs/<lang>.php     # sözlükler (plugin.<name>. önekli anahtarlar)
 └── js/ veya assets/     # (opsiyonel) /assets/plugin/<name>/<file> ile sunulan assetler
@@ -227,6 +228,71 @@ class BenimEklentim extends PluginBase
 	}
 }
 ```
+
+`PluginBase` paylaşılan yardımcılar sağlar: `$this->t()` (çeviri),
+`requireAdmin()` (admin oturum koruması, bkz. *Genel API*),
+`assetUrl($base, $file)` (plugin asset'inin sürümlenmiş URL'si),
+`inlineConfig($global, $payload, $nonce)` (CSP uyumlu `<script>`
+yapılandırma bloğu) ve `firstEmail()` (bir `EmailCollection`'ın ilk
+`Email`'i).
+
+Eklenti yapılandırması, `$this->config` üzerinde cast'ler yerine
+`PluginBase`'in tiplendirilmiş erişimcileriyle okunur: `configString`,
+`configTrim`, `configInt`, `configBool` ve `configCsv` (CSV listesi).
+Yinelenen hook bildirimleri de faktörize edilmiştir: `userTab()`
+(Ayarlar sekmesi), `adminMount()` (admin alt sekmesi), `feature()`
+(`features` payload'ı) ve `toolbarJs()` (okuyucu araç çubuğu). `pdo()`
+uygulamanın PDO'sunu döndürür; `userSetting()`/`userSettingSet()`,
+`plugin.<name>.<key>` anahtarı altında kullanıcı ayarlarını kapsüller.
+`MXWebMail\Service\LdapConnect` eklentilerin LDAP bağlantı açılışını
+merkezileştirir (connect, v3 seçenekleri, referrals kapalı, ağ
+timeout'u, start_tls, bind).
+
+Giden bir HTTP GET için `$this->app->httpGet($url, $timeout, $maxKb)`
+anti-SSRF koruması uygular (genel host gerekli, yönlendirmeler
+izlenmez, timeout ve boyut sınırlı, `ssl.cafile` dikkate alınır) -
+ad-hoc istemciye tercih edilmeli. Opsiyonel `$onBlocked` callback'i
+red nedenini (`dns`, `literal`, `private`) alır ve loglamayı
+uyarlar.
+
+Oturum okumaları, ham `$_SESSION` yerine `App` erişimcileri
+(canlı, asla önbelleğe alınmaz) üzerinden yapılır: `sessionUserId()`,
+`sessionEmail()`, `sessionAccountId()`, `sessionDomain()`,
+`sessionImapPass()`, `sessionEpoch()`, `sessionAuthProvider()`,
+`isAdminSession()`, `isSecondaryAccount()`.
+
+### Veritabanı tabloları
+
+Kendi tablolarına ihtiyaç duyan bir eklenti bunları kök dizinindeki
+`migrations.php` içinde bildirir. Dosya bir `sürüm => sorgular` dizisi
+döndürür - veya sürücüye göre dispatch için
+`MXWebMail\Repository\Database` alan bir closure. Geçişler eklenti
+yüklenirken çalışır, `meta.plugin_<name>_schema_version` içinde
+sürümlenir, çekirdek şemayla aynı mekanizmayla (SQLite transaction,
+MySQL'de `information_schema` ile idempotent re-run):
+
+```php
+return function (\MXWebMail\Repository\Database $db): array {
+	$idx = ($db->isSqlite() || $db->isMariaDb())
+		? 'CREATE INDEX IF NOT EXISTS' : 'CREATE INDEX';
+	return [
+		1 => [
+			'CREATE TABLE IF NOT EXISTS plugin_benimeklentim_items (
+				id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL)',
+			"$idx idx_items_user ON plugin_benimeklentim_items (user_id)",
+		],
+	];
+};
+```
+
+SQLite + MariaDB + MySQL taşınabilirliği: `ADD COLUMN`/`CREATE INDEX`
+üzerinde asla çıplak `IF NOT EXISTS` yok (MySQL: hata 1064 - yukarıdaki
+gibi sürücüye göre dispatch); otomatik artan anahtar
+`INTEGER PRIMARY KEY` (SQLite) vs `INTEGER AUTO_INCREMENT PRIMARY KEY`.
+`$db->insertIgnore()` ve `$db->upsert()` taşınabilir
+`INSERT IGNORE` / `ON CONFLICT` üretir. Tabloları `plugin_<name>_`
+ile öneklemek çakışmaları önler. Devre dışı bir eklenti migrate
+edilmez: tabloları kalır, geçiş yeniden etkinleştirmede devam eder.
 
 ### Kullanılabilir hook'lar
 

@@ -3,7 +3,7 @@
 	"label": "plugin.color-tags.label",
 	"class": "ColorTags",
 	"main": "ColorTags.php",
-	"version": "0.13.2",
+	"version": "0.13.3",
 	"description": "plugin.color-tags.description",
 	"hooks": ["app.data", "message.meta"]
 }

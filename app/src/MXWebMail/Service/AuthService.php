@@ -4,7 +4,10 @@ declare(strict_types=1);
 namespace MXWebMail\Service;
 
 use MXWebMail\Application\App;
+use MXWebMail\Files;
+use MXWebMail\Locale\Translates;
 use MXWebMail\Security\CredentialCrypt;
+use MXWebMail\Validation\Rule;
 
 /**
  * Authentification : vérifie les credentials contre IMAP, puis
@@ -13,12 +16,9 @@ use MXWebMail\Security\CredentialCrypt;
  */
 final class AuthService
 {
-	public function __construct(private App $app) {}
+	use Translates;
 
-	private function t(string $key, array $params = []): string
-	{
-		return $this->app->locale()->t($key, $params);
-	}
+	public function __construct(private App $app) {}
 
 	/**
 	 * Tente un login IMAP. Retourne ['ok'=>true] ou lève une exception métier.
@@ -38,7 +38,7 @@ final class AuthService
 		// (sans www. ni :port), sinon suffixe fixe default_domain.
 		// Un domaine vide reste possible : un '*' peut servir les logins courts.
 		if (str_contains($email, '@')) {
-			$domainName = substr($email, strrpos($email, '@') + 1);
+			$domainName = Rule::emailDomain($email);
 		} else {
 			$domainName = strtolower(trim(
 				(string) $this->app->config()->get('default_domain', '')));
@@ -49,7 +49,7 @@ final class AuthService
 				// Le Host header est client-contrôlé : un domaine dérivé
 				// invalide retombe sur '' (wildcard) plutôt que d'être
 				// injecté dans le username provisionné.
-				if (!preg_match('/^[a-z0-9]([a-z0-9.\-]{0,251}[a-z0-9])?$/', $domainName)) {
+				if (!Rule::domain($domainName)) {
 					$domainName = '';
 				}
 			}
@@ -164,16 +164,11 @@ final class AuthService
 	{
 		$selector = bin2hex(random_bytes(9));
 		$validator = bin2hex(random_bytes(32));
-		$this->app->db()->pdo()->prepare(
-			'INSERT INTO auth_tokens (user_id, selector, token, agent, ip, created_at, expires_at)
-			 VALUES (:u,:s,:t,:a,:i,:c,:e)')
-			->execute([
-				'u' => $userId, 's' => $selector,
-				't' => hash('sha256', $validator),
-				'a' => mb_substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255),
-				'i' => $this->app->clientIp() ?: null,
-				'c' => time(), 'e' => time() + $this->rememberDays() * 86400,
-			]);
+		$this->app->authTokens()->insert($userId, $selector,
+			hash('sha256', $validator),
+			mb_substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 255),
+			$this->app->clientIp() ?: null,
+			time(), time() + $this->rememberDays() * 86400);
 		$this->setRememberCookie($selector . ':' . $validator);
 	}
 
@@ -216,17 +211,11 @@ final class AuthService
 			}
 			return;
 		}
-		$pdo = $this->app->db()->pdo();
-		$stmt = $pdo->prepare(
-			'SELECT t.id, t.user_id, t.token, t.expires_at, u.disabled
-			 FROM auth_tokens t JOIN users u ON u.id = t.user_id
-			 WHERE t.selector = :s');
-		$stmt->execute(['s' => $m[1]]);
-		$row = $stmt->fetch(\PDO::FETCH_ASSOC);
-		$fail = function (bool $purge) use ($row, $pdo): void {
+		$tokens = $this->app->authTokens();
+		$row = $tokens->findBySelector($m[1]);
+		$fail = function (bool $purge) use ($row, $tokens): void {
 			if ($purge && $row) {
-				$pdo->prepare('DELETE FROM auth_tokens WHERE id = :id')
-					->execute(['id' => $row['id']]);
+				$tokens->deleteById((int) $row['id']);
 			}
 			$this->clearRememberCookie();
 		};
@@ -235,17 +224,14 @@ final class AuthService
 			$fail((bool) $row);
 			return;
 		}
-		$acct = $pdo->prepare(
-			'SELECT * FROM accounts WHERE user_id = :u AND is_default = 1');
-		$acct->execute(['u' => $row['user_id']]);
-		$account = $acct->fetch(\PDO::FETCH_ASSOC);
+		$account = $this->app->accounts()->defaultForUser((int) $row['user_id']);
 		$plain = $account ? CredentialCrypt::decrypt(
 			(string) $account['imap_pass'], $this->app->storageDir()) : null;
 		if (!$account || $plain === null) {
 			$fail(true);
 			return;
 		}
-		$domainName = (string) substr(strrchr((string) $account['email'], '@') ?: '', 1);
+		$domainName = Rule::emailDomain((string) $account['email']);
 		try {
 			$this->verifyImapCredentials(
 				(string) $account['email'], $plain, $this->domainFor($domainName));
@@ -255,9 +241,8 @@ final class AuthService
 		}
 		// Rotation : nouveau validator, cookie réémis, last_used_at à jour.
 		$newVal = bin2hex(random_bytes(32));
-		$pdo->prepare('UPDATE auth_tokens SET token = :t, last_used_at = :n, last_ip = :i WHERE id = :id')
-			->execute(['t' => hash('sha256', $newVal), 'n' => time(),
-				'i' => $this->app->clientIp() ?: null, 'id' => $row['id']]);
+		$tokens->rotate((int) $row['id'], hash('sha256', $newVal),
+			time(), $this->app->clientIp() ?: null);
 		$this->setRememberCookie($m[1] . ':' . $newVal);
 
 		session_regenerate_id(true);
@@ -276,41 +261,31 @@ final class AuthService
 	/** Sessions/jetons de l'utilisateur (hash jamais renvoyé). */
 	public function rememberSessions(int $userId): array
 	{
-		$stmt = $this->app->db()->pdo()->prepare(
-			'SELECT id, selector, agent, ip, last_ip, created_at, last_used_at, expires_at
-			 FROM auth_tokens WHERE user_id = :u ORDER BY last_used_at DESC, created_at DESC');
-		$stmt->execute(['u' => $userId]);
 		$current = $this->currentTokenSelector();
 		return array_map(fn($r) => $r + ['current' => $r['selector'] === $current],
-			$stmt->fetchAll(\PDO::FETCH_ASSOC));
+			$this->app->authTokens()->sessionsFor($userId));
 	}
 
 	public function deleteRememberToken(int $userId, int $id): void
 	{
-		$this->app->db()->pdo()->prepare(
-			'DELETE FROM auth_tokens WHERE id = :id AND user_id = :u')
-			->execute(['id' => $id, 'u' => $userId]);
+		$this->app->authTokens()->deleteForUser($id, $userId);
 	}
 
 	public function revokeOtherRememberTokens(int $userId): void
 	{
-		$sel = $this->currentTokenSelector();
-		$this->app->db()->pdo()->prepare(
-			'DELETE FROM auth_tokens WHERE user_id = :u AND selector != :s')
-			->execute(['u' => $userId, 's' => $sel ?? '']);
+		$this->app->authTokens()->deleteOthersFor(
+			$userId, $this->currentTokenSelector() ?? '');
 	}
 
 	/** Admin : révoque TOUS les jetons "Rester connecté" de l'utilisateur. */
 	public function revokeAllRememberTokens(int $userId): void
 	{
-		$this->app->db()->pdo()->prepare(
-			'DELETE FROM auth_tokens WHERE user_id = :u')
-			->execute(['u' => $userId]);
+		$this->app->authTokens()->deleteAllFor($userId);
 	}
 
 	public function logout(): void
 	{
-		if (!empty($_SESSION['admin'])) {
+		if ($this->app->isAdminSession()) {
 			// Session admin active : on ne purge que les clés webmail.
 			// 'csrf_token' (Csrf::SESSION_KEY, const privée) est conservé :
 			// l'onglet admin partage ce jeton - le purger casserait ses POST.
@@ -468,7 +443,7 @@ final class AuthService
 			&& ($domain = $this->app->domains()->findByName('*'))) {
 			return $domain;
 		}
-		if (!empty(((array) $this->app->config()->get('autodetect', []))['enabled'])) {
+		if (!empty($this->app->config()->section('autodetect')['enabled'])) {
 			$detected = $this->app->domainDetector()->detect($name);
 			if ($detected) {
 				// Auto-détecté en contexte secondaire : sinon le domaine
@@ -495,11 +470,7 @@ final class AuthService
 
 	public function accounts(int $userId): array
 	{
-		$stmt = $this->app->db()->pdo()->prepare(
-			'SELECT id, email, is_default, auth FROM accounts WHERE user_id = :u ORDER BY is_default DESC, position, email'
-		);
-		$stmt->execute(['u' => $userId]);
-		return $stmt->fetchAll();
+		return $this->app->accounts()->allForUser($userId);
 	}
 
 	/** Ajoute un compte IMAP secondaire après vérification des credentials. */
@@ -509,7 +480,7 @@ final class AuthService
 		if (!str_contains($email, '@') || $password === '') {
 			throw new \InvalidArgumentException($this->t('errors.email_pass_required'), 400);
 		}
-		$domainName = substr($email, strrpos($email, '@') + 1);
+		$domainName = Rule::emailDomain($email);
 		$domain = $this->domainFor($domainName, true);
 		// Domaine OAuth2 : l'ajout passe par le consentement provider
 		// (/api/accounts/oauth), jamais par un mot de passe.
@@ -518,21 +489,18 @@ final class AuthService
 		}
 		$this->verifyImapCredentials($email, $password, $domain);
 
-		$pdo = $this->app->db()->pdo();
-		$stmt = $pdo->prepare('SELECT id FROM accounts WHERE user_id = :u AND email = :e');
-		$stmt->execute(['u' => $userId, 'e' => $email]);
-		if ($row = $stmt->fetch()) {
+		$existing = $this->app->accounts()->findIdByEmail($userId, $email);
+		if ($existing !== null) {
 			// Compte déjà connu > on met à jour le mot de passe stocké
 			// (auth='password' : couvre un domaine repassé d'OAuth à mot de passe)
 			$enc = CredentialCrypt::encrypt($password, $this->app->storageDir());
-			$pdo->prepare("UPDATE accounts SET imap_pass = :ip, auth = 'password' WHERE id = :id")
-				->execute(['ip' => $enc, 'id' => $row['id']]);
+			$this->app->accounts()->updateCredential($existing, $enc, 'password');
 			// Compte actif : la session suit les nouveaux identifiants.
-			if ((int) $row['id'] === (int) ($_SESSION['account_id'] ?? 0)) {
+			if ($existing === $this->app->sessionAccountId()) {
 				$_SESSION['imap_pass'] = $enc;
 				$_SESSION['acct_auth'] = 'password';
 			}
-			return ['id' => (int) $row['id'], 'email' => $email];
+			return ['id' => $existing, 'email' => $email];
 		}
 		return ['id' => $this->provisionAccount($userId, $email, $password, false), 'email' => $email];
 	}
@@ -549,27 +517,24 @@ final class AuthService
 		if (!str_contains($email, '@')) {
 			throw new \InvalidArgumentException($this->t('errors.email_pass_required'), 400);
 		}
-		$domainName = substr($email, strrpos($email, '@') + 1);
+		$domainName = Rule::emailDomain($email);
 		$domain = $this->domainFor($domainName, true);
 		if ((self::domainOptions($domain)['oauth'] ?? '') !== $provider) {
 			throw new \RuntimeException($this->t('errors.oauth_required'), 400);
 		}
 		$this->verifyImapCredentials($email, $accessToken, $domain, true);
 
-		$pdo = $this->app->db()->pdo();
-		$stmt = $pdo->prepare('SELECT id FROM accounts WHERE user_id = :u AND email = :e');
-		$stmt->execute(['u' => $userId, 'e' => $email]);
+		$existing = $this->app->accounts()->findIdByEmail($userId, $email);
 		$enc = CredentialCrypt::encrypt($refreshToken, $this->app->storageDir());
-		if ($row = $stmt->fetch()) {
+		if ($existing !== null) {
 			// Compte déjà connu > nouveau refresh token + provider à jour
-			$pdo->prepare('UPDATE accounts SET imap_pass = :ip, auth = :a WHERE id = :id')
-				->execute(['ip' => $enc, 'a' => $provider, 'id' => $row['id']]);
+			$this->app->accounts()->updateCredential($existing, $enc, $provider);
 			// Compte actif : la session suit les nouveaux identifiants.
-			if ((int) $row['id'] === (int) ($_SESSION['account_id'] ?? 0)) {
+			if ($existing === $this->app->sessionAccountId()) {
 				$_SESSION['imap_pass'] = $enc;
 				$_SESSION['acct_auth'] = $provider;
 			}
-			return ['id' => (int) $row['id'], 'email' => $email];
+			return ['id' => $existing, 'email' => $email];
 		}
 		return ['id' => $this->provisionAccount($userId, $email, $refreshToken, false, $provider),
 			'email' => $email];
@@ -588,7 +553,7 @@ final class AuthService
 		$_SESSION['email']      = $account['email'];
 		// Le credential est déjà chiffré avec la même clé applicative
 		$_SESSION['imap_pass']  = $account['imap_pass'];
-		$_SESSION['domain']     = substr($account['email'], strrpos($account['email'], '@') + 1);
+		$_SESSION['domain']     = Rule::emailDomain((string) $account['email']);
 		$_SESSION['acct_auth']      = (string) ($account['auth'] ?? 'password');
 		$_SESSION['acct_secondary'] = !(int) $account['is_default'];
 	}
@@ -604,21 +569,13 @@ final class AuthService
 		if ($id <= 0) {
 			return null;
 		}
-		$stmt = $this->app->db()->pdo()->prepare(
-			'SELECT * FROM accounts WHERE id = :id AND user_id = :u');
-		$stmt->execute(['id' => $id, 'u' => $userId]);
-		$row = $stmt->fetch();
-		return $row ?: null;
+		return $this->app->accounts()->findForUser($userId, $id);
 	}
 
 	/** Bascule la session sur un autre compte du même utilisateur. */
 	public function switchAccount(int $userId, int $accountId): array
 	{
-		$stmt = $this->app->db()->pdo()->prepare(
-			'SELECT * FROM accounts WHERE id = :id AND user_id = :u'
-		);
-		$stmt->execute(['id' => $accountId, 'u' => $userId]);
-		$account = $stmt->fetch();
+		$account = $this->app->accounts()->findForUser($userId, $accountId);
 		if (!$account) {
 			throw new \RuntimeException($this->t('errors.account_not_found'), 404);
 		}
@@ -633,13 +590,10 @@ final class AuthService
 
 	public function removeAccount(int $userId, int $accountId): void
 	{
-		if ($accountId === (int) ($_SESSION['account_id'] ?? 0)) {
+		if ($accountId === $this->app->sessionAccountId()) {
 			throw new \RuntimeException($this->t('errors.account_active'), 400);
 		}
-		$pdo = $this->app->db()->pdo();
-		$stmt = $pdo->prepare('DELETE FROM accounts WHERE id = :id AND user_id = :u AND is_default = 0');
-		$stmt->execute(['id' => $accountId, 'u' => $userId]);
-		if (!$stmt->rowCount()) {
+		if (!$this->app->accounts()->deleteSecondary($userId, $accountId)) {
 			throw new \RuntimeException($this->t('errors.account_not_found_or_main'), 404);
 		}
 		// Le compte supprimé ne doit pas rester mémorisé comme dernier consulté.
@@ -654,26 +608,13 @@ final class AuthService
 	 */
 	public function setDefaultAccount(int $userId, int $accountId): void
 	{
-		$pdo = $this->app->db()->pdo();
-		$stmt = $pdo->prepare('SELECT id FROM accounts WHERE id = :id AND user_id = :u');
-		$stmt->execute(['id' => $accountId, 'u' => $userId]);
-		if (!$stmt->fetch()) {
+		if (!$this->app->accounts()->owns($userId, $accountId)) {
 			throw new \RuntimeException($this->t('errors.account_not_found'), 404);
 		}
-		$pdo->beginTransaction();
-		try {
-			$pdo->prepare('UPDATE accounts SET is_default = 0 WHERE user_id = :u')
-				->execute(['u' => $userId]);
-			$pdo->prepare('UPDATE accounts SET is_default = 1 WHERE id = :id')
-				->execute(['id' => $accountId]);
-			$pdo->commit();
-		} catch (\Throwable $e) {
-			$pdo->rollBack();
-			throw $e;
-		}
+		$this->app->accounts()->setDefault($userId, $accountId);
 		// Le compte actif devient secondaire s'il n'est pas le nouveau principal.
 		$_SESSION['acct_secondary'] =
-			(int) ($_SESSION['account_id'] ?? 0) !== $accountId;
+			$this->app->sessionAccountId() !== $accountId;
 	}
 
 	/**
@@ -682,10 +623,7 @@ final class AuthService
 	 */
 	public function reorderAccounts(int $userId, array $ids): void
 	{
-		$pdo = $this->app->db()->pdo();
-		$stmt = $pdo->prepare('SELECT id FROM accounts WHERE user_id = :u AND is_default = 0');
-		$stmt->execute(['u' => $userId]);
-		$secIds = array_map('intval', array_column($stmt->fetchAll(), 'id'));
+		$secIds = $this->app->accounts()->secondaryIds($userId);
 		// Validation sur copies triées : $ids garde l'ordre demandé par le client
 		$check = array_map('intval', $ids);
 		sort($secIds);
@@ -693,20 +631,9 @@ final class AuthService
 		if ($check !== $secIds) {
 			throw new \RuntimeException($this->t('errors.account_not_found'), 404);
 		}
-		$ids = array_map('intval', $ids);
 		// Réécrit position = 1..n dans l'ordre reçu (compte principal épingle
 		// en tête par is_default, hors de ce périmètre)
-		$pdo->beginTransaction();
-		try {
-			$up = $pdo->prepare('UPDATE accounts SET position = :p WHERE id = :id');
-			foreach ($ids as $i => $id) {
-				$up->execute(['p' => $i + 1, 'id' => $id]);
-			}
-			$pdo->commit();
-		} catch (\Throwable $e) {
-			$pdo->rollBack();
-			throw $e;
-		}
+		$this->app->accounts()->setPositions(array_map('intval', $ids));
 	}
 
 	// ─── Provisioning ───
@@ -714,44 +641,25 @@ final class AuthService
 	private function provisionAccount(int $userId, string $email, string $password,
 		bool $isDefault = true, string $auth = 'password'): int
 	{
-		$pdo = $this->app->db()->pdo();
-		$stmt = $pdo->prepare('SELECT id FROM accounts WHERE user_id = :u AND email = :e');
-		$stmt->execute(['u' => $userId, 'e' => $email]);
-		if ($row = $stmt->fetch()) {
+		$accounts = $this->app->accounts();
+		$existing = $accounts->findIdByEmail($userId, $email);
+		if ($existing !== null) {
 			// Le credential stocké sert à resumeFromRemember et switchAccount :
 			// il doit suivre le mot de passe qui vient d'être vérifié par IMAP.
-			$pdo->prepare('UPDATE accounts SET imap_pass = :ip WHERE id = :id')
-				->execute(['ip' => CredentialCrypt::encrypt($password, $this->app->storageDir()),
-					'id' => (int) $row['id']]);
-			return (int) $row['id'];
+			$accounts->updateCredential($existing,
+				CredentialCrypt::encrypt($password, $this->app->storageDir()));
+			return $existing;
 		}
 		// Un seul principal : un compte recréé au login après suppression de
 		// l'ancien ne doit pas produire deux is_default.
 		if ($isDefault) {
-			$d = $pdo->prepare('SELECT 1 FROM accounts WHERE user_id = :u AND is_default = 1');
-			$d->execute(['u' => $userId]);
-			$isDefault = !$d->fetchColumn();
+			$isDefault = !$accounts->hasDefault($userId);
 		}
 		// Nouveau compte en fin de liste (ordre réordonnable par l'utilisateur)
-		$p = $pdo->prepare('SELECT COALESCE(MAX(position), 0) + 1 FROM accounts WHERE user_id = :u');
-		$p->execute(['u' => $userId]);
-		$position = (int) $p->fetchColumn();
-		$pdo->prepare(
-			'INSERT INTO accounts (user_id, email, imap_user, imap_pass, is_default, auth, position)
-			 VALUES (:u, :e, :iu, :ip, :d, :a, :pos)'
-		)->execute([
-			'u'  => $userId,
-			'e'  => $email,
-			'iu' => $email,
-			'ip' => CredentialCrypt::encrypt($password, $this->app->storageDir()),
-			'd'  => $isDefault ? 1 : 0,
-			'a'  => $auth,
-			'pos' => $position,
-		]);
-		$accountId = (int) $pdo->lastInsertId();
-		$pdo->prepare(
-			'INSERT INTO identities (account_id, name, email, is_default) VALUES (:a, :n, :e, 1)'
-		)->execute(['a' => $accountId, 'n' => '', 'e' => $email]);
+		$accountId = $accounts->insert($userId, $email,
+			CredentialCrypt::encrypt($password, $this->app->storageDir()),
+			$isDefault, $auth, $accounts->nextPosition($userId));
+		$this->app->identities()->createDefault($accountId, $email);
 		return $accountId;
 	}
 
@@ -760,7 +668,7 @@ final class AuthService
 	private function attemptsFile(): string
 	{
 		$dir = $this->app->storageDir() . '/cache';
-		is_dir($dir) || mkdir($dir, 0700, true);
+		Files::ensureDir($dir);
 		return $dir . '/login_attempts.json';
 	}
 
@@ -821,7 +729,7 @@ final class AuthService
 				$dd = preg_replace('/:\d+$/', '',
 					strtolower((string) ($_SERVER['HTTP_HOST'] ?? '')));
 				$dd = preg_replace('/^www\./', '', $dd);
-				if (!preg_match('/^[a-z0-9]([a-z0-9.\-]{0,251}[a-z0-9])?$/', $dd)) {
+				if (!Rule::domain($dd)) {
 					$dd = '';
 				}
 			}
@@ -834,21 +742,9 @@ final class AuthService
 
 	private function loadAttempts(): array
 	{
-		$file = $this->attemptsFile();
-		if (!is_file($file)) {
-			return [];
-		}
 		// Lecture sous verrou partagé : un withAttemptsLock() concurrent fait
 		// ftruncate+fwrite - sans LOCK_SH on pourrait lire un fichier vide.
-		$fp = fopen($file, 'rb');
-		if (!$fp) {
-			return [];
-		}
-		flock($fp, LOCK_SH);
-		$raw = (string) stream_get_contents($fp);
-		flock($fp, LOCK_UN);
-		fclose($fp);
-		$all = json_decode($raw, true) ?: [];
+		$all = Files::readJsonLocked($this->attemptsFile());
 		// Purge : un verrou expiré depuis > 1 h ou une tentative inactive
 		// depuis > 1 h disparaît - sans quoi le fichier grossit sans borne.
 		return array_filter($all, fn($e) => ($e['until'] ?? 0) > time() - 3600
@@ -862,22 +758,16 @@ final class AuthService
 	 */
 	private function withAttemptsLock(callable $mutate): void
 	{
-		$file = $this->attemptsFile();
-		$fp = fopen($file, 'c+');
-		if (!$fp) {
-			return;
-		}
-		try {
-			flock($fp, LOCK_EX);
-			$all = json_decode((string) stream_get_contents($fp), true) ?: [];
-			$mutate($all);
-			rewind($fp);
-			ftruncate($fp, 0);
-			fwrite($fp, json_encode($all));
-			fflush($fp);
-		} finally {
-			flock($fp, LOCK_UN);
-			fclose($fp);
-		}
+		Files::withJsonLock($this->attemptsFile(),
+			function (array &$all) use ($mutate): void {
+				// Purge persistée (même règle que loadAttempts) : sinon
+				// les entrées mortes grossissent le fichier sans borne -
+				// loadAttempts ne filtre qu'en mémoire.
+				$cut = time() - 3600;
+				$all = array_filter($all,
+					fn($e) => ($e['until'] ?? 0) > $cut
+						|| ($e['last'] ?? 0) > $cut);
+				$mutate($all);
+			});
 	}
 }

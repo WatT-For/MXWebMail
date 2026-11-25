@@ -6,9 +6,11 @@ namespace Plugin;
 use MXWebMail\Http\Request;
 use MXWebMail\Plugin\HookRegistry;
 use MXWebMail\Plugin\PluginBase;
+use MXWebMail\Validation\Rule;
 use MXWebMail\Security\CredentialCrypt;
 use MXWebMail\Security\Wildcard;
 use MXWebMail\Service\AuthService;
+use MXWebMail\Service\LdapConnect;
 
 /**
  * Changement de mot de passe - drivers : poppassd, pdo, ldap, mailcow.
@@ -28,18 +30,12 @@ final class ChangePassword extends PluginBase
 
 		$hooks->on('app.data', function (array $data) {
 			// Pas de mot de passe à changer sur un compte OAuth2 (session basculée)
-			if (($_SESSION['acct_auth'] ?? 'password') !== 'password') {
-				$data['features']['password'] = false;
+			if (($this->app->sessionAuthProvider()) !== 'password') {
+				$data['features'] += $this->feature('password', false);
 				return $data;
 			}
-			$data['features']['password'] = true;
-			$data['pluginTabs'][] = [
-				'id'     => 'change-password',
-				'label'  => 'plugin.change-password.tab',
-				'icon'   => 'fa-lock',
-				'js'     => 'change-password.js',
-				'plugin' => 'change-password',
-			];
+			$data['features'] += $this->feature('password');
+			$data['pluginTabs'][] = $this->userTab('change-password.js', 'fa-lock');
 			return $data;
 		});
 	}
@@ -48,47 +44,47 @@ final class ChangePassword extends PluginBase
 	public function apiConfig(Request $request, ?array $user): array
 	{
 		return [
-			'minLength'   => (int) ($this->config['pass_min_length'] ?? 10),
-			'minStrength' => (int) ($this->config['pass_min_strength'] ?? 70),
+			'minLength'   => $this->configInt('pass_min_length', 10),
+			'minStrength' => $this->configInt('pass_min_strength', 70),
 		];
 	}
 
 	private function changePassword(array $user, string $old, string $new): void
 	{
 		// Compte OAuth2 actif : pas de mot de passe IMAP à changer
-		if (($_SESSION['acct_auth'] ?? 'password') !== 'password') {
+		if (($this->app->sessionAuthProvider()) !== 'password') {
 			throw new \RuntimeException($this->t('plugin.change-password.not_allowed'), 403);
 		}
-		$email = (string) ($_SESSION['email'] ?? $user['username'] ?? '');
+		$email = $this->app->sessionEmail() ?: (string) ($user['username'] ?? '');
 		if ($email === '') {
 			throw new \RuntimeException($this->t('plugin.change-password.email_not_found'), 400);
 		}
-		if (!Wildcard::match($email, (string) ($this->config['allowed_emails'] ?? '*'))) {
+		if (!Wildcard::match($email, $this->configString('allowed_emails', '*'))) {
 			throw new \RuntimeException($this->t('plugin.change-password.not_allowed'), 403);
 		}
 
 		// L'ancien mot de passe doit correspondre au credential de session
 		$sessionPass = CredentialCrypt::decrypt(
-			(string) ($_SESSION['imap_pass'] ?? ''), $this->app->storageDir());
+			(string) ($this->app->sessionImapPass()), $this->app->storageDir());
 		if ($sessionPass === null || !\hash_equals($sessionPass, $old)) {
 			throw new \RuntimeException($this->t('plugin.change-password.wrong_current'), 400);
 		}
 		unset($sessionPass);
 
-		if (\mb_strlen($new) < (int) ($this->config['pass_min_length'] ?? 10)) {
+		if (\mb_strlen($new) < $this->configInt('pass_min_length', 10)) {
 			throw new \RuntimeException($this->t('plugin.change-password.too_short'), 400);
 		}
-		if ((int) ($this->config['pass_min_strength'] ?? 70) > self::strength($new)) {
+		if ($this->configInt('pass_min_strength', 70) > self::strength($new)) {
 			throw new \RuntimeException($this->t('plugin.change-password.too_weak'), 400);
 		}
-		if (!empty($this->config['check_hibp']) && \MXWebMailLib\Hibp::password($new) > 0) {
+		if ($this->configBool('check_hibp') && \MXWebMailLib\Hibp::password($new) > 0) {
 			throw new \RuntimeException($this->t('plugin.change-password.pwned'), 400);
 		}
 
-		$domain = $this->app->auth()->domainFor((string) ($_SESSION['domain'] ?? ''));
+		$domain = $this->app->auth()->domainFor($this->app->sessionDomain());
 		$login = AuthService::imapSettings($domain)->fixUsername($email);
 
-		$driver = (string) ($this->config['driver'] ?? 'poppassd');
+		$driver = $this->configString('driver', 'poppassd');
 		$ok = match ($driver) {
 			'poppassd' => $this->poppassd($login, $old, $new),
 			'pdo'      => $this->pdo($email, $login, $old, $new),
@@ -117,8 +113,8 @@ final class ChangePassword extends PluginBase
 					$this->t('errors.invalid_value', ['key' => $f]), 400);
 			}
 		}
-		$host = (string) ($this->config['poppassd_host'] ?? 'localhost');
-		$port = (int) ($this->config['poppassd_port'] ?? 106);
+		$host = $this->configString('poppassd_host', 'localhost');
+		$port = $this->configInt('poppassd_port', 106);
 		$fp = @fsockopen($host, $port, $errno, $errstr, 10);
 		if (!$fp) {
 			throw new \RuntimeException(
@@ -155,35 +151,35 @@ final class ChangePassword extends PluginBase
 			\PDO::ATTR_EMULATE_PREPARES => true,
 			\PDO::ATTR_ERRMODE          => \PDO::ERRMODE_EXCEPTION,
 		];
-		if (!empty($this->config['pdo_mysql_ssl'])) {
-			$ca = (string) ($this->config['pdo_mysql_ssl_ca'] ?? '');
+		if ($this->configBool('pdo_mysql_ssl')) {
+			$ca = $this->configString('pdo_mysql_ssl_ca');
 			if ($ca !== '') {
 				$attrs[\PDO::MYSQL_ATTR_SSL_CA] = $ca;
 			}
 			$attrs[\PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT] =
-				!empty($this->config['pdo_mysql_ssl_verify']);
+				$this->configBool('pdo_mysql_ssl_verify');
 		}
 
 		$conn = new \PDO(
-			(string) ($this->config['pdo_dsn'] ?? ''),
-			(string) ($this->config['pdo_user'] ?? ''),
-			(string) ($this->config['pdo_password'] ?? ''),
+			$this->configString('pdo_dsn'),
+			$this->configString('pdo_user'),
+			$this->configString('pdo_password'),
 			$attrs
 		);
 
-		$algo   = (string) ($this->config['pdo_encrypt'] ?? 'none');
-		$prefix = (string) ($this->config['pdo_encryptprefix'] ?? '');
+		$algo   = $this->configString('pdo_encrypt', 'none');
+		$prefix = $this->configString('pdo_encryptprefix');
 		$at = strrpos($email, '@');
 		$placeholders = [
 			':email'      => $email,
 			':oldpass'    => $prefix . self::encrypt($algo, $old),
 			':newpass'    => $prefix . self::encrypt($algo, $new),
-			':domain'     => $at !== false ? substr($email, $at + 1) : '',
+			':domain'     => Rule::emailDomain($email),
 			':username'   => $at !== false ? substr($email, 0, $at) : $email,
 			':login_name' => $login,
 		];
 
-		$sql = (string) ($this->config['pdo_sql'] ?? '');
+		$sql = $this->configString('pdo_sql');
 		if ($sql === '') {
 			throw new \RuntimeException($this->t('plugin.change-password.sql_missing'), 500);
 		}
@@ -204,13 +200,13 @@ final class ChangePassword extends PluginBase
 			throw new \RuntimeException($this->t('plugin.change-password.ldap_ext_missing'), 500);
 		}
 		$at = strrpos($email, '@');
-		$emailDomain = $at !== false ? substr($email, $at + 1) : '';
+		$emailDomain = Rule::emailDomain($email);
 		$emailUser   = $at !== false ? substr($email, 0, $at) : $email;
 
 		// Valeurs substituées échappées pour le contexte DN (LDAP_ESCAPE_DN) :
 		// une valeur contenant , + " \ ; etc. casserait la structure du DN.
 		$escDn = fn(string $v) => ldap_escape($v, '', LDAP_ESCAPE_DN);
-		$userDn = strtr((string) ($this->config['ldap_user_dn_format'] ?? ''), [
+		$userDn = strtr($this->configString('ldap_user_dn_format'), [
 			'{email}'        => $escDn($email),
 			'{email:user}'   => $escDn($emailUser),
 			'{email:domain}' => $escDn($emailDomain),
@@ -222,23 +218,23 @@ final class ChangePassword extends PluginBase
 			'{imap:port}'    => $escDn((string) ($domain['imap_port'] ?? '')),
 		]);
 
-		$con = ldap_connect((string) ($this->config['ldap_uri'] ?? 'ldap://localhost:389'));
+		$con = LdapConnect::open($this->configString('ldap_uri',
+			'ldap://localhost:389'));
 		if (!$con) {
 			throw new \RuntimeException($this->t('plugin.change-password.ldap_connect'), 502);
 		}
 		try {
-			ldap_set_option($con, LDAP_OPT_PROTOCOL_VERSION, 3);
-			if (!empty($this->config['ldap_use_start_tls']) && !@ldap_start_tls($con)) {
+			if ($this->configBool('ldap_use_start_tls') && !LdapConnect::startTls($con)) {
 				throw new \RuntimeException(
 					$this->t('plugin.change-password.ldap_starttls', ['msg' => ldap_error($con)]), 502);
 			}
-			if (!@ldap_bind($con, $userDn, $old)) {
+			if (!LdapConnect::bind($con, $userDn, $old)) {
 				throw new \RuntimeException(
 					$this->t('plugin.change-password.ldap_bind', ['msg' => ldap_error($con)]), 400);
 			}
 
-			$field = (string) ($this->config['ldap_password_field'] ?? 'userPassword');
-			$enc = strtoupper((string) ($this->config['ldap_password_enc_type'] ?? 'SSHA'));
+			$field = $this->configString('ldap_password_field', 'userPassword');
+			$enc = strtoupper($this->configString('ldap_password_enc_type', 'SSHA'));
 			$encoded = match ($enc) {
 				'SSHA'  => '{SSHA}' . base64_encode(hash('sha1', $new . ($salt = self::salt(4)), true) . $salt),
 				'SHA'   => '{SHA}' . base64_encode(hash('sha1', $new, true)),
@@ -260,13 +256,14 @@ final class ChangePassword extends PluginBase
 	/** Mailcow : POST /api/v1/edit/mailbox avec token Read/Write. */
 	private function mailcow(string $email, string $new): bool
 	{
-		$host = trim((string) ($this->config['mailcow_api_hostname'] ?? ''));
-		$token = (string) ($this->config['mailcow_api_token'] ?? '');
+		$host = $this->configTrim('mailcow_api_hostname');
+		$token = $this->configString('mailcow_api_token');
 		if ($host === '' || $token === '') {
 			throw new \RuntimeException($this->t('plugin.change-password.mailcow_unconfigured'), 500);
 		}
-		$request = \MXWebMailLib\HTTP\Request::factory();
-		$request->verify_peer = true;
+		// newHttpRequest : verify_peer + cafile config (gagne le bundle
+		// personnalisé au passage - l'appel direct factory l'ignorait).
+		$request = $this->app->newHttpRequest();
 		$response = $request->doRequest('POST',
 			'https://' . $host . '/api/v1/edit/mailbox',
 			json_encode([

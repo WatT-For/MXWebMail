@@ -20,7 +20,7 @@ final class VcfViewer extends PluginBase
 	public function register(HookRegistry $hooks): void
 	{
 		$hooks->on('app.data', function (array $data) {
-			$data['features']['vcf_viewer'] = true;
+			$data['features'] += $this->feature('vcf_viewer');
 			return $data;
 		});
 	}
@@ -34,12 +34,9 @@ final class VcfViewer extends PluginBase
 		if ($uid <= 0 || $mimeIndex === '' || strpbrk($folder, "\r\n") !== false) {
 			throw new \RuntimeException($this->t('plugin.vcf-viewer.bad_params'), 400);
 		}
-		$raw = null;
-		$ok = $this->app->mail()->mimeStream($folder, $uid, $mimeIndex,
-			function ($r) use (&$raw) {
-				$raw = stream_get_contents($r, 2 * 1024 * 1024);
-			});
-		if (!$ok || !$raw) {
+		$raw = $this->app->mail()->attachmentContent(
+			$folder, $uid, $mimeIndex, 2 * 1024 * 1024);
+		if ($raw === null) {
 			throw new \RuntimeException($this->t('plugin.vcf-viewer.attachment_missing'), 404);
 		}
 		return \MXWebMail\Service\VCardContacts::parse($raw);

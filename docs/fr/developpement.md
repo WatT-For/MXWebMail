@@ -7,7 +7,8 @@ Documentation pour comprendre l'architecture et étendre le projet (cœur, plugi
 ```
 public/                front controller (index.php) + assets
 app/src/MXWebMail/     code applicatif :
-  Application/App.php  conteneur de services + dispatch + routes
+  Application/App.php  conteneur de services + dispatch (routes
+                       declaratives dans app/routes.php)
   API.php, Utils.php   façades de compatibilité pour le code vendoré (MailSo/Lib)
   Compat/              ponts de compatibilité MailSo (ActionsBridge,
                        ConfigBridge, PluginsBridge)
@@ -28,6 +29,7 @@ app/src/MXWebMail/     code applicatif :
   Service/             AuthService, MailService, DomainDetector, OAuthService,
                        GitHubClient (HTTP Releases partagé), UpdateService (cœur),
                        PluginPackageService (catalogue/install/remove plugins),
+                       LdapConnect (ouverture LDAP partagée des plugins),
                        imports contacts (CsvContacts, VCardContacts,
                        RainLoopContacts)
   Sieve/               ScriptBuilder - génération des règles de filtres
@@ -36,6 +38,7 @@ app/src/MailSo/        bibliothèque mail vendorée (non modifiée)
 app/src/Sabre/         sabre/vobject+xml+uri (vCard CardDAV)
 app/src/Lib/           utilitaires MXWebMailLib (classmap)
 app/src/bootstrap.php  autoloader maison
+app/routes.php         table des routes [METHODE, chemin, [Classe, 'action']]
 ```
 
 - **Frontend** : Knockout + Bootstrap 5.3, modules ES dans `public/assets/js/` (app.js,

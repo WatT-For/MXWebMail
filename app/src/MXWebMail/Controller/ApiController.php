@@ -3,14 +3,13 @@ declare(strict_types=1);
 
 namespace MXWebMail\Controller;
 
-use MXWebMail\Application\App;
+use MXWebMail\Cache\FileCache;
 use MXWebMail\Http\JsonResponse;
 use MXWebMail\Http\Request;
 use MXWebMail\Http\Response;
-use MXWebMail\Security\CredentialCrypt;
 use MXWebMail\Security\Csrf;
 use MXWebMail\Security\TotpRequiredException;
-use MXWebMail\Service\MailService;
+use MXWebMail\UserFacingException;
 
 /**
  * API JSON de l'application. Réponse uniforme {ok, data|error}.
@@ -19,6 +18,8 @@ use MXWebMail\Service\MailService;
  */
 final class ApiController extends Api\BaseController
 {
+	use Api\ProxyGuard;
+
 	/** Types bitmap servis par /api/proxy - tout type actif (svg, xml, html) est refusé. */
 	private const PROXY_IMAGE_TYPES = [
 		'image/png', 'image/jpeg', 'image/gif', 'image/webp',
@@ -28,7 +29,7 @@ final class ApiController extends Api\BaseController
 	public function login(Request $request): JsonResponse
 	{
 		if (!Csrf::verifyRequest()) {
-			return JsonResponse::error($this->t('errors.csrf'), 'csrf', 403);
+			throw new UserFacingException($this->t('errors.csrf'), 403, jsonCode: 'csrf');
 		}
 		try {
 			$data = $this->app->auth()->login(
@@ -38,34 +39,16 @@ final class ApiController extends Api\BaseController
 			);
 			if ($request->input('remember') === true || $request->input('remember') === '1'
 				|| $request->input('remember') === 1) {
-				$this->app->auth()->issueRememberToken((int) $_SESSION['user_id']);
+				$this->app->auth()->issueRememberToken($this->app->sessionUserId());
 			}
 			$this->app->logAuth((string) $request->input('email', ''), 'AUTH OK');
 			return JsonResponse::ok($data);
 		} catch (TotpRequiredException $e) {
-			// Code stable 'totp_required' : le client affiche le champ TOTP
-			// sans analyser le message (localisé). Un code saisi mais faux
-			// compte comme tentative ratée, pas la demande initiale.
-			if (trim((string) $request->input('totp', '')) !== '') {
-				$this->app->auth()->recordFailedAttempt((string) $request->input('email', ''));
-				$this->app->logAuth((string) $request->input('email', ''), 'AUTH FAILED (totp)');
-			}
-			return JsonResponse::error($this->t('errors.totp_required'), 'totp_required', 401);
+			$this->loginTotpError($request,
+				(string) $request->input('email', ''), (string) $request->input('email', ''));
 		} catch (\Throwable $e) {
-			// Un 429 = tentative déjà bloquée : ne pas l'enregistrer, sinon un
-			// attaquant prolonge le verrou indéfiniment (lockout glissant).
-			if ($e->getCode() !== 429) {
-				$this->app->auth()->recordFailedAttempt((string) $request->input('email', ''));
-			}
-			$this->app->logAuth((string) $request->input('email', ''),
-				'AUTH FAILED (' . $e->getCode() . ')');
-			$this->app->log('warning', 'Login échoué: ' . $e->getMessage());
-			// Les erreurs métier gardent leur message : 403 (white-list),
-			// 429 (rate-limit)
-			if (in_array($e->getCode(), [401, 403, 429], true)) {
-				return JsonResponse::error($e->getMessage(), 'auth', $e->getCode());
-			}
-			return JsonResponse::error($this->t('errors.login_failed'), 'auth', 401);
+			$this->loginError($e, (string) $request->input('email', ''),
+				(string) $request->input('email', ''), 'errors.login_failed');
 		}
 	}
 
@@ -81,18 +64,17 @@ final class ApiController extends Api\BaseController
 		// se restaure alors silencieusement à la prochaine requête.
 		$idle = $request->input('idle') === true || $request->input('idle') === '1'
 			|| $request->input('idle') === 1;
-		if (!empty($_SESSION['user_id']) && !$idle) {
+		if ($this->app->sessionUserId() !== 0 && !$idle) {
 			$sel = $this->app->auth()->currentTokenSelector();
 			if ($sel !== null) {
-				$this->app->db()->pdo()->prepare(
-					'DELETE FROM auth_tokens WHERE selector = :s AND user_id = :u')
-					->execute(['s' => $sel, 'u' => (int) $_SESSION['user_id']]);
+				$this->app->authTokens()->deleteBySelector(
+					$this->app->sessionUserId(), $sel);
 			}
 			$this->app->auth()->clearRememberCookie();
 		}
-		if (!empty($_SESSION['user_id'])
+		if ($this->app->sessionUserId() !== 0
 			&& $this->app->config()->get('dangerous_actions', true)) {
-			$s = $this->userSettings((int) $_SESSION['user_id']);
+			$s = $this->userSettings($this->app->sessionUserId());
 			if (!empty($s['empty_trash_on_logout']) || !empty($s['empty_junk_on_logout'])) {
 				try {
 					$mail = $this->app->mail();
@@ -130,12 +112,12 @@ final class ApiController extends Api\BaseController
 		$user = $this->app->currentUser();
 		// Capacité Sieve du domaine courant : même ordre que
 		// AuthService::resolveDomain mais sans autodetect (pas de réseau ici).
-		$domainName = (string) ($_SESSION['domain'] ?? '');
+		$domainName = $this->app->sessionDomain();
 		$domain = $this->app->domains()->findByName($domainName === '' ? '*' : $domainName)
 			?? ($domainName !== '' && !$this->app->config()->get('restrict_domains', false)
 				? $this->app->domains()->findByName('*') : null);
 		$data = [
-			'user'      => ['email' => $_SESSION['email'], 'display' => $user['display_name'] ?? ''],
+			'user'      => ['email' => $this->app->sessionEmail(), 'display' => $user['display_name'] ?? ''],
 			'appName'   => $this->app->config()->get('app_name'),
 			'settings'  => $this->userSettings((int) $user['id']),
 			'themes'    => $this->app->themes()->list(),
@@ -160,7 +142,7 @@ final class ApiController extends Api\BaseController
 					(int) $this->app->config()->get('attachments_max_total', 25)),
 			],
 			'accounts'  => array_map(
-				fn($a) => $a + ['active' => (int) $a['id'] === (int) ($_SESSION['account_id'] ?? 0)],
+				fn($a) => $a + ['active' => (int) $a['id'] === $this->app->sessionAccountId()],
 				$this->app->auth()->accounts((int) $user['id'])
 			),
 			// Dossiers surveillés pour la détection de nouveaux mails -
@@ -183,18 +165,18 @@ final class ApiController extends Api\BaseController
 		}
 		$url = (string) $request->input('url', '');
 		if (!$url || !preg_match('#^https?://#i', $url)) {
-			return JsonResponse::error($this->t('errors.bad_url'), 'bad_url');
+			throw new UserFacingException($this->t('errors.bad_url'), jsonCode: 'bad_url');
 		}
-		$http = (array) $this->app->config()->get('http', []);
+		$http = $this->app->config()->section('http');
 		$ttl = max(0, (int) ($http['proxy_ttl'] ?? 86400));
 		// Cache disque : l'image distante était refetchée (+ DNS anti-SSRF) à
 		// chaque affichage d'un même mail. Clé = URL complète (les URLs
 		// tokenisées restent distinctes ; le contenu est adressé par URL).
-		$cacheBase = $this->app->storageDir() . '/cache/proxy/' . hash('sha256', $url);
-		if ($ttl > 0 && is_file($cacheBase) && is_file($cacheBase . '.mime')
-			&& (int) filemtime($cacheBase) > time() - $ttl) {
-			$mime = trim((string) file_get_contents($cacheBase . '.mime'));
-			$body = file_get_contents($cacheBase);
+		$cache = new FileCache($this->app->storageDir() . '/cache/proxy');
+		$h = hash('sha256', $url);
+		if ($cache->fresh($h, $ttl)) {
+			$mime = trim((string) $cache->get($h . '.mime'));
+			$body = $cache->get($h);
 			if (in_array($mime, self::PROXY_IMAGE_TYPES, true) && is_string($body)) {
 				return $this->proxyResponse($mime, $body, $ttl);
 			}
@@ -206,10 +188,10 @@ final class ApiController extends Api\BaseController
 		for ($hop = 0; $hop <= 3; $hop++) {
 			$err = $this->proxyUrlError($url, $allow);
 			if ($err === 'allowlist') {
-				return JsonResponse::error($this->t('errors.host_denied'), 'ssrf', 403);
+				throw new UserFacingException($this->t('errors.host_denied'), 403, jsonCode: 'ssrf');
 			}
 			if ($err === 'ssrf') {
-				return JsonResponse::error($this->t('errors.host_blocked'), 'ssrf', 403);
+				throw new UserFacingException($this->t('errors.host_blocked'), 403, jsonCode: 'ssrf');
 			}
 			$ctx = stream_context_create(['http' => [
 				'timeout' => 8, 'max_redirects' => 0, 'ignore_errors' => true,
@@ -221,7 +203,7 @@ final class ApiController extends Api\BaseController
 			foreach ($http_response_header ?? [] as $i => $h) {
 				if ($i === 0 && preg_match('#^HTTP/\S+\s+(\d{3})#', $h, $m)) {
 					$status = (int) $m[1];
-				} else if (stripos($h, 'Location:') === 0) {
+				} elseif (stripos($h, 'Location:') === 0) {
 					$location = trim(substr($h, 9));
 				}
 			}
@@ -230,7 +212,7 @@ final class ApiController extends Api\BaseController
 				if ($url && preg_match('#^https?://#i', $url)) {
 					continue; // revalidation au prochain tour
 				}
-				return JsonResponse::error($this->t('errors.bad_url'), 'bad_url');
+				throw new UserFacingException($this->t('errors.bad_url'), jsonCode: 'bad_url');
 			}
 			if ($body === false || $status >= 400) {
 				$this->app->log('warning',
@@ -246,11 +228,11 @@ final class ApiController extends Api\BaseController
 		if (!in_array($mime, self::PROXY_IMAGE_TYPES, true)) {
 			$this->app->log('warning',
 				"Proxy image non-image url=" . self::proxyLogUrl($url) . " mime={$mime}");
-			return JsonResponse::error($this->t('errors.not_image'), 'not_image', 403);
+			throw new UserFacingException($this->t('errors.not_image'), 403, jsonCode: 'not_image');
 		}
 		if ($ttl > 0) {
-			mxwm_atomic_write($cacheBase, $body);
-			mxwm_atomic_write($cacheBase . '.mime', $mime);
+			$cache->set($h, $body);
+			$cache->set($h . '.mime', $mime);
 		}
 		return $this->proxyResponse($mime, $body, $ttl);
 	}
@@ -278,11 +260,10 @@ final class ApiController extends Api\BaseController
 	/** Dispatch borné : appelle Plugin::api<Action> si le plugin est activé et la méthode existe. */
 	public function pluginCall(Request $request): JsonResponse
 	{
-		$this->requireAuth();
 		// CSRF exigé pour TOUTES les méthodes (GET inclus) : le client envoie
 		// X-CSRF-Token systématiquement et une action GET mutante n'est pas
 		// à l'abri (navigation same-site, plugin tiers).
-		$this->requireCsrf();
+		$this->requireWrite();
 		$data = $this->app->plugins()->callApi(
 			(string) $request->params['name'],
 			(string) $request->params['action'],

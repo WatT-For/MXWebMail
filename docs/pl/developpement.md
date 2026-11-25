@@ -10,7 +10,8 @@ wtyczki, motywy).
 ```
 public/                front controller (index.php) + assety
 app/src/MXWebMail/     kod aplikacji:
-  Application/App.php  kontener usług + dispatch + trasy
+  Application/App.php  kontener usług + dispatch
+                       (deklaratywne trasy w app/routes.php)
   API.php, Utils.php   fasady kompatybilności dla kodu vendored (MailSo/Lib)
   Compat/              mosty kompatybilności MailSo (ActionsBridge,
                        ConfigBridge, PluginsBridge)
@@ -31,6 +32,7 @@ app/src/MXWebMail/     kod aplikacji:
   Service/             AuthService, MailService, DomainDetector, OAuthService,
                        GitHubClient (współdzielone HTTP Releases), UpdateService (rdzeń),
                        PluginPackageService (katalog/install/remove wtyczek),
+                       LdapConnect (współdzielone otwieranie połączenia LDAP wtyczek),
                        importy kontaktów (CsvContacts, VCardContacts,
                        RainLoopContacts)
   Sieve/               ScriptBuilder - generacja reguł filtrów
@@ -39,6 +41,7 @@ app/src/MailSo/        vendored biblioteka poczty (niemodyfikowana)
 app/src/Sabre/         sabre/vobject+xml+uri (vCard CardDAV)
 app/src/Lib/           narzędzia MXWebMailLib (classmap)
 app/src/bootstrap.php  własny autoloader
+app/routes.php         tabela tras [METODA, ścieżka, [Klasa, 'action']]
 ```
 
 - **Frontend**: Knockout + Bootstrap 5.3, moduły ES w `public/assets/js/`

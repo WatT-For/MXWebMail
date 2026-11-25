@@ -2,10 +2,10 @@
 declare(strict_types=1);
 
 namespace MXWebMail\Controller\Admin;
-use MXWebMail\Application\App;
 use MXWebMail\Http\JsonResponse;
 use MXWebMail\Http\Request;
-use MXWebMail\Security\Csrf;
+use MXWebMail\Validation\Rule;
+use MXWebMail\UserFacingException;
 
 
 
@@ -28,13 +28,8 @@ final class PluginsController extends BaseController
 
 	public function pluginInstall(Request $request): JsonResponse
 	{
-		$this->requireAdmin();
-		$this->requireCsrf();
-		$name = self::pluginName($request->params['name'] ?? '');
-		if ($name === null) {
-			return JsonResponse::error(
-				$this->t('errors.invalid_value', ['key' => 'name']), 'validation', 400);
-		}
+		$this->requireAdminWrite();
+		$name = $this->requirePluginName($request);
 		return $this->serviceApi(
 			fn() => $this->app->pluginPackages()->install($name));
 	}
@@ -42,26 +37,16 @@ final class PluginsController extends BaseController
 	/** Désinstallation définitive : dossier supprimé + ligne DB purgée. */
 	public function pluginRemove(Request $request): JsonResponse
 	{
-		$this->requireAdmin();
-		$this->requireCsrf();
-		$name = self::pluginName($request->params['name'] ?? '');
-		if ($name === null) {
-			return JsonResponse::error(
-				$this->t('errors.invalid_value', ['key' => 'name']), 'validation', 400);
-		}
+		$this->requireAdminWrite();
+		$name = $this->requirePluginName($request);
 		return $this->serviceApi(
 			fn() => $this->app->pluginPackages()->remove($name));
 	}
 
 	public function pluginToggle(Request $request): JsonResponse
 	{
-		$this->requireAdmin();
-		$this->requireCsrf();
-		$name = self::pluginName($request->params['name'] ?? '');
-		if ($name === null) {
-			return JsonResponse::error(
-				$this->t('errors.invalid_value', ['key' => 'name']), 'validation', 400);
-		}
+		$this->requireAdminWrite();
+		$name = $this->requirePluginName($request);
 		$this->app->pluginRepo()->setEnabled($name, (bool) $request->input('enabled', false));
 		return JsonResponse::ok();
 	}
@@ -69,13 +54,8 @@ final class PluginsController extends BaseController
 	/** "Utilisable par les utilisateurs" : sinon chargé uniquement en contexte admin. */
 	public function pluginAllowedSet(Request $request): JsonResponse
 	{
-		$this->requireAdmin();
-		$this->requireCsrf();
-		$name = self::pluginName($request->params['name'] ?? '');
-		if ($name === null) {
-			return JsonResponse::error(
-				$this->t('errors.invalid_value', ['key' => 'name']), 'validation', 400);
-		}
+		$this->requireAdminWrite();
+		$name = $this->requirePluginName($request);
 		$this->app->pluginRepo()->setUserAllowed($name, (bool) $request->input('allowed', false));
 		return JsonResponse::ok();
 	}
@@ -83,11 +63,7 @@ final class PluginsController extends BaseController
 	public function pluginConfigGet(Request $request): JsonResponse
 	{
 		$this->requireAdmin();
-		$name = self::pluginName($request->params['name'] ?? '');
-		if ($name === null) {
-			return JsonResponse::error(
-				$this->t('errors.invalid_value', ['key' => 'name']), 'validation', 400);
-		}
+		$name = $this->requirePluginName($request);
 		// Le schéma sur disque décrit les champs ; les valeurs sont en base
 		return JsonResponse::ok([
 			'schema' => $this->pluginSchema($name),
@@ -97,13 +73,8 @@ final class PluginsController extends BaseController
 
 	public function pluginConfigSet(Request $request): JsonResponse
 	{
-		$this->requireAdmin();
-		$this->requireCsrf();
-		$name = self::pluginName($request->params['name'] ?? '');
-		if ($name === null) {
-			return JsonResponse::error(
-				$this->t('errors.invalid_value', ['key' => 'name']), 'validation', 400);
-		}
+		$this->requireAdminWrite();
+		$name = $this->requirePluginName($request);
 		// Validation par le schéma : postée > stockée > default ; clés hors
 		// schéma ignorées ; sans schéma, rien à stocker.
 		$posted = (array) $request->json();
@@ -116,8 +87,7 @@ final class PluginsController extends BaseController
 			try {
 				$out[$key] = $this->coercePluginValue($key, $raw, is_array($def) ? $def : []);
 			} catch (\RuntimeException) {
-				return JsonResponse::error(
-					$this->t('errors.invalid_value', ['key' => $key]), 'validation', 400);
+				throw new UserFacingException($this->t('errors.invalid_value', ['key' => $key]), 400, jsonCode: 'validation');
 			}
 		}
 		$this->app->pluginRepo()->setConfig($name, $out);
@@ -133,34 +103,26 @@ final class PluginsController extends BaseController
 			: [];
 	}
 
-	private static function pluginName(mixed $name): ?string
-	{
-		$name = (string) $name;
-		return preg_match('/^[a-z0-9\-]+$/i', $name) ? $name : null;
-	}
-
 	private function coercePluginValue(string $key, mixed $v, array $def): mixed
 	{
-		$fail = fn() => throw new \RuntimeException(
-			$this->t('errors.invalid_value', ['key' => $key]), 400);
+		$fail = fn() => throw new UserFacingException($this->t('errors.invalid_value', ['key' => $key]), 400, jsonCode: 'validation');
 		$type = $def['type'] ?? 'string';
 		if ($type === 'enum') {
+			if (!is_scalar($v)) { return $fail(); }
 			$opts = (array) ($def['options'] ?? []);
 			return array_key_exists((string) $v, $opts) || in_array((string) $v, $opts, true)
 				? (string) $v : $fail();
 		}
 		return match ($type) {
-			'bool' => (int) filter_var($v, FILTER_VALIDATE_BOOL),
+			'bool' => is_scalar($v) ? (int) filter_var($v, FILTER_VALIDATE_BOOL) : $fail(),
 			// ''/null accepté : champ vidé = retour au défaut/repli du plugin
-			'color' => $v === '' || $v === null ? ''
-				: (is_string($v) && preg_match('/^#[0-9a-fA-F]{6}$/', $v)
-					? strtolower($v) : $fail()),
-			'integer' => self::intRange($v, PHP_INT_MIN, PHP_INT_MAX) ?? $fail(),
+			'color' => Rule::hexColor($v) ?? $fail(),
+			'integer' => Rule::intRange($v, PHP_INT_MIN, PHP_INT_MAX) ?? $fail(),
 			'number' => is_numeric($v) ? (float) $v : $fail(),
 			'list' => is_array($v)
 				? implode(', ', array_filter(array_map('trim', array_map('strval', $v))))
-				: self::str($v, 8192) ?? $fail(),
-			default => self::str($v, 4096) ?? $fail(),
+				: Rule::str($v, 8192) ?? $fail(),
+			default => Rule::str($v, 4096) ?? $fail(),
 		};
 	}
 }

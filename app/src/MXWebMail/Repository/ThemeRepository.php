@@ -40,13 +40,8 @@ final class ThemeRepository
 
 	public function setAllowed(string $name, bool $allowed): void
 	{
-		$driver = $this->db->pdo()->getAttribute(\PDO::ATTR_DRIVER_NAME);
-		$sql = $driver === 'sqlite'
-			? 'INSERT INTO themes (name, allowed) VALUES (:n, :a)
-			   ON CONFLICT(name) DO UPDATE SET allowed = excluded.allowed'
-			: 'INSERT INTO themes (name, allowed) VALUES (:n, :a)
-			   ON DUPLICATE KEY UPDATE allowed = VALUES(allowed)';
-		$this->db->pdo()->prepare($sql)->execute(['n' => $name, 'a' => $allowed ? 1 : 0]);
+		$this->db->upsert('themes',
+			['name' => $name, 'allowed' => $allowed ? 1 : 0], ['name'], ['allowed']);
 		if ($this->allowedMap !== null) {
 			$this->allowedMap[$name] = $allowed;
 		}
@@ -80,13 +75,10 @@ final class ThemeRepository
 
 	public function setConfig(string $name, array $config): void
 	{
-		$driver = $this->db->pdo()->getAttribute(\PDO::ATTR_DRIVER_NAME);
-		$sql = $driver === 'sqlite'
-			? 'INSERT INTO themes (name, config) VALUES (:n, :c)
-			   ON CONFLICT(name) DO UPDATE SET config = excluded.config'
-			: 'INSERT INTO themes (name, config) VALUES (:n, :c)
-			   ON DUPLICATE KEY UPDATE config = VALUES(config)';
-		$this->db->pdo()->prepare($sql)->execute(['n' => $name, 'c' => json_encode($config, JSON_UNESCAPED_UNICODE)]);
+		$this->db->upsert('themes', [
+			'name'   => $name,
+			'config' => json_encode($config, JSON_UNESCAPED_UNICODE),
+		], ['name'], ['config']);
 		$this->configs[$name] = $config;
 	}
 }

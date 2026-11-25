@@ -3,8 +3,7 @@ export default function mount(el, ctx) {
 	const t = ctx.t;
 	const K = 'plugin.dmarc-reports.';
 	const call = (a, b) => ctx.api.post(`/admin/plugin/dmarc-reports/${a}`, b || {});
-	const esc = s => String(s ?? '').replace(/[&<>"]/g,
-		c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+	const esc = ctx.esc;
 	el.innerHTML = `<h5>${t(K + 'tab')}</h5>
 		<div class="card mb-3"><div class="card-body">
 			<p class="text-muted small">${t(K + 'intro')}</p>

@@ -27,7 +27,7 @@ final class SpamLearn extends PluginBase
 
 	private function learn(string $folder, int $uid, bool $spam): void
 	{
-		$driver = (string) ($this->config['driver'] ?? 'none');
+		$driver = $this->configString('driver', 'none');
 		if ($driver === 'folder') {
 			$this->learnFolder($folder, $uid, $spam);
 		} elseif ($driver === 'exec') {
@@ -38,7 +38,7 @@ final class SpamLearn extends PluginBase
 	/** Copie IMAP vers le dossier d'apprentissage (créé + souscrit si absent). */
 	private function learnFolder(string $folder, int $uid, bool $spam): void
 	{
-		$target = trim((string) ($this->config[$spam ? 'folder_spam' : 'folder_ham'] ?? ''));
+		$target = $this->configTrim($spam ? 'folder_spam' : 'folder_ham');
 		if ($target === '') {
 			return;
 		}
@@ -55,14 +55,14 @@ final class SpamLearn extends PluginBase
 	/** Le .eml (capé à max_bytes Ko) est pipé dans la commande whitelistée. */
 	private function learnExec(string $folder, int $uid, bool $spam): void
 	{
-		$cmd = trim((string) ($this->config[$spam ? 'command_spam' : 'command_ham'] ?? ''));
+		$cmd = $this->configTrim($spam ? 'command_spam' : 'command_ham');
 		// Binaire + args uniquement : pas de ; | & > < $ ( ` - interdit tout
 		// chaînage/substitution shell.
 		if ($cmd === ''
 			|| !preg_match('/^[\w\/.-]+(\s+[\w\/.=-]+)*$/', $cmd)) {
 			throw new \RuntimeException('spam-learn: commande invalide');
 		}
-		$max = max(1, (int) ($this->config['max_bytes'] ?? 5120)) * 1024;
+		$max = max(1, $this->configInt('max_bytes', 5120)) * 1024;
 		// stdout/stderr > fichiers temporaires : des pipes non drainés pendant
 		// l'écriture de stdin (jusqu'à $max) interbloqueraient le processus dès
 		// que le fils produit plus que le buffer (~64 Ko).

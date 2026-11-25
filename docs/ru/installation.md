@@ -106,6 +106,58 @@ touch app/storage/INSTALLED
 Корневой `.htaccess` может переписывать в `public/` как переходная сеть, но
 официальный document root - `public/`.
 
+#### Вариант `mod_fcgid` (альтернатива PHP-FPM)
+
+PHP может работать и через `php-cgi` под управлением `mod_fcgid`, без PHP-FPM.
+Требования Debian: `apt install libapache2-mod-fcgid php8.4-cgi`.
+
+```apache
+<VirtualHost *:443>
+    ServerName webmail.example.com
+    DocumentRoot /var/www/mxwebmail/public
+
+    <Directory /var/www/mxwebmail/public>
+        AllowOverride All
+        Options +ExecCGI
+        Require all granted
+    </Directory>
+
+    <FilesMatch "\.php$">
+        SetHandler fcgid-script
+    </FilesMatch>
+    FcgidWrapper /usr/local/bin/php84-fcgi .php
+    FcgidPassHeader Authorization
+    FcgidIOTimeout 300
+    FcgidMaxRequestLen 134217728
+</VirtualHost>
+```
+
+`/usr/local/bin/php84-fcgi` - мини-обёртка (chmod 755), задающая
+`PHP_FCGI_CHILDREN=0` (mod_fcgid сам управляет пулом процессов) и
+`PHP_FCGI_MAX_REQUESTS=500`, затем `exec /usr/bin/php-cgi8.4`. Указание
+`FcgidWrapper` прямо на бинарь `/usr/bin/php-cgi8.4` тоже работает.
+
+Особенности `mod_fcgid`:
+
+- `Options +ExecCGI` **обязателен** (иначе 403).
+- **`FcgidMaxRequestLen` по умолчанию 128 КБ**: любой более крупный запрос
+  (вложение, импорт) падает с 500. Поднять выше самого большого ожидаемого
+  аплоада (`import_max_size`, по умолчанию 100 МБ).
+- `FcgidIOTimeout` (по умолчанию 40 с) может обрывать долгие операции IMAP;
+  увеличить до 300 с.
+- `<FilesMatch>`/`SetHandler` в `<VirtualHost>` перекрывает глобально
+  определённый PHP-handler из `conf.d` (напр. `php8.4-fpm.conf` Debian).
+- `php-cgi` читает `cgi/php.ini` (отдельный от `fpm/php.ini` файл): при
+  необходимости выровнять лимиты аплоада/памяти/сессий. Админ > "О программе"
+  показывает `php_sapi` (`cgi-fcgi`) и драйвер БД для подтверждения активного
+  режима.
+- `fastcgi_finish_request()` под `cgi-fcgi` отсутствует: отложенные действия
+  после ответа выполняются по-прежнему, просто без раннего flush (чуть больше
+  конечная задержка, как под `mod_php`).
+- PHP работает под пользователем Apache (`www-data`), если не задан
+  `SuexecUserGroup`: права на `storage/` тем самым идентичны пулу FPM
+  `www-data`.
+
 ### Nginx
 
 ```nginx

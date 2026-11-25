@@ -21,9 +21,8 @@ final class ReportAbuse extends PluginBase
 	public function register(HookRegistry $hooks): void
 	{
 		$hooks->on('app.data', function (array $data) {
-			if (trim((string) ($this->config['abuse_address'] ?? '')) !== '') {
-				$data['messageToolbar'][] = [
-					'plugin' => 'report-abuse', 'js' => 'report-abuse.js'];
+			if ($this->configTrim('abuse_address') !== '') {
+				$data['messageToolbar'][] = $this->toolbarJs('report-abuse.js');
 			}
 			return $data;
 		});
@@ -31,7 +30,7 @@ final class ReportAbuse extends PluginBase
 
 	public function apiReport(Request $request, ?array $user): array
 	{
-		$abuse = trim((string) ($this->config['abuse_address'] ?? ''));
+		$abuse = $this->configTrim('abuse_address');
 		if ($abuse === '' || !filter_var($abuse, FILTER_VALIDATE_EMAIL)) {
 			throw new \RuntimeException($this->t('plugin.report-abuse.not_configured'), 400);
 		}
@@ -40,13 +39,16 @@ final class ReportAbuse extends PluginBase
 			throw new \RuntimeException($this->t('plugin.report-abuse.bad_items'), 400);
 		}
 		$mail = $this->app->mail();
-		$prefix = (string) ($this->config['subject_prefix'] ?? '');
-		$markSpam = !empty($this->config['mark_spam']);
+		$prefix = $this->configString('subject_prefix');
+		$markSpam = $this->configBool('mark_spam');
 		$reported = $failed = 0;
 		foreach ($items as $it) {
-			$folder = str_replace(["\r", "\n"], '', (string) ($it['folder'] ?? ''));
+			$folder = (string) ($it['folder'] ?? '');
 			$uid = (int) ($it['uid'] ?? 0);
-			if ($folder === '' || $uid <= 0) {
+			// Rejet (convention dominante), pas d'assainissement : un item
+			// malformé compte comme échec sans invalider toute la requête.
+			if ($folder === '' || strpbrk($folder, "\r\n") !== false
+				|| $uid <= 0) {
 				$failed++;
 				continue;
 			}
@@ -86,12 +88,12 @@ final class ReportAbuse extends PluginBase
 			(string) ($src['subject'] ?? '')));
 		$msg = new \MailSo\Mime\Message();
 		$msg->DoesNotAddDefaultXMailer();
-		$msg->SetFrom(\MailSo\Mime\Email::Parse((string) ($_SESSION['email'] ?? '')));
+		$msg->SetFrom(\MailSo\Mime\Email::Parse($this->app->sessionEmail()));
 		$msg->SetTo(new \MailSo\Mime\EmailCollection($abuse));
 		$subject = trim($prefix . ' ' . (string) ($src['subject'] ?? ''));
 		$msg->SetSubject(str_replace(["\r", "\n"], ' ', $subject));
 		$msg->addPlain($this->t('plugin.report-abuse.body', [
-			'account' => (string) ($_SESSION['email'] ?? ''),
+			'account' => $this->app->sessionEmail(),
 			'folder'  => $folder,
 			'date'    => date(\DateTimeInterface::RFC2822),
 		]));

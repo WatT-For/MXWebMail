@@ -3,7 +3,7 @@
 	"label": "plugin.seasonal-decorations.label",
 	"class": "SeasonalDecorations",
 	"main": "SeasonalDecorations.php",
-	"version": "0.5.1",
+	"version": "0.5.2",
 	"description": "plugin.seasonal-decorations.description",
 	"hooks": ["app.head"]
 }

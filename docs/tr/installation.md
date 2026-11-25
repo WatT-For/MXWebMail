@@ -104,6 +104,57 @@ Geçiş ilk erişimde (`App::db()`) zaten uygulanır; `config.php` sonra
 Kök-`.htaccess` geçiş ağı olarak `public/`'e yeniden yazabilir ama resmi
 document root `public/`'dir.
 
+#### `mod_fcgid` varyantı (PHP-FPM alternatifi)
+
+PHP, PHP-FPM olmadan da `mod_fcgid` kontrollü `php-cgi` ile çalışabilir.
+Debian gereksinimi: `apt install libapache2-mod-fcgid php8.4-cgi`.
+
+```apache
+<VirtualHost *:443>
+    ServerName webmail.example.com
+    DocumentRoot /var/www/mxwebmail/public
+
+    <Directory /var/www/mxwebmail/public>
+        AllowOverride All
+        Options +ExecCGI
+        Require all granted
+    </Directory>
+
+    <FilesMatch "\.php$">
+        SetHandler fcgid-script
+    </FilesMatch>
+    FcgidWrapper /usr/local/bin/php84-fcgi .php
+    FcgidPassHeader Authorization
+    FcgidIOTimeout 300
+    FcgidMaxRequestLen 134217728
+</VirtualHost>
+```
+
+`/usr/local/bin/php84-fcgi`, `PHP_FCGI_CHILDREN=0` (mod_fcgid süreç havuzunu
+kendisi yönetir) ve `PHP_FCGI_MAX_REQUESTS=500` ayarlayıp ardından
+`exec /usr/bin/php-cgi8.4` çalıştıran bir mini sarmalayıcıdır (chmod 755).
+`FcgidWrapper`'ı doğrudan `/usr/bin/php-cgi8.4` binary'sine işaret etmek de
+çalışır.
+
+`mod_fcgid`'e özgü dikkat noktaları:
+
+- `Options +ExecCGI` **zorunludur** (yoksa 403).
+- **`FcgidMaxRequestLen` varsayılanı 128 KB'dir**: daha büyük her istek
+  (ek, import) 500 ile düşer. Beklenen en büyük upload'un üstüne çıkarın
+  (`import_max_size`, varsayılan 100 MB).
+- `FcgidIOTimeout` (varsayılan 40 s) uzun IMAP işlemlerini kesebilir;
+  300 s'ye çıkarın.
+- `<VirtualHost>` içindeki `<FilesMatch>`/`SetHandler`, `conf.d` içinde global
+  tanımlı bir PHP handler'ı ezer (örn. Debian'ın `php8.4-fpm.conf`'u).
+- `php-cgi`, `cgi/php.ini` okur (`fpm/php.ini`'den ayrı dosya): gerekirse
+  upload/bellek/oturum limitlerini hizalayın. Admin > "Hakkında", aktif modu
+  doğrulamak için `php_sapi` (`cgi-fcgi`) ve DB sürücüsünü gösterir.
+- `fastcgi_finish_request()` `cgi-fcgi` altında yoktur: yanıt sonrası ertelenen
+  işler yine de çalışır, sadece erken flush olmadan (`mod_php` gibi biraz daha
+  uzun son gecikme).
+- PHP, `SuexecUserGroup` yoksa Apache kullanıcısı (`www-data`) olarak çalışır:
+  `storage/` üzerindeki haklar dolayısıyla `www-data` FPM havuzuyla aynıdır.
+
 ### Nginx
 
 ```nginx

@@ -3,7 +3,7 @@
 	"label": "plugin.change-password.label",
 	"class": "ChangePassword",
 	"main": "ChangePassword.php",
-	"version": "0.12.1",
+	"version": "0.12.3",
 	"description": "plugin.change-password.description",
 	"hooks": ["password.change", "app.data"]
 }

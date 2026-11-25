@@ -133,7 +133,7 @@ function open({ title = t('dialog.info'), message = '', variant = 'info',
 				if (f.type === 'select') {
 					ctrl = el('select', 'form-select form-select-sm');
 					for (const o of f.options || []) {
-						const opt = el('option', null, '  '.repeat(o.depth || 0) + o.label);
+						const opt = el('option', null, '\u00a0\u00a0'.repeat(o.depth || 0) + o.label);
 						opt.value = o.value;
 						if (o.disabled) { opt.disabled = true; }
 						ctrl.append(opt);
@@ -245,6 +245,11 @@ function open({ title = t('dialog.info'), message = '', variant = 'info',
 export const dialog = {
 	alert:   (message, opts = {}) => open({ ...opts, message }),
 	confirm: (message, opts = {}) => open({ ...opts, message, cancelLabel: opts.cancelLabel ?? t('common.cancel') }),
+	// Preset "action destructive" : variante danger + libellé Supprimer
+	// (okLabel/title/variant surchargeables par opts).
+	confirmDanger: (message, opts = {}) => open({ variant: 'danger',
+		okLabel: t('common.delete'), ...opts, message,
+		cancelLabel: opts.cancelLabel ?? t('common.cancel') }),
 	prompt:  (message, opts = {}) => open({ ...opts, message, cancelLabel: opts.cancelLabel ?? t('common.cancel'), input: opts }),
 	pick:    (items, opts = {}) => open({ ...opts, list: items, okLabel: null, cancelLabel: opts.cancelLabel ?? t('common.cancel') }),
 	form:    (opts = {}) => open({ ...opts, cancelLabel: opts.cancelLabel ?? t('common.cancel') }),

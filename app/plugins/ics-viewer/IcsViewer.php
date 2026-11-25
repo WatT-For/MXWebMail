@@ -19,7 +19,7 @@ final class IcsViewer extends PluginBase
 	public function register(HookRegistry $hooks): void
 	{
 		$hooks->on('app.data', function (array $data) {
-			$data['features']['ics_viewer'] = true;
+			$data['features'] += $this->feature('ics_viewer');
 			return $data;
 		});
 	}
@@ -34,12 +34,9 @@ final class IcsViewer extends PluginBase
 			throw new \RuntimeException($this->t('plugin.ics-viewer.bad_params'), 400);
 		}
 
-		$raw = null;
-		$ok = $this->app->mail()->mimeStream($folder, $uid, $mimeIndex,
-			function ($r) use (&$raw) {
-				$raw = stream_get_contents($r, 2 * 1024 * 1024);
-			});
-		if (!$ok || !$raw) {
+		$raw = $this->app->mail()->attachmentContent(
+			$folder, $uid, $mimeIndex, 2 * 1024 * 1024);
+		if ($raw === null) {
 			throw new \RuntimeException($this->t('plugin.ics-viewer.attachment_missing'), 404);
 		}
 
@@ -103,7 +100,7 @@ final class IcsViewer extends PluginBase
 			throw new \RuntimeException($this->t('plugin.ics-viewer.reply_malformed'), 400);
 		}
 		$organizer = preg_replace('/^mailto:/i', '', (string) $src->ORGANIZER);
-		$email = (string) ($_SESSION['email'] ?? $user['username'] ?? '');
+		$email = $this->app->sessionEmail() ?: (string) ($user['username'] ?? '');
 		if (!filter_var($organizer, FILTER_VALIDATE_EMAIL) || $email === '') {
 			throw new \RuntimeException($this->t('plugin.ics-viewer.reply_malformed'), 400);
 		}

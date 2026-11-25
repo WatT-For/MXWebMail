@@ -6,6 +6,117 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/) -
 semver `0.MINOR.PATCH` en développement.
 Catégories, dans l'ordre : `Sécurité`, `Ajouté`, `Modifié`, `Corrigé`, `Obsolète`, `Supprimé`.
 
+## [Unreleased]
+
+## [0.55.11] - 2026-11-25
+
+### Modifié
+
+- Codes d'erreur API uniformisés : les erreurs métier des contrôleurs remontent désormais par `UserFacingException` (le code sémantique de `error.code` voyage dans l'exception, le statut HTTP dans `getCode()`) au lieu de `JsonResponse::error` manuels ; les gardes 401/403/404 portent en outre les codes `auth`/`forbidden`/`not_found` cohérents.
+
+## [0.55.10] - 2026-11-25
+
+### Modifié
+
+- Factorisation des CSS de thèmes : le layout partagé (~570 lignes) vit dans `default/assets/base.css`, importé par chaque `app.css` (`@import` résolu dans la chaîne d'héritage) ; les thèmes ne portent plus que leurs variables `:root` et leurs surcharges.
+
+## [0.55.9] - 2026-11-25
+
+### Modifié
+
+- Factorisation interne du JavaScript : `dialog.confirmDanger` (confirmations destructives), `spamWillMove`/`selectOptions` sur la liste des dossiers, `findModel`/`msgRefs`/`postBatch`/`removeOptimistic`/`spamItems` sur la liste des messages (le bascule spam du lecteur délègue désormais au batch), `loadOnce` pour le chargement paresseux des onglets de réglages, et `editSchemaConfig`/`saveSchemaConfig` + partial `_config_modal.php` partagés par les modales de config plugin et thème.
+
+### Corrigé
+
+- Panneau admin : un champ `options` JSON malformé d'un domaine ne fait plus échouer le chargement de la liste (repli sur `{}`, comme `buildDomainOptions`).
+
+## [0.55.8] - 2026-11-25
+
+### Modifié
+
+- Factorisation interne de `MailService` : lectures de préférences dossiers par compte (`accountFolderEntry`/`accountFolderSet`), paramètres de liste IMAP (`listParams`), fichiers temporaires d'APPEND (`withTempMessage`), connexion+login IMAP/Sieve avec mapping des erreurs (`connectClient`), inventaire des scripts ManageSieve (`sieveScriptDocs`) et réordonnancement des en-têtes d'envoi en un passage (`headerOrderRank`).
+
+## [0.55.7] - 2026-11-25
+
+### Modifié
+
+- Factorisation interne de l'infrastructure fichiers/HTTP : nouveaux helpers `Files::` (verrous, lecture JSON lockée, `ensureDir`, `safeRelPath`, `phpCache`) partagés par les services et les contrôleurs, et `App::newHttpRequest` pour les requêtes sortantes (TLS vérifié + `ssl.cafile` appliqué partout, y compris à l'API Mailcow du plugin change-password).
+- Extraction d'archives (mise à jour cœur et plugins) : la règle anti-traversal est unifiée sur la plus stricte - un `\` médian dans un chemin de paquet est désormais refusé (séparateur Windows).
+- La configuration enregistrée depuis l'admin fusionne désormais les sous-sections en profondeur (même fonction de merge que le chargement) - un futur niveau imbriqué ne serait plus écrasé.
+
+## [0.55.6] - 2026-11-25
+
+### Modifié
+
+- Contrôleurs : factorisation interne sans changement de comportement - validation des uploads, des noms de plugin/thème et des dossiers cibles, boucles des endpoints batch, cache disque des pièces jointes et construction du message en composition partagent désormais des helpers communs des classes de base (`Controller\BaseController`, `Api\BaseController`, `Admin\BaseController`).
+
+## [0.55.5] - 2026-11-25
+
+### Modifié
+
+- Plugins : les accès à la configuration, les onglets Paramètres, les montages admin, la barre d'outils du lecteur et l'accès PDO sont factorisés dans la classe de base `PluginBase` (refactor interne, aucun changement de comportement).
+- Les trois plugins LDAP (`ldap-login`, `ldap-contacts`, `change-password`) partagent désormais la même ouverture de connexion (protocole v3, referrals off, timeout, STARTTLS, bind) via un service dédié.
+
+## [0.55.4] - 2026-11-25
+
+### Sécurité
+
+- Le proxy d'images distantes ne vérifiait que l'adresse IPv4 du domaine cible (`gethostbyname`) : il applique désormais la garde SSRF commune (résolution A + AAAA, refus systématique en cas d'échec DNS).
+- Les liens de téléchargement des pièces jointes hébergées (filelink) étaient construits à partir de l'en-tête `Host` brut de la requête : ils utilisent désormais l'URL publique validée de l'application.
+- L'autodétection de serveur (`autoconfig.<domaine>`, `/.well-known/autoconfig/`) interrogeait des URL issues de la saisie sans filtrage : elle applique désormais la garde anti-SSRF commune (`App::httpGet` - hôte public requis, redirections non suivies).
+- Les redirections suivies lors des téléchargements GitHub (mises à jour, catalogue de plugins) pouvaient rétrograder HTTPS vers HTTP : elles sont désormais bornées à HTTPS.
+- Les secrets TOTP de la double authentification étaient stockés en clair dans les réglages utilisateur : ils sont désormais chiffrés au repos (`CredentialCrypt`, même mécanisme que les mots de passe CardDAV) - les secrets existants restent lus en clair puis ré-écrits chiffrés.
+
+### Ajouté
+
+- Les plugins peuvent déclarer leurs tables dans un `migrations.php` versionné (même mécanisme que le schéma cœur : transaction SQLite, vérification `information_schema` sous MySQL, suivi dans `meta`) au lieu d'exécuter leur DDL à chaque requête - adopté par `login-notify`, `send-rate-limit` et `dmarc-reports`.
+- Nouveaux services cœur pour les plugins : `App::httpGet()` (GET sortant avec garde anti-SSRF, timeout et taille capés), helpers `PluginBase` (`requireAdmin`, `assetUrl`, `inlineConfig`, `firstEmail`) et `Database::upsert()`/`insertIgnore()` portables SQLite/MariaDB/MySQL.
+- La documentation d'installation décrit désormais une variante Apache `mod_fcgid` + `php-cgi` (sans PHP-FPM), avec ses pièges propres (`Options +ExecCGI` obligatoire, `FcgidMaxRequestLen` à 128 Ko par défaut, `cgi/php.ini` distinct, `fastcgi_finish_request` absent).
+
+### Modifié
+
+- Factorisation plugins sans changement de comportement : accès aux pièces jointes via `MailService::attachmentContent`, lecture de la session via `App::sessionEmail`/`sessionUserId`, extraction de domaine unifiée (`Rule::emailDomain`), suggestions IMAP sur le cache fichiers partagé.
+- Les journaux des plugins `avatars`, `ldap-contacts` et `ldap-login` vont désormais dans `app.log` (log applicatif) au lieu du log protocole `mail.log`.
+- `report-abuse` rejette désormais un dossier contenant des caractères de contrôle au lieu de l'assainir silencieusement (convention des autres endpoints).
+- L'édition d'un utilisateur dans l'admin se fait désormais sur une page dédiée routée (`#/users/<id>/<onglet>` : Profil, Réglages, Comptes, Sessions) au lieu d'une modale - lien direct par utilisateur, retour navigateur et rafraîchissement fonctionnels.
+- Le réglage `mdn_mode` (accusés de réception) est désormais exposé dans les Réglages utilisateur et les valeurs par défaut du panneau admin - il n'existait que dans la configuration, sans interface pour le modifier.
+- Factorisation structurelle sans changement de comportement : lectures de session centralisées via des accesseurs `App` (id, email, compte, domaine, epoch, admin) au lieu de `$_SESSION` brut dans ~25 fichiers, déclaration unique des réglages utilisateur (`App::userSettingDefs` dont dérivent validation et schéma admin), table des routes extraite dans `app/routes.php`.
+- Factorisation interne sans changement de comportement : trait `Translates` pour la traduction, repositories `AccountRepository`/`AuthTokenRepository` absorbant le SQL brut des contrôleurs et services, parseur `.eml` extrait dans `EmlParser`, zips streamés factorisés (`ZipStreamer`), helpers partagés (`Config::section`, `Config\Dsn`, `Rule::domain`/`emailDomain`/`hexColor`, `Files::withJsonLock`, `Request::upload`, `MailService::folderExists`, `App::saveUserSettings`/`invalidateCodeCaches`), mémoïsation des accesseurs `auth()`/`oauth()`/`contacts()`, suppression de code mort.
+- `bin/post-update.php` partage désormais `UpdateService::postUpdateMaintenance()` avec la finalisation admin (migrations, purge des caches, nettoyage `public/setup`).
+- Factorisation frontend sans changement de comportement : gabarits de page partagés (`_head`, `_scripts`, `_login_card`), helpers de formatage `ui/format.js` (échappement, dates, tailles), rendu unifié des formulaires pilotés par schéma dans l'admin (champs, collecteurs, template KO unique), modales instanciées via `bindModal`, templates KO partagés (pagination, champs destinataires À/Cc/Cci), formulaire des réglages compacté, la liste des providers OAuth2 provient désormais du serveur (`OAuthService::providerLabels`) au lieu d'être dupliquée client + template.
+
+### Corrigé
+
+- Un `default_domain` invalide soumis dans les réglages admin provoquait une erreur 500 (appel d'une méthode d'instance dans un contexte `static`) au lieu d'un refus de validation.
+- Les plugins `login-notify` et `send-rate-limit` utilisaient `CREATE INDEX IF NOT EXISTS`, refusé par MySQL (erreur 1064 - `login-notify` pouvait bloquer la connexion) : la création d'index est désormais dispatchée par driver (vérification `information_schema` sous MySQL).
+- La sélection du compte par défaut triait différemment selon le code appelant : `is_default DESC, id` (IdentityRepository, webmail-migration) au lieu de `is_default DESC, position, email` - un autre compte que celui affiché pouvait être choisi.
+- `config.php` pouvait rester périmé après une sauvegarde dans l'admin sous `opcache.validate_timestamps=0` : l'écriture utilise désormais `mxwm_atomic_write` (invalidation opcache).
+- Le fichier des tentatives de connexion (`login_attempts.json`) n'était jamais purgé sur disque (croissance sans borne) : la purge s'applique désormais dans le verrou d'écriture.
+- La classe `Translates` était proposée comme langue disponible fantôme dans le sélecteur de langue et acceptée par la validation.
+- L'autodétection échouait sur les serveurs auto-signés : la sonde de bannière n'exige plus de certificat valide (elle identifie le service ; la vérification TLS reste appliquée à la connexion réelle).
+- Les téléchargements filelink envoyaient le nom de fichier sans encodage UTF-8 : ils utilisent désormais `filename*` (RFC 5987) via `Response::file`.
+- Les jetons "Rester connecté" expirés n'étaient jamais supprimés de `auth_tokens` : purge opportuniste à la création d'un jeton.
+- Le catalogue admin des extensions relisait chaque `plugin.json` à chaque ouverture : il réutilise désormais le cache de manifestes revalidé par mtime.
+- Les endpoints `apiAdmin*` du plugin `dmarc-reports` ne revérifiaient pas la session admin (défense en profondeur - le routage la vérifiait déjà) ; le plugin `imap-contacts-suggestions` laissait le dossier sélectionné modifié sur la connexion IMAP partagée.
+
+## [0.54.6] - 2026-11-24
+
+### Modifié
+
+- Les sélecteurs de dossiers indentent désormais la hiérarchie par espaces insécables (sous-dossiers décalés sous leur parent, l'espace ordinaire étant ignoré par le navigateur dans les `<option>`) : cible d'import `.eml`, filtres Sieve et assignation des dossiers système.
+- Refactor interne sans changement fonctionnel : factorisation des duplications (écriture atomique JSON, GC et caches de fichiers, upsert SQL portable, DSL de validation `Rule`, gardes `requireWrite`/`ProxyGuard`, préférences de dossiers par compte, erreurs de login, `formatSize`/`debounce` JS) - chaque mécanisme n'a plus qu'un seul point de vérité.
+- Le panneau admin expose désormais `compose_autosave` dans les valeurs par défaut utilisateur (il manquait au schéma alors que le réglage existait).
+- Validation admin : les réglages booléens exigent désormais un booléen JSON strict (`true`/`false`) - les entiers/chaînes (`1`, `"true"`) sont refusés avec 400, comme pour les réglages utilisateur.
+
+### Corrigé
+
+- L'archive ZIP de sauvegarde admin n'incluait pas les bases `db/users/*.sqlite` (carnets d'adresses) : elles sont désormais embarquées.
+
+- Le bouton ACL d'un dossier n'apparaît plus quand le serveur IMAP n'annonce pas la capability `ACL` (la capability suit le réglage `imap_disabled_caps` du domaine) ; le message d'erreur affiché au clic n'est plus dupliqué.
+- Les réglages admin (général, domaines, plugins, thèmes) acceptaient des valeurs JSON non scalaires (tableaux/objets) : elles étaient converties en chaîne `"Array"` ou en `0` puis stockées ; elles sont désormais refusées avec 400.
+- Les requêtes `HEAD` tombaient en 404 : elles obtiennent désormais les en-têtes de la réponse `GET` équivalente sans corps (sondes et monitoring).
+- L'indicateur de quota affichait `0 o` au lieu de `0 Ko` quand le compte n'avait pas de quota (régression du formatage de taille unifié).
+
 ## [0.54.5] - 2026-11-15
 
 ### Corrigé

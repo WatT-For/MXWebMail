@@ -39,7 +39,7 @@ geçişler o zaman askıya alınır.
 
 | Tablo | İçerik |
 |---|---|
-| `meta` | anahtar/değer çiftleri (`schema_version`, `contacts_moved`, …). |
+| `meta` | anahtar/değer çiftleri (`schema_version`, `plugin_<name>_schema_version`, `contacts_moved`, …). |
 | `users` | `username` (tekil), `display_name`, `is_admin`, `disabled`, `session_epoch` ("Oturumu zorla kapat" artırır - sonraki istekte aktif oturumları reddeder), `created_at`, `last_login_at`. |
 | `accounts` | kullanıcı IMAP hesapları: `email`, `imap_user`, `imap_pass` (şifreli), `is_default` (ana hesap, Ayarlar > Hesaplar'dan değişir), `position` (ek hesapların görüntü sırası, Ayarlar > Hesaplar'da sürükle-bırak), `auth` (`password`, `google`, `microsoft`, `yahoo` - OAuth2: `imap_pass` o zaman şifreli *refresh token* saklar). |
 | `oauth_apps` | kullanıcı başına OAuth2 uygulamaları: `provider`, `client_id`, `secret` (şifreli), `tenant` - `(user_id, provider)` başına bir uygulama (bkz. [domaines.md](domaines.md) §8). |

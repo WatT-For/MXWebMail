@@ -114,6 +114,8 @@ Exemplo: `dark` e `midnight` fornecem apenas `assets/app.css` e o seu
 `theme.json`/esquema; todo o resto (páginas, dicionários) é retomado de
 `default`.
 
+O layout partilhado vive em `default/assets/base.css`: cada `app.css` importa-o via `@import url("base.css")` (resolvido na cadeia de herança) e depois adiciona apenas as suas variáveis `:root` e sobrescritas.
+
 ## 3. Criar um tema
 
 1. Crie `app/templates/<name>/theme.json` (eventualmente com `extends`).

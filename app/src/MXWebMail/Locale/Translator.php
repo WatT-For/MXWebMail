@@ -37,25 +37,21 @@ final class Translator
 			}
 		}
 		$this->files = $files;
-		if ($cacheFile !== null && is_file($cacheFile)) {
-			$c = require $cacheFile;
-			if (is_array($c) && ($c['files'] ?? null) === $files
-				&& is_array($c['dict'] ?? null)) {
-				$this->dict = $c['dict'];
-				return;
+		$build = function () use ($files): array {
+			$dict = [];
+			foreach (array_keys($files) as $file) {
+				// array_replace : la langue active écrase le fallback,
+				// les plugins écrasent le cœur en dernier.
+				$dict = array_replace($dict, (array) require $file);
 			}
-		}
-		foreach (array_keys($files) as $file) {
-			// array_replace : la langue active écrase le fallback,
-			// les plugins écrasent le cœur en dernier.
-			$this->dict = array_replace($this->dict, (array) require $file);
-		}
-		if ($cacheFile !== null) {
-			// Écriture atomique : un require concurrent ne doit jamais
-			// charger un cache tronqué ou périmé (opcache_invalidate inclus).
-			@mxwm_atomic_write($cacheFile, '<?php return '
-				. var_export(['files' => $files, 'dict' => $this->dict], true) . ";\n");
-		}
+			return $dict;
+		};
+		// Cache disque revalidé par la map fichiers/mtimes (écriture
+		// atomique : un require concurrent ne charge jamais un cache
+		// tronqué ou périmé - opcache_invalidate inclus).
+		$this->dict = $cacheFile === null
+			? $build()
+			: \MXWebMail\Files::phpCache($cacheFile, $files, $build);
 	}
 
 	public function lang(): string
@@ -98,8 +94,9 @@ final class Translator
 		$out = [];
 		foreach (glob(rtrim($dir, '/') . '/*.php') ?: [] as $f) {
 			$lang = basename($f, '.php');
-			// Le dossier Locale contient aussi Translator.php (la classe).
-			if ($lang === 'Translator') {
+			// Le dossier Locale contient aussi des classes PHP (Translator,
+			// Translates) : seuls les codes langue sont des dictionnaires.
+			if (!preg_match('/^[a-z]{2,3}$/', $lang)) {
 				continue;
 			}
 			$out[] = $lang;

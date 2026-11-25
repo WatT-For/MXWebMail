@@ -184,6 +184,7 @@ git-ref). Каталог (`PluginPackageService`, вкладка *Расшире
 app/plugins/moy-plugin/
 ├── plugin.json          # манифест
 ├── MoyPlugin.php        # главный класс
+├── migrations.php       # (опционально) версионируемая схема БД
 ├── config.schema.json   # (опционально) схема настройки админа
 ├── langs/<lang>.php     # словари (ключи с префиксом plugin.<name>.)
 └── js/ или assets/      # (опционально) ассеты, отдаваемые через /assets/plugin/<name>/<file>
@@ -229,6 +230,68 @@ class MoyPlugin extends PluginBase
 	}
 }
 ```
+
+`PluginBase` предоставляет общие хелперы: `$this->t()` (перевод),
+`requireAdmin()` (защита сессии админа, см. *Общий API*),
+`assetUrl($base, $file)` (версионируемый URL ассета плагина),
+`inlineConfig($global, $payload, $nonce)` (CSP-совместимый блок
+`<script>` конфигурации) и `firstEmail()` (первый `Email` из
+`EmailCollection`).
+
+Конфигурация плагина читается через типизированные акцессоры
+`PluginBase` вместо приведений `$this->config`: `configString`,
+`configTrim`, `configInt`, `configBool` и `configCsv` (CSV-список).
+Повторяющиеся декларации хуков также вынесены: `userTab()` (вкладка
+Настройки), `adminMount()` (подвкладка админа), `feature()` (payload
+`features`) и `toolbarJs()` (панель инструментов чтения). `pdo()`
+возвращает PDO приложения, а `userSetting()`/`userSettingSet()`
+инкапсулируют пользовательские настройки под ключом
+`plugin.<name>.<key>`. `MXWebMail\Service\LdapConnect` централизует
+открытие LDAP-соединения плагинов (connect, опции v3, referrals off,
+сетевой таймаут, start_tls, bind).
+
+Для исходящего HTTP GET `$this->app->httpGet($url, $timeout, $maxKb)`
+применяет anti-SSRF-защиту (требуется публичный хост, редиректы не
+следуются, лимиты таймаута и размера, `ssl.cafile` учитывается) -
+предпочтительнее ad-hoc-клиента. Опциональный callback `$onBlocked`
+получает причину отказа (`dns`, `literal`, `private`) для адаптации
+логирования.
+
+Чтение сессии идёт через методы доступа `App` (в реальном времени, без мемоизации) вместо прямого `$_SESSION`: `sessionUserId()`, `sessionEmail()`, `sessionAccountId()`, `sessionDomain()`, `sessionImapPass()`, `sessionEpoch()`, `sessionAuthProvider()`, `isAdminSession()`, `isSecondaryAccount()`.
+
+### Таблицы базы данных
+
+Плагин, которому нужны собственные таблицы, объявляет их в
+`migrations.php` в своём корне. Файл возвращает массив
+`версия => запросы` - или closure, получающий
+`MXWebMail\Repository\Database` для диспатча по драйверу. Миграции
+выполняются при загрузке плагина, версионируются в
+`meta.plugin_<name>_schema_version`, тем же механизмом, что и схема
+ядра (транзакция SQLite, идемпотентный re-run под MySQL через
+`information_schema`):
+
+```php
+return function (\MXWebMail\Repository\Database $db): array {
+	$idx = ($db->isSqlite() || $db->isMariaDb())
+		? 'CREATE INDEX IF NOT EXISTS' : 'CREATE INDEX';
+	return [
+		1 => [
+			'CREATE TABLE IF NOT EXISTS plugin_moyplugin_items (
+				id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL)',
+			"$idx idx_items_user ON plugin_moyplugin_items (user_id)",
+		],
+	];
+};
+```
+
+Портируемость SQLite + MariaDB + MySQL: никогда не используйте голый
+`IF NOT EXISTS` для `ADD COLUMN`/`CREATE INDEX` (MySQL: ошибка 1064 -
+диспатч по драйверу как выше); автоинкрементный ключ
+`INTEGER PRIMARY KEY` (SQLite) vs `INTEGER AUTO_INCREMENT PRIMARY KEY`.
+`$db->insertIgnore()` и `$db->upsert()` производят портируемый
+`INSERT IGNORE` / `ON CONFLICT`. Префикс таблиц `plugin_<name>_`
+избегает коллизий. Отключённый плагин не мигрируется: его таблицы
+остаются, миграция возобновится при повторной активации.
 
 ### Доступные хуки
 

@@ -20,11 +20,11 @@ final class WhiteList extends PluginBase
 	public function register(HookRegistry $hooks): void
 	{
 		$hooks->on('auth.login.mapped', function (string $email, array $domain) {
-			$whiteList = \trim((string) ($this->config['white_list'] ?? ''));
+			$whiteList = $this->configTrim('white_list');
 			if ($whiteList !== '' && !Wildcard::match($email, $whiteList)) {
-				$exceptions = \trim((string) ($this->config['exceptions'] ?? ''));
+				$exceptions = $this->configTrim('exceptions');
 				if ($exceptions === '' || Wildcard::match($email, $exceptions)) {
-					$authError = !empty($this->config['auth_error']);
+					$authError = $this->configBool('auth_error');
 					throw new \RuntimeException(
 						$this->t($authError
 							? 'errors.bad_credentials'

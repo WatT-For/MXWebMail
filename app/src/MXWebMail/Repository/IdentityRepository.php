@@ -7,7 +7,8 @@ use MXWebMail\Locale\Translator;
 
 final class IdentityRepository
 {
-	public function __construct(private Database $db, private Translator $tr) {}
+	public function __construct(private Database $db, private Translator $tr,
+		private AccountRepository $accounts) {}
 
 	private function t(string $key, array $params = []): string
 	{
@@ -28,12 +29,15 @@ final class IdentityRepository
 	/** Compte par défaut de l'utilisateur (1er compte is_default). */
 	private function defaultAccountId(int $userId): ?int
 	{
-		$stmt = $this->db->pdo()->prepare(
-			'SELECT id FROM accounts WHERE user_id = :u ORDER BY is_default DESC, id LIMIT 1'
-		);
-		$stmt->execute(['u' => $userId]);
-		$id = $stmt->fetchColumn();
-		return $id === false ? null : (int) $id;
+		return $this->accounts->defaultId($userId);
+	}
+
+	/** Identité principale créée au provisioning d'un compte. */
+	public function createDefault(int $accountId, string $email): void
+	{
+		$this->db->pdo()->prepare(
+			'INSERT INTO identities (account_id, name, email, is_default) VALUES (:a, :n, :e, 1)')
+			->execute(['a' => $accountId, 'n' => '', 'e' => $email]);
 	}
 
 	public function save(int $userId, array $data): int
@@ -131,9 +135,7 @@ final class IdentityRepository
 
 	private function accountBelongsTo(int $accountId, int $userId): bool
 	{
-		$stmt = $this->db->pdo()->prepare('SELECT 1 FROM accounts WHERE id = :a AND user_id = :u');
-		$stmt->execute(['a' => $accountId, 'u' => $userId]);
-		return (bool) $stmt->fetchColumn();
+		return $this->accounts->owns($userId, $accountId);
 	}
 
 	private function assertOwner(int $userId, int $identityId): void

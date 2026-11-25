@@ -35,16 +35,13 @@ final class SsoHeader extends PluginBase
 			if ($this->app->isLoggedIn() || !$this->configured()) {
 				return '';
 			}
-			$b = htmlspecialchars($base, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-			$payload = json_encode([
-				'hide_form' => !empty($this->config['hide_form']),
+			$src = htmlspecialchars($this->assetUrl($base, 'sso-login.js'),
+				ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+			return "\n\t" . $this->inlineConfig('MXWM_SSOHEAD', [
+				'hide_form' => $this->configBool('hide_form'),
 				'manual_label' => $this->t('plugin.sso-header.manual_login'),
-			], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT);
-			return "\n\t" . '<script nonce="' . $nonce . '">'
-					. 'window.MXWM_SSOHEAD=' . $payload . ';</script>'
-				. "\n\t" . '<script src="' . $b
-				. '/assets/plugin/sso-header/sso-login.js?v='
-				. rawurlencode($this->version()) . '" defer></script>';
+			], $nonce)
+				. "\n\t" . '<script src="' . $src . '" defer></script>';
 		});
 
 		$hooks->on('auth.provider', function ($email, $password, $domain) {
@@ -63,15 +60,15 @@ final class SsoHeader extends PluginBase
 			unset($_SESSION['sso_ticket'], $_SESSION['sso_email']);
 			$_SESSION['sso_header'] = 1;
 			return ['email' => $email,
-				'password' => (string) ($this->config['master_pass'] ?? '')];
+				'password' => $this->configString('master_pass')];
 		});
 
 		// Mode separate : login IMAP/SMTP/Sieve "user*master" pour la session
 		// SSO primaire uniquement (jamais les comptes secondaires). Trois
 		// on() litteraux : le check statique associe hooks declares/ecoutes.
 		$master = function ($client, $settings) {
-			if (!empty($_SESSION['sso_header']) && empty($_SESSION['acct_secondary'])
-				&& ($mu = trim((string) ($this->config['master_user'] ?? ''))) !== '') {
+			if (!empty($_SESSION['sso_header']) && !$this->app->isSecondaryAccount()
+				&& ($mu = $this->configTrim('master_user')) !== '') {
 				$settings->username .= '*' . $mu;
 			}
 		};
@@ -82,8 +79,8 @@ final class SsoHeader extends PluginBase
 
 	private function configured(): bool
 	{
-		return trim((string) ($this->config['trusted_ips'] ?? '')) !== ''
-			&& trim((string) ($this->config['master_pass'] ?? '')) !== '';
+		return $this->configTrim('trusted_ips') !== ''
+			&& $this->configTrim('master_pass') !== '';
 	}
 
 	/** Peer de confiance + header present et valide pour cet email. */
@@ -91,17 +88,17 @@ final class SsoHeader extends PluginBase
 	{
 		if (!$this->configured()
 			|| !IpMatch::inList((string) ($_SERVER['REMOTE_ADDR'] ?? ''),
-				(string) $this->config['trusted_ips'])
+				$this->configString('trusted_ips'))
 			|| $this->headerUser() !== $email) {
 			return false;
 		}
-		$dom = trim((string) ($this->config['allowed_domains'] ?? ''));
+		$dom = $this->configTrim('allowed_domains');
 		return $dom === '' || Wildcard::match(strtolower($email), $dom);
 	}
 
 	private function headerUser(): string
 	{
-		$h = trim((string) ($this->config['header'] ?? 'X-Forwarded-User')) ?: 'X-Forwarded-User';
+		$h = $this->configTrim('header', 'X-Forwarded-User') ?: 'X-Forwarded-User';
 		if (strcasecmp($h, 'REMOTE_USER') === 0) {
 			return trim((string) ($_SERVER['REMOTE_USER'] ?? ''));
 		}
@@ -113,11 +110,11 @@ final class SsoHeader extends PluginBase
 	{
 		if (!$this->configured()
 			|| !IpMatch::inList((string) ($_SERVER['REMOTE_ADDR'] ?? ''),
-				(string) $this->config['trusted_ips'])) {
+				$this->configString('trusted_ips'))) {
 			return JsonResponse::ok(['enabled' => false]);
 		}
 		$email = $this->headerUser();
-		$dom = trim((string) ($this->config['allowed_domains'] ?? ''));
+		$dom = $this->configTrim('allowed_domains');
 		if (!filter_var($email, FILTER_VALIDATE_EMAIL)
 			|| ($dom !== '' && !Wildcard::match(strtolower($email), $dom))) {
 			return JsonResponse::ok(['enabled' => false]);

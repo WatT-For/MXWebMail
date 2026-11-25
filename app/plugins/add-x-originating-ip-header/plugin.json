@@ -3,7 +3,7 @@
 	"label": "plugin.add-x-originating-ip-header.label",
 	"class": "AddXOriginatingIpHeader",
 	"main": "AddXOriginatingIpHeader.php",
-	"version": "0.12.1",
+	"version": "0.12.2",
 	"description": "plugin.add-x-originating-ip-header.description",
 	"hooks": ["message.before-send"]
 }

@@ -109,6 +109,58 @@ credential-versleuteling.
 De root-`.htaccess` kan naar `public/` herschrijven als transitievangnet,
 maar de officiële document root is `public/`.
 
+#### `mod_fcgid`-variant (alternatief voor PHP-FPM)
+
+PHP kan ook via `php-cgi` onder `mod_fcgid` draaien, zonder PHP-FPM.
+Debian-vereiste: `apt install libapache2-mod-fcgid php8.4-cgi`.
+
+```apache
+<VirtualHost *:443>
+    ServerName webmail.example.com
+    DocumentRoot /var/www/mxwebmail/public
+
+    <Directory /var/www/mxwebmail/public>
+        AllowOverride All
+        Options +ExecCGI
+        Require all granted
+    </Directory>
+
+    <FilesMatch "\.php$">
+        SetHandler fcgid-script
+    </FilesMatch>
+    FcgidWrapper /usr/local/bin/php84-fcgi .php
+    FcgidPassHeader Authorization
+    FcgidIOTimeout 300
+    FcgidMaxRequestLen 134217728
+</VirtualHost>
+```
+
+`/usr/local/bin/php84-fcgi` is een mini-wrapper (chmod 755) die
+`PHP_FCGI_CHILDREN=0` (mod_fcgid beheert zelf de procespool) en
+`PHP_FCGI_MAX_REQUESTS=500` zet en daarna `exec /usr/bin/php-cgi8.4` uitvoert.
+`FcgidWrapper` rechtstreeks op het binaire `/usr/bin/php-cgi8.4` laten wijzen
+werkt eveneens.
+
+Aandachtspunten specifiek voor `mod_fcgid`:
+
+- `Options +ExecCGI` is **verplicht** (anders 403).
+- **`FcgidMaxRequestLen` staat standaard op 128 KB**: elke grotere request
+  (bijlage, import) faalt met een 500. Verhoog hem boven de grootste verwachte
+  upload (`import_max_size`, standaard 100 MB).
+- `FcgidIOTimeout` (standaard 40 s) kan lange IMAP-bewerkingen afbreken;
+  verhogen tot 300 s.
+- Het `<FilesMatch>`/`SetHandler` in de `<VirtualHost>` gaat voor op een globaal
+  in `conf.d` gedefinieerde PHP-handler (bv. Debian's `php8.4-fpm.conf`).
+- `php-cgi` leest `cgi/php.ini` (ander bestand dan `fpm/php.ini`): lijn de
+  upload-/geheugen-/sessielimieten zo nodig uit. Admin > "Info" toont `php_sapi`
+  (`cgi-fcgi`) en de DB-driver om de actieve modus te bevestigen.
+- `fastcgi_finish_request()` bestaat niet onder `cgi-fcgi`: uitgesteld werk na
+  de response loopt nog steeds, alleen zonder vroege flush (iets langere
+  eindlatentie, zoals onder `mod_php`).
+- PHP draait als de Apache-gebruiker (`www-data`), tenzij `SuexecUserGroup`
+  gezet is: de rechten op `storage/` zijn dus identiek aan een
+  `www-data`-FPM-pool.
+
 ### Nginx
 
 ```nginx

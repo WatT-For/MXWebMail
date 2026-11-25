@@ -38,7 +38,7 @@ MXWebMail работает с **SQLite** (по умолчанию), **MariaDB >=
 
 | Таблица | Содержание |
 |---|---|
-| `meta` | пары ключ/значение (`schema_version`, `contacts_moved`, …). |
+| `meta` | пары ключ/значение (`schema_version`, `plugin_<name>_schema_version`, `contacts_moved`, …). |
 | `users` | `username` (уникальный), `display_name`, `is_admin`, `disabled`, `session_epoch` (инкрементируется "Принудительным выходом" - отклоняет активные сессии при следующем запросе), `created_at`, `last_login_at`. |
 | `accounts` | IMAP-аккаунты пользователей: `email`, `imap_user`, `imap_pass` (зашифровано), `is_default` (основной аккаунт, изменяется в Настройки > Аккаунты), `position` (порядок отображения дополнительных аккаунтов, перетаскиванием в Настройки > Аккаунты), `auth` (`password`, `google`, `microsoft`, `yahoo` - OAuth2: `imap_pass` хранит тогда зашифрованный *refresh token*). |
 | `oauth_apps` | OAuth2-приложения на пользователя: `provider`, `client_id`, `secret` (зашифровано), `tenant` - одно приложение на `(user_id, provider)` (см. [domaines.md](domaines.md) §8). |

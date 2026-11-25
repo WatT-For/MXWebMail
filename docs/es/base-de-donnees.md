@@ -37,7 +37,7 @@ archivos sin restaurar la base), se pone `meta.schema_ahead` y se señala en
 
 | Tabla | Contenido |
 |---|---|
-| `meta` | pares clave/valor (`schema_version`, `contacts_moved`, …). |
+| `meta` | pares clave/valor (`schema_version`, `plugin_<name>_schema_version`, `contacts_moved`, …). |
 | `users` | `username` (único), `display_name`, `is_admin`, `disabled`, `session_epoch` (incrementado por "Forzar cierre de sesión" - rechaza las sesiones activas en la siguiente petición), `created_at`, `last_login_at`. |
 | `accounts` | cuentas IMAP de los usuarios: `email`, `imap_user`, `imap_pass` (cifrado), `is_default` (cuenta principal, modificable en Ajustes > Cuentas), `position` (orden de visualización de las cuentas secundarias, reordenable por arrastrar y soltar en Ajustes > Cuentas), `auth` (`password`, `google`, `microsoft`, `yahoo` - OAuth2: `imap_pass` almacena entonces el *refresh token* cifrado). |
 | `oauth_apps` | aplicaciones OAuth2 por usuario: `provider`, `client_id`, `secret` (cifrado), `tenant` - una app por `(user_id, provider)` (ver [domaines.md](domaines.md) §8). |

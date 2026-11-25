@@ -10,7 +10,8 @@
 ```
 public/                фронт-контроллер (index.php) + ассеты
 app/src/MXWebMail/     код приложения:
-  Application/App.php  контейнер сервисов + диспетчер + маршруты
+  Application/App.php  контейнер сервисов + диспетчер
+                       (декларативные маршруты в app/routes.php)
   API.php, Utils.php   фасады совместимости для vendored-кода (MailSo/Lib)
   Compat/              мосты совместимости MailSo (ActionsBridge,
                        ConfigBridge, PluginsBridge)
@@ -31,6 +32,7 @@ app/src/MXWebMail/     код приложения:
   Service/             AuthService, MailService, DomainDetector, OAuthService,
                        GitHubClient (общий HTTP Releases), UpdateService (ядро),
                        PluginPackageService (каталог/install/remove плагинов),
+                       LdapConnect (общее открытие LDAP-соединения плагинов),
                        импорты контактов (CsvContacts, VCardContacts,
                        RainLoopContacts)
   Sieve/               ScriptBuilder - генерация правил фильтров
@@ -39,6 +41,7 @@ app/src/MailSo/        vendored почтовая библиотека (неиз�
 app/src/Sabre/         sabre/vobject+xml+uri (vCard CardDAV)
 app/src/Lib/           утилиты MXWebMailLib (classmap)
 app/src/bootstrap.php  собственный автозагрузчик
+app/routes.php         таблица маршрутов [МЕТОД, путь, [Класс, 'action']]
 ```
 
 - **Фронтенд**: Knockout + Bootstrap 5.3, ES-модули в `public/assets/js/`

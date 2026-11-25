@@ -1,16 +1,8 @@
-<!doctype html>
-<html lang="<?= htmlspecialchars($lang) ?>" <?= $themeHtmlAttrs ?>>
-<head>
-	<meta charset="utf-8">
-	<meta name="viewport" content="width=device-width, initial-scale=1">
-	<title><?= htmlspecialchars($app->config()->get('app_name')) ?> - <?= $t('admin.administration') ?></title>
-	<link rel="icon" href="<?= $faviconUrl ?>">
-	<link rel="stylesheet" href="<?= $assets ?>/vendor/bootstrap/css/bootstrap.min.css">
-	<link rel="stylesheet" href="<?= $assets ?>/vendor/fontawesome/css/all.min.css">
-	<link id="theme-css" rel="stylesheet" href="<?= $base ?>/assets/theme/<?= $theme ?>/app.css?v=<?= $themeVer ?>">
-	<?= $themeHead ?>
-	<?= $themeScript ?>
-</head>
+<?php
+$headTitle = ' - ' . $t('admin.administration');
+$headPlugin = false; // vues admin : pas d'injection app.head
+require $partial('_head');
+?>
 <body>
 <nav class="navbar navbar-dark bg-dark px-3">
 	<span class="navbar-brand mb-0"><?= htmlspecialchars($app->config()->get('app_name')) ?> - <?= $t('admin.administration') ?></span>
@@ -207,8 +199,8 @@
 		</div>
 	</div>
 
-	<!-- Utilisateurs -->
-	<div data-bind="visible: tab()==='users'" style="display:none">
+	<!-- Utilisateurs : liste (#/users) -->
+	<div data-bind="visible: tab()==='users' && !userDetailId()" style="display:none">
 		<div class="d-flex justify-content-between align-items-center mb-2">
 			<h5><?= $t('admin.users') ?></h5>
 			<div class="d-flex align-items-center gap-2">
@@ -236,8 +228,8 @@
 					<td><span class="badge text-bg-secondary" data-bind="text: accounts_count || 0"></span></td>
 					<td><i class="fa-solid" data-bind="css: Number(is_admin) ? 'fa-check text-success' : 'fa-xmark text-muted'"></i></td>
 					<td><span class="badge text-bg-danger" data-bind="visible: Number(disabled), text: $root.t('admin.user_disabled')" style="display:none"></span></td>
-					<td data-bind="text: last_login_at ? new Date(last_login_at * 1000).toLocaleString($root.lang) : '-'"></td>
-					<td data-bind="text: created_at ? new Date(created_at * 1000).toLocaleDateString($root.lang) : '-'"></td>
+					<td data-bind="text: $root.fmtTs(last_login_at)"></td>
+					<td data-bind="text: $root.fmtDate(created_at)"></td>
 					<td class="text-end">
 						<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: $parent.editUser, tooltip: 'admin.user_edit'"><i class="fa-solid fa-pen"></i></button>
 						<button class="btn btn-sm btn-icon btn-outline-danger" data-bind="click: $parent.deleteUser, tooltip: 'common.delete'"><i class="fa-solid fa-trash"></i></button>
@@ -245,6 +237,152 @@
 				</tr>
 			</tbody>
 		</table>
+	</div>
+
+	<!-- Utilisateur : page détail (#/users/<id>[/<tab>], détail GET /api/admin/users/{id}) -->
+	<div data-bind="visible: tab()==='users' && userDetailId()" style="display:none">
+		<div class="d-flex align-items-center gap-2 mb-3">
+			<a class="btn btn-sm btn-outline-secondary" href="#/users">
+				<i class="fa-solid fa-arrow-left"></i> <?= $t('common.back') ?></a>
+			<h5 class="mb-0" data-bind="with: editingUser">
+				<?= $t('admin.user_edit') ?> <code data-bind="text: username"></code></h5>
+		</div>
+		<div class="text-center text-muted py-4" data-bind="visible: !editingUser()" style="display:none">
+			<i class="fa-solid fa-rotate fa-spin"></i>
+		</div>
+		<div data-bind="with: editingUser">
+			<!-- ko toast: { value: error, variant: 'danger' } --><!-- /ko -->
+			<ul class="nav nav-tabs mb-3">
+				<li class="nav-item"><a class="nav-link" data-bind="attr:{href:'#/users/'+id+'/profile'}, css:{active: $root.userDetailTab()==='profile'}"><?= $t('admin.user_tab_profile') ?></a></li>
+				<li class="nav-item"><a class="nav-link" data-bind="attr:{href:'#/users/'+id+'/settings'}, css:{active: $root.userDetailTab()==='settings'}"><?= $t('admin.user_tab_settings') ?></a></li>
+				<li class="nav-item"><a class="nav-link" data-bind="attr:{href:'#/users/'+id+'/accounts'}, css:{active: $root.userDetailTab()==='accounts'}"><?= $t('admin.user_accounts') ?></a></li>
+				<li class="nav-item"><a class="nav-link" data-bind="attr:{href:'#/users/'+id+'/sessions'}, css:{active: $root.userDetailTab()==='sessions'}"><?= $t('admin.user_sessions') ?></a></li>
+			</ul>
+
+			<!-- Profil -->
+			<div data-bind="visible: $root.userDetailTab()==='profile'" style="display:none">
+				<div class="row align-items-center mb-2">
+					<label class="col-md-4 col-form-label col-form-label-sm"><?= $t('settings.display_name') ?></label>
+					<div class="col-md-8"><input class="form-control form-control-sm" data-bind="value: display_name"></div>
+				</div>
+				<div class="row align-items-center mb-2">
+					<label class="col-md-4 col-form-label col-form-label-sm">Admin <i class="fa-regular fa-circle-question help-icon" tabindex="0"
+						data-bind="tooltip: 'admin.user_is_admin_help'"></i></label>
+					<div class="col-md-8">
+						<div class="form-check form-switch"><input class="form-check-input" type="checkbox" data-bind="checked: is_admin"></div>
+					</div>
+				</div>
+				<div class="row align-items-center mb-2">
+					<label class="col-md-4 col-form-label col-form-label-sm"><?= $t('admin.user_disabled') ?> <i class="fa-regular fa-circle-question help-icon" tabindex="0"
+						data-bind="tooltip: 'admin.user_disabled_help'"></i></label>
+					<div class="col-md-8">
+						<div class="form-check form-switch"><input class="form-check-input" type="checkbox" data-bind="checked: disabled"></div>
+					</div>
+				</div>
+				<div class="row align-items-center mb-2">
+					<label class="col-md-4 col-form-label col-form-label-sm"><?= $t('admin.user_created') ?></label>
+					<div class="col-md-8"><span class="text-muted small" data-bind="text: $root.fmtTs(created_at)"></span></div>
+				</div>
+				<div class="row align-items-center mb-3">
+					<label class="col-md-4 col-form-label col-form-label-sm"><?= $t('admin.last_login') ?></label>
+					<div class="col-md-8"><span class="text-muted small" data-bind="text: $root.fmtTs(last_login_at)"></span></div>
+				</div>
+				<button class="btn btn-primary btn-sm" data-bind="click: $root.saveUser"><?= $t('common.save') ?></button>
+				<hr>
+				<button class="btn btn-outline-danger btn-sm" data-bind="click: () => $root.deleteUser($data)">
+					<i class="fa-solid fa-trash"></i> <?= $t('admin.user_delete') ?></button>
+			</div>
+
+			<!-- Paramètres utilisateur (user_settings - schéma partagé user_defaults) -->
+			<div data-bind="visible: $root.userDetailTab()==='settings'" style="display:none">
+				<div class="row" data-bind="template: {name:'fields-tpl', foreach: settingsFields}"></div>
+				<button class="btn btn-primary btn-sm" data-bind="click: $root.saveUserSettings"><?= $t('common.save') ?></button>
+				<button class="btn btn-outline-warning btn-sm" data-bind="click: $root.resetUserSettings"><?= $t('admin.user_settings_reset') ?></button>
+			</div>
+
+			<!-- Sessions "Rester connecté" + déconnexion forcée -->
+			<div data-bind="visible: $root.userDetailTab()==='sessions'" style="display:none">
+				<div class="d-flex justify-content-end mb-2">
+					<button class="btn btn-sm btn-outline-danger" data-bind="click: $root.revokeUserSessions">
+						<i class="fa-solid fa-power-off"></i> <?= $t('admin.session_revoke_all') ?></button>
+				</div>
+				<div class="text-muted small" data-bind="visible: !$root.userSessions().length" style="display:none">
+					<?= $t('admin.sessions_empty') ?></div>
+				<table class="table table-sm align-middle" data-bind="visible: $root.userSessions().length">
+					<thead class="table-light"><tr>
+						<th><?= $t('admin.session_agent') ?></th><th>IP</th>
+						<th><?= $t('admin.session_last_used') ?></th>
+						<th><?= $t('admin.session_expires') ?></th><th></th></tr></thead>
+					<tbody data-bind="foreach: $root.userSessions">
+						<tr>
+							<td class="text-truncate" style="max-width:220px" data-bind="text: agent || '-'"></td>
+							<td class="text-nowrap small" data-bind="text: ip || last_ip || '-'"></td>
+							<td class="text-nowrap small" data-bind="text: $root.fmtTs(last_used_at)"></td>
+							<td class="text-nowrap small" data-bind="text: $root.fmtDate(expires_at)"></td>
+							<td class="text-end"><button class="btn btn-sm btn-icon btn-outline-danger"
+								data-bind="click: $root.deleteUserSession"><i class="fa-solid fa-trash"></i></button></td>
+						</tr>
+					</tbody>
+				</table>
+			</div>
+
+			<!-- Comptes IMAP liés + identités d'envoi -->
+			<div data-bind="visible: $root.userDetailTab()==='accounts'" style="display:none">
+				<div class="text-muted small" data-bind="visible: !accounts.length" style="display:none">
+					<?= $t('admin.user_no_accounts') ?></div>
+				<div data-bind="foreach: accounts">
+					<div class="card mb-3"><div class="card-body">
+						<div class="d-flex justify-content-between align-items-center mb-2">
+							<div>
+								<strong data-bind="text: email"></strong>
+								<span class="badge text-bg-primary ms-1" data-bind="visible: Number(is_default)" style="display:none"><?= $t('settings.default') ?></span>
+							</div>
+							<button class="btn btn-sm btn-icon btn-outline-danger"
+								data-bind="visible: !Number(is_default), click: $root.deleteUserAccount, tooltip: 'common.delete'" style="display:none">
+								<i class="fa-solid fa-trash"></i></button>
+						</div>
+						<table class="table table-sm align-middle mb-2">
+							<thead><tr><th><?= $t('common.name') ?></th><th>Email</th><th>Reply-To</th><th><?= $t('settings.default') ?></th><th></th></tr></thead>
+							<tbody data-bind="foreach: $root.identitiesFor($data)">
+								<tr>
+									<td data-bind="text: name"></td>
+									<td data-bind="text: email"></td>
+									<td data-bind="text: reply_to"></td>
+									<td><i class="fa-solid fa-check text-success" data-bind="visible: Number(is_default)" style="display:none"></i></td>
+									<td class="text-end">
+										<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: $root.defaultUserIdentity, tooltip: 'settings.default'"><i class="fa-solid fa-star"></i></button>
+										<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: (i) => $root.editUserIdentity($parent, i), tooltip: 'admin.user_edit'"><i class="fa-solid fa-pen"></i></button>
+										<button class="btn btn-sm btn-icon btn-outline-danger" data-bind="click: $root.deleteUserIdentity, tooltip: 'common.delete'"><i class="fa-solid fa-trash"></i></button>
+									</td>
+								</tr>
+							</tbody>
+						</table>
+						<button class="btn btn-sm btn-outline-secondary" data-bind="click: (a) => $root.editUserIdentity(a, null)">
+							<i class="fa-solid fa-plus"></i> <?= $t('common.add') ?></button>
+					</div></div>
+				</div>
+				<!-- Formulaire identité (création/édition, HTML source pour la signature) -->
+				<div class="card" data-bind="visible: $root.editingUserIdentity" style="display:none">
+					<div class="card-body" data-bind="with: $root.editingUserIdentity">
+						<h6><?= $t('settings.identities') ?></h6>
+						<div class="row g-2">
+							<div class="col-md-4"><input class="form-control form-control-sm" placeholder="<?= $t('settings.display_name') ?>" data-bind="value: name"></div>
+							<div class="col-md-4"><input class="form-control form-control-sm" placeholder="Email" data-bind="value: email"></div>
+							<div class="col-md-4"><input class="form-control form-control-sm" placeholder="<?= $t('settings.reply_to_opt') ?>" data-bind="value: reply_to"></div>
+							<div class="col-md-4"><input class="form-control form-control-sm" placeholder="BCC" data-bind="value: bcc"></div>
+							<div class="col-12">
+								<label class="form-label small mb-1"><?= $t('settings.signature') ?></label>
+								<textarea class="form-control form-control-sm font-monospace" rows="3" spellcheck="false" data-bind="value: signature"></textarea>
+							</div>
+						</div>
+						<div class="mt-2">
+							<button class="btn btn-primary btn-sm" data-bind="click: $root.saveUserIdentity"><?= $t('common.save') ?></button>
+							<button class="btn btn-link btn-sm" data-bind="click: () => $root.editingUserIdentity(null)"><?= $t('common.cancel') ?></button>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
 	</div>
 
 	<!-- Extensions -->
@@ -688,290 +826,23 @@
 </div>
 </div>
 
-<!-- Modale config plugin (schéma : plugins/<name>/config.schema.json) -->
+<!-- Modales config par schéma (plugins/<name>/ et templates/<name>/config.schema.json) -->
 <!-- Hors du conteneur visible:tab() : sinon changer d'onglet masquerait la modale mais garderait le backdrop -->
-<div class="modal fade" id="plugin-config-modal" tabindex="-1" data-bind="with: editingPlugin">
-	<div class="modal-dialog modal-lg modal-dialog-scrollable">
-		<div class="modal-content">
-			<div class="modal-header">
-				<h5 class="modal-title"><?= $t('admin.plugin_config') ?> <span data-bind="text: $root.pluginLabel($data)"></span> <code class="text-muted small" data-bind="text: name, visible: $root.pluginLabel($data) !== name"></code></h5>
-				<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-			</div>
-			<div class="modal-body">
-				<!-- ko toast: { value: error, variant: 'danger' } --><!-- /ko -->
-				<div class="text-muted small" data-bind="visible: !fields().length" style="display:none">
-					<?= $t('admin.no_schema') ?>
-				</div>
-				<div class="row" data-bind="foreach: fields">
-					<div class="col-12 col-xxl-6">
-						<div class="row align-items-center mb-2">
-							<label class="col-4 col-form-label col-form-label-sm">
-								<span data-bind="text: $root.t(label)"></span>
-								<i class="fa-regular fa-circle-question help-icon" tabindex="0"
-									data-bind="visible: help, tooltip: help"></i>
-							</label>
-							<div class="col-8">
-								<!-- ko if: type === 'string' || type === 'integer' || type === 'number' -->
-								<input class="form-control form-control-sm"
-									data-bind="value: value, attr: { type: type === 'integer' || type === 'number' ? 'number' : 'text' }">
-								<!-- /ko -->
-								<!-- ko if: type === 'text' -->
-								<textarea class="form-control form-control-sm" rows="3" data-bind="value: value"></textarea>
-								<!-- /ko -->
-								<!-- ko if: type === 'password' -->
-								<input class="form-control form-control-sm" type="password" autocomplete="new-password"
-									data-bind="value: value">
-								<!-- /ko -->
-								<!-- ko if: type === 'enum' -->
-								<select class="form-select form-select-sm" data-bind="value: value, valueAllowUnset: true, foreach: optionsList">
-									<option data-bind="value: $data[0], text: $root.t($data[1])"></option>
-								</select>
-								<!-- /ko -->
-								<!-- ko if: type === 'color' -->
-								<div class="ko-flex gap-2">
-									<input type="color" class="form-control form-control-color" data-bind="value: value">
-									<input class="form-control form-control-sm" placeholder="#RRGGBB" data-bind="value: value">
-								</div>
-								<!-- /ko -->
-								<!-- ko if: type === 'bool' -->
-								<div class="form-check">
-									<input class="form-check-input" type="checkbox" data-bind="checked: value">
-								</div>
-								<!-- /ko -->
-								<!-- ko if: type === 'list' -->
-								<div class="border rounded p-2">
-									<div data-bind="foreach: value">
-										<div class="d-flex gap-2 mb-1">
-											<input class="form-control form-control-sm" data-bind="value: $data">
-											<button class="btn btn-sm btn-icon btn-outline-danger" type="button"
-												data-bind="click: () => $parent.removeItem($data)">
-												<i class="fa-solid fa-xmark"></i>
-											</button>
-										</div>
-									</div>
-									<button class="btn btn-sm btn-outline-secondary" type="button" data-bind="click: addItem">
-										<i class="fa-solid fa-plus"></i> <span data-bind="text: $root.t('common.add')"></span>
-									</button>
-								</div>
-								<!-- /ko -->
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
-			<div class="modal-footer">
-				<button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal"><?= $t('common.close') ?></button>
-				<button class="btn btn-sm btn-primary" data-bind="click: $parent.savePluginConfig, visible: fields().length"><?= $t('common.save') ?></button>
-			</div>
-		</div>
-	</div>
-</div>
+<?php
+$cm = ['id' => 'plugin-config-modal', 'obs' => 'editingPlugin',
+	'title' => 'admin.plugin_config',
+	'name' => '<span data-bind="text: $root.pluginLabel($data)"></span>'
+		. ' <code class="text-muted small" data-bind="text: name,'
+		. ' visible: $root.pluginLabel($data) !== name"></code>',
+	'save' => 'savePluginConfig'];
+require $partial('_config_modal');
 
-<!-- Modale config template (schéma : templates/<name>/config.schema.json) -->
-<div class="modal fade" id="theme-config-modal" tabindex="-1" data-bind="with: editingTheme">
-	<div class="modal-dialog modal-lg modal-dialog-scrollable">
-		<div class="modal-content">
-			<div class="modal-header">
-				<h5 class="modal-title"><?= $t('admin.theme_config') ?> <span data-bind="text: name"></span></h5>
-				<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-			</div>
-			<div class="modal-body">
-				<!-- ko toast: { value: error, variant: 'danger' } --><!-- /ko -->
-				<div class="text-muted small" data-bind="visible: !fields().length" style="display:none">
-					<?= $t('admin.no_schema') ?>
-				</div>
-				<div class="row" data-bind="foreach: fields">
-					<div class="col-12 col-xxl-6">
-						<div class="row align-items-center mb-2">
-							<label class="col-4 col-form-label col-form-label-sm">
-								<span data-bind="text: $root.t(label)"></span>
-								<i class="fa-regular fa-circle-question help-icon" tabindex="0"
-									data-bind="visible: help, tooltip: help"></i>
-							</label>
-							<div class="col-8">
-								<!-- ko if: type === 'string' || type === 'integer' || type === 'number' -->
-								<input class="form-control form-control-sm"
-									data-bind="value: value, attr: { type: type === 'integer' || type === 'number' ? 'number' : 'text' }">
-								<!-- /ko -->
-								<!-- ko if: type === 'text' -->
-								<textarea class="form-control form-control-sm" rows="3" data-bind="value: value"></textarea>
-								<!-- /ko -->
-								<!-- ko if: type === 'enum' -->
-								<select class="form-select form-select-sm" data-bind="value: value, valueAllowUnset: true, foreach: optionsList">
-									<option data-bind="value: $data[0], text: $root.t($data[1])"></option>
-								</select>
-								<!-- /ko -->
-								<!-- ko if: type === 'color' -->
-								<div class="ko-flex gap-2">
-									<input type="color" class="form-control form-control-color" data-bind="value: value">
-									<input class="form-control form-control-sm" placeholder="#RRGGBB" data-bind="value: value">
-								</div>
-								<!-- /ko -->
-								<!-- ko if: type === 'bool' -->
-								<div class="form-check">
-									<input class="form-check-input" type="checkbox" data-bind="checked: value">
-								</div>
-								<!-- /ko -->
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
-			<div class="modal-footer">
-				<button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal"><?= $t('common.close') ?></button>
-				<button class="btn btn-sm btn-primary" data-bind="click: $parent.saveThemeConfig, visible: fields().length"><?= $t('common.save') ?></button>
-			</div>
-		</div>
-	</div>
-</div>
-
-<!-- Modale gestion utilisateur (détail : GET /api/admin/users/{id}) -->
-<div class="modal fade" id="user-modal" tabindex="-1" data-bind="with: editingUser">
-	<div class="modal-dialog modal-lg modal-dialog-scrollable">
-		<div class="modal-content">
-			<div class="modal-header">
-				<h5 class="modal-title"><?= $t('admin.user_edit') ?> <code data-bind="text: username"></code></h5>
-				<button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-			</div>
-			<div class="modal-body">
-				<!-- ko toast: { value: error, variant: 'danger' } --><!-- /ko -->
-				<ul class="nav nav-tabs mb-3">
-					<li class="nav-item"><a class="nav-link" href="#" data-bind="css:{active: $root.userModalTab()==='profile'}, click: () => $root.userModalTab('profile')"><?= $t('admin.user_tab_profile') ?></a></li>
-					<li class="nav-item"><a class="nav-link" href="#" data-bind="css:{active: $root.userModalTab()==='settings'}, click: () => $root.userModalTab('settings')"><?= $t('admin.user_tab_settings') ?></a></li>
-					<li class="nav-item"><a class="nav-link" href="#" data-bind="css:{active: $root.userModalTab()==='accounts'}, click: () => $root.userModalTab('accounts')"><?= $t('admin.user_accounts') ?></a></li>
-					<li class="nav-item"><a class="nav-link" href="#" data-bind="css:{active: $root.userModalTab()==='sessions'}, click: () => { $root.userModalTab('sessions'); $root.loadUserSessions(); }"><?= $t('admin.user_sessions') ?></a></li>
-				</ul>
-
-				<!-- Profil -->
-				<div data-bind="visible: $root.userModalTab()==='profile'" style="display:none">
-					<div class="row align-items-center mb-2">
-						<label class="col-md-4 col-form-label col-form-label-sm"><?= $t('settings.display_name') ?></label>
-						<div class="col-md-8"><input class="form-control form-control-sm" data-bind="value: display_name"></div>
-					</div>
-					<div class="row align-items-center mb-2">
-						<label class="col-md-4 col-form-label col-form-label-sm">Admin <i class="fa-regular fa-circle-question help-icon" tabindex="0"
-							data-bind="tooltip: 'admin.user_is_admin_help'"></i></label>
-						<div class="col-md-8">
-							<div class="form-check form-switch"><input class="form-check-input" type="checkbox" data-bind="checked: is_admin"></div>
-						</div>
-					</div>
-					<div class="row align-items-center mb-2">
-						<label class="col-md-4 col-form-label col-form-label-sm"><?= $t('admin.user_disabled') ?> <i class="fa-regular fa-circle-question help-icon" tabindex="0"
-							data-bind="tooltip: 'admin.user_disabled_help'"></i></label>
-						<div class="col-md-8">
-							<div class="form-check form-switch"><input class="form-check-input" type="checkbox" data-bind="checked: disabled"></div>
-						</div>
-					</div>
-					<div class="row align-items-center mb-2">
-						<label class="col-md-4 col-form-label col-form-label-sm"><?= $t('admin.user_created') ?></label>
-						<div class="col-md-8"><span class="text-muted small" data-bind="text: created_at ? new Date(created_at * 1000).toLocaleString($root.lang) : '-'"></span></div>
-					</div>
-					<div class="row align-items-center mb-3">
-						<label class="col-md-4 col-form-label col-form-label-sm"><?= $t('admin.last_login') ?></label>
-						<div class="col-md-8"><span class="text-muted small" data-bind="text: last_login_at ? new Date(last_login_at * 1000).toLocaleString($root.lang) : '-'"></span></div>
-					</div>
-					<button class="btn btn-primary btn-sm" data-bind="click: $root.saveUser"><?= $t('common.save') ?></button>
-					<hr>
-					<button class="btn btn-outline-danger btn-sm" data-bind="click: () => $root.deleteUser($data)">
-						<i class="fa-solid fa-trash"></i> <?= $t('admin.user_delete') ?></button>
-				</div>
-
-				<!-- Paramètres utilisateur (user_settings - schéma partagé user_defaults) -->
-				<div data-bind="visible: $root.userModalTab()==='settings'" style="display:none">
-					<div class="row" data-bind="template: {name:'fields-tpl', foreach: settingsFields}"></div>
-					<button class="btn btn-primary btn-sm" data-bind="click: $root.saveUserSettings"><?= $t('common.save') ?></button>
-					<button class="btn btn-outline-warning btn-sm" data-bind="click: $root.resetUserSettings"><?= $t('admin.user_settings_reset') ?></button>
-				</div>
-
-				<!-- Sessions "Rester connecté" + déconnexion forcée -->
-				<div data-bind="visible: $root.userModalTab()==='sessions'" style="display:none">
-					<div class="d-flex justify-content-end mb-2">
-						<button class="btn btn-sm btn-outline-danger" data-bind="click: $root.revokeUserSessions">
-							<i class="fa-solid fa-power-off"></i> <?= $t('admin.session_revoke_all') ?></button>
-					</div>
-					<div class="text-muted small" data-bind="visible: !$root.userSessions().length" style="display:none">
-						<?= $t('admin.sessions_empty') ?></div>
-					<table class="table table-sm align-middle" data-bind="visible: $root.userSessions().length">
-						<thead class="table-light"><tr>
-							<th><?= $t('admin.session_agent') ?></th><th>IP</th>
-							<th><?= $t('admin.session_last_used') ?></th>
-							<th><?= $t('admin.session_expires') ?></th><th></th></tr></thead>
-						<tbody data-bind="foreach: $root.userSessions">
-							<tr>
-								<td class="text-truncate" style="max-width:220px" data-bind="text: agent || '-'"></td>
-								<td class="text-nowrap small" data-bind="text: ip || last_ip || '-'"></td>
-								<td class="text-nowrap small" data-bind="text: last_used_at ? new Date(last_used_at * 1000).toLocaleString($root.lang) : '-'"></td>
-								<td class="text-nowrap small" data-bind="text: expires_at ? new Date(expires_at * 1000).toLocaleDateString($root.lang) : '-'"></td>
-								<td class="text-end"><button class="btn btn-sm btn-icon btn-outline-danger"
-									data-bind="click: $root.deleteUserSession"><i class="fa-solid fa-trash"></i></button></td>
-							</tr>
-						</tbody>
-					</table>
-				</div>
-
-				<!-- Comptes IMAP liés + identités d'envoi -->
-				<div data-bind="visible: $root.userModalTab()==='accounts'" style="display:none">
-					<div class="text-muted small" data-bind="visible: !accounts.length" style="display:none">
-						<?= $t('admin.user_no_accounts') ?></div>
-					<div data-bind="foreach: accounts">
-						<div class="card mb-3"><div class="card-body">
-							<div class="d-flex justify-content-between align-items-center mb-2">
-								<div>
-									<strong data-bind="text: email"></strong>
-									<span class="badge text-bg-primary ms-1" data-bind="visible: Number(is_default)" style="display:none"><?= $t('settings.default') ?></span>
-								</div>
-								<button class="btn btn-sm btn-icon btn-outline-danger"
-									data-bind="visible: !Number(is_default), click: $root.deleteUserAccount, tooltip: 'common.delete'" style="display:none">
-									<i class="fa-solid fa-trash"></i></button>
-							</div>
-							<table class="table table-sm align-middle mb-2">
-								<thead><tr><th><?= $t('common.name') ?></th><th>Email</th><th>Reply-To</th><th><?= $t('settings.default') ?></th><th></th></tr></thead>
-								<tbody data-bind="foreach: $root.identitiesFor($data)">
-									<tr>
-										<td data-bind="text: name"></td>
-										<td data-bind="text: email"></td>
-										<td data-bind="text: reply_to"></td>
-										<td><i class="fa-solid fa-check text-success" data-bind="visible: Number(is_default)" style="display:none"></i></td>
-										<td class="text-end">
-											<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: $root.defaultUserIdentity, tooltip: 'settings.default'"><i class="fa-solid fa-star"></i></button>
-											<button class="btn btn-sm btn-icon btn-outline-secondary" data-bind="click: (i) => $root.editUserIdentity($parent, i), tooltip: 'admin.user_edit'"><i class="fa-solid fa-pen"></i></button>
-											<button class="btn btn-sm btn-icon btn-outline-danger" data-bind="click: $root.deleteUserIdentity, tooltip: 'common.delete'"><i class="fa-solid fa-trash"></i></button>
-										</td>
-									</tr>
-								</tbody>
-							</table>
-							<button class="btn btn-sm btn-outline-secondary" data-bind="click: (a) => $root.editUserIdentity(a, null)">
-								<i class="fa-solid fa-plus"></i> <?= $t('common.add') ?></button>
-						</div></div>
-					</div>
-					<!-- Formulaire identité (création/édition, HTML source pour la signature) -->
-					<div class="card" data-bind="visible: $root.editingUserIdentity" style="display:none">
-						<div class="card-body" data-bind="with: $root.editingUserIdentity">
-							<h6><?= $t('settings.identities') ?></h6>
-							<div class="row g-2">
-								<div class="col-md-4"><input class="form-control form-control-sm" placeholder="<?= $t('settings.display_name') ?>" data-bind="value: name"></div>
-								<div class="col-md-4"><input class="form-control form-control-sm" placeholder="Email" data-bind="value: email"></div>
-								<div class="col-md-4"><input class="form-control form-control-sm" placeholder="<?= $t('settings.reply_to_opt') ?>" data-bind="value: reply_to"></div>
-								<div class="col-md-4"><input class="form-control form-control-sm" placeholder="BCC" data-bind="value: bcc"></div>
-								<div class="col-12">
-									<label class="form-label small mb-1"><?= $t('settings.signature') ?></label>
-									<textarea class="form-control form-control-sm font-monospace" rows="3" spellcheck="false" data-bind="value: signature"></textarea>
-								</div>
-							</div>
-							<div class="mt-2">
-								<button class="btn btn-primary btn-sm" data-bind="click: $root.saveUserIdentity"><?= $t('common.save') ?></button>
-								<button class="btn btn-link btn-sm" data-bind="click: () => $root.editingUserIdentity(null)"><?= $t('common.cancel') ?></button>
-							</div>
-						</div>
-					</div>
-				</div>
-			</div>
-			<div class="modal-footer">
-				<button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal"><?= $t('common.close') ?></button>
-			</div>
-		</div>
-	</div>
-</div>
+$cm = ['id' => 'theme-config-modal', 'obs' => 'editingTheme',
+	'title' => 'admin.theme_config',
+	'name' => '<span data-bind="text: name"></span>',
+	'save' => 'saveThemeConfig'];
+require $partial('_config_modal');
+?>
 
 <!-- Modale domaine (création/édition) -->
 <div class="modal fade" id="domain-modal" tabindex="-1" data-bind="with: editingDomain">
@@ -1028,9 +899,9 @@
 						<div class="col-md-8">
 							<select class="form-select form-select-sm" data-bind="value: opt_oauth">
 								<option value=""><?= $t('common.none') ?></option>
-								<option value="google">Google (Gmail)</option>
-								<option value="microsoft">Microsoft (Outlook)</option>
-								<option value="yahoo">Yahoo</option>
+								<?php foreach (\MXWebMail\Service\OAuthService::providerLabels() as $slug => $label): ?>
+								<option value="<?= $slug ?>"><?= htmlspecialchars($label) ?></option>
+								<?php endforeach; ?>
 							</select>
 						</div>
 					</div>
@@ -1147,18 +1018,25 @@
 </div>
 
 <!-- Template générique de champ de réglage (piloté par AdminController::settingsSchema()) -->
+<!-- Rendu d'un champ de schéma (sections admin, réglages utilisateur,
+     modales plugin/thème) - l'union des types sert partout ; les colonnes
+     label/champ viennent de field.labelCol/fieldCol (modale : col-4/8,
+     onglets : col-md-4/8). -->
 <script type="text/html" id="fields-tpl">
 	<div class="col-12 col-xxl-6">
 		<div class="row align-items-center mb-2">
-			<label class="col-md-4 col-form-label col-form-label-sm">
+			<label data-bind="css: labelCol + ' col-form-label col-form-label-sm'">
 				<span data-bind="text: $root.t(label)"></span>
 				<i class="fa-regular fa-circle-question help-icon" tabindex="0"
 					data-bind="visible: help, tooltip: help"></i>
 			</label>
-			<div class="col-md-8">
-				<!-- ko if: type === 'string' || type === 'integer' -->
+			<div data-bind="css: fieldCol">
+				<!-- ko if: type === 'string' || type === 'integer' || type === 'number' -->
 				<input class="form-control form-control-sm"
-					data-bind="value: value, attr: { type: type === 'integer' ? 'number' : 'text' }">
+					data-bind="value: value, attr: { type: type === 'integer' || type === 'number' ? 'number' : 'text' }">
+				<!-- /ko -->
+				<!-- ko if: type === 'text' -->
+				<textarea class="form-control form-control-sm" rows="3" data-bind="value: value"></textarea>
 				<!-- /ko -->
 				<!-- ko if: type === 'password' -->
 				<input class="form-control form-control-sm" type="password" autocomplete="new-password"
@@ -1180,17 +1058,32 @@
 					<input class="form-check-input" type="checkbox" data-bind="checked: value">
 				</div>
 				<!-- /ko -->
+				<!-- ko if: type === 'list' -->
+				<div class="border rounded p-2">
+					<div data-bind="foreach: value">
+						<div class="d-flex gap-2 mb-1">
+							<input class="form-control form-control-sm" data-bind="value: $data">
+							<button class="btn btn-sm btn-icon btn-outline-danger" type="button"
+								data-bind="click: () => $parent.removeItem($data)">
+								<i class="fa-solid fa-xmark"></i>
+							</button>
+						</div>
+					</div>
+					<button class="btn btn-sm btn-outline-secondary" type="button" data-bind="click: addItem">
+						<i class="fa-solid fa-plus"></i> <span data-bind="text: $root.t('common.add')"></span>
+					</button>
+				</div>
+				<!-- /ko -->
 			</div>
 		</div>
 	</div>
 </script>
 
-<script nonce="<?= $nonce ?>">
-	window.MXWM = <?= $mxwmJson ?>;
-</script>
-<script src="<?= $i18nUrl ?>"></script>
-<script src="<?= $assets ?>/vendor/knockout/knockout.js"></script>
-<script src="<?= $assets ?>/vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
-<script type="module" src="<?= $assets ?>/js/dist/admin.js"></script>
+<?php
+$scriptsKo = true;
+$scriptsBs = true;
+$scriptsModule = 'js/dist/admin.js';
+require $partial('_scripts');
+?>
 </body>
 </html>

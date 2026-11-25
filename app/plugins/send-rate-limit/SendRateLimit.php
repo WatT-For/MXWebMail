@@ -19,18 +19,18 @@ final class SendRateLimit extends PluginBase
 	public function register(HookRegistry $hooks): void
 	{
 		$hooks->on('message.before-send', function (\MailSo\Mime\Message $message) {
-			$uid = (int) ($_SESSION['user_id'] ?? 0);
-			$email = (string) ($_SESSION['email'] ?? '');
+			$uid = $this->app->sessionUserId();
+			$email = $this->app->sessionEmail();
 			if ($uid <= 0) {
 				return;
 			}
-			$exempt = trim((string) ($this->config['exempt'] ?? ''));
+			$exempt = $this->configTrim('exempt');
 			if ($exempt !== '' && Wildcard::match(strtolower($email), $exempt)) {
 				return;
 			}
-			$maxHour = max(0, (int) ($this->config['max_msgs_hour'] ?? 0));
-			$maxDay  = max(0, (int) ($this->config['max_msgs_day'] ?? 0));
-			$maxRcpts= max(0, (int) ($this->config['max_rcpts_day'] ?? 0));
+			$maxHour = max(0, $this->configInt('max_msgs_hour', 0));
+			$maxDay  = max(0, $this->configInt('max_msgs_day', 0));
+			$maxRcpts= max(0, $this->configInt('max_rcpts_day', 0));
 			if (!$maxHour && !$maxDay && !$maxRcpts) {
 				return;
 			}
@@ -72,16 +72,5 @@ final class SendRateLimit extends PluginBase
 			}
 		});
 	}
-
-	private function pdo(): \PDO
-	{
-		$pdo = $this->app->db()->pdo();
-		$pdo->exec('CREATE TABLE IF NOT EXISTS plugin_sendrate (
-			user_id INTEGER NOT NULL,
-			ts      INTEGER NOT NULL,
-			rcpts   INTEGER NOT NULL)');
-		$pdo->exec('CREATE INDEX IF NOT EXISTS idx_sendrate_user_ts
-			ON plugin_sendrate (user_id, ts)');
-		return $pdo;
-	}
+	// Table plugin_sendrate : schéma géré par migrations.php (PluginManager).
 }

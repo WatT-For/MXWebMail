@@ -107,6 +107,57 @@ automaticamente alla prima cifratura di credenziale.
 L'`.htaccess` radice può riscrivere verso `public/` come rete di transizione,
 ma il document root ufficiale è `public/`.
 
+#### Variante `mod_fcgid` (alternativa a PHP-FPM)
+
+PHP può anche girare tramite `php-cgi` pilotato da `mod_fcgid`, senza PHP-FPM.
+Prerequisito Debian: `apt install libapache2-mod-fcgid php8.4-cgi`.
+
+```apache
+<VirtualHost *:443>
+    ServerName webmail.example.com
+    DocumentRoot /var/www/mxwebmail/public
+
+    <Directory /var/www/mxwebmail/public>
+        AllowOverride All
+        Options +ExecCGI
+        Require all granted
+    </Directory>
+
+    <FilesMatch "\.php$">
+        SetHandler fcgid-script
+    </FilesMatch>
+    FcgidWrapper /usr/local/bin/php84-fcgi .php
+    FcgidPassHeader Authorization
+    FcgidIOTimeout 300
+    FcgidMaxRequestLen 134217728
+</VirtualHost>
+```
+
+`/usr/local/bin/php84-fcgi` è un mini wrapper (chmod 755) che imposta
+`PHP_FCGI_CHILDREN=0` (mod_fcgid gestisce da sé il pool di processi) e
+`PHP_FCGI_MAX_REQUESTS=500`, poi `exec /usr/bin/php-cgi8.4`. Puntare
+`FcgidWrapper` direttamente al binario `/usr/bin/php-cgi8.4` funziona
+ugualmente.
+
+Punti d'attenzione propri di `mod_fcgid`:
+
+- `Options +ExecCGI` è **obbligatorio** (altrimenti 403).
+- **`FcgidMaxRequestLen` vale 128 KB di default**: ogni richiesta oltre
+  (allegato, import) fallisce con 500. Alzarlo sopra il più grande upload
+  atteso (`import_max_size`, 100 MB di default).
+- `FcgidIOTimeout` (40 s di default) può troncare operazioni IMAP lunghe;
+  portarlo a 300 s.
+- Il `<FilesMatch>`/`SetHandler` del `<VirtualHost>` prevale su un handler PHP
+  definito globalmente in `conf.d` (es. `php8.4-fpm.conf` di Debian).
+- `php-cgi` legge `cgi/php.ini` (file distinto da `fpm/php.ini`): allineare i
+  limiti di upload/memoria/sessioni se serve. Admin > "Informazioni" mostra
+  `php_sapi` (`cgi-fcgi`) e il driver DB per confermare il modo attivo.
+- `fastcgi_finish_request()` non esiste sotto `cgi-fcgi`: i lavori differiti
+  post-risposta girano comunque, solo senza flush anticipato (latenza finale
+  leggermente più lunga, come sotto `mod_php`).
+- PHP gira come utente Apache (`www-data`), salvo `SuexecUserGroup`: i diritti
+  su `storage/` sono quindi identici a un pool FPM `www-data`.
+
 ### Nginx
 
 ```nginx

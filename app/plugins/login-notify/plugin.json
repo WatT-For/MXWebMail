@@ -3,7 +3,7 @@
 	"label": "plugin.login-notify.label",
 	"class": "LoginNotify",
 	"main": "LoginNotify.php",
-	"version": "0.1.0",
+	"version": "0.1.1",
 	"description": "plugin.login-notify.description",
 	"hooks": ["auth.post-login", "app.data"],
 	"min_app": "0.52.0",

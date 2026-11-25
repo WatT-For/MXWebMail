@@ -2,14 +2,8 @@
 declare(strict_types=1);
 
 namespace MXWebMail\Controller\Api;
-use MXWebMail\Application\App;
 use MXWebMail\Http\JsonResponse;
 use MXWebMail\Http\Request;
-use MXWebMail\Http\Response;
-use MXWebMail\Security\CredentialCrypt;
-use MXWebMail\Security\Csrf;
-use MXWebMail\Security\TotpRequiredException;
-use MXWebMail\Service\MailService;
 
 
 
@@ -27,6 +21,10 @@ use MXWebMail\Service\MailService;
  * - list  : {folder,page,limit,search,sort,threads,thread_uid} - mêmes
  *   paramètres que GET /api/messages ; absent = pas de section.
  * - quota : "1" = inclure le quota.
+ *
+ * La réponse inclut aussi "caps" : les capabilities IMAP exposables à l'UI
+ * (masquage des fonctions non supportées - connexion déjà ouverte par
+ * folders(), simple lecture du tableau de caps actives).
  *
  * Résilience par section : folders en échec > erreur globale (comme
  * /api/folders) ; list/quota/latest en échec > null, le client retombe
@@ -90,6 +88,7 @@ final class PollController extends BaseController
 			'latest'  => $latest,
 			'list'    => $list,
 			'quota'   => $quota,
+			'caps'    => $mail->capabilities(),
 		]);
 	}
 }

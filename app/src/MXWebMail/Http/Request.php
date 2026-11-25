@@ -52,14 +52,17 @@ final class Request
 		return $base;
 	}
 
-	public function isPost(): bool
+	/**
+	 * Entrée $_FILES validée : error = UPLOAD_ERR_OK + is_uploaded_file.
+	 * null si absente ou invalide - l'appelant choisit son erreur métier.
+	 */
+	public function upload(string $name): ?array
 	{
-		return $this->method === 'POST';
-	}
-
-	public function isAjax(): bool
-	{
-		return strtolower($this->server['HTTP_X_REQUESTED_WITH'] ?? '') === 'xmlhttprequest';
+		$f = $this->files[$name] ?? null;
+		return is_array($f)
+			&& (int) ($f['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK
+			&& is_uploaded_file((string) ($f['tmp_name'] ?? ''))
+			? $f : null;
 	}
 
 	/** Corps JSON décodé (pour les appels fetch avec content-type json). */

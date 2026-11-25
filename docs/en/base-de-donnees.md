@@ -36,7 +36,7 @@ suspended.
 
 | Table | Content |
 |---|---|
-| `meta` | key/value pairs (`schema_version`, `contacts_moved`, …). |
+| `meta` | key/value pairs (`schema_version`, `plugin_<name>_schema_version`, `contacts_moved`, …). |
 | `users` | `username` (unique), `display_name`, `is_admin`, `disabled`, `session_epoch` (incremented by "Force logout" - rejects active sessions on the next request), `created_at`, `last_login_at`. |
 | `accounts` | user IMAP accounts: `email`, `imap_user`, `imap_pass` (encrypted), `is_default` (primary account, changeable in Settings > Accounts), `position` (display order of secondary accounts, reorderable by drag-and-drop in Settings > Accounts), `auth` (`password`, `google`, `microsoft`, `yahoo` - OAuth2: `imap_pass` then stores the encrypted *refresh token*). |
 | `oauth_apps` | per-user OAuth2 applications: `provider`, `client_id`, `secret` (encrypted), `tenant` - one app per `(user_id, provider)` (see [domaines.md](domaines.md) §8). |

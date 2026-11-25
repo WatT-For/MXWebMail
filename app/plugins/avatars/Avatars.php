@@ -6,6 +6,7 @@ namespace Plugin;
 use MXWebMail\Http\Request;
 use MXWebMail\Plugin\HookRegistry;
 use MXWebMail\Plugin\PluginBase;
+use MXWebMail\Validation\Rule;
 
 /**
  * Avatar de l'expéditeur dans le lecteur de message.
@@ -22,7 +23,7 @@ final class Avatars extends PluginBase
 	public function register(HookRegistry $hooks): void
 	{
 		$hooks->on('app.data', function (array $data) {
-			$data['features']['avatars'] = true;
+			$data['features'] += $this->feature('avatars');
 			return $data;
 		});
 	}
@@ -40,10 +41,10 @@ final class Avatars extends PluginBase
 			return $cached;
 		}
 
-		$domain = substr($email, strrpos($email, '@') + 1);
+		$domain = Rule::emailDomain($email);
 
 		// 2. Icône de domaine connue (vendored dans images/services)
-		if (!empty($this->config['service'] ?? true)
+		if ($this->configBool('service', true)
 			&& ($icon = $this->serviceIcon($domain))) {
 			return $icon;
 		}
@@ -52,7 +53,7 @@ final class Avatars extends PluginBase
 		// .none) : sinon chaque affichage rejouerait DNS + HTTP + log.
 		if (!$this->missed($email)) {
 			// 3. Gravatar (404 = pas d'avatar)
-			if (!empty($this->config['gravatar'])) {
+			if ($this->configBool('gravatar')) {
 				$found = $this->fetchImage(
 					'https://gravatar.com/avatar/' . md5($email) . '?s=80&d=404');
 				if ($found) {
@@ -62,7 +63,7 @@ final class Avatars extends PluginBase
 			}
 
 			// 4. Favicon du domaine
-			if (!empty($this->config['favicon']) && $domain !== '') {
+			if ($this->configBool('favicon') && $domain !== '') {
 				foreach ([
 					"https://{$domain}/favicon.ico",
 					'https://www.' . self::serviceDomain($domain) . '/favicon.ico',
@@ -75,13 +76,13 @@ final class Avatars extends PluginBase
 				}
 			}
 
-			if (!empty($this->config['gravatar']) || !empty($this->config['favicon'])) {
+			if ($this->configBool('gravatar') || $this->configBool('favicon')) {
 				@touch($this->dir() . '/' . sha1($email) . '.none');
 			}
 		}
 
 		// 5. Identicon : initiales sur couleur dérivée du hash (local, gratuit)
-		if (($this->config['identicon'] ?? 'initials') !== 'none') {
+		if (($this->configString('identicon', 'initials')) !== 'none') {
 			return ['svg' => self::initialsSvg($email)];
 		}
 
@@ -115,40 +116,24 @@ final class Avatars extends PluginBase
 	/** Fetch image distante. Retourne [mime, binaire, réponse JSON] ou null. */
 	private function fetchImage(string $url): ?array
 	{
-		$reason = $this->app->publicHostBlockReason(
-			(string) parse_url($url, PHP_URL_HOST));
-		if ($reason !== null) {
-			$label = match ($reason) {
-				'dns' => 'dns-introuvable',
-				'literal' => 'ip-littérale',
-				default => 'ip-non-publique',
-			};
-			// NXDOMAIN = cas banal (expéditeur sans domaine web) > info ;
-			// IP privée/réservée = vrai signal anti-SSRF > warning.
-			if ($reason === 'dns') {
-				\MXWebMailLib\Log::info('AVATARS',
-					"fetch refusé (hôte non public : {$label}) : {$url}");
-			} else {
-				\MXWebMailLib\Log::warning('AVATARS',
-					"fetch refusé (hôte non public : {$label}) : {$url}");
-			}
-			return null;
-		}
-		try {
-			$http = \MXWebMailLib\HTTP\Request::factory();
-			$http->timeout = 8;
-			$http->max_response_kb = 256;
-			// doRequest suit les redirects sans re-valider l'IP : jamais de suivi.
-			$http->max_redirects = 0;
-			$response = $http->doRequest('GET', $url);
-			$mime = $response?->getHeader('content-type');
-			$mime = is_array($mime) ? $mime[0] : (string) $mime;
-			if ($response && $response->status === 200
-				&& str_starts_with($mime, 'image/') && $response->body !== '') {
-				return [$mime, $response->body,
-					['dataUrl' => "data:{$mime};base64," . base64_encode($response->body)]];
-			}
-		} catch (\Throwable) {
+		// NXDOMAIN = cas banal (expéditeur sans domaine web) > info ;
+		// IP privée/réservée = vrai signal anti-SSRF > warning.
+		$response = $this->app->httpGet($url, 8, 256,
+			function (string $reason) use ($url): void {
+				$label = match ($reason) {
+					'dns' => 'dns-introuvable',
+					'literal' => 'ip-littérale',
+					default => 'ip-non-publique',
+				};
+				$this->app->log($reason === 'dns' ? 'info' : 'warning',
+					"avatars: fetch refusé (hôte non public : {$label}) : {$url}");
+			});
+		$mime = $response?->getHeader('content-type');
+		$mime = is_array($mime) ? $mime[0] : (string) $mime;
+		if ($response !== null && str_starts_with($mime, 'image/')
+			&& $response->body !== '') {
+			return [$mime, $response->body,
+				['dataUrl' => "data:{$mime};base64," . base64_encode($response->body)]];
 		}
 		return null;
 	}
@@ -157,9 +142,7 @@ final class Avatars extends PluginBase
 
 	private function dir(): string
 	{
-		$dir = $this->app->storageDir() . '/avatars';
-		is_dir($dir) || mkdir($dir, 0700, true);
-		return $dir;
+		return $this->app->storageSubDir('avatars');
 	}
 
 	private function cached(string $email): ?array

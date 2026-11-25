@@ -2,6 +2,9 @@ import { api } from '../api.js';
 import { t } from '../i18n.js';
 import { dialog } from '../ui/dialog.js';
 import { toast } from '../ui/toast.js';
+import { formatSize, escapeHtml, textToHtml } from '../ui/format.js';
+import { bindAll } from '../ui/bind-all.js';
+import { debounce } from '../ui/debounce.js';
 import { loadOpenPgp } from '../lazy.js';
 
 /**
@@ -57,7 +60,6 @@ export class ComposeVM {
 		this.showBcc = ko.observable(false);  // champ Cci déplié
 		this.suggestField = ko.observable(''); // 'to'|'cc'|'bcc' - champ sous lequel afficher les suggestions
 		this.suggestIndex = ko.observable(-1); // suggestion surlignée au clavier
-		this._suggestTimer = null; // debounce des suggestions (1 requête / frappe sinon)
 		this._focusToInput = false; // openNew : focus "À" quand pas de marqueur caret signature
 		// Garde de fermeture : _dirty suit les saisies utilisateur (suspendu
 		// pendant les remplissages programmatiques des open*/placeCaretAtMarker).
@@ -89,11 +91,7 @@ export class ComposeVM {
 
 		// Knockout invoque les handlers avec this = $data du contexte courant
 		// (item dans un foreach / objet dans un with) : on force le binding sur le VM.
-		for (const m of Object.getOwnPropertyNames(ComposeVM.prototype)) {
-			if (m !== 'constructor' && typeof this[m] === 'function') {
-				this[m] = this[m].bind(this);
-			}
-		}
+		bindAll(this, ComposeVM.prototype);
 	}
 
 	async init() {
@@ -121,12 +119,10 @@ export class ComposeVM {
 
 	/** Persiste la taille de la modale dans les réglages utilisateur. */
 	async saveComposeSize() {
-		this.app.userSettings.compose_modal_width = this.composeW();
-		this.app.userSettings.compose_modal_height = this.composeH();
-		await api.post('/settings', {
+		await this.app.saveSettings({
 			compose_modal_width: this.composeW(),
 			compose_modal_height: this.composeH(),
-		}).catch(() => {}); // silencieux : préférence cosmétique (cf. savePaneSizes)
+		});
 	}
 
 	show() {
@@ -379,9 +375,8 @@ export class ComposeVM {
 		this.replyUid = msg.uid || 0;
 		this.replyFolder = msg.folder || '';
 		// Mail HTML-only : la citation est dérivée du HTML (texte brut).
-		const quoted = (msg.bodyPlain || this.htmlToText(msg.bodyHtml))
-			.replace(/\r/g,'').replace(/&/g,'&amp;').replace(/</g,'&lt;')
-			.replace(/\n/g,'<br>');
+		const quoted = textToHtml(
+			(msg.bodyPlain || this.htmlToText(msg.bodyHtml)).replace(/\r/g, ''));
 		const sig = this.signatureBlock();
 		this.html(`${this.sigLead(sig)}${sig}<blockquote>${quoted}</blockquote>`);
 		this._dirty = false;
@@ -611,8 +606,7 @@ export class ComposeVM {
 		this.subject(dec(params.get('subject')));
 		const body = dec(params.get('body'));
 		if (body) {
-			const esc = body.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/\n/g, '<br>');
-			this.html(`<p>${esc}</p>` + this.html());
+			this.html(`<p>${textToHtml(body)}</p>` + this.html());
 		}
 		this._dirty = false;
 		this.show();
@@ -790,7 +784,7 @@ export class ComposeVM {
 	}
 
 	closeSuggestions() {
-		clearTimeout(this._suggestTimer);
+		this._suggestDebounced?.cancel();
 		this.suggestions([]);
 		this.suggestField('');
 		this.suggestIndex(-1);
@@ -804,8 +798,8 @@ export class ComposeVM {
 
 	/** Debounce : une frappe = un timer, la requête ne part qu'au calme. */
 	suggest(field) {
-		clearTimeout(this._suggestTimer);
-		this._suggestTimer = setTimeout(() => this.fetchSuggestions(field), 250);
+		this._suggestDebounced ??= debounce(f => this.fetchSuggestions(f), 250);
+		this._suggestDebounced(field);
 	}
 
 	async fetchSuggestions(field) {
@@ -948,9 +942,7 @@ export class ComposeVM {
 			const fd = new FormData();
 			fd.append('file', file);
 			const r = await api.upload('/plugin/filelink/upload', fd);
-			const esc = s => String(s).replace(/[&<>"]/g,
-				c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-			const link = `<p>${esc(r.name)} : <a href="${esc(r.url)}">${esc(r.url)}</a></p>`;
+			const link = `<p>${escapeHtml(r.name)} : <a href="${escapeHtml(r.url)}">${escapeHtml(r.url)}</a></p>`;
 			const ed = window.tinymce?.get('compose-body');
 			if (ed) { ed.insertContent(link); }
 			else { this.html((this.html() || '') + link); }
@@ -974,11 +966,7 @@ export class ComposeVM {
 
 	/** Taille de pièce jointe lisible (size est en octets). */
 	formatSize(bytes) {
-		const b = Number(bytes) || 0;
-		if (b >= 1073741824) { return (b / 1073741824).toFixed(1) + ' ' + t('unit.gb'); }
-		if (b >= 1048576) { return (b / 1048576).toFixed(1) + ' ' + t('unit.mb'); }
-		if (b >= 1024) { return Math.round(b / 1024) + ' ' + t('unit.kb'); }
-		return b + ' ' + t('unit.b');
+		return formatSize(bytes);
 	}
 
 	/** Contenu live de l'éditeur : l'observable html peut être périmée

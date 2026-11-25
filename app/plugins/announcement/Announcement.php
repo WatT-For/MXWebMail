@@ -20,22 +20,22 @@ final class Announcement extends PluginBase
 	public function register(HookRegistry $hooks): void
 	{
 		$hooks->on('app.head', function (string $nonce, string $base) {
-			if (trim((string) ($this->config['text'] ?? '')) === '') {
+			if ($this->configTrim('text') === '') {
 				return '';
 			}
-			if (!$this->app->isLoggedIn() && empty($this->config['show_on_login'])) {
+			if (!$this->app->isLoggedIn() && !$this->configBool('show_on_login')) {
 				return '';
 			}
-			$level = (string) ($this->config['level'] ?? 'info');
+			$level = $this->configString('level', 'info');
 			if (!in_array($level, self::LEVELS, true)) {
 				$level = 'info';
 			}
 			// JSON_HEX_TAG : un "</script>" dans le texte admin ne peut
 			// pas casser le script inline.
 			$payload = json_encode([
-				'text'        => (string) $this->config['text'],
+				'text'        => $this->configString('text'),
 				'level'       => $level,
-				'dismissible' => !empty($this->config['dismissible']),
+				'dismissible' => $this->configBool('dismissible'),
 			], JSON_HEX_TAG);
 			return "\n\t" . '<script nonce="' . $nonce . '">'
 				. 'document.addEventListener("DOMContentLoaded",function(){'

@@ -32,7 +32,9 @@ final class ConfigWriter
 		}
 		foreach ($overrides as $key => $value) {
 			if (is_array($value) && isset($current[$key]) && is_array($current[$key])) {
-				$current[$key] = array_merge($current[$key], $value);
+				// Merge profond partagé avec Config (B15) : cohérent par
+				// construction - un futur sous-niveau n'est pas écrasé.
+				$current[$key] = Config::mergeDeep($current[$key], $value);
 			} else {
 				$current[$key] = $value;
 			}
@@ -40,9 +42,10 @@ final class ConfigWriter
 		}
 		$php = "<?php\n// Configuration MXWebMail - régénéré par l'admin le "
 			. date('Y-m-d H:i:s') . "\nreturn " . var_export($current, true) . ";\n";
-		$tmp = $file . '.tmp';
-		if (file_put_contents($tmp, $php) === false || !rename($tmp, $file)) {
-			@unlink($tmp);
+		// mxwm_atomic_write : tmp+rename + opcache_invalidate du .php -
+		// sans l'invalidation, config.php reste périmé sous
+		// opcache.validate_timestamps=0 jusqu'au redémarrage de PHP.
+		if (!mxwm_atomic_write($file, $php)) {
 			throw new \RuntimeException("Écriture de config.php impossible", 500);
 		}
 		@chmod($file, 0600);

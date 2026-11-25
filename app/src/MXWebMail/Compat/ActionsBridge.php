@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace MXWebMail\Compat;
 
 use MXWebMail\Application\App;
+use MXWebMail\Files;
 
 final class ActionsBridge
 {
@@ -31,8 +32,7 @@ final class ActionsBridge
 	{
 		if ($this->cacher === null) {
 			$this->cacher = (new \MailSo\Cache\CacheClient())->SetCacheIndex('_default_');
-			$cfg = $this->app->config()->get('cache', []);
-			$cfg = is_array($cfg) ? $cfg : [];
+			$cfg = $this->app->config()->section('cache');
 			if ($cfg['enabled'] ?? true) {
 				$dir = $this->app->storageDir() . '/cache';
 				$this->cacher->SetDriver(new \MailSo\Cache\Drivers\File($dir));
@@ -44,7 +44,7 @@ final class ActionsBridge
 						// RecTimeDirRemove purge tout le dossier et le rmdir s'il
 						// est vide - le recréer avant d'écrire le marqueur.
 						$this->cacher->GC($gcHours);
-						is_dir($dir) || mkdir($dir, 0700, true);
+						Files::ensureDir($dir);
 						file_put_contents($marker, (string) time(), LOCK_EX);
 					}
 				}

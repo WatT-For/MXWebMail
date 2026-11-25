@@ -31,14 +31,8 @@ final class WebmailMigration extends PluginBase
 
 	public function register(HookRegistry $hooks): void
 	{
-		$hooks->on('admin.mounts', fn() => [
-			'js'      => 'migration.js',
-			'plugin'  => 'webmail-migration',
-			'section' => 'page',
-			'tab'     => 'webmail-migration',
-			'label'   => 'plugin.webmail-migration.tab',
-			'icon'    => 'fa-file-import',
-		]);
+		$hooks->on('admin.mounts', fn() => $this->adminMount(
+			'page', 'webmail-migration', 'migration.js', 'fa-file-import'));
 	}
 
 	// ─── API admin ───
@@ -154,18 +148,9 @@ final class WebmailMigration extends PluginBase
 
 	// ─── Résolution de la source ───
 
-	private function requireAdmin(): void
-	{
-		if (empty($_SESSION['admin'])) {
-			throw new \RuntimeException($this->t('errors.admin_required'), 403);
-		}
-	}
-
 	private function tmpDir(): string
 	{
-		$dir = $this->app->storageDir() . '/tmp';
-		is_dir($dir) || mkdir($dir, 0700, true);
-		return $dir;
+		return $this->app->storageSubDir('tmp');
 	}
 
 	/** Chemin serveur ou uploadId > racine data SnappyMail. */
@@ -549,10 +534,7 @@ final class WebmailMigration extends PluginBase
 
 	private function defaultAccountId(int $uid): ?int
 	{
-		$id = $this->app->db()->pdo()->query(
-			"SELECT id FROM accounts WHERE user_id = $uid
-			 ORDER BY is_default DESC, id LIMIT 1")->fetchColumn();
-		return $id === false ? null : (int) $id;
+		return $this->app->accounts()->defaultId($uid);
 	}
 
 	/**

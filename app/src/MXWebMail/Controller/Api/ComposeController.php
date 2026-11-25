@@ -2,14 +2,10 @@
 declare(strict_types=1);
 
 namespace MXWebMail\Controller\Api;
-use MXWebMail\Application\App;
+use MXWebMail\Files;
 use MXWebMail\Http\JsonResponse;
 use MXWebMail\Http\Request;
-use MXWebMail\Http\Response;
-use MXWebMail\Security\CredentialCrypt;
-use MXWebMail\Security\Csrf;
-use MXWebMail\Security\TotpRequiredException;
-use MXWebMail\Service\MailService;
+use MXWebMail\UserFacingException;
 
 
 
@@ -18,16 +14,15 @@ final class ComposeController extends BaseController
 {
 	public function composeSend(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		$message = $this->buildMessage($request);
 		if (!$message) {
-			return JsonResponse::error($this->t('errors.empty_body'), 'empty');
+			throw new UserFacingException($this->t('errors.empty_body'), jsonCode: 'empty');
 		}
 		// Le cumul To+Cc+Bcc est la référence - SMTP envoie à GetRcpt() :
 		// exiger un To explicite refuserait un envoi Cc/Cci-seul pourtant valide.
 		if (!count($message->GetRcpt())) {
-			return JsonResponse::error($this->t('errors.no_rcpt'), 'no_rcpt');
+			throw new UserFacingException($this->t('errors.no_rcpt'), jsonCode: 'no_rcpt');
 		}
 		$this->app->mail()->send($message);
 		// Marque le message d'origine \Answered - non bloquant (l'envoi a
@@ -85,7 +80,7 @@ final class ComposeController extends BaseController
 		}
 
 		// Fréquence des destinataires pour l'autocomplete contacts
-		$autosave = $this->userSettings((int) $_SESSION['user_id'])['contacts_autosave'] ?? true;
+		$autosave = $this->userSettings($this->app->sessionUserId())['contacts_autosave'] ?? true;
 		if (!$autosave || !$this->app->config()->get('contacts_enable', true)) {
 			return JsonResponse::ok();
 		}
@@ -100,7 +95,7 @@ final class ComposeController extends BaseController
 			$seen[$k] = true;
 			try {
 				$this->app->contacts()->touchRecipient(
-					(int) $_SESSION['user_id'], $email, $rcpt->GetDisplayName());
+					$this->app->sessionUserId(), $email, $rcpt->GetDisplayName());
 			} catch (\Throwable $e) {
 				$this->app->log('warning', 'Autosave contact échoué : ' . $e->getMessage());
 			}
@@ -110,14 +105,9 @@ final class ComposeController extends BaseController
 
 	public function composeUpload(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		if (empty($request->files['file'])) {
-			return JsonResponse::error($this->t('errors.no_file'), 'no_file');
-		}
-		$f = $request->files['file'];
-		if ($f['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($f['tmp_name'])) {
-			return JsonResponse::error($this->t('errors.bad_upload'), 'bad_upload');
+			throw new UserFacingException($this->t('errors.no_file'), jsonCode: 'no_file');
 		}
 		// La borne effective est le min des deux limites : un fichier qui
 		// dépasserait le total autorisé par message ne pourrait jamais partir.
@@ -125,18 +115,11 @@ final class ComposeController extends BaseController
 			(int) $this->app->config()->get('attachment_max_size', 25),
 			(int) $this->app->config()->get('attachments_max_total', 25)
 		) * 1024 * 1024;
-		if ($f['size'] > $maxSize) {
-			return JsonResponse::error(
-				$this->t('errors.file_too_big', ['mb' => (int) ($maxSize / 1048576)]), 'too_big');
-		}
+		$f = $this->requireUpload($request, 'file', $maxSize);
 		$dir = $this->app->storageDir() . '/tmp';
-		is_dir($dir) || mkdir($dir, 0700, true);
+		Files::ensureDir($dir);
 		// Purge opportuniste des PJ abandonnées : attach_* + .meta > 24 h
-		foreach (glob($dir . '/attach_*') ?: [] as $stale) {
-			if (filemtime($stale) < time() - 86400) {
-				@unlink($stale);
-			}
-		}
+		Files::gcGlob($dir . '/attach_*', 86400);
 		// Nom assaini : basename (chemins forgés) + caractères de contrôle -
 		// il part tel quel dans le paramètre filename= des en-têtes MIME.
 		$name = basename(str_replace('\\', '/', (string) $f['name']));
@@ -147,19 +130,19 @@ final class ComposeController extends BaseController
 		$token = bin2hex(random_bytes(16));
 		$dest = $dir . '/attach_' . $token;
 		if (!move_uploaded_file($f['tmp_name'], $dest)) {
-			return JsonResponse::error($this->t('errors.bad_upload'), 'bad_upload');
+			throw new UserFacingException($this->t('errors.bad_upload'), jsonCode: 'bad_upload');
 		}
 		// Hook : scan AV de la PJ (plugin attachments-clamav) - un listener
 		// qui jette annule l'upload et nettoie le fichier.
 		try {
 			$this->app->hooks()->run('attachment.upload',
-				$dest, $name, (int) $_SESSION['user_id']);
+				$dest, $name, $this->app->sessionUserId());
 		} catch (\Throwable $e) {
 			@unlink($dest);
 			throw $e;
 		}
 		// Associe au user pour le cleanup
-		file_put_contents($dest . '.meta', json_encode(['name' => $name, 'user' => $_SESSION['user_id']]));
+		file_put_contents($dest . '.meta', json_encode(['name' => $name, 'user' => $this->app->sessionUserId()]));
 		return JsonResponse::ok(['token' => $token, 'name' => $name, 'size' => $f['size']]);
 	}
 
@@ -170,8 +153,7 @@ final class ComposeController extends BaseController
 	 */
 	public function composeUploadDelete(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		$tmp = $this->tmpAttachmentPath((string) $request->params['token']);
 		if ($tmp) {
 			@unlink($tmp['path']);
@@ -182,18 +164,16 @@ final class ComposeController extends BaseController
 
 	public function composeSaveDraft(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		// Un brouillon n'exige qu'un corps (sujet optionnel, comme tout
 		// webmail standard) - buildMessage retourne null sinon.
 		$message = $this->buildMessage($request);
 		if (!$message) {
-			return JsonResponse::error($this->t('errors.empty_body'), 'empty');
+			throw new UserFacingException($this->t('errors.empty_body'), jsonCode: 'empty');
 		}
 		$drafts = $this->app->mail()->specialFolder('drafts');
 		if ($drafts === null) {
-			return JsonResponse::error(
-				$this->t('errors.folder_role_none', ['role' => 'drafts']), 'role_none');
+			throw new UserFacingException($this->t('errors.folder_role_none', ['role' => 'drafts']), jsonCode: 'role_none');
 		}
 		// Brouillon d'une réponse : la cible du flag \Answered (posé à
 		// l'envoi) est persistée dans le message via X-Draft-Info - en-tête
@@ -230,26 +210,25 @@ final class ComposeController extends BaseController
 	public function responses(Request $request): JsonResponse
 	{
 		$this->requireReadOnly();
-		return JsonResponse::ok($this->cannedResponses((int) $_SESSION['user_id']));
+		return JsonResponse::ok($this->cannedResponses($this->app->sessionUserId()));
 	}
 
 	public function responseSave(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
-		$uid = (int) $_SESSION['user_id'];
+		$this->requireWrite();
+		$uid = $this->app->sessionUserId();
 		$data = (array) $request->json();
 		$id = (int) ($data['id'] ?? 0);
 		$name = trim((string) ($data['name'] ?? ''));
 		$body = (string) ($data['body'] ?? '');
 		if ($name === '' || mb_strlen($name) > 100 || trim($body) === ''
 			|| strlen($body) > 65536) {
-			return JsonResponse::error($this->t('errors.invalid_value', ['key' => 'name']), 'validation', 400);
+			throw new UserFacingException($this->t('errors.invalid_value', ['key' => 'name']), 400, jsonCode: 'validation');
 		}
 		$list = $this->cannedResponses($uid);
 		foreach ($list as $r) {
 			if (strcasecmp((string) $r['name'], $name) === 0 && (int) $r['id'] !== $id) {
-				return JsonResponse::error($this->t('errors.invalid_value', ['key' => 'name']), 'duplicate', 400);
+				throw new UserFacingException($this->t('errors.invalid_value', ['key' => 'name']), 400, jsonCode: 'duplicate');
 			}
 		}
 		if ($id) {
@@ -263,11 +242,11 @@ final class ComposeController extends BaseController
 			}
 			unset($r);
 			if (!$found) {
-				return JsonResponse::error($this->t('errors.not_found'), 'not_found', 404);
+				throw new UserFacingException($this->t('errors.not_found'), 404, jsonCode: 'not_found');
 			}
 		} else {
 			if (count($list) >= 50) {
-				return JsonResponse::error($this->t('errors.invalid_value', ['key' => 'name']), 'limit', 400);
+				throw new UserFacingException($this->t('errors.invalid_value', ['key' => 'name']), 400, jsonCode: 'limit');
 			}
 			$id = max([0, ...array_map(fn($r) => (int) $r['id'], $list)]) + 1;
 			$list[] = ['id' => $id, 'name' => $name, 'body' => $body];
@@ -278,9 +257,8 @@ final class ComposeController extends BaseController
 
 	public function responseDelete(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
-		$uid = (int) $_SESSION['user_id'];
+		$this->requireWrite();
+		$uid = $this->app->sessionUserId();
 		$id = (int) $request->params['id'];
 		$list = array_values(array_filter($this->cannedResponses($uid),
 			fn($r) => (int) $r['id'] !== $id));
@@ -294,9 +272,9 @@ final class ComposeController extends BaseController
 		$message = new \MailSo\Mime\Message();
 		$message->DoesNotAddDefaultXMailer();
 		try {
-			$message->SetFrom(\MailSo\Mime\Email::Parse((string) $request->input('from', $_SESSION['email'])));
+			$message->SetFrom(\MailSo\Mime\Email::Parse((string) $request->input('from', $this->app->sessionEmail())));
 		} catch (\ValueError) {
-			throw new \RuntimeException($this->t('errors.invalid_value', ['key' => 'from']), 400);
+			throw new UserFacingException($this->t('errors.invalid_value', ['key' => 'from']), 400, jsonCode: 'validation');
 		}
 		// L'expéditeur doit être l'adresse du compte ou une identité déclarée :
 		// sans contrôle serveur, un client pourrait usurper n'importe quel From.
@@ -305,7 +283,7 @@ final class ComposeController extends BaseController
 		// UTF-8) sont admises - une identité saisie en punycode doit matcher.
 		$allowedFrom = [];
 		$identity = null;
-		foreach ($this->app->identities()->allForUser((int) $_SESSION['user_id']) as $i) {
+		foreach ($this->app->identities()->allForUser($this->app->sessionUserId()) as $i) {
 			$ie = strtolower((string) $i['email']);
 			$iu = strtolower(\MXWebMailLib\IDN::emailToUtf8((string) $i['email']));
 			$allowedFrom[] = $ie;
@@ -314,10 +292,10 @@ final class ComposeController extends BaseController
 				$identity = $i;
 			}
 		}
-		$allowedFrom[] = strtolower((string) $_SESSION['email']);
-		$allowedFrom[] = strtolower(\MXWebMailLib\IDN::emailToUtf8((string) $_SESSION['email']));
+		$allowedFrom[] = strtolower($this->app->sessionEmail());
+		$allowedFrom[] = strtolower(\MXWebMailLib\IDN::emailToUtf8($this->app->sessionEmail()));
 		if ($fromEmail === '' || !in_array($fromEmail, $allowedFrom, true)) {
-			throw new \RuntimeException($this->t('errors.from_denied'), 403);
+			throw new UserFacingException($this->t('errors.from_denied'), 403, jsonCode: 'forbidden');
 		}
 		// Champs de l'identité appliqués : nom affiché du From et Reply-To.
 		if ($identity) {
@@ -342,8 +320,7 @@ final class ComposeController extends BaseController
 		[$oBcc, $badBcc] = \MailSo\Mime\EmailCollection::ParseStrict((string) $request->input('bcc', ''));
 		$rejected = array_merge($badTo, $badCc, $badBcc);
 		if ($rejected) {
-			throw new \RuntimeException(
-				$this->t('errors.bad_rcpt', ['list' => implode(', ', array_slice($rejected, 0, 5))]), 400);
+			throw new UserFacingException($this->t('errors.bad_rcpt', ['list' => implode(', ', array_slice($rejected, 0, 5))]), 400);
 		}
 		$message->SetTo($oTo);
 		$message->SetCc($oCc);
@@ -421,22 +398,7 @@ final class ComposeController extends BaseController
 		$msgCache = [];
 		foreach ((array) $request->input('attachments', []) as $att) {
 			if (is_string($att)) {
-				$tmp = $this->tmpAttachmentPath($att);
-				// Token inconnu ou fichier purgé (24 h) : refus explicite -
-				// un "continue" enverrait le message sans la PJ affichée.
-				if (!$tmp || !is_file($tmp['path'])) {
-					throw new \RuntimeException($this->t('errors.attachment_missing'), 400);
-				}
-				$size = filesize($tmp['path']);
-				$attachTotal += $size;
-				if ($attachTotal > $attachLimit) {
-					throw new \RuntimeException(
-						$this->t('errors.attachments_too_big', ['mb' => (int) ($attachLimit / 1048576)]), 400);
-				}
-				$mime = \MXWebMailLib\File\MimeType::fromFilename($tmp['name']) ?? 'application/octet-stream';
-				$message->Attachments()->append(
-					new \MailSo\Mime\Attachment(fopen($tmp['path'], 'rb'), $tmp['name'], $size, false, false, '', [], '', $mime)
-				);
+				$this->attachTmpUpload($message, $att, $attachTotal, $attachLimit);
 				continue;
 			}
 			if (!is_array($att)) {
@@ -445,82 +407,12 @@ final class ComposeController extends BaseController
 			$folder = $this->noCrlf((string) ($att['folder'] ?? ''), 'attachments');
 			$uid = (int) ($att['uid'] ?? 0);
 			if (!empty($att['eml'])) {
-				// Transfert en pièce jointe : le message source complet est
-				// attaché en message/rfc822 (nom = sujet côté serveur).
-				if ($folder === '' || $uid <= 0) {
-					throw new \RuntimeException($this->t('errors.attachment_missing'), 400);
-				}
-				$cacheKey = $folder . "\0" . $uid;
-				if (!array_key_exists($cacheKey, $msgCache)) {
-					$msgCache[$cacheKey] = $this->app->mail()->message($folder, $uid);
-				}
-				$src = $msgCache[$cacheKey];
-				if (!$src) {
-					throw new \RuntimeException($this->t('errors.attachment_missing'), 400);
-				}
-				$stream = null;
-				$ok = $this->app->mail()->mimeStream($folder, $uid, '', function ($r) use (&$stream) {
-					$stream = fopen('php://temp', 'w+b');
-					stream_copy_to_stream($r, $stream);
-					rewind($stream);
-				});
-				if (!$ok || !is_resource($stream)) {
-					throw new \RuntimeException($this->t('errors.attachment_missing'), 400);
-				}
-				$size = fstat($stream)['size'] ?? 0;
-				$attachTotal += $size;
-				if ($attachTotal > $attachLimit) {
-					throw new \RuntimeException(
-						$this->t('errors.attachments_too_big', ['mb' => (int) ($attachLimit / 1048576)]), 400);
-				}
-				$fname = trim((string) preg_replace('/[\x00-\x1F\x7F\/\\\\:*?"<>|]/', '', (string) ($src['subject'] ?? '')));
-				$message->Attachments()->append(new \MailSo\Mime\Attachment(
-					$stream, ($fname !== '' ? $fname : 'message') . '.eml', $size,
-					false, false, '', [], '', 'message/rfc822'));
+				$this->attachForwardEml($message, $folder, $uid, $msgCache,
+					$attachTotal, $attachLimit);
 				continue;
 			}
-			$partId = (string) ($att['part'] ?? '');
-			// folder vide > message('') lèverait une exception non mappée (500)
-			if ($folder === '' || $uid <= 0 || !preg_match('/^\d+(\.\d+)*$/', $partId)) {
-				throw new \RuntimeException($this->t('errors.attachment_missing'), 400);
-			}
-			$cacheKey = $folder . "\0" . $uid;
-			if (!array_key_exists($cacheKey, $msgCache)) {
-				$msgCache[$cacheKey] = $this->app->mail()->message($folder, $uid);
-			}
-			$meta = null;
-			foreach ($msgCache[$cacheKey]['attachments'] ?? [] as $a) {
-				if ($a['mimeIndex'] === $partId) { $meta = $a; break; }
-			}
-			if (!$meta) {
-				throw new \RuntimeException($this->t('errors.attachment_missing'), 400);
-			}
-			// Le flux IMAP ne survit pas au fetch > copie dans php://temp
-			// (rewind exigé : Attachment re-stream depuis le début).
-			$stream = null;
-			$ok = $this->app->mail()->mimeStream($folder, $uid, $partId, function ($r) use (&$stream) {
-				$stream = fopen('php://temp', 'w+b');
-				stream_copy_to_stream($r, $stream);
-				rewind($stream);
-			});
-			if (!$ok || !is_resource($stream)) {
-				throw new \RuntimeException($this->t('errors.attachment_missing'), 400);
-			}
-			$size = fstat($stream)['size'] ?? 0;
-			$attachTotal += $size;
-			if ($attachTotal > $attachLimit) {
-				throw new \RuntimeException(
-					$this->t('errors.attachments_too_big', ['mb' => (int) ($attachLimit / 1048576)]), 400);
-			}
-			// PJ inline à cid > linked : le multipart/related est recréé à
-			// la sérialisation et les <img src="cid:"> du corps restent
-			// fonctionnels à la re-sauvegarde.
-			$cid = (string) ($meta['cid'] ?? '');
-			$message->Attachments()->append(
-				new \MailSo\Mime\Attachment(
-					$stream, $meta['name'], $size, (bool) $meta['isInline'],
-					$cid !== '', $cid, [], (string) ($meta['location'] ?? ''), (string) $meta['mime'])
-			);
+			$this->attachPartRef($message, $folder, $uid,
+				(string) ($att['part'] ?? ''), $msgCache, $attachTotal, $attachLimit);
 		}
 		// <img src="data:…"> réécrites en "cid:hash" par BuildHtml : chaque
 		// data-URI devient une PJ inline liée (multipart/related), sinon le
@@ -537,11 +429,7 @@ final class ComposeController extends BaseController
 			if (!is_string($raw) || $raw === '') {
 				continue;
 			}
-			$attachTotal += strlen($raw);
-			if ($attachTotal > $attachLimit) {
-				throw new \RuntimeException(
-					$this->t('errors.attachments_too_big', ['mb' => (int) ($attachLimit / 1048576)]), 400);
-			}
+			$this->attachBudget($attachTotal, strlen($raw), $attachLimit);
 			$stream = fopen('php://temp', 'w+b');
 			if (!is_resource($stream)) {
 				continue;
@@ -557,6 +445,131 @@ final class ComposeController extends BaseController
 			);
 		}
 		return $message;
+	}
+
+	/**
+	 * Budget PJ total : cumule $total avec $size et jette 400 si la limite
+	 * saute (même contrat dans les 4 branches d'attachement de buildMessage).
+	 */
+	private function attachBudget(int &$total, int $size, int $limit): void
+	{
+		$total += $size;
+		if ($total > $limit) {
+			throw new UserFacingException($this->t('errors.attachments_too_big',
+					['mb' => (int) ($limit / 1048576)]), 400);
+		}
+	}
+
+	/**
+	 * Meta du message source d'une PJ référencée, mise en cache par
+	 * folder+uid : un brouillon/transfert peut référencer plusieurs PJ
+	 * du même message - un seul fetch IMAP.
+	 */
+	private function messageCached(array &$cache, string $folder, int $uid): ?array
+	{
+		$key = $folder . "\0" . $uid;
+		if (!array_key_exists($key, $cache)) {
+			$cache[$key] = $this->app->mail()->message($folder, $uid);
+		}
+		return $cache[$key];
+	}
+
+	/**
+	 * mimeStream copié dans php://temp : le flux IMAP ne survit pas au
+	 * fetch et Attachment re-stream depuis le début (rewind exigé).
+	 * @return resource
+	 */
+	private function mimeStreamToTemp(string $folder, int $uid, string $part): mixed
+	{
+		$stream = null;
+		$ok = $this->app->mail()->mimeStream($folder, $uid, $part,
+			function ($r) use (&$stream) {
+				$stream = fopen('php://temp', 'w+b');
+				stream_copy_to_stream($r, $stream);
+				rewind($stream);
+			});
+		if (!$ok || !is_resource($stream)) {
+			throw new UserFacingException($this->t('errors.attachment_missing'), 400);
+		}
+		return $stream;
+	}
+
+	/**
+	 * PJ d'un token tmp uploadé (entrée string) : le token est vérifié
+	 * côté serveur, le fichier budgeté puis attaché.
+	 */
+	private function attachTmpUpload(\MailSo\Mime\Message $message, string $token,
+		int &$total, int $limit): void
+	{
+		$tmp = $this->tmpAttachmentPath($token);
+		// Token inconnu ou fichier purgé (24 h) : refus explicite -
+		// un "continue" enverrait le message sans la PJ affichée.
+		if (!$tmp || !is_file($tmp['path'])) {
+			throw new UserFacingException($this->t('errors.attachment_missing'), 400);
+		}
+		$size = filesize($tmp['path']);
+		$this->attachBudget($total, (int) $size, $limit);
+		$mime = \MXWebMailLib\File\MimeType::fromFilename($tmp['name'])
+			?? 'application/octet-stream';
+		$message->Attachments()->append(new \MailSo\Mime\Attachment(
+			fopen($tmp['path'], 'rb'), $tmp['name'], $size, false, false, '',
+			[], '', $mime));
+	}
+
+	/**
+	 * Transfert en pièce jointe (att['eml']) : le message source complet
+	 * est attaché en message/rfc822, nom = sujet côté serveur.
+	 */
+	private function attachForwardEml(\MailSo\Mime\Message $message, string $folder,
+		int $uid, array &$msgCache, int &$total, int $limit): void
+	{
+		if ($folder === '' || $uid <= 0) {
+			throw new UserFacingException($this->t('errors.attachment_missing'), 400);
+		}
+		$src = $this->messageCached($msgCache, $folder, $uid);
+		if (!$src) {
+			throw new UserFacingException($this->t('errors.attachment_missing'), 400);
+		}
+		$stream = $this->mimeStreamToTemp($folder, $uid, '');
+		$size = fstat($stream)['size'] ?? 0;
+		$this->attachBudget($total, (int) $size, $limit);
+		$fname = trim((string) preg_replace('/[\x00-\x1F\x7F\/\\\\:*?"<>|]/', '',
+			(string) ($src['subject'] ?? '')));
+		$message->Attachments()->append(new \MailSo\Mime\Attachment(
+			$stream, ($fname !== '' ? $fname : 'message') . '.eml', $size,
+			false, false, '', [], '', 'message/rfc822'));
+	}
+
+	/**
+	 * PJ référencée dans un message existant (att['part'], ex. brouillon
+	 * rouvert) : nom/mime/cid résolus côté serveur depuis la meta du
+	 * message, jamais depuis le client.
+	 */
+	private function attachPartRef(\MailSo\Mime\Message $message, string $folder,
+		int $uid, string $partId, array &$msgCache, int &$total, int $limit): void
+	{
+		// folder vide > message('') lèverait une exception non mappée (500)
+		if ($folder === '' || $uid <= 0 || !preg_match('/^\d+(\.\d+)*$/', $partId)) {
+			throw new UserFacingException($this->t('errors.attachment_missing'), 400);
+		}
+		$meta = null;
+		foreach ($this->messageCached($msgCache, $folder, $uid)['attachments'] ?? [] as $a) {
+			if ($a['mimeIndex'] === $partId) { $meta = $a; break; }
+		}
+		if (!$meta) {
+			throw new UserFacingException($this->t('errors.attachment_missing'), 400);
+		}
+		$stream = $this->mimeStreamToTemp($folder, $uid, $partId);
+		$size = fstat($stream)['size'] ?? 0;
+		$this->attachBudget($total, (int) $size, $limit);
+		// PJ inline à cid > linked : le multipart/related est recréé à
+		// la sérialisation et les <img src="cid:"> du corps restent
+		// fonctionnels à la re-sauvegarde.
+		$cid = (string) ($meta['cid'] ?? '');
+		$message->Attachments()->append(new \MailSo\Mime\Attachment(
+			$stream, $meta['name'], $size, (bool) $meta['isInline'],
+			$cid !== '', $cid, [], (string) ($meta['location'] ?? ''),
+			(string) $meta['mime']));
 	}
 
 	private function cannedResponses(int $uid): array
@@ -614,7 +627,7 @@ final class ComposeController extends BaseController
 		}
 		$path = $this->app->storageDir() . '/tmp/attach_' . $token;
 		$meta = is_file($path . '.meta') ? json_decode((string) file_get_contents($path . '.meta'), true) : null;
-		if (!$meta || $meta['user'] !== ($_SESSION['user_id'] ?? null)) {
+		if (!$meta || $meta['user'] !== (($this->app->sessionUserId() ?: null))) {
 			return null;
 		}
 		return ['path' => $path, 'name' => $meta['name'] ?? 'attachment'];

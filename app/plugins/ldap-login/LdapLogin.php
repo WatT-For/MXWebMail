@@ -5,6 +5,7 @@ namespace Plugin;
 
 use MXWebMail\Plugin\HookRegistry;
 use MXWebMail\Plugin\PluginBase;
+use MXWebMail\Service\LdapConnect;
 
 /**
  * Mapping de login via LDAP (hook auth.login.mapping).
@@ -23,32 +24,30 @@ final class LdapLogin extends PluginBase
 
 	public function resolve(string $login): ?array
 	{
-		if ($login === '' || !function_exists('ldap_connect') || empty($this->config['host'])) {
+		if ($login === '' || $this->configTrim('host') === '') {
 			return null;
 		}
-		$c = $this->config;
-		$link = ldap_connect((string) $c['host'], (int) ($c['port'] ?? 389));
+		$link = LdapConnect::open($this->configTrim('host'),
+			$this->configInt('port', 389));
 		if (!$link) {
 			return null;
 		}
 		try {
-			ldap_set_option($link, LDAP_OPT_PROTOCOL_VERSION, 3);
-			ldap_set_option($link, LDAP_OPT_REFERRALS, 0);
-			ldap_set_option($link, LDAP_OPT_NETWORK_TIMEOUT, 5);
+			LdapConnect::defaults($link);
 
-			if (!empty($c['use_tls']) && !@ldap_start_tls($link)) {
+			if ($this->configBool('use_tls') && !LdapConnect::startTls($link)) {
 				throw new \RuntimeException($this->t('plugin.ldap-login.starttls_denied'));
 			}
-			$bindDn = (string) ($c['bind_dn'] ?? '');
-			if (!@ldap_bind($link, $bindDn !== '' ? $bindDn : null,
-				$bindDn !== '' ? (string) ($c['bind_pass'] ?? '') : null)) {
+			if (!LdapConnect::bind($link, $this->configString('bind_dn'),
+				$this->configString('bind_pass'))) {
 				throw new \RuntimeException($this->t('plugin.ldap-login.bind_denied'));
 			}
 
-			$mailAttr = (string) ($c['mail_attr'] ?? 'mail');
+			$mailAttr = $this->configString('mail_attr', 'mail');
 			$filter = str_replace('%u', ldap_escape($login, '', LDAP_ESCAPE_FILTER),
-				(string) ($c['search_filter'] ?? '(|(uid=%u)(mail=%u))'));
-			$sr = @ldap_search($link, (string) ($c['base_dn'] ?? ''), $filter, [$mailAttr], 0, 2);
+				$this->configString('search_filter', '(|(uid=%u)(mail=%u))'));
+			$sr = @ldap_search($link, $this->configString('base_dn'),
+				$filter, [$mailAttr], 0, 2);
 			if (!$sr) {
 				return null;
 			}
@@ -59,7 +58,7 @@ final class LdapLogin extends PluginBase
 			}
 			return ['email' => $mail];
 		} catch (\Throwable $e) {
-			\MXWebMailLib\Log::warning('LDAP', 'login mapping: ' . $e->getMessage());
+			$this->app->log('warning', 'ldap-login: ' . $e->getMessage());
 			return null;
 		} finally {
 			ldap_close($link);

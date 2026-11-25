@@ -1,5 +1,8 @@
 import { api, b64url } from '../api.js';
 import { dialog } from '../ui/dialog.js';
+import { formatSize } from '../ui/format.js';
+import { bindAll } from '../ui/bind-all.js';
+import { debounce } from '../ui/debounce.js';
 import { t, lang } from '../i18n.js';
 
 /**
@@ -47,17 +50,6 @@ const SYS_ORDER = {
 
 const isInbox = f => f.fullName.toUpperCase() === 'INBOX' || f.special === 'inbox';
 
-/** Taille lisible (octets > o/Ko/Mo/Go, unités binaires) ; '-' si inconnue. */
-const fmtSize = b => {
-	if (b === null || b === undefined) { return '-'; }
-	b = Number(b);
-	if (!Number.isFinite(b) || b < 0) { return '-'; }
-	if (b >= 1073741824) { return (b / 1073741824).toFixed(1) + ' ' + t('unit.gb'); }
-	if (b >= 1048576) { return (b / 1048576).toFixed(1) + ' ' + t('unit.mb'); }
-	if (b >= 1024) { return Math.round(b / 1024) + ' ' + t('unit.kb'); }
-	return b + ' ' + t('unit.b');
-};
-
 export class FolderListVM {
 	constructor(app) {
 		this.app = app;
@@ -91,11 +83,7 @@ export class FolderListVM {
 
 		// Knockout invoque les handlers avec this = $data du contexte courant
 		// (item dans un foreach / objet dans un with) : on force le binding sur le VM.
-		for (const m of Object.getOwnPropertyNames(FolderListVM.prototype)) {
-			if (m !== 'constructor' && typeof this[m] === 'function') {
-				this[m] = this[m].bind(this);
-			}
-		}
+		bindAll(this, FolderListVM.prototype);
 	}
 
 	/**
@@ -145,7 +133,7 @@ export class FolderListVM {
 					sysRank: !topGroup ? 99 : (isInbox(f) ? 0 : (SYS_ORDER[key] ?? 6)),
 				};
 				// Computed : la colonne Taille suit les mises à jour in-place.
-				row.sizeLabel = ko.pureComputed(() => fmtSize(row.size()));
+				row.sizeLabel = ko.pureComputed(() => formatSize(row.size(), '-'));
 				// Switch "Affichage" des paramètres : checked = dossier visible.
 				row.shown = ko.pureComputed({
 					read: () => !row.userHidden(),
@@ -253,6 +241,25 @@ export class FolderListVM {
 		return !!f && (f.special === 'trash' || f.usual === 'trash');
 	}
 
+	/**
+	 * Prédiction miroir du test serveur ($folder === $junk) : un marquage
+	 * spam déplace le message s'il part/rejoint le dossier Junk (stratégie
+	 * 'move'), sinon c'est un flag mot-clé ('keyword').
+	 */
+	spamWillMove(folder, spam) {
+		const junkName = this.junkFolder()?.fullName;
+		return spam ? (!!junkName && folder !== junkName)
+			: (folder === junkName);
+	}
+
+	/** Options {label,value} d'un <select> de dossiers : hiérarchie
+	 *  indentée par espaces insécables (l'espace ordinaire est strippé
+	 *  du label rendu des <option>). */
+	selectOptions() {
+		return this.folders().map(f => ({
+			label: '\u00a0\u00a0'.repeat(f.depth) + f.label, value: f.fullName }));
+	}
+
 	async select(folder) {
 		await this.app.messageList.selectFolder(folder.fullName);
 	}
@@ -266,12 +273,12 @@ export class FolderListVM {
 
 	/** Persiste l'état repli (debounce - clics rapides = 1 requête). */
 	persistCollapsed() {
-		clearTimeout(this._collapseT);
-		this._collapseT = setTimeout(() => {
+		this._collapsedDebounced ??= debounce(() => {
 			api.post('/folders/collapsed', {
 				folders: this.folders().filter(f => f.collapsed()).map(f => f.fullName),
 			}).catch(() => {}); // cosmétique : silencieux comme savePaneSizes
 		}, 400);
+		this._collapsedDebounced();
 	}
 
 	/** Dernier dossier consulté - restauré à la prochaine ouverture
@@ -328,16 +335,16 @@ export class FolderListVM {
 	}
 
 	async deleteFolder(f) {
-		if (!(await dialog.confirm(t('folders.delete_confirm', { name: f.fullName }),
-			{ variant: 'danger', okLabel: t('common.delete') }))) { return; }
+		if (!(await dialog.confirmDanger(
+			t('folders.delete_confirm', { name: f.fullName })))) { return; }
 		await api.post(`/folders/${b64url(f.fullName)}/delete`);
 		await this.load();
 	}
 
 	async clearFolder(f) {
 		// f.label : nom traduit des rôles natifs (Corbeille…), pas le chemin IMAP.
-		if (!(await dialog.confirm(t('folders.clear_confirm', { name: f.label }),
-			{ variant: 'danger', okLabel: t('common.delete') }))) { return; }
+		if (!(await dialog.confirmDanger(
+			t('folders.clear_confirm', { name: f.label })))) { return; }
 		await api.post(`/folders/${b64url(f.fullName)}/clear`);
 		// Le message affiché dans le lecteur venait du dossier vidé > fermer.
 		if (this.app.messageView.requestedFolder === f.fullName) {
@@ -381,8 +388,10 @@ export class FolderListVM {
 		try {
 			acl = await api.get(`/folders/${b64url(f.fullName)}/acl`);
 		} catch (e) {
-			await dialog.alert(t('folders.acl_unsupported', { msg: e.message }),
-				{ variant: 'danger' });
+			// e.message est déjà traduit côté serveur - pas de re-emballage
+			// dans acl_unsupported (sinon préfixe doublé).
+			await dialog.alert(e.message,
+				{ variant: 'danger', title: t('folders.acl_title') });
 			return;
 		}
 		const current = acl.map(a => `${a.identifier} : ${a.rights}${a.mine ? t('folders.acl_me') : ''}`).join('\n');

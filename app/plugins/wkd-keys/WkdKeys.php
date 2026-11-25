@@ -13,8 +13,8 @@ use MXWebMail\Plugin\PluginBase;
  *    "direct" (<d>) - RFC draft-koch-openpgp-webkey-service ;
  *  - récolte des en-têtes Autocrypt (keydata=) des messages reçus ;
  *  - secours keys.openpgp.org (optionnel).
- * Anti-SSRF : hôtes validés via App::isPublicHost(), pas de suivi de
- * redirection, timeout et taille capés.
+ * Anti-SSRF : hôtes validés par App::httpGet() (publicHostBlockReason),
+ * pas de suivi de redirection, timeout et taille capés.
  */
 final class WkdKeys extends PluginBase
 {
@@ -25,13 +25,13 @@ final class WkdKeys extends PluginBase
 	{
 		$hooks->on('app.data', function (array $data, ?array $user) {
 			if ($user) {
-				$data['features']['wkd_keys'] = true;
+				$data['features'] += $this->feature('wkd_keys');
 			}
 			return $data;
 		});
 		$hooks->on('message.view', function (&$data, $msg) {
 			// config.schema défaut true ; getConfig() = sauvegardé seul > ?? true
-			if ((bool) ($this->config['autocrypt'] ?? true)) {
+			if ($this->configBool('autocrypt', true)) {
 				$this->harvestAutocrypt($msg);
 			}
 		});
@@ -50,7 +50,7 @@ final class WkdKeys extends PluginBase
 			throw new \RuntimeException($this->t('plugin.wkd-keys.bad_email'), 400);
 		}
 		// 1. Magasin Autocrypt récolté (message.view) - gratuit, aucun réseau.
-		$uid = (int) ($user['id'] ?? $_SESSION['user_id'] ?? 0);
+		$uid = (int) ($user['id'] ?? $this->app->sessionUserId());
 		$stored = $this->app->settings()->get(
 			$uid, 'plugin.wkd.ac.' . $email, null);
 		if (is_string($stored) && $stored !== '') {
@@ -63,18 +63,14 @@ final class WkdKeys extends PluginBase
 		foreach ([
 				"https://openpgpkey.{$domain}/.well-known/openpgpkey/{$domain}/hu/{$h}?l={$l}",
 				"https://{$domain}/.well-known/openpgpkey/hu/{$h}?l={$l}"] as $url) {
-			if (!$this->app->isPublicHost(
-					(string) parse_url($url, PHP_URL_HOST))) {
-				continue;
-			}
+			// httpGet valide l'hôte anti-SSRF lui-même - pas de double DNS.
 			$key = $this->fetch($url);
 			if ($key !== null) {
 				return ['found' => true, 'armored' => $key, 'source' => 'wkd'];
 			}
 		}
 		// 3. Secours keyserver (optionnel).
-		if (!empty($this->config['keyserver_fallback'])
-			&& $this->app->isPublicHost('keys.openpgp.org')) {
+		if ($this->configBool('keyserver_fallback')) {
 			$key = $this->fetch('https://keys.openpgp.org/vks/v1/by-email/'
 				. rawurlencode($email));
 			if ($key !== null) {
@@ -123,26 +119,18 @@ final class WkdKeys extends PluginBase
 				return;
 			}
 			$this->app->settings()->set(
-				(int) ($_SESSION['user_id'] ?? 0),
+				$this->app->sessionUserId(),
 				'plugin.wkd.ac.' . $addr, self::armor($bin));
 		} catch (\Throwable) { /* header exotique : silencieux */ }
 	}
 
-	/** GET HTTPS capée (timeout 8s, 512 Ko, pas de redirect). */
+	/** GET HTTPS capée (hôte public validé en amont, 512 Ko, pas de redirect). */
 	private function fetch(string $url): ?string
 	{
-		try {
-			$http = \MXWebMailLib\HTTP\Request::factory();
-			$http->timeout = 8;
-			$http->max_response_kb = 512;
-			$http->max_redirects = 0;
-			$r = $http->doRequest('GET', $url);
-			if ($r && $r->status === 200 && $r->body !== '') {
-				return str_starts_with($r->body, '-----BEGIN')
-					? $r->body : self::armor($r->body);
-			}
-		} catch (\Throwable $e) {
-			$this->app->log('debug', 'wkd-keys: ' . $e->getMessage());
+		$r = $this->app->httpGet($url, 8, 512);
+		if ($r !== null && $r->body !== '') {
+			return str_starts_with($r->body, '-----BEGIN')
+				? $r->body : self::armor($r->body);
 		}
 		return null;
 	}

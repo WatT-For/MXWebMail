@@ -16,7 +16,7 @@ final class AddXOriginatingIpHeader extends PluginBase
 	public function register(HookRegistry $hooks): void
 	{
 		$hooks->on('message.before-send', function (\MailSo\Mime\Message $message) {
-			$ip = !empty($this->config['check_proxy'])
+			$ip = $this->configBool('check_proxy')
 				? $this->app->clientIp()
 				: (string) ($_SERVER['REMOTE_ADDR'] ?? '');
 			if ($ip === '') {

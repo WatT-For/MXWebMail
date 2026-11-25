@@ -104,7 +104,6 @@ export function b64url(str) {
 }
 
 export function base() { return cfg.base; }
-export function csrf() { return cfg.csrf; }
 
 // Rejets non gérés (méthode save*/delete* sans catch) : signaler plutôt
 // que silence. api.js est chargé partout - y compris login/admin-login

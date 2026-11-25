@@ -1,5 +1,13 @@
 import { t } from '../i18n.js';
 
+// Instances vivantes : un trigger masqué (visible:) ne reçoit plus de
+// mouseleave/focusout > son tip (container: body) resterait affiché.
+// Purge globale au changement de page (hash) - couvre admin comme webmail.
+const tips = new Set();
+window.addEventListener('hashchange', () => {
+	for (const el of tips) { bootstrap.Tooltip.getInstance(el)?.hide(); }
+});
+
 /**
  * Binding : tooltip Bootstrap sur l'élément (icône d'aide, bouton…).
  * Usage : data-bind="tooltip: 'cle.i18n'" - clé résolue via t() à chaque
@@ -22,6 +30,10 @@ ko.bindingHandlers.tooltip = {
 			placement: conf.placement || 'top',
 			customClass: conf.pre ? 'mxwm-tooltip-pre' : '',
 		});
-		ko.utils.domNodeDisposal.addDisposeCallback(element, () => tip.dispose());
+		tips.add(element);
+		ko.utils.domNodeDisposal.addDisposeCallback(element, () => {
+			tips.delete(element);
+			tip.dispose();
+		});
 	},
 };

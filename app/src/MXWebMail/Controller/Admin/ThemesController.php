@@ -2,10 +2,9 @@
 declare(strict_types=1);
 
 namespace MXWebMail\Controller\Admin;
-use MXWebMail\Application\App;
 use MXWebMail\Http\JsonResponse;
 use MXWebMail\Http\Request;
-use MXWebMail\Security\Csrf;
+use MXWebMail\UserFacingException;
 
 
 
@@ -23,31 +22,18 @@ final class ThemesController extends BaseController
 
 	public function themeDefaultSet(Request $request): JsonResponse
 	{
-		$this->requireAdmin();
-		$this->requireCsrf();
-		$name = (string) $request->params['name'];
-		if (!$this->app->themes()->exists($name)) {
-			return JsonResponse::error(
-				$this->t('errors.invalid_value', ['key' => 'name']), 'validation', 400);
-		}
-		try {
-			(new \MXWebMail\Config\ConfigWriter($this->app->rootDir()))
-				->write(['user_defaults' => ['theme' => $name]], $this->app->config());
-		} catch (\Throwable) {
-			return JsonResponse::error($this->t('errors.config_write_failed'), 'config_write', 500);
-		}
+		$this->requireAdminWrite();
+		$name = $this->requireThemeName($request);
+		$w = $this->writeConfig(['user_defaults' => ['theme' => $name]]);
 		return JsonResponse::ok();
 	}
 
 	public function themeAllowedSet(Request $request): JsonResponse
 	{
-		$this->requireAdmin();
-		$this->requireCsrf();
-		$name = (string) $request->params['name'];
-		if (!$this->app->themes()->exists($name)
-			|| $name === $this->app->themes()->defaultTheme()) {
-			return JsonResponse::error(
-				$this->t('errors.invalid_value', ['key' => 'name']), 'validation', 400);
+		$this->requireAdminWrite();
+		$name = $this->requireThemeName($request);
+		if ($name === $this->app->themes()->defaultTheme()) {
+			throw new UserFacingException($this->t('errors.invalid_value', ['key' => 'name']), 400, jsonCode: 'validation');
 		}
 		$this->app->themeRepo()->setAllowed($name, (bool) $request->input('allowed', true));
 		return JsonResponse::ok();
@@ -56,11 +42,7 @@ final class ThemesController extends BaseController
 	public function themeConfigGet(Request $request): JsonResponse
 	{
 		$this->requireAdmin();
-		$name = (string) $request->params['name'];
-		if (!$this->app->themes()->exists($name)) {
-			return JsonResponse::error(
-				$this->t('errors.invalid_value', ['key' => 'name']), 'validation', 400);
-		}
+		$name = $this->requireThemeName($request);
 		return JsonResponse::ok([
 			'schema' => $this->app->themes()->schema($name),
 			'values' => $this->app->themes()->config($name),
@@ -69,17 +51,12 @@ final class ThemesController extends BaseController
 
 	public function themeConfigSet(Request $request): JsonResponse
 	{
-		$this->requireAdmin();
-		$this->requireCsrf();
-		$name = (string) $request->params['name'];
-		if (!$this->app->themes()->exists($name)) {
-			return JsonResponse::error(
-				$this->t('errors.invalid_value', ['key' => 'name']), 'validation', 400);
-		}
+		$this->requireAdminWrite();
+		$name = $this->requireThemeName($request);
 		try {
 			$values = $this->app->themes()->validate($name, (array) $request->json());
 		} catch (\RuntimeException $e) {
-			return JsonResponse::error($e->getMessage(), 'validation', 400);
+			throw new UserFacingException($e->getMessage(), 400, jsonCode: 'validation');
 		}
 		$this->app->themeRepo()->setConfig($name, $values);
 		return JsonResponse::ok();

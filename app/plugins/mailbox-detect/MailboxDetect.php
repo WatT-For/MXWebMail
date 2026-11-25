@@ -21,7 +21,7 @@ final class MailboxDetect extends PluginBase
 	public function register(HookRegistry $hooks): void
 	{
 		$hooks->on('app.data', function (array $data, ?array $user) {
-			if (!$user || empty($this->config['autocreate_system_folders'])) {
+			if (!$user || !$this->configBool('autocreate_system_folders')) {
 				return $data;
 			}
 			$userId = (int) $user['id'];

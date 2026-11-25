@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace MXWebMail\Theme;
 
 use MXWebMail\Application\App;
+use MXWebMail\Files;
 
 /**
  * Templates d'interface : app/templates/<name>/{theme.json, config.schema.json, pages/*, assets/*, langs/*}.
@@ -123,7 +124,7 @@ final class ThemeManager
 	/** Template par défaut : user_defaults.theme si installé, sinon "default". */
 	public function defaultTheme(): string
 	{
-		$defaults = (array) $this->app->config()->get('user_defaults', []);
+		$defaults = $this->app->config()->section('user_defaults');
 		$t = (string) ($defaults['theme'] ?? 'default');
 		return $this->exists($t) ? $t : 'default';
 	}
@@ -188,7 +189,7 @@ final class ThemeManager
 	{
 		$theme = $this->defaultTheme();
 		if ($this->app->isLoggedIn()) {
-			$v = $this->app->settings()->get((int) $_SESSION['user_id'], 'theme', '');
+			$v = $this->app->settings()->get($this->app->sessionUserId(), 'theme', '');
 			if (is_string($v) && $this->isSelectable($v)) {
 				$theme = $v;
 			}
@@ -288,16 +289,17 @@ final class ThemeManager
 				continue;
 			}
 			$var = '--mxwm-' . str_replace('_', '-', substr($key, 0, -6));
-			$v = $this->validHex($c[$key] ?? null) ?? $this->validHex($f['default'] ?? null);
-			if ($v !== null) {
+			$v = \MXWebMail\Validation\Rule::hexColor($c[$key] ?? null)
+				?: \MXWebMail\Validation\Rule::hexColor($f['default'] ?? null);
+			if ($v) {
 				$light .= $this->colorVars($var, $v);
 			}
 			// Variante sombre : seulement si la clé *_dark est déclarée et
 			// résout une valeur ; vide sans défaut = la claire persiste.
 			if (isset($schema[$key . '_dark'])) {
-				$d = $this->validHex($c[$key . '_dark'] ?? null)
-					?? $this->validHex($schema[$key . '_dark']['default'] ?? null);
-				if ($d !== null) {
+				$d = \MXWebMail\Validation\Rule::hexColor($c[$key . '_dark'] ?? null)
+					?: \MXWebMail\Validation\Rule::hexColor($schema[$key . '_dark']['default'] ?? null);
+				if ($d) {
 					$dark .= $this->colorVars($var, $d);
 				}
 			}
@@ -326,25 +328,18 @@ final class ThemeManager
 		// (theme.json extends / config.schema.json) ou de la config en base.
 		// Signature = mtime des fichiers + config de la table themes.
 		$sig = $this->themeDataSignature();
-		$cacheFile = $this->app->storageDir() . '/cache/themedata.php';
-		if (is_file($cacheFile)) {
-			$c = require $cacheFile;
-			if (is_array($c) && ($c['sig'] ?? null) === $sig
-				&& is_array($c['data'] ?? null)) {
-				return $c['data'];
-			}
-		}
-		$out = [];
-		foreach ($this->installed() as $name) {
-			$out[$name] = [
-				'darkMode'  => $this->darkMode($name),
-				'varsCss'   => $this->varsCss($name),
-				'config'    => $this->config($name),
-			];
-		}
-		@mxwm_atomic_write($cacheFile, '<?php return '
-			. var_export(['sig' => $sig, 'data' => $out], true) . ";\n");
-		return $out;
+		return Files::phpCache($this->app->storageDir() . '/cache/themedata.php',
+			$sig, function () {
+				$out = [];
+				foreach ($this->installed() as $name) {
+					$out[$name] = [
+						'darkMode'  => $this->darkMode($name),
+						'varsCss'   => $this->varsCss($name),
+						'config'    => $this->config($name),
+					];
+				}
+				return $out;
+			});
 	}
 
 	/**
@@ -397,25 +392,24 @@ JS;
 	private function coerce(mixed $value, array $f, string $key = ''): mixed
 	{
 		return match ($f['type'] ?? 'string') {
-			'bool'    => (bool) $value,
-			'integer' => (int) $value,
-			'number'  => (float) $value,
+			'bool'    => is_scalar($value) ? (bool) $value : throw new \RuntimeException(
+				$this->app->locale()->t('errors.invalid_value', ['key' => $key ?: 'bool']), 400),
+			'integer' => is_scalar($value) ? (int) $value : throw new \RuntimeException(
+				$this->app->locale()->t('errors.invalid_value', ['key' => $key ?: 'integer']), 400),
+			'number'  => is_scalar($value) ? (float) $value : throw new \RuntimeException(
+				$this->app->locale()->t('errors.invalid_value', ['key' => $key ?: 'number']), 400),
 			// ''/null accepté : champ vidé = retour au défaut (couleurs claires)
 			// ou à la teinte automatique (clés *_dark)
-			'color'   => $this->validHex($value)
-				?? ($value === '' || $value === null
-					? '' : throw new \RuntimeException(
-						$this->app->locale()->t('errors.invalid_value', ['key' => $key ?: 'color']), 400)),
+			'color'   => \MXWebMail\Validation\Rule::hexColor($value)
+				?? throw new \RuntimeException(
+					$this->app->locale()->t('errors.invalid_value', ['key' => $key ?: 'color']), 400),
 			'enum'    => in_array($value, array_keys((array) ($f['options'] ?? [])), true)
 				? $value : throw new \RuntimeException(
 					$this->app->locale()->t('errors.invalid_value', ['key' => $key ?: 'enum']), 400),
-			default   => (string) $value,
+			default   => is_scalar($value) || $value === null ? (string) $value
+				: throw new \RuntimeException(
+					$this->app->locale()->t('errors.invalid_value', ['key' => $key ?: 'string']), 400),
 		};
-	}
-
-	private function validHex(mixed $v): ?string
-	{
-		return is_string($v) && preg_match('/^#[0-9a-fA-F]{6}$/', $v) ? strtolower($v) : null;
 	}
 
 	private function hexToRgb(string $hex): string

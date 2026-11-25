@@ -112,6 +112,8 @@ Voorbeeld: `dark` en `midnight` leveren alleen `assets/app.css` en hun
 `theme.json`/schema; al het andere (pagina's, woordenboeken) wordt van
 `default` overgenomen.
 
+De gedeelde layout leeft in `default/assets/base.css`: elke `app.css` importeert hem via `@import url("base.css")` (opgelost in de overervingsketen) en voegt alleen zijn `:root`-variabelen en overrides toe.
+
 ## 3. Een thema maken
 
 1. Maak `app/templates/<name>/theme.json` (eventueel met `extends`).

@@ -5,6 +5,7 @@ namespace Plugin;
 
 use MXWebMail\Plugin\HookRegistry;
 use MXWebMail\Plugin\PluginBase;
+use MXWebMail\Service\LdapConnect;
 
 /**
  * Suggestions de contacts depuis un annuaire LDAP (hook contacts.provider).
@@ -23,49 +24,48 @@ final class LdapContacts extends PluginBase
 	public function search(string $q): array
 	{
 		$q = trim($q);
-		if (strlen($q) < 2 || !function_exists('ldap_connect') || empty($this->config['host'])) {
+		if (strlen($q) < 2 || !function_exists('ldap_connect')
+			|| $this->configTrim('host') === '') {
 			return [];
 		}
 		try {
 			return $this->ldapSearch($q);
 		} catch (\Throwable $e) {
-			\MXWebMailLib\Log::warning('LDAP', 'contacts: ' . $e->getMessage());
+			$this->app->log('warning', 'ldap-contacts: ' . $e->getMessage());
 			return [];
 		}
 	}
 
 	private function ldapSearch(string $q): array
 	{
-		$c = $this->config;
-		$link = ldap_connect((string) $c['host'], (int) ($c['port'] ?? 389));
+		$link = LdapConnect::open($this->configTrim('host'),
+			$this->configInt('port', 389));
 		if (!$link) {
 			throw new \RuntimeException($this->t('plugin.ldap-contacts.connect_failed'));
 		}
 		try {
-			ldap_set_option($link, LDAP_OPT_PROTOCOL_VERSION, 3);
-			ldap_set_option($link, LDAP_OPT_REFERRALS, 0);
-			ldap_set_option($link, LDAP_OPT_NETWORK_TIMEOUT, 5);
+			LdapConnect::defaults($link);
 
-			if (!empty($c['use_tls']) && !@ldap_start_tls($link)) {
+			if ($this->configBool('use_tls') && !LdapConnect::startTls($link)) {
 				throw new \RuntimeException($this->t('plugin.ldap-contacts.starttls_denied'));
 			}
 
-			$bindDn = (string) ($c['bind_dn'] ?? '');
+			$bindDn = $this->configString('bind_dn');
 			if ($bindDn !== '') {
-				if (!@ldap_bind($link, $bindDn, (string) ($c['bind_pass'] ?? ''))) {
+				if (!LdapConnect::bind($link, $bindDn, $this->configString('bind_pass'))) {
 					throw new \RuntimeException($this->t('plugin.ldap-contacts.bind_denied'));
 				}
-			} elseif (!@ldap_bind($link)) {
+			} elseif (!LdapConnect::bind($link)) {
 				throw new \RuntimeException($this->t('plugin.ldap-contacts.anon_bind_denied'));
 			}
 
 			$filter = str_replace('%q', ldap_escape($q, '', LDAP_ESCAPE_FILTER),
-				(string) ($c['filter'] ?? '(|(mail=*%q*)(cn=*%q*)(sn=*%q*))'));
-			$nameAttr = (string) ($c['name_attr'] ?? 'cn');
-			$mailAttr = (string) ($c['mail_attr'] ?? 'mail');
-			$max = max(1, (int) ($c['max_results'] ?? 10));
+				$this->configString('filter', '(|(mail=*%q*)(cn=*%q*)(sn=*%q*))'));
+			$nameAttr = $this->configString('name_attr', 'cn');
+			$mailAttr = $this->configString('mail_attr', 'mail');
+			$max = max(1, $this->configInt('max_results', 10));
 
-			$sr = @ldap_search($link, (string) ($c['base_dn'] ?? ''), $filter,
+			$sr = @ldap_search($link, $this->configString('base_dn'), $filter,
 				[$nameAttr, $mailAttr], 0, $max);
 			if (!$sr) {
 				throw new \RuntimeException($this->t('plugin.ldap-contacts.search_failed'));

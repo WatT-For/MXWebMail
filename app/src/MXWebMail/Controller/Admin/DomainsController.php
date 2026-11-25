@@ -2,10 +2,10 @@
 declare(strict_types=1);
 
 namespace MXWebMail\Controller\Admin;
-use MXWebMail\Application\App;
 use MXWebMail\Http\JsonResponse;
 use MXWebMail\Http\Request;
-use MXWebMail\Security\Csrf;
+use MXWebMail\Validation\Rule;
+use MXWebMail\UserFacingException;
 
 
 
@@ -20,39 +20,37 @@ final class DomainsController extends BaseController
 
 	public function domainSave(Request $request): JsonResponse
 	{
-		$this->requireAdmin();
-		$this->requireCsrf();
+		$this->requireAdminWrite();
 		$data = (array) $request->json();
 		if (empty($data['name']) || empty($data['imap_host']) || empty($data['smtp_host'])) {
-			return JsonResponse::error($this->t('errors.domain_required'), 'validation');
+			throw new UserFacingException($this->t('errors.domain_required'), jsonCode: 'validation');
 		}
-		$bad = fn(string $key) => JsonResponse::error(
-			$this->t('errors.invalid_value', ['key' => $key]), 'validation', 400);
+		$bad = fn(string $key) => throw new UserFacingException(
+			$this->t('errors.invalid_value', ['key' => $key]), 400, jsonCode: 'validation');
 		$name = (string) $data['name'];
 		// '*' = domaine catch-all (paramètres pour tout domaine non listé)
-		if ($name !== '*'
-			&& !preg_match('/^[a-z0-9]([a-z0-9.\-]{0,251}[a-z0-9])?$/i', $name)) {
-			return $bad('name');
+		if ($name !== '*' && !Rule::domain($name)) {
+			$bad('name');
 		}
 		foreach (['imap_host', 'smtp_host', 'sieve_host'] as $key) {
-			$data[$key] = self::str($data[$key] ?? '', 255);
+			$data[$key] = Rule::str($data[$key] ?? '', 255);
 			if ($data[$key] === null || ($key !== 'sieve_host' && $data[$key] === '')) {
-				return $bad($key);
+				$bad($key);
 			}
 		}
 		foreach (['imap_port', 'smtp_port'] as $key) {
-			$data[$key] = self::intRange($data[$key] ?? 0, 1, 65535);
+			$data[$key] = Rule::intRange($data[$key] ?? 0, 1, 65535);
 			if ($data[$key] === null) {
-				return $bad($key);
+				$bad($key);
 			}
 		}
-		$data['sieve_port'] = self::intRange($data['sieve_port'] ?? 4190, 1, 65535);
+		$data['sieve_port'] = Rule::intRange($data['sieve_port'] ?? 4190, 1, 65535);
 		if ($data['sieve_port'] === null) {
-			return $bad('sieve_port');
+			$bad('sieve_port');
 		}
 		foreach (['imap_encryption', 'smtp_encryption'] as $key) {
 			if (!in_array($data[$key] ?? '', ['ssl', 'tls', 'none'], true)) {
-				return $bad($key);
+				$bad($key);
 			}
 		}
 		$data['active'] = (int) filter_var($data['active'] ?? true, FILTER_VALIDATE_BOOL);
@@ -62,8 +60,7 @@ final class DomainsController extends BaseController
 
 	public function domainDelete(Request $request): JsonResponse
 	{
-		$this->requireAdmin();
-		$this->requireCsrf();
+		$this->requireAdminWrite();
 		$this->app->domains()->delete((int) $request->input('id'));
 		return JsonResponse::ok();
 	}
@@ -74,16 +71,14 @@ final class DomainsController extends BaseController
 	 */
 	public function domainDetect(Request $request): JsonResponse
 	{
-		$this->requireAdmin();
-		$this->requireCsrf();
+		$this->requireAdminWrite();
 		$name = strtolower(trim((string) $request->input('name', '')));
 		if ($name === '' || $name === '*') {
-			return JsonResponse::error(
-				$this->t('errors.invalid_value', ['key' => 'name']), 'validation', 400);
+			throw new UserFacingException($this->t('errors.invalid_value', ['key' => 'name']), 400, jsonCode: 'validation');
 		}
 		$detected = $this->app->domainDetector()->detect($name, true);
 		if (!$detected) {
-			return JsonResponse::error($this->t('errors.domain_detect_failed'), 'detect_failed');
+			throw new UserFacingException($this->t('errors.domain_detect_failed'), jsonCode: 'detect_failed');
 		}
 		return JsonResponse::ok($detected);
 	}

@@ -40,7 +40,7 @@ dann ausgesetzt.
 
 | Tabelle | Inhalt |
 |---|---|
-| `meta` | Schlüssel/Wert-Paare (`schema_version`, `contacts_moved`, …). |
+| `meta` | Schlüssel/Wert-Paare (`schema_version`, `plugin_<name>_schema_version`, `contacts_moved`, …). |
 | `users` | `username` (eindeutig), `display_name`, `is_admin`, `disabled`, `session_epoch` (durch "Abmeldung erzwingen" erhöht - weist aktive Sitzungen bei der nächsten Anfrage ab), `created_at`, `last_login_at`. |
 | `accounts` | IMAP-Konten der Benutzer: `email`, `imap_user`, `imap_pass` (verschlüsselt), `is_default` (Hauptkonto, änderbar in Einstellungen > Konten), `position` (Anzeigereihenfolge der Zweitkonten, per Drag-and-drop in Einstellungen > Konten sortierbar), `auth` (`password`, `google`, `microsoft`, `yahoo` - OAuth2: `imap_pass` speichert dann das verschlüsselte *Refresh-Token*). |
 | `oauth_apps` | OAuth2-Anwendungen pro Benutzer: `provider`, `client_id`, `secret` (verschlüsselt), `tenant` - eine App pro `(user_id, provider)` (siehe [domaines.md](domaines.md) §8). |

@@ -109,7 +109,7 @@ każdy użytkownik (*Ustawienia > Aplikacje OAuth2*).
 ### Użytkownicy
 
 Lista + wyszukiwanie użytkowników, z przyciskiem odświeżania (ikona) do
-przeładowania listy. Per użytkownik (modal, zakładki *Profil*,
+przeładowania listy. Per użytkownik (dedykowana strona `#/users/<id>`, zakładki *Profil*,
 *Ustawienia*, *Konta/Tożsamości*, *Sesje*):
 
 - `display_name`, `is_admin`, `disabled`;

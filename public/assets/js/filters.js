@@ -50,7 +50,7 @@ export const TEMPLATES = [
 	{ value: 'sender',   key: 'settings.filters.tpl_sender' },
 ];
 
-export function newRule() {
+function newRule() {
 	return { match: 'all',
 		conditions: [{ field: 'from', op: 'contains', value: '' }],
 		actions: [{ type: 'keep' }] };

@@ -186,6 +186,7 @@ dell'account).
 app/plugins/mio-plugin/
 ├── plugin.json          # manifest
 ├── MioPlugin.php        # classe principale
+├── migrations.php       # (opzionale) schema DB versionato
 ├── config.schema.json   # (opzionale) schema di configurazione admin
 ├── langs/<lang>.php     # dizionari (chiavi con prefisso plugin.<name>.)
 └── js/ o assets/        # (opzionale) asset serviti via /assets/plugin/<name>/<file>
@@ -230,6 +231,73 @@ class MioPlugin extends PluginBase
 	}
 }
 ```
+
+`PluginBase` fornisce helper condivisi: `$this->t()` (traduzione),
+`requireAdmin()` (guardia di sessione admin, vedi *API generica*),
+`assetUrl($base, $file)` (URL versionato di un asset del plugin),
+`inlineConfig($global, $payload, $nonce)` (blocco `<script>` di
+configurazione compatibile CSP) e `firstEmail()` (primo `Email` di
+una `EmailCollection`).
+
+La configurazione del plugin si legge tramite gli accessori tipizzati di
+`PluginBase` invece di cast su `$this->config`: `configString`,
+`configTrim`, `configInt`, `configBool` e `configCsv` (lista CSV). Anche
+le dichiarazioni ricorrenti degli hook sono fattorizzate: `userTab()`
+(scheda Impostazioni), `adminMount()` (sotto-scheda admin), `feature()`
+(payload `features`) e `toolbarJs()` (barra strumenti del lettore).
+`pdo()` restituisce il PDO applicativo e
+`userSetting()`/`userSettingSet()` incapsulano le impostazioni utente
+sotto la chiave `plugin.<name>.<key>`.
+`MXWebMail\Service\LdapConnect` centralizza l'apertura della connessione
+LDAP dei plugin (connect, opzioni v3, referrals off, timeout di rete,
+start_tls, bind).
+
+Per un GET HTTP in uscita, `$this->app->httpGet($url, $timeout, $maxKb)`
+applica la guardia anti-SSRF (host pubblico richiesto, redirect non
+seguiti, timeout e dimensione limitati, `ssl.cafile` rispettato) - da
+preferire a un client ad hoc. Il callback opzionale `$onBlocked`
+riceve il motivo del rifiuto (`dns`, `literal`, `private`) per
+adattare il log.
+
+Le letture di sessione passano per i metodi di accesso di `App`
+(live, mai memorizzati) invece di `$_SESSION` grezzo: `sessionUserId()`,
+`sessionEmail()`, `sessionAccountId()`, `sessionDomain()`,
+`sessionImapPass()`, `sessionEpoch()`, `sessionAuthProvider()`,
+`isAdminSession()`, `isSecondaryAccount()`.
+
+### Tabelle del database
+
+Un plugin che ha bisogno di tabelle proprie le dichiara in
+`migrations.php`, alla sua radice. Il file restituisce un array
+`versione => istruzioni` - o una closure che riceve
+`MXWebMail\Repository\Database` per il dispatch per driver. Le
+migrazioni girano al caricamento del plugin, versionate in
+`meta.plugin_<name>_schema_version`, con lo stesso meccanismo dello
+schema core (transazione SQLite, re-run idempotente sotto MySQL via
+`information_schema`):
+
+```php
+return function (\MXWebMail\Repository\Database $db): array {
+	$idx = ($db->isSqlite() || $db->isMariaDb())
+		? 'CREATE INDEX IF NOT EXISTS' : 'CREATE INDEX';
+	return [
+		1 => [
+			'CREATE TABLE IF NOT EXISTS plugin_mioplugin_items (
+				id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL)',
+			"$idx idx_items_user ON plugin_mioplugin_items (user_id)",
+		],
+	];
+};
+```
+
+Portabilità SQLite + MariaDB + MySQL: mai un `IF NOT EXISTS` nudo su
+`ADD COLUMN`/`CREATE INDEX` (MySQL: errore 1064 - dispatch per driver
+come sopra); chiave auto-incrementale `INTEGER PRIMARY KEY` (SQLite)
+vs `INTEGER AUTO_INCREMENT PRIMARY KEY`. `$db->insertIgnore()` e
+`$db->upsert()` producono un `INSERT IGNORE` / `ON CONFLICT`
+portabile. Prefissare le tabelle con `plugin_<name>_` evita le
+collisioni. Un plugin disattivato non viene migrato: le sue tabelle
+restano, la migrazione riprende alla riattivazione.
 
 ### Hook disponibili
 

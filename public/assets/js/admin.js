@@ -5,7 +5,10 @@
  */
 import { api, base } from './api.js';
 import { dialog } from './ui/dialog.js';
+import { bindModal } from './ui/modal.js';
 import { toast } from './ui/toast.js';
+import { formatSize, formatTs, formatDate } from './ui/format.js';
+import { bindAll } from './ui/bind-all.js';
 import { t, lang } from './i18n.js';
 import './bindings/tooltip.js';
 import './bindings/plugin-mount.js';
@@ -15,6 +18,9 @@ class AdminVM {
 	constructor() {
 		this.t = t;       // bindings : $root.t('cle')
 		this.lang = lang; // locale courante (toLocaleString…)
+		// Formats exposés aux bindings : $root.fmtTs(ts) / $root.fmtDate(ts)
+		this.fmtTs = ts => formatTs(ts, this.lang);
+		this.fmtDate = ts => formatDate(ts, this.lang);
 		this.tab = ko.observable('general');
 		this.error = ko.observable('');
 		this.notice = ko.observable('');
@@ -45,7 +51,10 @@ class AdminVM {
 		this.editingUserIdentity = ko.observable(null);
 		this.userSearch = ko.observable('');
 		this.usersBusy = ko.observable(false);
-		this.userModalTab = ko.observable('profile');
+		// Page détail utilisateur : #/users/<id>[/<tab>] (cf. syncFromHash).
+		this.userDetailId = ko.observable(null);
+		this.userDetailTab = ko.observable('profile');
+		this.userLoading = null; // id en cours de fetch (anti double-GET)
 		this.domainModalTab = ko.observable('general');
 		this.filteredUsers = ko.pureComputed(() => {
 			const q = this.userSearch().trim().toLowerCase();
@@ -96,29 +105,17 @@ class AdminVM {
 		};
 		// Knockout invoque les handlers avec this = $data du contexte courant
 		// (item dans un foreach) : on force le binding sur le VM.
-		for (const m of Object.getOwnPropertyNames(AdminVM.prototype)) {
-			if (m !== 'constructor' && typeof this[m] === 'function') {
-				this[m] = this[m].bind(this);
-			}
-		}
-		// Modales de config plugin / template : l'observable est reset à la
-		// fermeture (Échap, backdrop, boutons) > état propre à la réouverture.
-		const pluginModalEl = document.getElementById('plugin-config-modal');
-		const themeModalEl = document.getElementById('theme-config-modal');
-		const userModalEl = document.getElementById('user-modal');
-		const domainModalEl = document.getElementById('domain-modal');
-		this.pluginConfigModal = pluginModalEl ? new bootstrap.Modal(pluginModalEl) : null;
-		this.themeConfigModal = themeModalEl ? new bootstrap.Modal(themeModalEl) : null;
-		this.userModal = userModalEl ? new bootstrap.Modal(userModalEl) : null;
-		this.domainModal = domainModalEl ? new bootstrap.Modal(domainModalEl) : null;
-		pluginModalEl?.addEventListener('hidden.bs.modal', () => this.editingPlugin(null));
-		themeModalEl?.addEventListener('hidden.bs.modal', () => this.editingTheme(null));
-		userModalEl?.addEventListener('hidden.bs.modal', () => {
-			this.editingUser(null);
-			this.editingUserIdentity(null);
-		});
-		domainModalEl?.addEventListener('hidden.bs.modal', () => this.editingDomain(null));
-		// Navigation pilotée par l'URL : #/<page>[/<sous-onglet>]
+		bindAll(this, AdminVM.prototype);
+		// Modales de config plugin / thème / domaine : l'observable est reset à
+		// la fermeture (Échap, backdrop, boutons) > état propre à la réouverture.
+		this.pluginConfigModal = bindModal('plugin-config-modal',
+			{ onHidden: () => this.editingPlugin(null) });
+		this.themeConfigModal = bindModal('theme-config-modal',
+			{ onHidden: () => this.editingTheme(null) });
+		this.domainModal = bindModal('domain-modal',
+			{ onHidden: () => this.editingDomain(null) });
+		// Navigation pilotée par l'URL : #/<page>[/<sous-onglet>] ; la page
+		// Utilisateurs ajoute un 3e segment : #/users/<id>[/<tab>].
 		window.addEventListener('hashchange', this.syncFromHash);
 		this.syncFromHash();
 		// Catalogue plugins chargé à la première ouverture de l'onglet Extensions
@@ -180,46 +177,89 @@ class AdminVM {
 		} catch (e) { this.error(e.message); }
 	}
 
-	// Taille lisible (octets > o/Ko/Mo/Go, unités binaires).
+	// Taille lisible (octets > o/Ko/Mo/Go, unités binaires ; '' si inconnue).
 	formatSize(bytes) {
-		if (bytes === null || bytes === undefined) { return ''; }
-		const b = Number(bytes);
-		if (!Number.isFinite(b) || b < 0) { return ''; }
-		if (b >= 1073741824) { return (b / 1073741824).toFixed(1) + ' ' + t('unit.gb'); }
-		if (b >= 1048576) { return (b / 1048576).toFixed(1) + ' ' + t('unit.mb'); }
-		if (b >= 1024) { return Math.round(b / 1024) + ' ' + t('unit.kb'); }
-		return b + ' ' + t('unit.b');
+		return formatSize(bytes, '');
 	}
 
-	buildFields(sec, r) {
-		const fields = r.schema?.[sec]?.fields || {};
-		return Object.entries(fields).map(([key, f]) => {
+	/**
+	 * Schéma -> champs KO (sections admin, réglages utilisateur, configs
+	 * plugin/thème) : coercions uniformes - bool strict (1/'1'/true, la
+	 * variante !!v affichait "0" coché), enum stringifié, type 'list' =
+	 * observableArray d'observables (sinon "value: $data" ne remonte pas).
+	 * `nested` : les clés 'a.b' lisent values[a][b]. labelCol/fieldCol :
+	 * colonnes Bootstrap du fields-tpl ('col-4/8' en modale,
+	 * 'col-md-4/8' en onglets).
+	 */
+	schemaFields(fieldsMap, values = {}, { nested = false,
+		labelCol = 'col-md-4', fieldCol = 'col-md-8' } = {}) {
+		return Object.entries(fieldsMap || {}).map(([key, f]) => {
 			const [a, b] = key.split('.');
-			let v = b !== undefined ? r.values[a]?.[b] : r.values[key];
+			let v = nested && b !== undefined ? values?.[a]?.[b] : values?.[key];
 			if (v === undefined) { v = f.default; }
-			if (f.type === 'bool') { v = !!v; }
+			if (f.type === 'bool') { v = v === true || v === 1 || v === '1' || v === 'true'; }
 			if (f.type === 'enum' && v !== undefined) { v = String(v); }
+			const opts = f.options || {};
 			const field = {
-				key, type: f.type || 'string', label: f.label || key, help: f.help || '',
-				group: f.group || '',
-				optionsList: Object.entries(f.options || {}),
-				value: ko.observable(v ?? ''),
+				key, type: f.type || 'string', label: f.label || key,
+				help: f.help || f.description || '', group: f.group || '',
+				labelCol, fieldCol,
+				optionsList: Array.isArray(opts)
+					? opts.map(o => [o, o]) : Object.entries(opts),
 			};
-			if (sec === 'domains' && key === 'default_domain') {
-				// Select alimenté par les domaines de la table ; la valeur
-				// courante est conservée si le domaine n'y figure plus.
-				// peek() : ne pas dépendre de value - sinon chaque sélection
-				// recrée les options et KO réécrit le modèle (childrenComplete).
-				field.optionsList = ko.pureComputed(() => {
-					const cur = field.value.peek();
-					const names = this.domains().map(d => d.name);
-					const list = [['', 'admin.domain_none'], ['auto', 'admin.domain_from_host'], ...names.map(n => [n, n])];
-					if (cur !== '' && !names.includes(cur)) { list.push([cur, cur]); }
-					return list;
-				});
+			if (f.type === 'list') {
+				const items = String(v ?? '').split(',')
+					.map(s => s.trim()).filter(Boolean);
+				const arr = ko.observableArray(items.map(s => ko.observable(s)));
+				field.value = arr;
+				field.addItem    = () => arr.push(ko.observable(''));
+				field.removeItem = (item) => arr.remove(item);
+			} else {
+				field.value = ko.observable(v ?? '');
 			}
 			return field;
 		});
+	}
+
+	/**
+	 * Champs -> valeurs à poster : bool (1/0 pour les configs fichier,
+	 * natif JSON sinon), integer parsé, 'list' jointe sur ', '.
+	 */
+	collectFields(fields, { boolInt = false, stringify = false } = {}) {
+		const values = {};
+		for (const f of fields) {
+			if (f.type === 'bool') {
+				values[f.key] = boolInt ? (f.value() ? 1 : 0) : !!f.value();
+			} else if (f.type === 'integer') {
+				values[f.key] = parseInt(f.value(), 10) || 0;
+			} else if (f.type === 'list') {
+				values[f.key] = f.value().map(o => ko.unwrap(o))
+					.filter(s => s.trim() !== '').join(', ');
+			} else {
+				values[f.key] = stringify ? String(f.value() ?? '') : f.value();
+			}
+		}
+		return values;
+	}
+
+	buildFields(sec, r) {
+		return this.schemaFields(r.schema?.[sec]?.fields, r.values, { nested: true })
+			.map(field => {
+				if (sec === 'domains' && field.key === 'default_domain') {
+					// Select alimenté par les domaines de la table ; la valeur
+					// courante est conservée si le domaine n'y figure plus.
+					// peek() : ne pas dépendre de value - sinon chaque sélection
+					// recrée les options et KO réécrit le modèle (childrenComplete).
+					field.optionsList = ko.pureComputed(() => {
+						const cur = field.value.peek();
+						const names = this.domains().map(d => d.name);
+						const list = [['', 'admin.domain_none'], ['auto', 'admin.domain_from_host'], ...names.map(n => [n, n])];
+						if (cur !== '' && !names.includes(cur)) { list.push([cur, cur]); }
+						return list;
+					});
+				}
+				return field;
+			});
 	}
 	fieldsIn(sec, group) {
 		return this.formSections[sec]().filter(f => f.group === group);
@@ -236,7 +276,7 @@ class AdminVM {
 	pluginEnabled(name) {
 		return this.plugins().some(p => p.name === name && ko.unwrap(p.enabled));
 	}
-	syncFromHash() {
+	async syncFromHash() {
 		const pages = ['general','database','features','security','logs',
 			'performance','domains','users','plugins','themes','about',
 			// Pages de niveau supérieur déclarées par les plugins (admin.mounts)
@@ -249,10 +289,29 @@ class AdminVM {
 			domains: ['list', 'params'],
 			performance: ['http', 'cache'],
 		};
-		const [page, sub] = location.hash.replace(/^#\/?/, '').split('/');
+		const [page, sub, sub2] = location.hash.replace(/^#\/?/, '').split('/');
+		// Tips orphelins : purgés au hashchange par le binding tooltip lui-même
+		// (un trigger masqué ne reçoit plus de mouseleave > tip body restant).
 		this.tab(pages.includes(page) ? page : 'general');
 		if (subs[this.tab()]) {
 			this.subtabs[this.tab()](subs[this.tab()].includes(sub) ? sub : subs[this.tab()][0]);
+		}
+		// Détail utilisateur : #/users/<id>[/<tab>] - id non numérique > liste.
+		const uid = this.tab() === 'users' && /^\d+$/.test(sub || '') ? Number(sub) : 0;
+		this.userDetailId(uid || null);
+		if (uid) {
+			const tabs = ['profile', 'settings', 'accounts', 'sessions'];
+			const tab = tabs.includes(sub2) ? sub2 : 'profile';
+			this.userDetailTab(tab);
+			await this.loadUserDetail(uid);
+			// Sessions chargées à la demande, seulement si ce détail est
+			// toujours courant (le fetch a pu échouer > retour liste).
+			if (this.userDetailId() === uid && tab === 'sessions') {
+				this.loadUserSessions();
+			}
+		} else {
+			this.editingUser(null);
+			this.editingUserIdentity(null);
 		}
 	}
 	collectSection(sec) {
@@ -301,7 +360,11 @@ class AdminVM {
 
 	// options JSON de la ligne > flags dérivés pour les badges.
 	mapDomain(d) {
-		const o = typeof d.options === 'string' ? JSON.parse(d.options || '{}') : (d.options || {});
+		let o = d.options;
+		if (typeof o === 'string') {
+			try { o = JSON.parse(o || '{}'); } catch { o = {}; } // options malformées > aucun flag
+		}
+		o = o || {};
 		return { ...d, detected: !!o.detected, secondary_only: !!o.secondary_only };
 	}
 	async loadDomains() { this.domains((await api.get('/admin/domains')).map(this.mapDomain)); }
@@ -324,7 +387,7 @@ class AdminVM {
 	}
 	async clearLog() {
 		const file = this.logFile();
-		if (!(await dialog.confirm(
+		if (!(await dialog.confirmDanger(
 			t('admin.log_clear_confirm', { file: t('admin.log_' + file) }),
 			{ variant: 'danger', okLabel: t('admin.log_clear') }))) { return; }
 		try {
@@ -341,9 +404,37 @@ class AdminVM {
 	async refreshUpdateStatus() {
 		try { this.updateInfo(await api.get('/admin/update/status')); } catch (e) { /* silencieux */ }
 	}
-	async checkUpdate() {
-		this.updateErr(''); this.updateBusy('check');
+	/**
+	 * Enveloppes busy+err des opérations update/plugins : erreur effacée,
+	 * busy posé, fn exécutée, erreur rapportée, busy libéré (finally).
+	 * Les confirmations dialog restent AVANT l'appel (pas de busy pendant
+	 * l'attente utilisateur).
+	 */
+	async updateOp(step, fn) {
+		this.updateErr(''); this.updateBusy(step);
+		try { await fn(); }
+		catch (e) { this.updateErr(e.message); }
+		finally { this.updateBusy(''); }
+	}
+	async pluginOp(name, fn) {
+		this.pluginsErr(''); this.pluginBusy(name);
+		try { await fn(); }
+		catch (e) { this.pluginsErr(e.message); }
+		finally { this.pluginBusy(''); }
+	}
+	/** POST optimiste d'un toggle admin : revert de l'observable si refus
+	 *  (la case recoche d'elle-même). */
+	async togglePost(url, obs, key) {
 		try {
+			await api.post(url, { [key]: obs() });
+		} catch (e) {
+			obs(!obs());
+			this.error(e.message);
+		}
+	}
+
+	async checkUpdate() {
+		await this.updateOp('check', async () => {
 			const r = await api.get('/admin/update/check?force=1');
 			if (r.configured === false) {
 				this.updateInfo({ ...(this.updateInfo() || {}), configured: false });
@@ -351,20 +442,17 @@ class AdminVM {
 				return;
 			}
 			this.updateResult(r);
-		} catch (e) { this.updateErr(e.message); }
-		finally { this.updateBusy(''); }
+		});
 	}
 	async downloadUpdate() {
-		this.updateErr(''); this.updateBusy('download');
-		try {
+		await this.updateOp('download', async () => {
 			await api.post('/admin/update/download');
 			// Le résultat du check est consommé par l'état (step downloaded/
 			// extracted) - sinon le badge v{latest} + le bouton Télécharger
 			// resteraient affichés à côté du paquet en attente.
 			this.updateResult(null);
 			await this.refreshUpdateStatus();
-		} catch (e) { this.updateErr(e.message); }
-		finally { this.updateBusy(''); }
+		});
 	}
 	async applyUpdate() {
 		this.updateErr('');
@@ -377,10 +465,8 @@ class AdminVM {
 		if (st.modified?.length) {
 			msg += ' ' + t('admin.update.confirm_apply_modified', { count: st.modified.length });
 		}
-		if (!(await dialog.confirm(msg,
-			{ variant: 'danger', okLabel: t('admin.update.apply') }))) { return; }
-		this.updateBusy('apply');
-		try {
+		if (!(await dialog.confirmDanger(msg, { okLabel: t('admin.update.apply') }))) { return; }
+		await this.updateOp('apply', async () => {
 			const r = await api.post('/admin/update/apply');
 			// Finalize = migrations du nouveau code (requête fraîche).
 			let done = t('admin.update.applied', { ver: r.version });
@@ -394,26 +480,21 @@ class AdminVM {
 			await this.refreshUpdateStatus();
 			await dialog.alert(done, { variant: 'success' });
 			location.reload(); // le code vient de changer : recharger le panneau
-		} catch (e) { this.updateErr(e.message); }
-		finally { this.updateBusy(''); }
+		});
 	}
 	async finalizeUpdate() {
-		this.updateErr(''); this.updateBusy('apply');
-		try {
+		await this.updateOp('apply', async () => {
 			const f = await api.post('/admin/update/finalize');
 			this.ok(t('admin.update.finalized', { schema: f.schema_version ?? '?' }));
 			await this.refreshUpdateStatus();
-		} catch (e) { this.updateErr(e.message); }
-		finally { this.updateBusy(''); }
+		});
 	}
 	async rollbackUpdate() {
 		this.updateErr('');
 		const rb = this.updateInfo()?.rollback || {};
-		if (!(await dialog.confirm(t('admin.update.confirm_rollback',
-			{ from: rb.from || '', to: rb.to || '' }),
-			{ variant: 'danger', okLabel: t('admin.update.rollback') }))) { return; }
-		this.updateBusy('apply');
-		try {
+		if (!(await dialog.confirmDanger(t('admin.update.confirm_rollback',
+			{ from: rb.from || '', to: rb.to || '' }), { okLabel: t('admin.update.rollback') }))) { return; }
+		await this.updateOp('apply', async () => {
 			let r;
 			try {
 				r = await api.post('/admin/update/rollback');
@@ -421,8 +502,7 @@ class AdminVM {
 				// 409 = schéma MariaDB plus récent que le backup : l'admin doit
 				// restaurer son dump puis confirmer le rollback forcé.
 				if (e.status !== 409
-					|| !(await dialog.confirm(e.message + ' ' + t('admin.update.rollback_forcedb'),
-						{ variant: 'danger', okLabel: t('admin.update.rollback') }))) {
+					|| !(await dialog.confirmDanger(e.message + ' ' + t('admin.update.rollback_forcedb'), { okLabel: t('admin.update.rollback') }))) {
 					throw e;
 				}
 				r = await api.post('/admin/update/rollback', { force: 1 });
@@ -430,8 +510,7 @@ class AdminVM {
 			await dialog.alert(t('admin.update.rolled_back', { ver: r.version }),
 				{ variant: 'success' });
 			location.reload();
-		} catch (e) { this.updateErr(e.message); }
-		finally { this.updateBusy(''); }
+		});
 	}
 	async resetUpdate() {
 		this.updateErr('');
@@ -546,45 +625,50 @@ class AdminVM {
 		} catch (e) { await dialog.alert(e.message, { title, variant: 'danger' }); }
 	}
 	async deleteDomain(d) {
-		if (!(await dialog.confirm(t('admin.delete_domain', { name: d.name }),
-			{ variant: 'danger', okLabel: t('common.delete') }))) { return; }
+		if (!(await dialog.confirmDanger(t('admin.delete_domain', { name: d.name })))) { return; }
 		try { await api.post('/admin/domains/delete', { id: d.id }); this.loadDomains(); }
 		catch(e) { this.error(e.message); }
 	}
 	// ─── Utilisateurs ───
 
-	async editUser(u) {
-		const r = await api.get(`/admin/users/${u.id}`).catch(e => { this.error(e.message); return null; });
-		if (!r) { return; }
-		const vals = r.settings?.values || {};
-		const fields = Object.entries(r.settings?.schema || {}).map(([key, f]) => {
-			let v = vals[key] ?? f.default ?? '';
-			if (f.type === 'bool') { v = !!(v === true || v === 1 || v === '1' || v === 'true'); }
-			if (f.type === 'enum' && v !== undefined) { v = String(v); }
-			return {
-				key, type: f.type || 'string', label: f.label || key, help: f.help || '',
-				optionsList: Object.entries(f.options || {}),
-				value: ko.observable(v),
-			};
-		});
-		this.editingUser({
-			id: u.id,
-			username: r.user.username,
-			created_at: r.user.created_at,
-			last_login_at: r.user.last_login_at,
-			display_name: ko.observable(r.user.display_name || ''),
-			is_admin: ko.observable(!!Number(r.user.is_admin)),
-			was_admin: !!Number(r.user.is_admin),
-			disabled: ko.observable(!!Number(r.user.disabled)),
-			error: ko.observable(''), // erreur dans la modale (alerte racine masquée par le backdrop)
-			settingsFields: ko.observableArray(fields),
-			accounts: r.accounts || [],
-			identities: r.identities || [],
-		});
-		this.editingUserIdentity(null);
-		this.userSessions([]);
-		this.userModalTab('profile');
-		this.userModal?.show();
+	// Ouvre la page détail : le hashchange déclenche syncFromHash > loadUserDetail.
+	editUser(u) { location.hash = '#/users/' + u.id; }
+
+	/** Détail d'un compte : GET /admin/users/{id} > editingUser. reload=true
+	 *  force le re-fetch (post-mutation) ; sinon on saute si l'id est déjà
+	 *  affiché ou en cours de chargement (changement d'onglet, double sync). */
+	async loadUserDetail(id, reload = false) {
+		if (!reload && (this.editingUser()?.id === id || this.userLoading === id)) { return; }
+		this.userLoading = id;
+		try {
+			const r = await api.get(`/admin/users/${id}`);
+			if (this.userDetailId() !== id) { return; } // navigation entre-temps
+			const vals = r.settings?.values || {};
+			const fields = this.schemaFields(r.settings?.schema, vals);
+			this.editingUser({
+				id: Number(r.user.id),
+				username: r.user.username,
+				created_at: r.user.created_at,
+				last_login_at: r.user.last_login_at,
+				display_name: ko.observable(r.user.display_name || ''),
+				is_admin: ko.observable(!!Number(r.user.is_admin)),
+				was_admin: !!Number(r.user.is_admin),
+				disabled: ko.observable(!!Number(r.user.disabled)),
+				error: ko.observable(''), // erreur inline dans la page détail
+				settingsFields: ko.observableArray(fields),
+				accounts: r.accounts || [],
+				identities: r.identities || [],
+			});
+			this.editingUserIdentity(null);
+			this.userSessions([]);
+		} catch (e) {
+			if (this.userDetailId() !== id) { return; }
+			const eu = this.editingUser();
+			if (eu && eu.id === id) { eu.error(e.message); } // reload > on reste
+			else { this.error(e.message); location.hash = '#/users'; } // id inexistant > liste
+		} finally {
+			if (this.userLoading === id) { this.userLoading = null; }
+		}
 	}
 
 	/** Sessions "Rester connecte" du compte édité (onglet Sessions). */
@@ -606,8 +690,7 @@ class AdminVM {
 	/** Jetons remember-me + sessions PHP vivantes (bump epoch cote serveur). */
 	async revokeUserSessions() {
 		const eu = this.editingUser();
-		if (!eu || !(await dialog.confirm(t('admin.session_revoke_all_confirm'),
-			{ variant: 'danger', okLabel: t('admin.session_revoke_all') }))) { return; }
+		if (!eu || !(await dialog.confirmDanger(t('admin.session_revoke_all_confirm'), { okLabel: t('admin.session_revoke_all') }))) { return; }
 		await api.post(`/admin/users/${eu.id}/sessions/revoke`)
 			.catch(e => toast.error(e.message));
 		await this.loadUserSessions();
@@ -635,11 +718,10 @@ class AdminVM {
 		} catch (e) { eu.error(e.message); }
 	}
 	async deleteUser(u) {
-		if (!(await dialog.confirm(t('admin.user_delete_confirm', { user: u.username }),
-			{ variant: 'danger', okLabel: t('common.delete') }))) { return; }
+		if (!(await dialog.confirmDanger(t('admin.user_delete_confirm', { user: u.username })))) { return; }
 		try {
 			await api.post(`/admin/users/${u.id}/delete`);
-			this.userModal?.hide();
+			if (this.userDetailId()) { location.hash = '#/users'; } // détail ouvert > retour liste
 			this.loadUsers();
 		} catch (e) {
 			const eu = this.editingUser();
@@ -651,12 +733,7 @@ class AdminVM {
 		eu.error('');
 		// Types natifs JSON (user_settings est (dé)sérialisé en JSON) -
 		// pas la conversion bool>1/0 des configs plugin.
-		const values = {};
-		for (const f of eu.settingsFields()) {
-			values[f.key] = f.type === 'bool' ? !!f.value()
-				: f.type === 'integer' ? parseInt(f.value(), 10) || 0
-				: f.value();
-		}
+		const values = this.collectFields(eu.settingsFields());
 		try {
 			await api.post(`/admin/users/${eu.id}/settings`, values);
 			this.ok(t('settings.saved'));
@@ -668,16 +745,15 @@ class AdminVM {
 			{ variant: 'warning', okLabel: t('common.confirm') }))) { return; }
 		try {
 			await api.post(`/admin/users/${eu.id}/settings/reset`);
-			await this.editUser({ id: eu.id }); // recharge les valeurs effectives
+			await this.loadUserDetail(eu.id, true); // recharge les valeurs effectives
 		} catch (e) { eu.error(e.message); }
 	}
 	async deleteUserAccount(a) {
 		const eu = this.editingUser();
-		if (!(await dialog.confirm(t('admin.user_account_delete', { email: a.email }),
-			{ variant: 'danger', okLabel: t('common.delete') }))) { return; }
+		if (!(await dialog.confirmDanger(t('admin.user_account_delete', { email: a.email })))) { return; }
 		try {
 			await api.post(`/admin/users/${eu.id}/accounts/delete`, { account_id: a.id });
-			await this.editUser({ id: eu.id });
+			await this.loadUserDetail(eu.id, true);
 		} catch (e) { eu.error(e.message); }
 	}
 	editUserIdentity(account, i) {
@@ -698,23 +774,22 @@ class AdminVM {
 		try {
 			await api.post(`/admin/users/${eu.id}/identities`, ko.toJS(this.editingUserIdentity()));
 			this.editingUserIdentity(null);
-			await this.editUser({ id: eu.id });
+			await this.loadUserDetail(eu.id, true);
 		} catch (e) { eu.error(e.message); }
 	}
 	async deleteUserIdentity(i) {
 		const eu = this.editingUser();
-		if (!(await dialog.confirm(t('settings.delete_identity', { email: i.email }),
-			{ variant: 'danger', okLabel: t('common.delete') }))) { return; }
+		if (!(await dialog.confirmDanger(t('settings.delete_identity', { email: i.email })))) { return; }
 		try {
 			await api.post(`/admin/users/${eu.id}/identities/delete`, { identity_id: i.id });
-			await this.editUser({ id: eu.id });
+			await this.loadUserDetail(eu.id, true);
 		} catch (e) { eu.error(e.message); }
 	}
 	async defaultUserIdentity(i) {
 		const eu = this.editingUser();
 		try {
 			await api.post(`/admin/users/${eu.id}/identities/default`, { identity_id: i.id });
-			await this.editUser({ id: eu.id });
+			await this.loadUserDetail(eu.id, true);
 		} catch (e) { eu.error(e.message); }
 	}
 	mapPlugin(p) {
@@ -766,22 +841,19 @@ class AdminVM {
 		} catch (e) { this.pluginsErr(e.message); }
 	}
 	async installPlugin(p) {
-		this.pluginsErr(''); this.pluginBusy(p.name);
-		try {
+		await this.pluginOp(p.name, async () => {
 			await api.post(`/admin/plugins/${p.name}/install`);
 			await this.refreshPlugins();
 			await this.checkPluginsCatalog();
 			this.ok(t('admin.plugins.installed_ok', { name: p.name }));
-		} catch (e) { this.pluginsErr(e.message); }
-		finally { this.pluginBusy(''); }
+		});
 	}
 	async updatePlugin(p) {
 		const c = this.catalogFor(p.name);
 		if (!(await dialog.confirm(t('admin.plugins.confirm_update', { name: p.name, ver: c?.latest || '' }),
 			{ okLabel: t('admin.plugins.update') }))) { return; }
-		this.pluginsErr(''); this.pluginBusy(p.name);
 		const wasEnabled = !!ko.unwrap(p.enabled);
-		try {
+		await this.pluginOp(p.name, async () => {
 			await api.post(`/admin/plugins/${p.name}/install`);
 			if (wasEnabled) {
 				location.reload(); // code + assets du plugin changés
@@ -790,16 +862,13 @@ class AdminVM {
 			await this.refreshPlugins();
 			await this.checkPluginsCatalog();
 			this.ok(t('admin.plugins.updated_ok', { name: p.name }));
-		} catch (e) { this.pluginsErr(e.message); }
-		finally { this.pluginBusy(''); }
+		});
 	}
 	// Désinstallation définitive : dossier supprimé + config purgée.
 	async removePlugin(p) {
-		if (!(await dialog.confirm(t('admin.plugins.confirm_remove', { name: p.name }),
-			{ variant: 'danger', okLabel: t('admin.plugins.remove') }))) { return; }
-		this.pluginsErr(''); this.pluginBusy(p.name);
+		if (!(await dialog.confirmDanger(t('admin.plugins.confirm_remove', { name: p.name }), { okLabel: t('admin.plugins.remove') }))) { return; }
 		const wasEnabled = !!ko.unwrap(p.enabled);
-		try {
+		await this.pluginOp(p.name, async () => {
 			await api.post(`/admin/plugins/${p.name}/remove`);
 			if (wasEnabled) {
 				location.reload(); // hooks admin.mounts du plugin disparus
@@ -808,113 +877,53 @@ class AdminVM {
 			await this.refreshPlugins();
 			await this.checkPluginsCatalog();
 			this.ok(t('admin.plugins.removed_ok', { name: p.name }));
-		} catch (e) { this.pluginsErr(e.message); }
-		finally { this.pluginBusy(''); }
+		});
 	}
 	async togglePlugin(p, e) {
-		try {
-			await api.post(`/admin/plugins/${p.name}/toggle`, { enabled: p.enabled() });
-		} catch (err) {
-			p.enabled(!p.enabled()); // revert : la case recoche d'elle-même
-			this.error(err.message);
-		}
+		await this.togglePost(`/admin/plugins/${p.name}/toggle`, p.enabled, 'enabled');
 	}
 	async togglePluginAllowed(p) {
+		await this.togglePost(`/admin/plugins/${p.name}/allowed`, p.user_allowed, 'allowed');
+	}
+	// Édition/sauvegarde de la config schéma d'un plugin ou d'un thème :
+	// même GET/POST /admin/<kind>/<name>/config, mêmes champs - seuls
+	// l'observable d'édition et la modale diffèrent.
+	_schemaCfg(kind) {
+		return kind === 'plugins'
+			? { obs: 'editingPlugin', modal: 'pluginConfigModal' }
+			: { obs: 'editingTheme', modal: 'themeConfigModal' };
+	}
+	async editSchemaConfig(kind, name, extra = {}) {
+		const cfg = this._schemaCfg(kind);
+		const r = await api.get(`/admin/${kind}/${name}/config`)
+			.catch(e => { this.error(e.message); return null; });
+		if (!r) { this[cfg.obs](null); return; }
+		this[cfg.obs]({
+			name, ...extra,
+			error: ko.observable(''), // erreur affichée dans la modale (alerte racine masquée par le backdrop)
+			fields: ko.observableArray(this.schemaFields(r.schema, r.values,
+				{ labelCol: 'col-4', fieldCol: 'col-8' })),
+		});
+		this[cfg.modal]?.show();
+	}
+	async saveSchemaConfig(kind) {
+		const cfg = this._schemaCfg(kind);
+		const p = this[cfg.obs]();
+		const values = this.collectFields(p.fields(),
+			{ boolInt: true, stringify: true });
 		try {
-			await api.post(`/admin/plugins/${p.name}/allowed`, { allowed: p.user_allowed() });
-		} catch (e) {
-			p.user_allowed(!p.user_allowed()); // revert : la case recoche d'elle-même
-			this.error(e.message);
-		}
+			await api.post(`/admin/${kind}/${p.name}/config`, values);
+			this[cfg.modal]?.hide(); // hidden.bs.modal > observable null
+			this.ok(t('settings.saved'));
+		} catch (e) { p.error(e.message); }
 	}
 	async editPluginConfig(p) {
 		if (!p.has_schema) { return; }
-		const r = await api.get(`/admin/plugins/${p.name}/config`)
-			.catch(e => { this.error(e.message); return null; });
-		if (!r) { this.editingPlugin(null); return; }
-		this.editingPlugin({
-			name: p.name,
-			label: p.label,
-			error: ko.observable(''), // erreur affichée dans la modale (alerte racine masquée par le backdrop)
-			fields: ko.observableArray(
-				Object.entries(r.schema || {}).map(([key, f]) => {
-					let v = r.values?.[key] ?? f.default ?? '';
-					if (f.type === 'bool') { v = !!(v === true || v === 1 || v === '1' || v === 'true'); }
-					// "options" objet {v:label} ou liste [v] - normalisé en paires
-					const opts = f.options || {};
-					const field = {
-						key, label: f.label || key, type: f.type || 'string',
-						help: f.help || f.description || '',
-						optionsList: Array.isArray(opts) ? opts.map(v => [v, v]) : Object.entries(opts),
-					};
-					if (f.type === 'list') {
-						// items observables : sinon "value: $data" ne remonte pas l'édition
-						const items = String(v).split(',').map(s => s.trim()).filter(Boolean);
-						const arr = ko.observableArray(items.map(s => ko.observable(s)));
-						field.value = arr;
-						field.addItem    = () => arr.push(ko.observable(''));
-						field.removeItem = (item) => arr.remove(item);
-					} else {
-						field.value = ko.observable(v);
-					}
-					return field;
-				})
-			),
-		});
-		this.pluginConfigModal?.show();
+		await this.editSchemaConfig('plugins', p.name, { label: p.label });
 	}
-	async savePluginConfig() {
-		const p = this.editingPlugin();
-		const values = {};
-		for (const f of p.fields()) {
-			values[f.key] = f.type === 'bool' ? (f.value() ? 1 : 0)
-				: f.type === 'integer' ? parseInt(f.value(), 10) || 0
-				: f.type === 'list' ? f.value().map(o => ko.unwrap(o)).filter(s => s.trim() !== '').join(', ')
-				: String(f.value());
-		}
-		try {
-			await api.post(`/admin/plugins/${p.name}/config`, values);
-			this.pluginConfigModal?.hide(); // hidden.bs.modal > editingPlugin(null)
-			this.ok(t('settings.saved'));
-		} catch (e) { p.error(e.message); }
-	}
-	async editThemeConfig(t) {
-		const r = await api.get(`/admin/themes/${t.name}/config`)
-			.catch(e => { this.error(e.message); return null; });
-		if (!r) { this.editingTheme(null); return; }
-		this.editingTheme({
-			name: t.name,
-			error: ko.observable(''),
-			fields: ko.observableArray(
-				Object.entries(r.schema || {}).map(([key, f]) => {
-					let v = r.values?.[key] ?? f.default ?? '';
-					if (f.type === 'bool') { v = !!(v === true || v === 1 || v === '1' || v === 'true'); }
-					const opts = f.options || {};
-					return {
-						key, label: f.label || key, type: f.type || 'string',
-						help: f.help || f.description || '',
-						optionsList: Array.isArray(opts) ? opts.map(v => [v, v]) : Object.entries(opts),
-						value: ko.observable(v),
-					};
-				})
-			),
-		});
-		this.themeConfigModal?.show();
-	}
-	async saveThemeConfig() {
-		const p = this.editingTheme();
-		const values = {};
-		for (const f of p.fields()) {
-			values[f.key] = f.type === 'bool' ? (f.value() ? 1 : 0)
-				: f.type === 'integer' ? parseInt(f.value(), 10) || 0
-				: String(f.value());
-		}
-		try {
-			await api.post(`/admin/themes/${p.name}/config`, values);
-			this.themeConfigModal?.hide();
-			this.ok(t('settings.saved'));
-		} catch (e) { p.error(e.message); }
-	}
+	async savePluginConfig() { await this.saveSchemaConfig('plugins'); }
+	async editThemeConfig(t) { await this.editSchemaConfig('themes', t.name); }
+	async saveThemeConfig() { await this.saveSchemaConfig('themes'); }
 	mapThemes(items) {
 		return (items || []).map(t => ({ ...t, allowed: ko.observable(!!t.selectable) }));
 	}
@@ -933,12 +942,7 @@ class AdminVM {
 		} catch (e) { this.error(e.message); }
 	}
 	async toggleThemeAllowed(theme) {
-		try {
-			await api.post(`/admin/themes/${theme.name}/allowed`, { allowed: theme.allowed() });
-		} catch (e) {
-			theme.allowed(!theme.allowed()); // revert : la case recoche d'elle-même
-			this.error(e.message);
-		}
+		await this.togglePost(`/admin/themes/${theme.name}/allowed`, theme.allowed, 'allowed');
 	}
 	async logout() { await api.post('/admin/logout'); location.reload(); }
 }

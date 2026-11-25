@@ -44,7 +44,7 @@ final class PageController
 			&& !\MXWebMail\Security\IpMatch::inList($this->app->clientIp(), $list)) {
 			return Response::html('<h1>403 - ' . $this->translate('errors.forbidden') . '</h1>', 403);
 		}
-		if (empty($_SESSION['admin'])) {
+		if (!$this->app->isAdminSession()) {
 			// TOTP affiché d'emblée seulement si le compte admin local l'exige
 			// (hook admin.totp-required du plugin two-factor-auth - désactivé =
 			// non exigé) ; sinon le champ apparaît sur erreur 'totp_required'.
@@ -72,7 +72,7 @@ final class PageController
 	private function serveAsset(Request $request, string $path, string $mime, int $ttl,
 		array $extraHeaders = []): Response
 	{
-		$http = (array) $this->app->config()->get('http', []);
+		$http = $this->app->config()->section('http');
 		$mtime = (int) filemtime($path);
 		$headers = $extraHeaders + [
 			'Content-Type'  => $mime,
@@ -94,7 +94,7 @@ final class PageController
 
 	private function httpTtl(string $key, int $default): int
 	{
-		$http = (array) $this->app->config()->get('http', []);
+		$http = $this->app->config()->section('http');
 		return (int) ($http[$key] ?? $default);
 	}
 
@@ -213,7 +213,7 @@ final class PageController
 			'Cache-Control' => 'public, max-age=' . max(0, $ttl)
 				. (($request->query['v'] ?? '') !== '' ? ', immutable' : ''),
 		];
-		if (((array) $this->app->config()->get('http', []))['etag'] ?? true) {
+		if ($this->app->config()->section('http')['etag'] ?? true) {
 			$headers['ETag'] = '"' . $sig . '"';
 			if (str_contains((string) $request->header('If-None-Match'), $sig)) {
 				return new Response('', 304, $headers);
@@ -274,6 +274,11 @@ final class PageController
 		// rechargement plein. window.MXWM.i18n garde le même shape pour i18n.js.
 		$vars['i18nUrl'] = $vars['base'] . '/assets/i18n/' . $vars['lang']
 			. '.js?v=' . $locale->signature();
+		// Partials partagés résolus par NOM (pages/<nom>.php) dans la même
+		// chaîne de thèmes que $file : un thème enfant peut surcharger une
+		// page sans devoir recopier les blocs communs.
+		$vars['partial'] = fn(string $template): string
+			=> $this->app->themes()->viewPath($theme, $template);
 		// JSON du bootstrap JS - flags HEX_* : une traduction ne peut pas
 		// casser le <script> inline en injectant </script>.
 		$vars['mxwmJson'] = json_encode([

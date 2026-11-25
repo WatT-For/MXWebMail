@@ -34,6 +34,11 @@ class Response
 				header("{$name}: {$value}");
 			}
 		}
+		// HEAD = GET sans corps : en-têtes identiques (Content-Length compris),
+		// pas de sortie ni de streaming fichier.
+		if (($_SERVER['REQUEST_METHOD'] ?? '') === 'HEAD') {
+			return;
+		}
 		if ($this->file !== null) {
 			$fp = fopen($this->file, 'rb');
 			if (is_resource($fp)) {

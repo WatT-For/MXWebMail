@@ -1,6 +1,8 @@
 import { api, b64url, base } from '../api.js';
 import { dialog } from '../ui/dialog.js';
+import { bindModal } from '../ui/modal.js';
 import { toast } from '../ui/toast.js';
+import { bindAll } from '../ui/bind-all.js';
 import { t } from '../i18n.js';
 import { MessageModel } from '../models/message.js';
 
@@ -107,11 +109,7 @@ export class MessageListVM {
 
 		// Knockout invoque les handlers avec this = $data du contexte courant
 		// (item dans un foreach / objet dans un with) : on force le binding sur le VM.
-		for (const m of Object.getOwnPropertyNames(MessageListVM.prototype)) {
-			if (m !== 'constructor' && typeof this[m] === 'function') {
-				this[m] = this[m].bind(this);
-			}
-		}
+		bindAll(this, MessageListVM.prototype);
 	}
 
 	/**
@@ -300,8 +298,7 @@ export class MessageListVM {
 				|| mv.requestedFolder !== message.folder) { return; }
 			api.post(`/messages/${message.uid}/flags`,
 				{ folder: message.folder, flag: '\\Seen', set: true }).catch(() => {});
-			this.markSeen(this.messages().find(
-				x => x.uid === message.uid && x.folder === message.folder) || message);
+			this.markSeen(this.findModel(message.folder, message.uid) || message);
 		}, delay * 1000);
 	}
 
@@ -328,6 +325,25 @@ export class MessageListVM {
 	/** Clé _gone d'un message (folder+uid - les UID sont par dossier). */
 	goneKey(folder, uid) {
 		return folder + '\n' + uid;
+	}
+
+	/** Ligne affichée d'un message (folder+uid - les UID sont par dossier). */
+	findModel(folder, uid) {
+		return this.messages().find(x => x.uid === uid && x.folder === folder);
+	}
+
+	/** Références {folder,uid} d'un lot de messages (corps des POST batch). */
+	msgRefs(list) {
+		return list.map(m => ({ folder: m.folder, uid: m.uid }));
+	}
+
+	/** POST batch : retourne la première erreur d'item (fail) ou null ;
+	 *  l'exception réseau est convertie en fail (même rôle que try/catch). */
+	async postBatch(path, body) {
+		try {
+			const r = await api.post(path, body);
+			return r.errors?.length ? r.errors[0].error : null;
+		} catch (e) { return e.message; }
 	}
 
 	/** Fin de suivi optimiste d'un déplacement (POST soldé). */
@@ -399,7 +415,7 @@ export class MessageListVM {
 	hideMoved(m) {
 		this._gone.add(this.goneKey(m.folder, m.uid));
 		this.captureAdvanceIdx(m);
-		const row = this.messages().find(x => x.uid === m.uid && x.folder === m.folder);
+		const row = this.findModel(m.folder, m.uid);
 		if (!(row || m).isSeen()) { this.adjustUnread(-1, m.folder); }
 		if (row) { this.messages.remove(row); }
 		// Sous-lignes d'un fil déplié : retirées avec leur racine
@@ -432,12 +448,9 @@ export class MessageListVM {
 	/** Bascule le mode conversation - persisté dans list_threads. */
 	async toggleThreads() {
 		this.useThreads(!this.useThreads());
-		// Synchro userSettings : seede la case des réglages à leur ouverture
-		// (même pattern que savePaneSizes / saveComposeSize).
-		this.app.userSettings.list_threads = this.useThreads();
 		this.page(1);
 		await this.load();
-		api.post('/settings', { list_threads: this.useThreads() }).catch(() => {});
+		this.app.saveSettings({ list_threads: this.useThreads() });
 	}
 
 	/** Déplie/replie les messages d'un fil sous la ligne parente. */
@@ -481,14 +494,10 @@ export class MessageListVM {
 
 	openSearch() {
 		if (!this.searchModal) {
-			this.searchModal = new bootstrap.Modal(document.getElementById('search-modal'));
+			// focus : premier champ à chaque ouverture (pattern compose).
+			this.searchModal = bindModal('search-modal', { focus: 'mx-search-from' });
 		}
 		this.searchModal.show();
-		// Le focus avant la fin de la transition est volé par Bootstrap >
-		// focus du premier champ une fois la modale visible (pattern compose).
-		document.getElementById('search-modal').addEventListener(
-			'shown.bs.modal', () => document.getElementById('mx-search-from')?.focus(),
-			{ once: true });
 	}
 
 	async applySearch() {
@@ -533,11 +542,9 @@ export class MessageListVM {
 	async setSort(o) {
 		if (this.sort() === o.key) { return; }
 		this.sort(o.key);
-		this.app.userSettings.list_sort = o.key;
 		this.page(1);
 		await this.load();
-		// silencieux : préférence utilisateur, non bloquante
-		api.post('/settings', { list_sort: o.key }).catch(() => {});
+		this.app.saveSettings({ list_sort: o.key });
 	}
 
 	// ─── Sélection multiple ───
@@ -568,16 +575,9 @@ export class MessageListVM {
 	 *  > resync de la liste (même pattern que settleBatch). */
 	async setFlagBatch(targets, flag, set) {
 		if (!targets.length) { return; }
-		try {
-			const r = await api.post('/messages/flags', {
-				items: targets.map(m => ({ folder: m.folder, uid: m.uid })),
-				flag, set });
-			if (r.errors?.length) {
-				this.error(r.errors[0].error);
-				await this.load();
-				return;
-			}
-		} catch (e) { this.error(e.message); return; }
+		const fail = await this.postBatch('/messages/flags',
+			{ items: this.msgRefs(targets), flag, set });
+		if (fail) { this.error(fail); await this.load(); return; }
 		for (const m of targets) {
 			// m.folder (dossier réel du message) : en recherche multi-dossiers
 			// il diffère du dossier courant - les UID sont par dossier.
@@ -640,22 +640,33 @@ export class MessageListVM {
 		await this.load(!fail);
 	}
 
+	/** Retrait optimiste après suppression/déplacement unitaire soldé :
+	 *  badge non-lu + ligne + avance du lecteur + resync silencieux. */
+	async removeOptimistic(m) {
+		const model = this.findModel(m.folder, m.uid);
+		if (model) {
+			this.captureAdvanceIdx(model);
+			if (!model.isSeen()) { this.adjustUnread(-1, m.folder); }
+			this.messages.remove(model);
+		}
+		// Avance sur le voisin selon after_delete, sinon lecteur fermé.
+		this.cancelReadTimer();
+		await this.advanceOrClear();
+		await this.load(true);
+	}
+
 	async bulkDelete() {
 		const list = this.checkedMessages();
 		// Sélection multi-dossiers : suppression définitive dès qu'un message
 		// est dans la corbeille (le serveur expunge depuis Trash uniquement).
 		const key = list.some(m => this.app.folderList.isTrashFolder(m.folder))
 			? 'messages.delete_confirm_perm' : 'messages.delete_confirm';
-		if (!list.length || !(await dialog.confirm(t(key, { n: list.length }),
-			{ variant: 'danger', okLabel: t('common.delete'), title: t('messages.delete_title') }))) { return; }
+		if (!list.length || !(await dialog.confirmDanger(t(key, { n: list.length }),
+			{ title: t('messages.delete_title') }))) { return; }
 		this.optimisticRemove(list);
 		this.closeViewerIfRemoved();
-		let fail = null;
-		try {
-			const r = await api.post('/messages/delete',
-				{ items: list.map(m => ({ folder: m.folder, uid: m.uid })) });
-			if (r.errors?.length) { fail = r.errors[0].error; }
-		} catch (e) { fail = e.message; }
+		const fail = await this.postBatch('/messages/delete',
+			{ items: this.msgRefs(list) });
 		await this.settleBatch(list, fail);
 	}
 
@@ -666,12 +677,8 @@ export class MessageListVM {
 		if (!list.length) { return; } // tout est déjà dans le dossier cible
 		this.optimisticRemove(list);
 		this.closeViewerIfRemoved();
-		let fail = null;
-		try {
-			const r = await api.post('/messages/move',
-				{ items: list.map(m => ({ folder: m.folder, uid: m.uid })), to: target });
-			if (r.errors?.length) { fail = r.errors[0].error; }
-		} catch (e) { fail = e.message; }
+		const fail = await this.postBatch('/messages/move',
+			{ items: this.msgRefs(list), to: target });
 		await this.settleBatch(list, fail);
 	}
 
@@ -691,12 +698,8 @@ export class MessageListVM {
 	async bulkCopy(target) {
 		const list = this.checkedMessages().filter(m => m.folder !== target);
 		if (!list.length) { return; }
-		let fail = null;
-		try {
-			const r = await api.post('/messages/copy',
-				{ items: list.map(m => ({ folder: m.folder, uid: m.uid })), to: target });
-			if (r.errors?.length) { fail = r.errors[0].error; }
-		} catch (e) { fail = e.message; }
+		const fail = await this.postBatch('/messages/copy',
+			{ items: this.msgRefs(list), to: target });
 		if (fail) { this.error(fail); }
 		else { toast.success(t('app.copied_many', { n: list.length })); }
 		await this.refresh();
@@ -723,8 +726,9 @@ export class MessageListVM {
 		// le rend après setDragImage : une suppression immédiate = image vide).
 		const ghost = document.createElement('div');
 		ghost.className = 'msg-drag-ghost';
-		ghost.innerHTML = '<i class="fa-solid fa-envelope"></i> '
-			+ t('app.selected_count', { n: this._dragList.length });
+		const icon = document.createElement('i');
+		icon.className = 'fa-solid fa-envelope';
+		ghost.append(icon, ' ', t('app.selected_count', { n: this._dragList.length }));
 		document.body.append(ghost);
 		e.dataTransfer.setDragImage(ghost, 10, 12);
 		this._dragGhost = ghost;
@@ -778,24 +782,31 @@ export class MessageListVM {
 	}
 
 	async bulkSpam(spam) {
-		const junkName = this.app.folderList.junkFolder()?.fullName;
+		await this.spamItems(this.checkedMessages(), spam);
+	}
+
+	/** Marque/démarque spam un lot de messages (cochés ou message unique
+	 *  du lecteur) : UI optimiste (retrait si 'move' prédit, flag sinon),
+	 *  POST groupé, réconciliation sur la stratégie réelle du serveur. */
+	async spamItems(list, spam) {
 		const targets = [];
-		for (const m of this.checkedMessages()) {
+		for (const m of list) {
 			// Déjà dans l'état voulu : le serveur renverrait 'move' sans rien
 			// déplacer (ex. spam sur un message déjà dans Junk) - sautés.
 			const junk = this.app.folderList.isJunkFolder(m.folder) || !!m.isJunk();
 			if (junk === spam) { continue; }
-			// Prédiction miroir du test serveur ($folder === $junk) : 'move'
-			// attendu si le message part/rejoint le dossier Junk, 'keyword' sinon.
-			const expectMove = spam ? (!!junkName && m.folder !== junkName)
-				: (m.folder === junkName);
-			targets.push({ m, expectMove });
+			targets.push({ m, expectMove: this.app.folderList.spamWillMove(m.folder, spam) });
 		}
+		if (!targets.length) { return; }
 		// UI optimiste : retrait immédiat (move attendu) ou flag (keyword).
 		let moved = false;
 		for (const { m, expectMove } of targets) {
 			if (expectMove) { this.hideMoved(m); moved = true; }
-			else { m.isJunk(spam); }
+			else {
+				m.isJunk(spam);
+				// instance lecteur ≠ ligne de la liste : les deux sont synchro
+				this.findModel(m.folder, m.uid)?.isJunk(spam);
+			}
 		}
 		if (moved) { this.closeViewerIfRemoved(); }
 		// POST unique groupé : N requêtes HTTP + N connexions IMAP > 1 + 1.
@@ -804,8 +815,7 @@ export class MessageListVM {
 		let r;
 		try {
 			r = await api.post('/messages/spam', {
-				items: targets.map(({ m }) => ({ folder: m.folder, uid: m.uid })),
-				spam });
+				items: this.msgRefs(targets.map(x => x.m)), spam });
 		} catch (e) { r = { error: e.message }; }
 		const byKey = {};
 		for (const res of r.results || []) {

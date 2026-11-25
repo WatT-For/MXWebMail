@@ -5,6 +5,8 @@
  * TinyMCE ne remonte jamais ses frappes au document - l'éditeur est
  * naturellement exclu.
  */
+import { bindModal } from './ui/modal.js';
+
 export function initShortcuts(app) {
 	let helpModal = null;
 
@@ -25,7 +27,7 @@ export function initShortcuts(app) {
 		switch (e.key) {
 		case '?':
 			if (!helpModal) {
-				helpModal = new bootstrap.Modal(document.getElementById('shortcuts-modal'));
+				helpModal = bindModal('shortcuts-modal');
 			}
 			act(() => helpModal.show());
 			return;

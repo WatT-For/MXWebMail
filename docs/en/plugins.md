@@ -177,6 +177,7 @@ Some plugins have no admin schema: their configuration is **per user** (e.g.
 app/plugins/my-plugin/
 ├── plugin.json          # manifest
 ├── MyPlugin.php         # main class
+├── migrations.php       # (optional) versioned DB schema
 ├── config.schema.json   # (optional) admin configuration schema
 ├── langs/<lang>.php     # dictionaries (keys prefixed plugin.<name>.)
 └── js/ or assets/       # (optional) assets served via /assets/plugin/<name>/<file>
@@ -221,6 +222,69 @@ class MyPlugin extends PluginBase
 	}
 }
 ```
+
+`PluginBase` provides shared helpers: `$this->t()` (translation),
+`requireAdmin()` (admin session guard, see *Generic API*),
+`assetUrl($base, $file)` (versioned URL of a plugin asset),
+`inlineConfig($global, $payload, $nonce)` (CSP-friendly `<script>`
+configuration block) and `firstEmail()` (first `Email` of an
+`EmailCollection`).
+
+Plugin configuration is read through the typed accessors of `PluginBase`
+instead of casting `$this->config` entries: `configString`, `configTrim`,
+`configInt`, `configBool` and `configCsv` (CSV list). Recurring hook
+declarations are factored too: `userTab()` (Settings tab), `adminMount()`
+(admin sub-tab), `feature()` (`features` payload) and `toolbarJs()`
+(message toolbar). `pdo()` returns the application PDO and
+`userSetting()`/`userSettingSet()` wrap user settings under the
+`plugin.<name>.<key>` key. `MXWebMail\Service\LdapConnect` centralizes
+LDAP connection setup for plugins (connect, v3 options, referrals off,
+network timeout, start_tls, bind).
+
+For an outbound HTTP GET, `$this->app->httpGet($url, $timeout, $maxKb)`
+applies the anti-SSRF guard (public host required, redirects not
+followed, capped timeout and size, `ssl.cafile` honored) - prefer it
+over an ad hoc client. The optional `$onBlocked` callback receives
+the refusal reason (`dns`, `literal`, `private`) to adapt logging.
+
+Session reads go through the `App` accessors (live, never memoized)
+rather than raw `$_SESSION`: `sessionUserId()`, `sessionEmail()`,
+`sessionAccountId()`, `sessionDomain()`, `sessionImapPass()`,
+`sessionEpoch()`, `sessionAuthProvider()`, `isAdminSession()`,
+`isSecondaryAccount()`.
+
+### Database tables
+
+A plugin that needs its own tables declares them in `migrations.php`
+at its root. The file returns a `version => statements` array - or a
+closure receiving `MXWebMail\Repository\Database` to dispatch per
+driver. Migrations run when the plugin loads, versioned in
+`meta.plugin_<name>_schema_version`, with the same mechanism as the
+core schema (SQLite transaction, idempotent re-run under MySQL via
+`information_schema`):
+
+```php
+return function (\MXWebMail\Repository\Database $db): array {
+	$idx = ($db->isSqlite() || $db->isMariaDb())
+		? 'CREATE INDEX IF NOT EXISTS' : 'CREATE INDEX';
+	return [
+		1 => [
+			'CREATE TABLE IF NOT EXISTS plugin_myplugin_items (
+				id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL)',
+			"$idx idx_items_user ON plugin_myplugin_items (user_id)",
+		],
+	];
+};
+```
+
+SQLite + MariaDB + MySQL portability: never a bare `IF NOT EXISTS`
+on `ADD COLUMN`/`CREATE INDEX` (MySQL: error 1064 - dispatch per
+driver as above); auto-increment key `INTEGER PRIMARY KEY` (SQLite)
+vs `INTEGER AUTO_INCREMENT PRIMARY KEY`. `$db->insertIgnore()` and
+`$db->upsert()` produce a portable `INSERT IGNORE` / `ON CONFLICT`.
+Prefixing tables `plugin_<name>_` avoids collisions. A disabled
+plugin is not migrated: its tables remain, migration resumes on
+reactivation.
 
 ### Available hooks
 

@@ -69,25 +69,40 @@ final class Database
 	 */
 	public function migrate(): void
 	{
+		$this->migrateList($this->migrations, 'schema_version', 'schema_ahead');
+	}
+
+	/**
+	 * Migrations génériques : liste version => requêtes, version suivie dans
+	 * meta.<$metaKey>. Sert aux plugins (clé "plugin_<name>_schema_version") -
+	 * même mécanisme que le schéma cœur : transaction SQLite, alreadyApplied
+	 * sous MySQL, table meta partagée. $aheadKey = null > pas de suivi
+	 * "schéma en avance" (spécifique cœur, remonté dans l'admin).
+	 * @param array<int, string[]> $migrations index = version de schéma
+	 */
+	public function migrateList(array $migrations, string $metaKey,
+		?string $aheadKey = null): void
+	{
 		try {
-			// Une seule requête pour les deux clés (2 SELECT à chaque connexion
+			// Une seule requête pour les clés (2 SELECT à chaque connexion
 			// avant, même schéma à jour).
-			$meta = $this->metaMap(['schema_version', 'schema_ahead']);
-			$version = (int) ($meta['schema_version'] ?? 0);
-			$ahead = $meta['schema_ahead'] ?? null;
-			$max = max(array_keys($this->migrations));
+			$meta = $this->metaMap(
+				$aheadKey === null ? [$metaKey] : [$metaKey, $aheadKey]);
+			$version = (int) ($meta[$metaKey] ?? 0);
+			$ahead = $aheadKey === null ? null : ($meta[$aheadKey] ?? null);
+			$max = max(array_keys($migrations));
 			if ($version > $max) {
 				// Schéma plus récent que le code : rollback fichiers ou branche
-				// plus ancienne. On ne touche à rien ; meta.schema_ahead est
+				// plus ancienne. On ne touche à rien ; le flag "ahead" est
 				// remonté dans l'admin ("À propos") pour signaler l'écart.
-				if ($ahead !== (string) $version) {
-					$this->setMeta('schema_ahead', (string) $version);
+				if ($aheadKey !== null && $ahead !== (string) $version) {
+					$this->setMeta($aheadKey, (string) $version);
 				}
 				return;
 			}
 			// Code revenu au niveau (ou au-delà) du schéma > le flag tombe.
 			if ($ahead !== null && $ahead !== '') {
-				$this->setMeta('schema_ahead', '');
+				$this->setMeta((string) $aheadKey, '');
 			}
 			if ($version >= $max) {
 				return; // schéma à jour : aucun DDL par requête
@@ -113,7 +128,7 @@ final class Database
 		// est sain.
 		$useTx = $this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite';
 		$isMysql = $this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'mysql';
-		foreach ($this->migrations as $i => $sqlList) {
+		foreach ($migrations as $i => $sqlList) {
 			if ($i <= $version) {
 				continue;
 			}
@@ -127,7 +142,7 @@ final class Database
 					}
 					$this->pdo->exec($sql);
 				}
-				$this->setMeta('schema_version', (string) $i);
+				$this->setMeta($metaKey, (string) $i);
 				if ($useTx) {
 					$this->pdo->commit();
 				}
@@ -188,17 +203,62 @@ final class Database
 		return $stmt->fetchAll(\PDO::FETCH_KEY_PAIR);
 	}
 
+	public function isSqlite(): bool
+	{
+		return $this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite';
+	}
+
+	/**
+	 * MariaDB (driver mysql + server version contient "MariaDB") : accepte
+	 * ADD COLUMN / CREATE INDEX IF NOT EXISTS, contrairement à MySQL pur.
+	 */
+	public function isMariaDb(): bool
+	{
+		return !$this->isSqlite() && str_contains(
+			(string) $this->pdo->getAttribute(PDO::ATTR_SERVER_VERSION), 'MariaDB');
+	}
+
+	/**
+	 * INSERT OR IGNORE (SQLite) / INSERT IGNORE (MariaDB/MySQL) portable :
+	 * la ligne est ignorée silencieusement sur conflit de clé unique.
+	 * $row : colonne => valeur (paramètres positionnels, backtick-quotées).
+	 */
+	public function insertIgnore(string $table, array $row): void
+	{
+		$q = fn(string $c) => '`' . $c . '`';
+		$cols = implode(', ', array_map($q, array_keys($row)));
+		$marks = implode(', ', array_fill(0, count($row), '?'));
+		$sql = ($this->isSqlite() ? 'INSERT OR IGNORE INTO ' : 'INSERT IGNORE INTO ')
+			. "`$table` ($cols) VALUES ($marks)";
+		$this->pdo->prepare($sql)->execute(array_values($row));
+	}
+
+	/**
+	 * INSERT ... ON CONFLICT / ON DUPLICATE KEY portable SQLite + MariaDB/MySQL.
+	 * $row : colonne => valeur (paramètres positionnels) ; $conflict : colonnes
+	 * de la clé unique (clause SQLite) ; $update : colonnes réécrites au conflit.
+	 * Colonnes backtick-quotées - 'key' est un mot réservé MySQL.
+	 */
+	public function upsert(string $table, array $row, array $conflict, array $update): void
+	{
+		$q = fn(string $c) => '`' . $c . '`';
+		$cols = implode(', ', array_map($q, array_keys($row)));
+		$marks = implode(', ', array_fill(0, count($row), '?'));
+		$sqlite = $this->isSqlite();
+		$sets = implode(', ', array_map(
+			fn(string $c) => $sqlite
+				? "`$c` = excluded.`$c`" : "`$c` = VALUES(`$c`)",
+			$update));
+		$sql = "INSERT INTO `$table` ($cols) VALUES ($marks) " . ($sqlite
+			? 'ON CONFLICT(' . implode(',', array_map($q, $conflict))
+				. ") DO UPDATE SET $sets"
+			: "ON DUPLICATE KEY UPDATE $sets");
+		$this->pdo->prepare($sql)->execute(array_values($row));
+	}
+
 	public function setMeta(string $key, string $value): void
 	{
-		if (str_starts_with($this->pdo->getAttribute(PDO::ATTR_DRIVER_NAME), 'sqlite')) {
-			$this->pdo->prepare('INSERT INTO meta (`key`, value) VALUES (:k, :v)
-				ON CONFLICT(`key`) DO UPDATE SET value = excluded.value')
-				->execute(['k' => $key, 'v' => $value]);
-		} else {
-			$this->pdo->prepare('INSERT INTO meta (`key`, value) VALUES (:k, :v)
-				ON DUPLICATE KEY UPDATE value = VALUES(value)')
-				->execute(['k' => $key, 'v' => $value]);
-		}
+		$this->upsert('meta', ['key' => $key, 'value' => $value], ['key'], ['value']);
 	}
 
 	/** @return array<int, string[]> index = version de schéma */

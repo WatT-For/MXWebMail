@@ -2,14 +2,11 @@
 declare(strict_types=1);
 
 namespace MXWebMail\Controller\Api;
-use MXWebMail\Application\App;
 use MXWebMail\Http\JsonResponse;
 use MXWebMail\Http\Request;
 use MXWebMail\Http\Response;
-use MXWebMail\Security\CredentialCrypt;
-use MXWebMail\Security\Csrf;
-use MXWebMail\Security\TotpRequiredException;
 use MXWebMail\Service\MailService;
+use MXWebMail\UserFacingException;
 
 
 
@@ -24,10 +21,9 @@ final class FoldersController extends BaseController
 
 	public function folderCreate(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
-		// Une seule instance : App::mail() retourne un MailService neuf à
-		// chaque appel - deux appels = deux connexions IMAP.
+		$this->requireWrite();
+		// App::mail() est memoise (une connexion IMAP par requete) - $mail
+		// garde la reference locale plutot que repeter l'accesseur.
 		$mail = $this->app->mail();
 		$before = array_column($mail->folders(), 'fullName');
 		$mail->folderCreate(
@@ -43,8 +39,7 @@ final class FoldersController extends BaseController
 
 	public function folderDelete(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		$this->requireDangerous();
 		$mail = $this->app->mail();
 		$mail->folderDelete($this->requireNonSystemFolder($request));
@@ -54,8 +49,7 @@ final class FoldersController extends BaseController
 
 	public function folderRename(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		$mail = $this->app->mail();
 		$name = $this->requireNonSystemFolder($request);
 		$delimiter = $this->folderDelimiter($mail, $name);
@@ -67,16 +61,14 @@ final class FoldersController extends BaseController
 
 	public function folderSubscribe(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		$this->app->mail()->folderSubscribe($this->folderParam($request), (bool) $request->input('subscribe', true));
 		return JsonResponse::ok();
 	}
 
 	public function folderClear(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		$this->requireDangerous();
 		$this->app->mail()->folderClear($this->requireNonSystemFolder($request, true));
 		return JsonResponse::ok();
@@ -84,8 +76,7 @@ final class FoldersController extends BaseController
 
 	public function folderMarkRead(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		// Pas de requireNonSystemFolder : non destructif et utile sur INBOX/système.
 		$this->app->mail()->folderMarkRead($this->folderParam($request));
 		return JsonResponse::ok();
@@ -99,8 +90,7 @@ final class FoldersController extends BaseController
 
 	public function folderAclSet(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		$this->app->mail()->folderSetAcl(
 			$this->requireNonSystemFolder($request),
 			$this->noCrlf((string) $request->input('identifier'), 'identifier'),
@@ -111,8 +101,7 @@ final class FoldersController extends BaseController
 
 	public function folderAclDelete(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		$this->app->mail()->folderDeleteAcl(
 			$this->requireNonSystemFolder($request),
 			$this->noCrlf((string) $request->input('identifier'), 'identifier')
@@ -124,8 +113,7 @@ final class FoldersController extends BaseController
 	public function foldersSpecialGet(Request $request): JsonResponse
 	{
 		$this->requireReadOnly();
-		// Une seule instance : App::mail() retourne un MailService neuf à
-		// chaque appel - deux appels = deux connexions IMAP.
+		// App::mail() est memoise (une connexion IMAP par requete).
 		$mail = $this->app->mail();
 		$map = $mail->specialFolderMap();
 		$out = [];
@@ -143,17 +131,15 @@ final class FoldersController extends BaseController
 
 	public function foldersSpecialSet(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
-		// Une seule instance : App::mail() retourne un MailService neuf à
-		// chaque appel - deux appels = deux connexions IMAP.
+		$this->requireWrite();
+		// App::mail() est memoise (une connexion IMAP par requete).
 		$mail = $this->app->mail();
 		$existing = array_column($mail->folders(), 'fullName');
 		$body = $request->json();
 		// Un JSON en liste écraserait toutes les assignations (clés rejetées) :
 		// refusé plutôt que destructif.
 		if (!is_array($body) || ($body !== [] && array_is_list($body))) {
-			throw new \InvalidArgumentException($this->t('errors.invalid_value', ['key' => 'special_folders']), 400);
+			throw new UserFacingException($this->t('errors.invalid_value', ['key' => 'special_folders']), 400, jsonCode: 'validation');
 		}
 		$map = [];
 		foreach ($body as $role => $value) {
@@ -178,8 +164,7 @@ final class FoldersController extends BaseController
 
 	public function foldersNotifySet(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		$this->app->mail()->setNotifyFolderList(
 			array_map(fn($f) => $this->noCrlf((string) $f, 'folder'), (array) $request->input('folders', [])));
 		return JsonResponse::ok();
@@ -188,8 +173,7 @@ final class FoldersController extends BaseController
 	/** Dossiers repliés dans la colonne latérale (état UI par compte). */
 	public function foldersCollapsedSet(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		$this->app->mail()->setCollapsedFolders(
 			array_map(fn($f) => $this->noCrlf((string) $f, 'folder'), (array) $request->input('folders', [])));
 		return JsonResponse::ok();
@@ -198,8 +182,7 @@ final class FoldersController extends BaseController
 	/** Dossiers masqués de la colonne latérale (état UI par compte). */
 	public function foldersHiddenSet(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		$this->app->mail()->setHiddenFolders(
 			array_map(fn($f) => $this->noCrlf((string) $f, 'folder'), (array) $request->input('folders', [])));
 		return JsonResponse::ok();
@@ -208,8 +191,7 @@ final class FoldersController extends BaseController
 	/** Dernier dossier consulté, restauré à l'ouverture (état UI par compte). */
 	public function foldersLastSet(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		$this->app->mail()->setLastFolder(
 			$this->noCrlf((string) $request->input('folder', ''), 'folder'));
 		return JsonResponse::ok();
@@ -219,18 +201,13 @@ final class FoldersController extends BaseController
 	 *  (détection par contenu : 1ʳᵉ ligne "From" - extension non fiable). */
 	public function folderImport(Request $request): JsonResponse
 	{
-		$this->requireAuth();
-		$this->requireCsrf();
+		$this->requireWrite();
 		$mail = $this->app->mail();
 		$folder = $this->folderParam($request);
-		if (!in_array($folder, array_column($mail->folders(), 'fullName'), true)) {
-			return JsonResponse::error($this->t('errors.not_found'), 'not_found', 404);
+		if (!$mail->folderExists($folder)) {
+			throw new UserFacingException($this->t('errors.not_found'), 404, jsonCode: 'not_found');
 		}
-		$f = $request->files['file'] ?? null;
-		if (!is_array($f) || (int) ($f['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK
-			|| !is_uploaded_file((string) ($f['tmp_name'] ?? ''))) {
-			return JsonResponse::error($this->t('errors.bad_upload'), 'bad_upload');
-		}
+		$f = $this->requireUpload($request, 'file');
 		$maxSize = (int) $this->app->config()->get('attachment_max_size', 25) * 1024 * 1024;
 		$isMbox = str_starts_with((string) file_get_contents((string) $f['tmp_name'], false, null, 0, 5), 'From ');
 		if ($isMbox) {
@@ -238,25 +215,23 @@ final class FoldersController extends BaseController
 				(int) $this->app->config()->get('import_max_size', 100) * 1024 * 1024);
 		}
 		if ((int) ($f['size'] ?? 0) > $maxSize) {
-			return JsonResponse::error(
-				$this->t('errors.file_too_big', ['mb' => (int) ($maxSize / 1048576)]), 'too_big', 400);
+			throw new UserFacingException($this->t('errors.file_too_big', ['mb' => (int) ($maxSize / 1048576)]), 400, jsonCode: 'too_big');
 		}
 		// Hook : scan AV (attachments-clamav) - le tmp_name est purgé par
 		// PHP en fin de requête, rien à nettoyer si le hook jette.
 		$this->app->hooks()->run('attachment.upload', (string) $f['tmp_name'],
 			basename(str_replace('\\', '/', (string) ($f['name'] ?? ''))),
-			(int) $_SESSION['user_id']);
+			$this->app->sessionUserId());
 		if ($isMbox) {
 			return JsonResponse::ok($this->importMbox($mail, (string) $f['tmp_name'], $folder));
 		}
 		$raw = file_get_contents((string) $f['tmp_name']);
 		if ($raw === false || trim($raw) === '') {
-			return JsonResponse::error($this->t('errors.bad_upload'), 'bad_upload');
+			throw new UserFacingException($this->t('errors.bad_upload'), jsonCode: 'bad_upload');
 		}
 		return JsonResponse::ok(['uid' => $mail->appendMessage($raw, $folder, ['\\Seen'])]);
 	}
 
-	/** Toutes les PJ d'un message en un zip streamé (MXWebMailLib\Stream\ZIP). */
 	/** Zip des .eml des messages cochés : GET ?uids=1,2,3 (cap 100, streamé). */
 	public function emlZip(Request $request): Response
 	{
@@ -265,11 +240,10 @@ final class FoldersController extends BaseController
 		$uids = array_values(array_unique(array_filter(array_map('intval',
 			explode(',', (string) $request->input('uids', ''))))));
 		if (!$uids) {
-			return JsonResponse::error($this->t('errors.invalid_value', ['key' => 'uids']), 'bad_uids', 400);
+			throw new UserFacingException($this->t('errors.invalid_value', ['key' => 'uids']), 400, jsonCode: 'bad_uids');
 		}
 		if (count($uids) > 100) {
-			return JsonResponse::error(
-				$this->t('errors.too_many', ['max' => 100]), 'too_many', 413);
+			throw new UserFacingException($this->t('errors.too_many', ['max' => 100]), 413, jsonCode: 'too_many');
 		}
 		$mail = $this->app->mail();
 		// Valide le dossier AVANT les en-têtes : MessageMimeStream fait le même
@@ -280,22 +254,14 @@ final class FoldersController extends BaseController
 		} catch (\Throwable) {
 			return Response::notFound();
 		}
-		$zip = new \MXWebMailLib\Stream\ZIP();
-		$zip->pushHttpHeaders('messages');
-		$failed = [];
+		// uid disparu ou illisible : entrée signalée dans ERREURS.txt.
+		$entries = [];
 		foreach ($uids as $uid) {
-			// uid disparu ou illisible : entrée signalée dans ERREURS.txt.
-			if (!$mail->mimeStream($folder, $uid, '',
-				function ($r) use ($zip, $uid) { $zip->addFromStream($r, "message-{$uid}.eml"); })) {
-				$failed[] = $uid;
-			}
+			$entries["message-{$uid}.eml"] = fn(callable $add) =>
+				$mail->mimeStream($folder, $uid, '', $add);
 		}
-		if ($failed) {
-			$zip->addFromString('ERREURS.txt',
-				"Messages introuvables ou illisibles : " . implode(', ', $failed) . "\n");
-		}
-		$zip->close();
-		return new Response('', 200);
+		return \MXWebMail\Http\ZipStreamer::send('messages',
+			$entries, 'Messages introuvables ou illisibles');
 	}
 
 	/**
@@ -308,7 +274,7 @@ final class FoldersController extends BaseController
 		$name = $this->folderParam($request);
 		$flags = $this->app->mail()->folderFlags($name);
 		if ($flags[$inboxOnly ? 'inbox' : 'system']) {
-			throw new \RuntimeException($this->t('errors.folder_protected'), 403);
+			throw new UserFacingException($this->t('errors.folder_protected'), 403, jsonCode: 'forbidden');
 		}
 		return $name;
 	}
@@ -335,7 +301,7 @@ final class FoldersController extends BaseController
 	{
 		$handle = fopen($path, 'rb');
 		if (!is_resource($handle)) {
-			throw new \RuntimeException($this->t('errors.bad_upload'), 400);
+			throw new UserFacingException($this->t('errors.bad_upload'), 400, jsonCode: 'bad_upload');
 		}
 		$imported = 0; $failed = 0; $skipped = 0;
 		$msg = ''; $date = 0; $hasMsg = false;

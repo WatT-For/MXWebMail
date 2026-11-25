@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Plugin;
 
+use MXWebMail\Cache\FileCache;
 use MXWebMail\Plugin\HookRegistry;
 use MXWebMail\Plugin\PluginBase;
 
@@ -24,26 +25,29 @@ final class ImapContactsSuggestions extends PluginBase
 	public function search(string $q): array
 	{
 		$q = trim($q);
-		$max = max(1, (int) ($this->config['max_results'] ?? 10));
+		$max = max(1, $this->configInt('max_results', 10));
 		if (mb_strlen($q) < 2) {
 			return [];
 		}
-		// TTL 5 min : l'endpoint est frappé à chaque frappe (debounce 250 ms)
-		// - sans cache chaque saisie ouvrirait une connexion IMAP + SEARCH.
-		$cache = \MXWebMail\API::Actions()->Cacher();
+		// TTL 5 min (mtime du fichier) : l'endpoint est frappé à chaque
+		// frappe (debounce 250 ms) - sans cache chaque saisie ouvrirait
+		// une connexion IMAP + SEARCH.
+		$cache = new FileCache(
+			$this->app->storageDir() . '/cache/contacts.imap');
 		// L'identité du compte fait partie de la clé : l'index de cache est
 		// partagé - sans elle deux comptes se serviraient leurs suggestions.
-		$ckey = 'contacts.imap/' . md5(
-			($_SESSION['account_id'] ?? 0) . '|' . ($_SESSION['email'] ?? '')
-			. '|' . ($this->config['folder'] ?? 'INBOX') . '|' . $q . '|' . $max);
-		$hit = $cache->Get($ckey);
-		if (is_string($hit) && is_array($hit = json_decode($hit, true))
-			&& ($hit['t'] ?? 0) > time() - 300) {
+		$file = md5(
+			$this->app->sessionAccountId() . '|' . $this->app->sessionEmail()
+			. '|' . $this->configString('folder', 'INBOX') . '|' . $q . '|' . $max)
+			. '.json';
+		if ($cache->fresh($file, 300)
+			&& is_array($hit = $cache->getJson($file))) {
 			return $hit['d'] ?? [];
 		}
+		$imap = null;
 		try {
 			$imap = $this->app->mail()->client()->ImapClient();
-			$imap->FolderSelect((string) ($this->config['folder'] ?? 'INBOX'));
+			$imap->FolderSelect($this->configString('folder', 'INBOX'));
 
 			$q = \MailSo\Imap\SearchCriterias::escapeSearchString($imap, $q);
 			$uids = array_slice($imap->MessageSearch("FROM {$q}"), 0, $max);
@@ -70,11 +74,18 @@ final class ImapContactsSuggestions extends PluginBase
 				}
 			}
 			$out = array_slice($out, 0, $max);
-			$cache->Set($ckey, json_encode(['t' => time(), 'd' => $out]));
+			$cache->setJson($file, ['d' => $out]);
 			return $out;
 		} catch (\Throwable $e) {
 			$this->app->log('warning', 'imap-contacts-suggestions: ' . $e->getMessage());
 			return [];
+		} finally {
+			// Le client IMAP est celui de la session : la sélection résiduelle
+			// ne doit pas fuiter vers l'appelant (UNSELECT = état neutre,
+			// chaque consommateur re-sélectionne son dossier).
+			if ($imap) {
+				try { $imap->FolderUnselect(); } catch (\Throwable) {}
+			}
 		}
 	}
 }

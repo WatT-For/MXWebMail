@@ -7,6 +7,7 @@ use MXWebMail\Http\Request;
 use MXWebMail\Plugin\HookRegistry;
 use MXWebMail\Plugin\PluginBase;
 use MXWebMail\Security\Wildcard;
+use MXWebMail\Validation\Rule;
 
 /**
  * Étiquettes couleur sur les mails.
@@ -40,14 +41,8 @@ final class ColorTags extends PluginBase
 	public function register(HookRegistry $hooks): void
 	{
 		$hooks->on('app.data', function (array $data) {
-			$data['pluginTabs'][] = [
-				'id'     => 'color-tags',
-				'label'  => 'plugin.color-tags.tab',
-				'icon'   => 'fa-tag',
-				'js'     => 'color-tags.js',
-				'plugin' => 'color-tags',
-			];
-			$data['messageToolbar'][] = ['plugin' => 'color-tags', 'js' => 'color-tags-toolbar.js'];
+			$data['pluginTabs'][] = $this->userTab('color-tags.js', 'fa-tag');
+			$data['messageToolbar'][] = $this->toolbarJs('color-tags-toolbar.js');
 			return $data;
 		});
 
@@ -138,7 +133,7 @@ final class ColorTags extends PluginBase
 				$value = match ($rule['field']) {
 					'from'    => $email,
 					'domain'  => $email !== ''
-						? \MailSo\Base\Utils::getEmailAddressDomain($email) : '',
+						? Rule::emailDomain($email) : '',
 					'subject' => (string) ($d['subject'] ?? ''),
 					default   => '',
 				};
@@ -237,13 +232,4 @@ final class ColorTags extends PluginBase
 		return $out;
 	}
 
-	private static function firstEmail(?\MailSo\Mime\EmailCollection $col): ?\MailSo\Mime\Email
-	{
-		if ($col && count($col)) {
-			foreach ($col as $email) {
-				return $email;
-			}
-		}
-		return null;
-	}
 }

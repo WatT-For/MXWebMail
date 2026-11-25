@@ -18,12 +18,12 @@ final class AlwaysCcBcc extends PluginBase
 	public function register(HookRegistry $hooks): void
 	{
 		$hooks->on('message.before-send', function (\MailSo\Mime\Message $message) {
-			$raw = trim((string) ($this->config['addresses'] ?? ''));
+			$raw = $this->configTrim('addresses');
 			if ($raw === '') {
 				return;
 			}
-			$me = strtolower((string) ($_SESSION['email'] ?? ''));
-			if (!Wildcard::match($me, (string) ($this->config['senders'] ?? '*'))) {
+			$me = strtolower($this->app->sessionEmail());
+			if (!Wildcard::match($me, $this->configString('senders', '*'))) {
 				return;
 			}
 			[$extra, $bad] = \MailSo\Mime\EmailCollection::ParseStrict($raw);
@@ -31,7 +31,7 @@ final class AlwaysCcBcc extends PluginBase
 				throw new \RuntimeException(
 					$this->t('plugin.always-cc-bcc.bad_addresses'), 400);
 			}
-			$cc = (string) ($this->config['mode'] ?? 'bcc') === 'cc';
+			$cc = $this->configString('mode', 'bcc') === 'cc';
 			$target = ($cc ? $message->GetCc() : $message->GetBcc())
 				?? new \MailSo\Mime\EmailCollection();
 			$have = [$me => true];

@@ -10,7 +10,8 @@ Documentatie om de architectuur te begrijpen en het project uit te breiden
 ```
 public/                front controller (index.php) + assets
 app/src/MXWebMail/     applicatiecode:
-  Application/App.php  servicecontainer + dispatch + routes
+  Application/App.php  servicecontainer + dispatch
+                       (declaratieve routes in app/routes.php)
   API.php, Utils.php   compatibiliteitsfacades voor gevendoreerde code (MailSo/Lib)
   Compat/              MailSo-compatibiliteitsbruggen (ActionsBridge,
                        ConfigBridge, PluginsBridge)
@@ -31,6 +32,7 @@ app/src/MXWebMail/     applicatiecode:
   Service/             AuthService, MailService, DomainDetector, OAuthService,
                        GitHubClient (gedeelde Releases-HTTP), UpdateService (kern),
                        PluginPackageService (plugin-catalogus/install/remove),
+                       LdapConnect (gedeelde LDAP-verbindingsopbouw van plugins),
                        contact-imports (CsvContacts, VCardContacts,
                        RainLoopContacts)
   Sieve/               ScriptBuilder - generatie van filterregels
@@ -39,6 +41,7 @@ app/src/MailSo/        gevendoreerde mailbibliotheek (ongewijzigd)
 app/src/Sabre/         sabre/vobject+xml+uri (vCard CardDAV)
 app/src/Lib/           MXWebMailLib-hulpprogramma's (classmap)
 app/src/bootstrap.php  zelfgemaakte autoloader
+app/routes.php         routetabel [METHODE, pad, [Klasse, 'action']]
 ```
 
 - **Frontend**: Knockout + Bootstrap 5.3, ES-modules in `public/assets/js/`

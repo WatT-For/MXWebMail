@@ -84,19 +84,9 @@ final class PluginRepository
 		if ($data === []) {
 			return;
 		}
-		$driver = $this->db->pdo()->getAttribute(\PDO::ATTR_DRIVER_NAME);
 		$row = array_merge(['enabled' => 0, 'user_allowed' => 0], $data);
-		$cols = 'name, ' . implode(', ', array_keys($row));
-		$marks = ':n, :' . implode(', :', array_keys($row));
-		$sets = implode(', ', array_map(
-			fn(string $c) => $driver === 'sqlite' ? "$c = excluded.$c" : "$c = VALUES($c)",
-			array_keys($data)));
-		$sql = $driver === 'sqlite'
-			? "INSERT INTO plugins ($cols) VALUES ($marks)
-			   ON CONFLICT(name) DO UPDATE SET $sets"
-			: "INSERT INTO plugins ($cols) VALUES ($marks)
-			   ON DUPLICATE KEY UPDATE $sets";
-		$this->db->pdo()->prepare($sql)->execute(['n' => $name] + $row);
+		$this->db->upsert('plugins', ['name' => $name] + $row, ['name'],
+			array_keys($data));
 		// Map mémoïsée synchro : un getConfig post-écriture dans la même
 		// requête doit lire la nouvelle valeur (config admin, setEnabled…).
 		if ($this->stateMap !== null && isset($this->stateMap[$name])

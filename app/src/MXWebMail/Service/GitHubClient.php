@@ -4,6 +4,9 @@ declare(strict_types=1);
 namespace MXWebMail\Service;
 
 use MXWebMail\Application\App;
+use MXWebMail\Cache\FileCache;
+use MXWebMail\Files;
+use MXWebMail\Locale\Translates;
 
 /**
  * Client GitHub Releases partagé : UpdateService (paquet cœur
@@ -22,6 +25,8 @@ use MXWebMail\Application\App;
  */
 final class GitHubClient
 {
+	use Translates;
+
 	// Dépôt officiel des releases - à renseigner ici à la publication (sécurité :
 	// un repo éditable via l'admin permettrait de détourner l'updater > RCE).
 	// Tant qu'il est vide, update.repo dans config.php fait foi (fallback dev,
@@ -29,21 +34,16 @@ final class GitHubClient
 	private const REPO = 'WatT-For/MXWebMail';
 
 	private string $cacheFile;
+	private ?FileCache $fc = null;
 
 	public function __construct(private App $app)
 	{
-		$this->cacheFile = $app->storageDir() . '/cache/update-check.json';
-	}
-
-	private function t(string $key, array $params = []): string
-	{
-		return $this->app->locale()->t($key, $params);
+		$this->cacheFile = 'update-check.json';
 	}
 
 	private function cfg(): array
 	{
-		$upd = $this->app->config()->get('update', []);
-		return is_array($upd) ? $upd : [];
+		return $this->app->config()->section('update');
 	}
 
 	private function repo(): ?string
@@ -147,7 +147,7 @@ final class GitHubClient
 
 	public function invalidateCache(): void
 	{
-		@unlink($this->cacheFile);
+		$this->fileCache()->delete($this->cacheFile);
 	}
 
 	/**
@@ -252,7 +252,7 @@ final class GitHubClient
 	 */
 	public function resolveCommit(string $ref, bool $force = false): array
 	{
-		$c = $this->readJsonCache('plugins-ref.json');
+		$c = $this->fileCache()->getJson('plugins-ref.json');
 		if (!$force && ($c['ref'] ?? '') === $ref
 			&& ($c['at'] ?? 0) > time() - $this->updateTtl()
 			&& preg_match('/^[0-9a-f]{40}$/', (string) ($c['sha'] ?? ''))
@@ -267,7 +267,7 @@ final class GitHubClient
 		if (!preg_match('/^[0-9a-f]{40}$/', $sha) || !preg_match('/^[0-9a-f]{40}$/', $tree)) {
 			throw new \RuntimeException("Ref git \"$ref\" introuvable", 502);
 		}
-		$this->writeJsonCache('plugins-ref.json',
+		$this->fileCache()->setJson('plugins-ref.json',
 			['v' => 1, 'at' => time(), 'ref' => $ref, 'sha' => $sha, 'tree' => $tree]);
 		return ['sha' => $sha, 'tree' => $tree];
 	}
@@ -280,7 +280,7 @@ final class GitHubClient
 	public function tree(string $treeSha): array
 	{
 		$file = "plugins-tree-$treeSha.json";
-		$c = $this->readJsonCache($file);
+		$c = $this->fileCache()->getJson($file);
 		if (is_array($c['tree'] ?? null)) {
 			return $c['tree'];
 		}
@@ -307,12 +307,8 @@ final class GitHubClient
 		}
 		// GC : un seul tree conservé
 		$cacheDir = $this->app->storageDir() . '/cache';
-		foreach (glob("$cacheDir/plugins-tree-*.json") ?: [] as $old) {
-			if (basename($old) !== $file) {
-				@unlink($old);
-			}
-		}
-		$this->writeJsonCache($file, ['v' => 1, 'tree' => $map]);
+		Files::gcGlob("$cacheDir/plugins-tree-*.json", 0, $file);
+		$this->fileCache()->setJson($file, ['v' => 1, 'tree' => $map]);
 		return $map;
 	}
 
@@ -346,25 +342,10 @@ final class GitHubClient
 		return (int) ($this->cacheCfg()['update_ttl'] ?? 3600);
 	}
 
-	private function readJsonCache(string $file): ?array
+	private function fileCache(): FileCache
 	{
-		if (!$this->cacheEnabled()) {
-			return null;
-		}
-		$path = $this->app->storageDir() . '/cache/' . $file;
-		$raw = is_file($path) ? file_get_contents($path) : false;
-		$c = is_string($raw) ? json_decode($raw, true) : null;
-		return is_array($c) ? $c : null;
-	}
-
-	private function writeJsonCache(string $file, array $data): void
-	{
-		if (!$this->cacheEnabled()) {
-			return;
-		}
-		$path = $this->app->storageDir() . '/cache/' . $file;
-		is_dir(dirname($path)) || mkdir(dirname($path), 0700, true);
-		$this->writeJson($path, $data);
+		return $this->fc ??= new FileCache(
+			$this->app->storageDir() . '/cache', $this->cacheEnabled());
 	}
 
 	// ─── HTTP ───
@@ -414,6 +395,9 @@ final class GitHubClient
 		$opts = [
 			CURLOPT_RETURNTRANSFER => true,
 			CURLOPT_FOLLOWLOCATION => true,
+			// Redirections bornées à HTTPS : pas de downgrade silencieux
+			// vers HTTP sur un 3xx de l'API ou du CDN.
+			CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS,
 			CURLOPT_MAXREDIRS    => 3,
 			CURLOPT_TIMEOUT      => $toFile !== null ? 120 : 15,
 			CURLOPT_USERAGENT    => 'MXWebMail/' . APP_VERSION,
@@ -517,8 +501,7 @@ final class GitHubClient
 	/** Section "cache" de la config - enabled=false > cache ignoré. */
 	private function cacheCfg(): array
 	{
-		$c = $this->app->config()->get('cache', []);
-		return is_array($c) ? $c : [];
+		return $this->app->config()->section('cache');
 	}
 
 	private function cacheEnabled(): bool
@@ -528,12 +511,8 @@ final class GitHubClient
 
 	private function readCache(): ?array
 	{
-		if (!$this->cacheEnabled()) {
-			return null;
-		}
 		$ttl = (int) ($this->cacheCfg()['update_ttl'] ?? 3600);
-		$raw = is_file($this->cacheFile) ? file_get_contents($this->cacheFile) : false;
-		$c = is_string($raw) ? json_decode($raw, true) : null;
+		$c = $this->fileCache()->getJson($this->cacheFile);
 		return (is_array($c) && ($c['at'] ?? 0) > time() - $ttl
 			&& ($c['v'] ?? 0) >= 3
 			&& is_array($c['release'] ?? null)) ? $c : null;
@@ -541,22 +520,9 @@ final class GitHubClient
 
 	private function writeCache(?string $repo, string $channel, string $manifest, array $release): void
 	{
-		if (!$this->cacheEnabled()) {
-			return;
-		}
-		is_dir(dirname($this->cacheFile)) || mkdir(dirname($this->cacheFile), 0700, true);
-		$this->writeJson($this->cacheFile, [
+		$this->fileCache()->setJson($this->cacheFile, [
 			'v' => 3, 'at' => time(), 'repo' => $repo, 'channel' => $channel,
 			'manifest' => $manifest, 'release' => $release,
 		]);
-	}
-
-	/** Écriture JSON atomique : tmp + rename, jamais de fichier tronqué lu. */
-	private function writeJson(string $file, mixed $data): void
-	{
-		$tmp = $file . '.' . getmypid() . '.tmp';
-		if (file_put_contents($tmp, json_encode($data, JSON_UNESCAPED_SLASHES)) !== false) {
-			rename($tmp, $file) || @unlink($tmp); // pas de reliquat .tmp
-		}
 	}
 }

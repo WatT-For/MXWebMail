@@ -27,7 +27,7 @@ final class LoginNotify extends PluginBase
 		$hooks->on('auth.post-login', function (array $user, ?string $code) {
 			$uid = (int) $user['id'];
 			$ip = $this->app->clientIp();
-			if ($ip === '' || ($this->config['ignore_private'] ?? false) && !filter_var(
+			if ($ip === '' || $this->configBool('ignore_private') && !filter_var(
 				$ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
 				return;
 			}
@@ -59,11 +59,8 @@ final class LoginNotify extends PluginBase
 		});
 
 		$hooks->on('app.data', function (array $data, ?array $user) {
-			if (!empty($this->config['user_control'] ?? true)) {
-				$data['pluginTabs'][] = [
-					'id' => 'login-notify', 'label' => 'plugin.login-notify.tab',
-					'icon' => 'fa-bell', 'js' => 'login-notify.js',
-					'plugin' => 'login-notify'];
+			if ($this->configBool('user_control', true)) {
+				$data['pluginTabs'][] = $this->userTab('login-notify.js', 'fa-bell');
 			}
 			$pending = $this->app->settings()->get((int) ($user['id'] ?? 0), self::K_PENDING);
 			if (is_array($pending) && !empty($pending['ip'])) {
@@ -80,7 +77,7 @@ final class LoginNotify extends PluginBase
 
 	private function enabled(int $uid): bool
 	{
-		if (empty($this->config['user_control'] ?? true)) {
+		if (!$this->configBool('user_control', true)) {
 			return true;
 		}
 		return $this->app->settings()->get($uid, self::K_ENABLED, '1') !== '0';
@@ -89,12 +86,12 @@ final class LoginNotify extends PluginBase
 	/** Alerte deposee non lue dans le dossier configure (defaut INBOX). */
 	private function deliver(array $pending): void
 	{
-		$me = (string) ($_SESSION['email'] ?? '');
+		$me = $this->app->sessionEmail();
 		if ($me === '') {
 			return;
 		}
 		$ip = (string) $pending['ip'];
-		if (!empty($this->config['mask_ip'])) {
+		if ($this->configBool('mask_ip')) {
 			$ip = str_contains($ip, ':')
 				? preg_replace('/:[0-9a-f]*(:[0-9a-f]*)?$/i', '::*', $ip)
 				: preg_replace('/\.\d+$/', '.x', $ip);
@@ -102,7 +99,7 @@ final class LoginNotify extends PluginBase
 		$body = $this->t('plugin.login-notify.body', [
 			'ip'   => $ip,
 			'date' => date(\DateTimeInterface::RFC2822, (int) ($pending['ts'] ?? time())),
-			'ua'   => !empty($this->config['include_ua'] ?? true)
+			'ua'   => $this->configBool('include_ua', true)
 				? (string) ($pending['ua'] ?? '') : '',
 		]);
 		$subject = mb_encode_mimeheader($this->t('plugin.login-notify.subject'), 'UTF-8');
@@ -114,25 +111,12 @@ final class LoginNotify extends PluginBase
 			. "Content-Transfer-Encoding: quoted-printable\r\n"
 			. "Auto-Submitted: auto-generated\r\n\r\n"
 			. quoted_printable_encode($body);
-		$folder = trim((string) ($this->config['folder'] ?? 'INBOX')) ?: 'INBOX';
+		$folder = $this->configTrim('folder', 'INBOX') ?: 'INBOX';
 		$this->app->mail()->appendMessage($raw, $folder, []);
 	}
 
-	private function pdo(): \PDO
-	{
-		$pdo = $this->app->db()->pdo();
-		$pdo->exec('CREATE TABLE IF NOT EXISTS plugin_login_ips (
-			user_id    INTEGER NOT NULL,
-			ip         VARCHAR(45) NOT NULL,
-			first_seen INTEGER NOT NULL,
-			last_seen  INTEGER NOT NULL,
-			hits       INTEGER NOT NULL DEFAULT 1)');
-		$pdo->exec('CREATE INDEX IF NOT EXISTS idx_loginips_user
-			ON plugin_login_ips (user_id, ip)');
-		return $pdo;
-	}
-
 	// ─── API utilisateur (/api/plugin/login-notify/<action>) ───
+	// Table plugin_login_ips : schéma géré par migrations.php (PluginManager).
 
 	public function apiStatus(Request $request, ?array $user): array
 	{

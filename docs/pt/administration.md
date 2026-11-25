@@ -111,7 +111,7 @@ credenciais de aplicação OAuth2 são registadas por cada utilizador
 ### Utilizadores
 
 Lista + pesquisa de utilizadores, com botão de atualização (ícone) para
-recarregar a lista. Por utilizador (modal, separadores *Perfil*,
+recarregar a lista. Por utilizador (página dedicada `#/users/<id>`, separadores *Perfil*,
 *Definições*, *Contas/Identidades*, *Sessões*):
 
 - `display_name`, `is_admin`, `disabled`;

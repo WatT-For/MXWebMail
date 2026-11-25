@@ -13,8 +13,12 @@ import { MessageViewVM } from './viewmodels/messageview.js';
 import { ComposeVM } from './viewmodels/compose.js';
 import { SettingsVM } from './viewmodels/settings.js';
 import { dialog } from './ui/dialog.js';
+import { oauthAppFields } from './ui/oauth.js';
 import { notify } from './ui/notify.js';
 import { toast } from './ui/toast.js';
+import { formatSize, formatTs, formatDate, clampInt } from './ui/format.js';
+import { bindAll } from './ui/bind-all.js';
+import { debounce } from './ui/debounce.js';
 import { initShortcuts } from './shortcuts.js';
 
 /** decodeURIComponent qui ne casse pas le routage sur un hash malformé (%zz). */
@@ -28,6 +32,9 @@ class AppVM {
 	constructor() {
 		this.t = t;       // utilisable dans les bindings : $root.t('cle')
 		this.lang = lang; // locale courante (toLocaleString…)
+		// Formats exposés aux bindings : $root.fmtTs(ts) / $root.fmtDate(ts)
+		this.fmtTs = ts => formatTs(ts, this.lang);
+		this.fmtDate = ts => formatDate(ts, this.lang);
 		this.view = ko.observable('mail'); // 'mail' | 'settings'
 		this.folderList = new FolderListVM(this);
 		this.messageList = new MessageListVM(this);
@@ -37,6 +44,7 @@ class AppVM {
 		this.user = ko.observable(null);
 		this.accounts = ko.observableArray([]);
 		this.features = ko.observable({});   // flags admin : contacts, accounts, dangerous_actions…
+		this.imapCaps = ko.observable({});   // capabilities IMAP du compte actif (poll)
 		this.messageToolbar = ko.observableArray([]); // slots barre d'actions (plugins)
 		this.pluginTabs = []; // onglets Paramètres injectés par plugins (app.data, fixé au boot)
 		// Surface d'accès liste pour les modules montés via pluginMount
@@ -73,7 +81,6 @@ class AppVM {
 		this.themeOptions = ko.observableArray([]);
 		this.themeData = {};
 		this.popupIdentityPending = false;
-		this._logoutTimer = null;
 		this._logoutReset = null;
 		this._refreshTimer = null;
 		this._polling = false;      // anti-recouvrement des ticks poll()
@@ -99,8 +106,7 @@ class AppVM {
 		this.quota.pct = ko.pureComputed(() =>
 			this.quota.limit() ? Math.min(100, Math.round(this.quota.used() / this.quota.limit() * 100)) : 0);
 		this.quota.label = ko.pureComputed(() => {
-			const fmt = kb => kb >= 1048576 ? (kb / 1048576).toFixed(1) + ' ' + t('unit.gb')
-				: kb >= 1024 ? Math.round(kb / 1024) + ' ' + t('unit.mb') : kb + ' ' + t('unit.kb');
+			const fmt = kb => kb === 0 ? '0 ' + t('unit.kb') : formatSize(kb * 1024);
 			return t('app.quota_used', {
 				used: fmt(this.quota.used()),
 				limit: fmt(this.quota.limit()),
@@ -113,11 +119,7 @@ class AppVM {
 
 		// Knockout invoque les handlers avec this = $data du contexte courant
 		// (item dans un foreach / objet dans un with) : on force le binding sur le VM.
-		for (const m of Object.getOwnPropertyNames(AppVM.prototype)) {
-			if (m !== 'constructor' && typeof this[m] === 'function') {
-				this[m] = this[m].bind(this);
-			}
-		}
+		bindAll(this, AppVM.prototype);
 	}
 
 	async init() {
@@ -127,9 +129,10 @@ class AppVM {
 		// Retour du flow OAuth2 en redirection pleine page (popup bloquée)
 		// Lien mailto: externe (protocole enregistré) > composition pré-remplie.
 		// replaceState retire le param pour qu'un F5 ne ré-ouvre pas le compose.
-		const mailto = new URLSearchParams(location.search).get('mailto');
+		const qs = new URLSearchParams(location.search);
+		const mailto = qs.get('mailto');
 		if (mailto) { history.replaceState(null, '', location.pathname + location.hash); }
-		const oauth = new URLSearchParams(location.search).get('oauth');
+		const oauth = qs.get('oauth');
 		if (oauth) {
 			history.replaceState(null, '', location.pathname + location.hash);
 			if (oauth === 'ok') {
@@ -147,21 +150,35 @@ class AppVM {
 		this._lastFolder = data.last_folder || null;
 		this.themeOptions(data.themes || []);
 		this.themeData = data.themeData || {};
+		this.initTheme(data);
+		this.initPanes(data);
+		// Identité incomplète au premier login > popup réglages.
+		// Passe par le loader du SettingsVM : promesse mémoïsée, pas de doublon.
+		if (data.features?.popup_identity) {
+			const ids = await this.settings.loadIdentities();
+			const def = ids.find(i => Number(i.is_default)) || ids[0];
+			if (def && !(def.name || '').trim()) { this.popupIdentityPending = true; }
+		}
+		await this.bootLoad(data, mailto);
+	}
+
+	/** Thème initial + swap CSS à chaud au changement. */
+	initTheme(data) {
 		// Thème valide uniquement : repli sur 'default' comme côté serveur (current())
 		this.theme((data.themes || []).some(x => x.name === data.settings?.theme)
 			? data.settings.theme : 'default');
 		// Changement de thème > swap CSS + config à chaud
 		this.theme.subscribe(name => this.applyTheme(name));
 		this.applyTheme(this.theme()); // état initial (idempotent avec le rendu serveur)
+	}
+
+	/** Paramètres d'affichage issus des réglages : panneaux, liste, autologout. */
+	initPanes(data) {
 		// Largeurs des panneaux (bornes identiques à la validation admin)
-		const clamp = (v, min, max, def) => {
-			v = parseInt(v, 10);
-			return (v >= min && v <= max) ? v : def;
-		};
-		this.folderPaneWidth(clamp(data.settings?.folder_pane_width, 140, 600, 240));
-		this.messagePaneWidth(clamp(data.settings?.message_pane_width, 200, 800, 340));
+		this.folderPaneWidth(clampInt(data.settings?.folder_pane_width, 140, 600, 240));
+		this.messagePaneWidth(clampInt(data.settings?.message_pane_width, 200, 800, 340));
 		this.layout(data.settings?.layout === 'vertical' ? 'vertical' : 'horizontal');
-		this.messagePaneHeight(clamp(data.settings?.message_pane_height, 120, 1200, 320));
+		this.messagePaneHeight(clampInt(data.settings?.message_pane_height, 120, 1200, 320));
 		// Réglages utilisateur : messages par page + tri de la liste
 		const mpp = parseInt(data.settings?.messages_per_page, 10);
 		if (mpp > 0) { this.messageList.limit = mpp; }
@@ -170,13 +187,11 @@ class AppVM {
 		// Déconnexion après inactivité (minutes, 0 = jamais)
 		const autologout = parseInt(data.settings?.autologout, 10) || 0;
 		if (autologout > 0) { this.armAutologout(autologout); }
-		// Identité incomplète au premier login > popup réglages.
-		// Passe par le loader du SettingsVM : promesse mémoïsée, pas de doublon.
-		if (data.features?.popup_identity) {
-			const ids = await this.settings.loadIdentities();
-			const def = ids.find(i => Number(i.is_default)) || ids[0];
-			if (def && !(def.name || '').trim()) { this.popupIdentityPending = true; }
-		}
+	}
+
+	/** Charge initiale : /poll mutualisé (dossiers + liste + quota), routage,
+	 *  mailto, raccourcis. mailto = param d'URL consommé en fin de boot. */
+	async bootLoad(data, mailto) {
 		// Boot mutualisé : dossiers + première page de messages + quota en
 		// UNE requête /api/poll = UNE connexion IMAP (avant : /folders +
 		// /messages + /quota = 3 connexions). watch vide : le seed _watch a
@@ -235,6 +250,7 @@ class AppVM {
 		// Repli si /api/poll échoue : les handlers unitaires gardent leurs
 		// surfaces d'erreur habituelles (toast panneau dossiers / liste).
 		const boot = await bootP.catch(() => null);
+		if (boot?.caps) { this.imapCaps(boot.caps); }
 		let bootListDone = false;
 		if (boot?.folders) {
 			this.folderList.applyList(boot.folders);
@@ -398,19 +414,11 @@ class AppVM {
 	 * provider (premier ajout d'un compte de ce domaine). false si annulé.
 	 */
 	async promptOauthApp(provider, redirectUri, title = null) {
-		const fields = [
-			{ name: 'client_id', label: t('settings.oauth_client_id') },
-			{ name: 'secret', label: t('settings.oauth_secret'), inputType: 'password' },
-		];
-		if (provider === 'microsoft') {
-			fields.push({ name: 'tenant', label: t('settings.oauth_tenant'),
-				defaultValue: 'common' });
-		}
 		const v = await dialog.form({
 			title: title || t('app.add_account'),
 			message: t('app.oauth_app_required', { provider })
 				+ '\n\n' + t('settings.oauth_redirect_uri') + ' : ' + redirectUri,
-			fields, okLabel: t('common.save'),
+			fields: oauthAppFields(provider), okLabel: t('common.save'),
 		});
 		if (v === null) { return false; }
 		await api.post('/oauth/apps', { provider, ...v });
@@ -501,6 +509,7 @@ class AppVM {
 				this.folderList.error(e.message);
 				return;
 			}
+			if (d.caps) { this.imapCaps(d.caps); }
 			this.folderList.applyList(d.folders);
 			for (const [name, payload] of Object.entries(d.latest || {})) {
 				const prev = this._watch[name];
@@ -561,10 +570,7 @@ class AppVM {
 	armAutologout(minutes) {
 		this.disarmAutologout();
 		if (minutes <= 0) { return; }
-		const reset = () => {
-			clearTimeout(this._logoutTimer);
-			this._logoutTimer = setTimeout(() => this.idleLogout(), minutes * 60000);
-		};
+		const reset = debounce(() => this.idleLogout(), minutes * 60000);
 		this._logoutReset = reset;
 		for (const ev of ['click', 'keydown', 'mousemove', 'scroll']) {
 			window.addEventListener(ev, reset, { passive: true });
@@ -574,8 +580,7 @@ class AppVM {
 
 	/** Retire le timer et les listeners d'inactivité (réglage autologout = 0). */
 	disarmAutologout() {
-		clearTimeout(this._logoutTimer);
-		this._logoutTimer = null;
+		this._logoutReset?.cancel();
 		if (this._logoutReset) {
 			for (const ev of ['click', 'keydown', 'mousemove', 'scroll']) {
 				window.removeEventListener(ev, this._logoutReset);
@@ -609,16 +614,20 @@ class AppVM {
 		}
 	}
 
+	/** Persiste un réglage utilisateur : miroir local + POST silencieux
+	 *  (préférence cosmétique, non bloquante). */
+	async saveSettings(patch) {
+		Object.assign(this.userSettings, patch);
+		await api.post('/settings', patch).catch(() => {});
+	}
+
 	/** Persiste les dimensions des panneaux dans les réglages utilisateur. */
 	async savePaneSizes() {
-		this.userSettings.folder_pane_width = this.folderPaneWidth();
-		this.userSettings.message_pane_width = this.messagePaneWidth();
-		this.userSettings.message_pane_height = this.messagePaneHeight();
-		await api.post('/settings', {
+		await this.saveSettings({
 			folder_pane_width: this.folderPaneWidth(),
 			message_pane_width: this.messagePaneWidth(),
 			message_pane_height: this.messagePaneHeight(),
-		}).catch(() => {}); // silencieux : préférence cosmétique, non bloquante
+		});
 	}
 
 	async logout() {

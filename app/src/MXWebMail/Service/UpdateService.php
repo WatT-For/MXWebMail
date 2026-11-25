@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace MXWebMail\Service;
 
 use MXWebMail\Application\App;
+use MXWebMail\Files;
+use MXWebMail\Locale\Translates;
 use MXWebMail\Repository\Database;
 
 /**
@@ -32,6 +34,8 @@ use MXWebMail\Repository\Database;
  */
 final class UpdateService
 {
+	use Translates;
+
 	private const MAX_ZIP   = 200 * 1024 * 1024;
 
 	private GitHubClient $gh;
@@ -42,12 +46,7 @@ final class UpdateService
 	{
 		$this->dir = $app->storageDir() . '/update';
 		$this->stateFile = $this->dir . '/state.json';
-		$this->gh = new GitHubClient($app);
-	}
-
-	private function t(string $key, array $params = []): string
-	{
-		return $this->app->locale()->t($key, $params);
+		$this->gh = $app->github();
 	}
 
 	/** État local sans appel réseau - utilisable dans bootstrap(). */
@@ -83,7 +82,8 @@ final class UpdateService
 	}
 
 	/** Dernier backup exploitable (manifest.json présent), pour l'UI rollback. */
-	private function lastBackup(): ?array
+	/** [chemin_dir, manifest] du backup le plus récent valide, ou null. */
+	private function latestBackup(): ?array
 	{
 		$dirs = glob($this->dir . '/backup-*', GLOB_ONLYDIR) ?: [];
 		rsort($dirs);
@@ -91,17 +91,26 @@ final class UpdateService
 			$m = is_file("$d/manifest.json")
 				? json_decode((string) file_get_contents("$d/manifest.json"), true) : null;
 			if (is_array($m)) {
-				return [
-					'dir'            => basename($d),
-					'from'           => (string) ($m['from'] ?? ''),
-					'to'             => (string) ($m['to'] ?? ''),
-					'at'             => (string) ($m['at'] ?? ''),
-					'schema_version' => $m['db']['schema_version'] ?? null,
-					'db_driver'      => $m['db']['driver'] ?? null,
-				];
+				return [$d, $m];
 			}
 		}
 		return null;
+	}
+
+	private function lastBackup(): ?array
+	{
+		if (!($b = $this->latestBackup())) {
+			return null;
+		}
+		[$d, $m] = $b;
+		return [
+			'dir'            => basename($d),
+			'from'           => (string) ($m['from'] ?? ''),
+			'to'             => (string) ($m['to'] ?? ''),
+			'at'             => (string) ($m['at'] ?? ''),
+			'schema_version' => $m['db']['schema_version'] ?? null,
+			'db_driver'      => $m['db']['driver'] ?? null,
+		];
 	}
 
 	private function readState(): ?array
@@ -113,17 +122,9 @@ final class UpdateService
 
 	private function writeState(array $state): void
 	{
-		is_dir($this->dir) || mkdir($this->dir, 0700, true);
-		$this->writeJson($this->stateFile, $state);
-	}
-
-	/** Écriture JSON atomique : tmp + rename, jamais de fichier tronqué lu. */
-	private function writeJson(string $file, mixed $data): void
-	{
-		$tmp = $file . '.' . getmypid() . '.tmp';
-		if (file_put_contents($tmp, json_encode($data, JSON_UNESCAPED_SLASHES)) !== false) {
-			rename($tmp, $file) || @unlink($tmp); // pas de reliquat .tmp
-		}
+		Files::ensureDir($this->dir);
+		mxwm_atomic_write($this->stateFile,
+			json_encode($state, JSON_UNESCAPED_SLASHES));
 	}
 
 	// ─── Vérification ───
@@ -199,7 +200,7 @@ final class UpdateService
 		}
 
 		$this->purgeStaging();
-		is_dir($this->dir) || mkdir($this->dir, 0700, true);
+		Files::ensureDir($this->dir);
 		$zipPath = $this->dir . '/update-' . $this->safeName($latest) . '.zip';
 		$this->gh->getToFile($url, $zipPath, self::MAX_ZIP);
 		if (!is_file($zipPath) || filesize($zipPath) === 0) {
@@ -229,7 +230,7 @@ final class UpdateService
 	private function prepare(string $zipPath, string $version, bool $verified): array
 	{
 		$dest = $this->dir . '/extract-' . $this->safeName($version);
-		$this->rmrf($dest);
+		Files::rmrf($dest);
 
 		$zip = new \ZipArchive();
 		if ($zip->open($zipPath) !== true) {
@@ -237,10 +238,9 @@ final class UpdateService
 		}
 		for ($i = 0; $i < $zip->numFiles; $i++) {
 			$name = (string) $zip->getNameIndex($i);
-			// Anti path-traversal : '..', chemin absolu, lettre de lecteur
-			if ($name !== '' && (str_contains($name, '..')
-				|| $name[0] === '/' || $name[0] === '\\'
-				|| preg_match('/^[a-zA-Z]:/', $name))) {
+			// Anti path-traversal : '..', '\' n'importe où (séparateur
+			// Windows - le médian passait avant), chemin absolu, lecteur.
+			if ($name !== '' && !Files::safeRelPath($name)) {
 				$zip->close();
 				throw new \RuntimeException($this->t('errors.update_entry_denied', ['name' => $name]), 400);
 			}
@@ -260,7 +260,7 @@ final class UpdateService
 		foreach (['app/src/bootstrap.php', 'public/index.php',
 			'app/config/config.example.php'] as $f) {
 			if (!is_file("$root/$f")) {
-				try { $this->rmrf($dest); } catch (\Throwable) {}
+				try { Files::rmrf($dest); } catch (\Throwable) {}
 				throw new \RuntimeException("Paquet invalide ($f absent)", 502);
 			}
 		}
@@ -271,7 +271,7 @@ final class UpdateService
 		if (is_file("$root/files.sha256")) {
 			$integrity = $this->verifyManifest($root);
 			if ($integrity !== true) {
-				try { $this->rmrf($dest); } catch (\Throwable) {}
+				try { Files::rmrf($dest); } catch (\Throwable) {}
 				throw new \RuntimeException(
 					'Intégrité du paquet invalide : ' . $integrity, 502);
 			}
@@ -325,13 +325,7 @@ final class UpdateService
 	 */
 	private function verifyManifest(string $root): bool|string
 	{
-		$expected = [];
-		foreach (file("$root/files.sha256", FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
-			if (!preg_match('/^([0-9a-f]{64})\s+(.+)$/', trim($line), $m)) {
-				continue;
-			}
-			$expected[str_replace('\\', '/', $m[2])] = strtolower($m[1]);
-		}
+		$expected = self::parseShaFile("$root/files.sha256");
 		if (!$expected) {
 			return 'files.sha256 illisible';
 		}
@@ -400,18 +394,30 @@ final class UpdateService
 			return [];
 		}
 		$out = [];
-		foreach (file($baseline, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
-			if (!preg_match('/^([0-9a-f]{64})\s+(.+)$/', trim($line), $m)) {
-				continue;
-			}
-			$rel = str_replace('\\', '/', $m[2]);
+		foreach (self::parseShaFile($baseline) as $rel => $sha) {
 			$target = $this->targetPath($rel);
-			if (is_file($target) && hash_file('sha256', $target) !== strtolower($m[1])) {
+			if (is_file($target) && hash_file('sha256', $target) !== $sha) {
 				$out[] = $rel;
 				if (count($out) >= 100) {
 					break;
 				}
 			}
+		}
+		return $out;
+	}
+
+	/**
+	 * Parse files.sha256 : lignes "<sha256>  <chemin relatif>" >
+	 * [rel normalisé '/' => sha en minuscules]. Lignes invalides ignorées.
+	 */
+	private static function parseShaFile(string $path): array
+	{
+		$out = [];
+		foreach (file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES) ?: [] as $line) {
+			if (!preg_match('/^([0-9a-f]{64})\s+(.+)$/', trim($line), $m)) {
+				continue;
+			}
+			$out[str_replace('\\', '/', $m[2])] = strtolower($m[1]);
 		}
 		return $out;
 	}
@@ -428,8 +434,8 @@ final class UpdateService
 				str_replace('\\', '/', $this->dir) . '/extract-')) {
 			throw new \RuntimeException($this->t('errors.update_none_ready'), 400);
 		}
-		is_dir($this->dir) || mkdir($this->dir, 0700, true);
-		$lock = $this->lock();
+		Files::ensureDir($this->dir);
+		$lock = Files::lock($this->dir . '/update.lock', $this->t('errors.updating'));
 		try {
 			// Flag lu par App::handleRequest : l'API non-admin répond 503 tant
 			// que la copie est en cours (jamais de mix ancien/nouveau code).
@@ -462,7 +468,7 @@ final class UpdateService
 					} else {
 						$created[] = $rel;
 					}
-					is_dir(dirname($dst)) || mkdir(dirname($dst), 0755, true);
+					Files::ensureDir(dirname($dst), 0755);
 					if (!copy($src, $dst)) {
 						throw new \RuntimeException("Copie échouée : $rel", 500);
 					}
@@ -490,10 +496,7 @@ final class UpdateService
 				}
 				throw $e;
 			}
-			if ($overwritten) {
-				file_put_contents("$backup/files.list", implode("\n", $overwritten) . "\n");
-			}
-			is_dir($backup) || mkdir($backup, 0755, true);
+			Files::ensureDir($backup, 0755);
 			file_put_contents("$backup/manifest.json", json_encode([
 				'from'        => APP_VERSION,
 				'to'          => $version,
@@ -502,15 +505,11 @@ final class UpdateService
 				'created'     => $created,
 				'db'          => $dbInfo,
 			], JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . "\n");
-			// Classmap périmée (MailSo/Lib rescan au prochain hit) + opcache
-			@unlink($this->app->storageDir() . '/cache/classmap.php');
-			if (function_exists('opcache_reset')) {
-				@opcache_reset();
-			}
+			$this->app->invalidateCodeCaches();
 			// update.json racine : reliquat des paquets ≤ 0.43.x - les
 			// prérequis sont désormais les constantes APP_REQ_* de App.php.
 			@unlink($this->app->installDir() . '/update.json');
-			$this->rmrf($this->dir . '/extract-' . $this->safeName($version));
+			Files::rmrf($this->dir . '/extract-' . $this->safeName($version));
 			@unlink((string) ($state['file'] ?? ''));
 			$this->pruneBackups(3);
 			$this->writeState([
@@ -527,8 +526,7 @@ final class UpdateService
 			];
 		} finally {
 			@unlink($this->applyingFlag());
-			flock($lock, LOCK_UN);
-			fclose($lock);
+			Files::unlock($lock);
 		}
 	}
 
@@ -545,30 +543,71 @@ final class UpdateService
 		if (($state['step'] ?? '') !== 'applied') {
 			throw new \RuntimeException($this->t('errors.update_nothing_pending'), 400);
 		}
-		$this->runMigrations();
+		$report = $this->postUpdateMaintenance(true);
+		$state['migrations_pending'] = false;
+		$this->writeState($state);
+		$this->app->log('info', 'update ' . $state['version']
+			. ' : migrations finalisées (schéma v' . ($report['schema_version'] ?? '?') . ')');
+		return ['finalized' => true, 'version' => (string) $state['version'],
+			'schema_version' => $report['schema_version']];
+	}
+
+	/**
+	 * Maintenance post-update partagée par finalize() (requête admin) et
+	 * bin/post-update.php (CLI) : migrations globale + bases contacts par
+	 * utilisateur, purge des caches de code, nettoyage du reliquat
+	 * public/setup des installs ≤ 0.44.
+	 *
+	 * $throwOnGlobalError = true (finalize) : une migration globale en échec
+	 * propage - l'admin voit l'erreur au lieu d'un état "finalisé" faux.
+	 * false (CLI) : l'échec est collecté dans errors[] et les bases
+	 * utilisateurs sont tout de même migrées.
+	 */
+	public function postUpdateMaintenance(bool $throwOnGlobalError = false): array
+	{
+		$report = ['ok' => true, 'errors' => [],
+			'schema_version' => null, 'setup_removed' => null];
+		try {
+			$this->app->db()->migrate();
+			try {
+				$v = $this->app->db()->meta('schema_version');
+				$report['schema_version'] = $v === null ? null : (int) $v;
+			} catch (\Throwable) {}
+		} catch (\Throwable $e) {
+			if ($throwOnGlobalError) {
+				throw $e;
+			}
+			$report['ok'] = false;
+			$report['errors'][] = 'globale : ' . $e->getMessage();
+		}
+		foreach ($this->app->userDb()->allFiles() as $f) {
+			try {
+				Database::sqliteFile($f)->migrate();
+			} catch (\Throwable $e) {
+				// Une base utilisateur en échec n'invalide pas l'update : elle
+				// sera retentée à son prochain accès (migration paresseuse).
+				$report['ok'] = false;
+				$report['errors'][] = basename($f) . ' : ' . $e->getMessage();
+				$this->app->log('error', 'update : migration ' . basename($f)
+					. ' échouée - ' . $e->getMessage());
+			}
+		}
+		$this->app->invalidateCodeCaches();
 		// Reliquat des installs ≤ 0.44 : l'assistant /setup est intégré au
 		// cœur - le fichier standalone ne doit pas rester dans le webroot.
 		try {
 			$setupDir = $this->app->installDir() . '/public/setup';
 			if (is_dir($setupDir)) {
-				$this->rmrf($setupDir);
+				Files::rmrf($setupDir);
+				$report['setup_removed'] = true;
 				$this->app->log('info', 'update : reliquat public/setup supprimé');
 			}
 		} catch (\Throwable $e) {
+			$report['setup_removed'] = false;
 			$this->app->log('error',
 				'update : suppression de public/setup échouée - ' . $e->getMessage());
 		}
-		$state['migrations_pending'] = false;
-		$this->writeState($state);
-		$schema = null;
-		try {
-			$v = $this->app->db()->meta('schema_version');
-			$schema = $v === null ? null : (int) $v;
-		} catch (\Throwable) {}
-		$this->app->log('info', 'update ' . $state['version']
-			. ' : migrations finalisées (schéma v' . ($schema ?? '?') . ')');
-		return ['finalized' => true, 'version' => (string) $state['version'],
-			'schema_version' => $schema];
+		return $report;
 	}
 
 	/**
@@ -579,22 +618,11 @@ final class UpdateService
 	 */
 	public function rollback(bool $force = false): array
 	{
-		$dirs = glob($this->dir . '/backup-*', GLOB_ONLYDIR) ?: [];
-		rsort($dirs);
-		$backup = null;
-		$manifest = null;
-		foreach ($dirs as $d) {
-			$m = is_file("$d/manifest.json")
-				? json_decode((string) file_get_contents("$d/manifest.json"), true) : null;
-			if (is_array($m)) {
-				$backup = $d;
-				$manifest = $m;
-				break;
-			}
-		}
-		if ($backup === null) {
+		$b = $this->latestBackup();
+		if ($b === null) {
 			throw new \RuntimeException($this->t('errors.update_no_backup'), 400);
 		}
+		[$backup, $manifest] = $b;
 
 		$driver = (string) ($manifest['db']['driver'] ?? '');
 		$schemaBefore = (int) ($manifest['db']['schema_version'] ?? 0);
@@ -610,7 +638,7 @@ final class UpdateService
 			}
 		}
 
-		$lock = $this->lock();
+		$lock = Files::lock($this->dir . '/update.lock', $this->t('errors.updating'));
 		try {
 			@file_put_contents($this->applyingFlag(), (string) time());
 			set_time_limit(300);
@@ -634,10 +662,7 @@ final class UpdateService
 				$dbRestored = $this->restoreSqlite("$backup/db");
 			}
 
-			@unlink($this->app->storageDir() . '/cache/classmap.php');
-			if (function_exists('opcache_reset')) {
-				@opcache_reset();
-			}
+			$this->app->invalidateCodeCaches();
 			$this->writeState([
 				'step' => 'rolled_back', 'version' => (string) ($manifest['from'] ?? ''),
 				'at' => date('c'), 'from_backup' => basename($backup),
@@ -654,27 +679,7 @@ final class UpdateService
 			];
 		} finally {
 			@unlink($this->applyingFlag());
-			flock($lock, LOCK_UN);
-			fclose($lock);
-		}
-	}
-
-	/**
-	 * Migrations post-update : base globale puis chaque base contacts
-	 * (storage/db/users/*.sqlite - SQLite aussi sous MariaDB).
-	 */
-	private function runMigrations(): void
-	{
-		$this->app->db()->migrate();
-		foreach (glob($this->app->storageDir() . '/db/users/*.sqlite') ?: [] as $f) {
-			try {
-				Database::sqliteFile($f)->migrate();
-			} catch (\Throwable $e) {
-				// Une base utilisateur en échec n'invalide pas l'update : elle
-				// sera retentée à son prochain accès (migration paresseuse).
-				$this->app->log('error', 'update : migration ' . basename($f)
-					. ' échouée - ' . $e->getMessage());
-			}
+			Files::unlock($lock);
 		}
 	}
 
@@ -703,17 +708,17 @@ final class UpdateService
 				// Checkpoint : le fichier copié doit être auto-suffisant
 				// (les données en -wal ne sont pas encore dans le .sqlite).
 				@$pdo->exec('PRAGMA wal_checkpoint(TRUNCATE)');
-				is_dir($dest) || mkdir($dest, 0755, true);
+				Files::ensureDir($dest, 0755);
 				$dbDir = $this->app->storageDir() . '/db';
 				$saved = 0;
 				foreach (array_merge([$dbDir . '/webmail.sqlite'],
-					glob("$dbDir/users/*.sqlite") ?: []) as $f) {
+					$this->app->userDb()->allFiles()) as $f) {
 					if (!is_file($f)) {
 						continue;
 					}
 					$rel = substr($f, strlen($dbDir) + 1);
 					$t = "$dest/$rel";
-					is_dir(dirname($t)) || mkdir(dirname($t), 0755, true);
+					Files::ensureDir(dirname($t), 0755);
 					@copy($f, $t) && $saved++;
 					foreach (['-wal', '-shm'] as $s) {
 						is_file("$f$s") && @copy("$f$s", "$t$s");
@@ -757,7 +762,7 @@ final class UpdateService
 			}
 			$rel = substr(str_replace('\\', '/', $f->getPathname()), strlen($srcDir) + 1);
 			$t = "$dbDir/$rel";
-			is_dir(dirname($t)) || mkdir(dirname($t), 0755, true);
+			Files::ensureDir(dirname($t), 0755);
 			@copy($f->getPathname(), $t) || $ok = false;
 		}
 		return $ok;
@@ -769,7 +774,7 @@ final class UpdateService
 		$dirs = glob($this->dir . '/backup-*', GLOB_ONLYDIR) ?: [];
 		rsort($dirs);
 		foreach (array_slice($dirs, $keep) as $d) {
-			$this->rmrf($d);
+			Files::rmrf($d);
 		}
 	}
 
@@ -781,39 +786,20 @@ final class UpdateService
 	/** Abandonne une mise à jour téléchargée/extraite (refusé pendant un apply). */
 	public function reset(): array
 	{
-		is_dir($this->dir) || mkdir($this->dir, 0700, true);
-		$lock = $this->lock();
+		Files::ensureDir($this->dir);
+		$lock = Files::lock($this->dir . '/update.lock', $this->t('errors.updating'));
 		try {
 			$this->purgeStaging();
 			@unlink($this->stateFile);
 			@unlink($this->applyingFlag()); // reliquat d'un apply mort
 			$this->gh->invalidateCache(); // prochain check frais
 		} finally {
-			flock($lock, LOCK_UN);
-			fclose($lock);
+			Files::unlock($lock);
 		}
 		return ['reset' => true];
 	}
 
 	// ─── Internes ───
-
-	/**
-	 * Verrou partagé des opérations update : UpdateService (apply/reset) et
-	 * PluginPackageService (install/remove) se mutuellement exclusifs - le code
-	 * sous les pieds ne doit jamais être remplacé pendant une opération.
-	 */
-	private function lock()
-	{
-		is_dir($this->dir) || mkdir($this->dir, 0700, true);
-		$lock = fopen($this->dir . '/update.lock', 'c');
-		if (!$lock || !flock($lock, LOCK_EX | LOCK_NB)) {
-			if ($lock) {
-				fclose($lock);
-			}
-			throw new \RuntimeException($this->t('errors.updating'), 409);
-		}
-		return $lock;
-	}
 
 	private function safeName(string $version): string
 	{
@@ -884,30 +870,11 @@ final class UpdateService
 	private function purgeStaging(): void
 	{
 		foreach (glob($this->dir . '/extract-*', GLOB_ONLYDIR) ?: [] as $d) {
-			$this->rmrf($d);
+			Files::rmrf($d);
 		}
 		foreach (glob($this->dir . '/update-*.zip') ?: [] as $f) {
 			@unlink($f);
 		}
 	}
 
-	private function rmrf(string $dir): void
-	{
-		if (!is_dir($dir)) {
-			return;
-		}
-		foreach (new \RecursiveIteratorIterator(
-			new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
-			\RecursiveIteratorIterator::CHILD_FIRST
-		) as $f) {
-			$ok = $f->isDir() ? @rmdir($f->getPathname()) : @unlink($f->getPathname());
-			if (!$ok) {
-				throw new \RuntimeException(
-					'Suppression impossible : ' . $f->getPathname(), 500);
-			}
-		}
-		if (!@rmdir($dir)) {
-			throw new \RuntimeException("Suppression impossible : $dir", 500);
-		}
-	}
 }

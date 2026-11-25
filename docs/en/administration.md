@@ -105,7 +105,7 @@ OAuth2 Apps*).
 ### Users
 
 List + user search, with a refresh button (icon) to reload the list. Per user
-(modal, *Profile*, *Settings*, *Accounts/Identities*, *Sessions* tabs):
+(dedicated page `#/users/<id>`, *Profile*, *Settings*, *Accounts/Identities*, *Sessions* tabs):
 
 - `display_name`, `is_admin`, `disabled`;
 - effective user settings (edit + reset - the reset restores the

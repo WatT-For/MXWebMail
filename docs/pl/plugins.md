@@ -189,6 +189,7 @@ stanu konta).
 app/plugins/moja-wtyczka/
 ├── plugin.json          # manifest
 ├── MojaWtyczka.php      # klasa główna
+├── migrations.php       # (opcjonalnie) wersjonowany schemat BD
 ├── config.schema.json   # (opcjonalnie) schemat konfiguracji admina
 ├── langs/<lang>.php     # słowniki (klucze z prefiksem plugin.<name>.)
 └── js/ lub assets/      # (opcjonalnie) assety serwowane przez /assets/plugin/<name>/<file>
@@ -234,6 +235,71 @@ class MojaWtyczka extends PluginBase
 	}
 }
 ```
+
+`PluginBase` dostarcza współdzielone helpery: `$this->t()` (tłumaczenie),
+`requireAdmin()` (strażnik sesji admina, zob. *Generyczne API*),
+`assetUrl($base, $file)` (wersjonowany URL zasobu wtyczki),
+`inlineConfig($global, $payload, $nonce)` (zgodny z CSP blok
+`<script>` konfiguracji) i `firstEmail()` (pierwszy `Email` z
+`EmailCollection`).
+
+Konfigurację wtyczki odczytuje się przez typizowane akcesory
+`PluginBase` zamiast rzutowań na `$this->config`: `configString`,
+`configTrim`, `configInt`, `configBool` i `configCsv` (lista CSV).
+Powtarzalne deklaracje hooków są również sfaktoryzowane: `userTab()`
+(karta Ustawienia), `adminMount()` (podkarta admina), `feature()`
+(payload `features`) i `toolbarJs()` (pasek narzędzi czytnika). `pdo()`
+zwraca PDO aplikacji, a `userSetting()`/`userSettingSet()` opakowują
+ustawienia użytkownika pod kluczem `plugin.<name>.<key>`.
+`MXWebMail\Service\LdapConnect` centralizuje otwieranie połączenia LDAP
+wtyczek (connect, opcje v3, referrals off, timeout sieci, start_tls,
+bind).
+
+Dla wychodzącego HTTP GET `$this->app->httpGet($url, $timeout, $maxKb)`
+stosuje strażnik anti-SSRF (wymagany publiczny host, przekierowania
+nie są śledzone, limit czasu i rozmiaru, `ssl.cafile` honorowany) -
+preferowane nad klienta ad hoc. Opcjonalny callback `$onBlocked`
+otrzymuje powód odmowy (`dns`, `literal`, `private`) do dostosowania
+logowania.
+
+Odczyty sesji przechodzą przez metody dostępu `App` (na żywo,
+nigdy zapamiętywane) zamiast surowego `$_SESSION`: `sessionUserId()`,
+`sessionEmail()`, `sessionAccountId()`, `sessionDomain()`,
+`sessionImapPass()`, `sessionEpoch()`, `sessionAuthProvider()`,
+`isAdminSession()`, `isSecondaryAccount()`.
+
+### Tabele bazy danych
+
+Wtyczka potrzebująca własnych tabel deklaruje je w `migrations.php`
+w swoim katalogu głównym. Plik zwraca tablicę `wersja => zapytania` -
+lub closure otrzymujące `MXWebMail\Repository\Database` do dispatchu
+per driver. Migracje uruchamiają się przy ładowaniu wtyczki,
+wersjonowane w `meta.plugin_<name>_schema_version`, tym samym
+mechanizmem co schemat rdzenia (transakcja SQLite, idempotentny
+re-run pod MySQL przez `information_schema`):
+
+```php
+return function (\MXWebMail\Repository\Database $db): array {
+	$idx = ($db->isSqlite() || $db->isMariaDb())
+		? 'CREATE INDEX IF NOT EXISTS' : 'CREATE INDEX';
+	return [
+		1 => [
+			'CREATE TABLE IF NOT EXISTS plugin_mojawtyczka_items (
+				id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL)',
+			"$idx idx_items_user ON plugin_mojawtyczka_items (user_id)",
+		],
+	];
+};
+```
+
+Portabilność SQLite + MariaDB + MySQL: nigdy gołe `IF NOT EXISTS`
+przy `ADD COLUMN`/`CREATE INDEX` (MySQL: błąd 1064 - dispatch per
+driver jak wyżej); klucz autoinkrementowany `INTEGER PRIMARY KEY`
+(SQLite) vs `INTEGER AUTO_INCREMENT PRIMARY KEY`.
+`$db->insertIgnore()` i `$db->upsert()` produkują przenośne
+`INSERT IGNORE` / `ON CONFLICT`. Prefiksowanie tabel `plugin_<name>_`
+zapobiega kolizjom. Wyłączona wtyczka nie jest migrowana: jej tabele
+zostają, migracja wznawia przy reaktywacji.
 
 ### Dostępne hooki
 

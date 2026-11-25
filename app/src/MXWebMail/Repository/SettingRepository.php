@@ -39,17 +39,11 @@ final class SettingRepository
 			unset($this->cache[$userId][$key]);
 			return;
 		}
-		$driver = $this->db->pdo()->getAttribute(\PDO::ATTR_DRIVER_NAME);
-		$sql = $driver === 'sqlite'
-			? 'INSERT INTO user_settings (user_id, `key`, value) VALUES (:u, :k, :v)
-			   ON CONFLICT(user_id, `key`) DO UPDATE SET value = excluded.value'
-			: 'INSERT INTO user_settings (user_id, `key`, `value`) VALUES (:u, :k, :v)
-			   ON DUPLICATE KEY UPDATE `value` = VALUES(`value`)';
-		$this->db->pdo()->prepare($sql)->execute([
-			'u' => $userId,
-			'k' => $key,
-			'v' => json_encode($value, JSON_UNESCAPED_UNICODE),
-		]);
+		$this->db->upsert('user_settings', [
+			'user_id' => $userId,
+			'key'     => $key,
+			'value'   => json_encode($value, JSON_UNESCAPED_UNICODE),
+		], ['user_id', 'key'], ['value']);
 		// Mémo synchro (read-after-write : setSpecialFolderMap lit puis écrit
 		// la même clé dans la même requête).
 		if (isset($this->cache[$userId])) {

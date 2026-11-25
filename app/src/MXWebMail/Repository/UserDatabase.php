@@ -20,9 +20,7 @@ final class UserDatabase
 	{
 		if (!isset($this->pool[$userId])) {
 			$dir = $this->dir();
-			if (!is_dir($dir)) {
-				mkdir($dir, 0700, true);
-			}
+			\MXWebMail\Files::ensureDir($dir);
 			$db = Database::sqliteFile($this->pathFor($userId));
 			$db->migrate();
 			$this->pool[$userId] = $db;
@@ -35,9 +33,10 @@ final class UserDatabase
 		return $this->dir() . '/' . $userId . '.sqlite';
 	}
 
-	public function exists(int $userId): bool
+	/** Toutes les bases utilisateurs présentes (db/users/<id>.sqlite). */
+	public function allFiles(): array
 	{
-		return is_file($this->pathFor($userId));
+		return glob($this->dir() . '/*.sqlite') ?: [];
 	}
 
 	/** Suppression : remplace l'ancien cascade FK contacts.user_id > users.id. */

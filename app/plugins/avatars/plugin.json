@@ -3,7 +3,7 @@
 	"label": "plugin.avatars.label",
 	"class": "Avatars",
 	"main": "Avatars.php",
-	"version": "0.12.2",
+	"version": "0.12.3",
 	"description": "plugin.avatars.description",
 	"hooks": ["app.data"]
 }

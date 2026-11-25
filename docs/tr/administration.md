@@ -107,7 +107,7 @@ seçeneği): OAuth2 uygulama kimlik bilgilerini her kullanıcı kaydeder
 ### Kullanıcılar
 
 Liste + kullanıcı arama, listeyi yeniden yüklemek için yenileme düğmesi
-(ikon). Kullanıcı başına (modal, *Profil*, *Ayarlar*,
+(ikon). Kullanıcı başına (özel sayfa `#/users/<id>`, *Profil*, *Ayarlar*,
 *Hesaplar/Kimlikler*, *Oturumlar* sekmeleri):
 
 - `display_name`, `is_admin`, `disabled`;

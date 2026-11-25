@@ -111,7 +111,8 @@ final class DomainRepository
 		}
 		// Provider OAuth2 de ce domaine (comptes secondaires ajoutés par
 		// consentement, jamais par mot de passe).
-		if (in_array($options['oauth'] ?? '', ['google', 'microsoft', 'yahoo'], true)) {
+		if (in_array($options['oauth'] ?? '',
+			\MXWebMail\Service\OAuthService::providers(), true)) {
 			$out['oauth'] = $options['oauth'];
 		}
 

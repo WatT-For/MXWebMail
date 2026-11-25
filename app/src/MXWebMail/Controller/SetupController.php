@@ -6,6 +6,7 @@ namespace MXWebMail\Controller;
 use MXWebMail\Application\App;
 use MXWebMail\Http\Request;
 use MXWebMail\Http\Response;
+use MXWebMail\Locale\Translates;
 
 /**
  * Installeur web MXWebMail - wizard multi-étapes (état en session
@@ -18,6 +19,8 @@ use MXWebMail\Http\Response;
  */
 final class SetupController
 {
+	use Translates;
+
 	// Champs persistés en session à chaque étape (token/action exclus)
 	private const STEP_FIELDS = [
 		2 => ['app_name', 'admin_path', 'attachments_max_total'],
@@ -96,10 +99,8 @@ final class SetupController
 		$exDsn = $this->ex('db_dsn', 'sqlite');
 		if (str_starts_with($exDsn, 'mysql:')) {
 			$this->exDb['driver'] = 'mysql';
-			foreach (['host', 'port', 'dbname'] as $p) {
-				if (preg_match('/\b' . $p . '=([^;]*)/', $exDsn, $m) && $m[1] !== '') {
-					$this->exDb[$p === 'dbname' ? 'name' : $p] = $m[1];
-				}
+			foreach (\MXWebMail\Config\Dsn::parseMysql($exDsn) as $p => $v) {
+				$this->exDb[$p === 'dbname' ? 'name' : $p] = (string) $v;
 			}
 		}
 
@@ -235,11 +236,6 @@ final class SetupController
 	private function h(string $s): string
 	{
 		return htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
-	}
-
-	private function t(string $key, array $params = []): string
-	{
-		return $this->app->locale()->t($key, $params);
 	}
 
 	private function post(string $k, string $d = ''): string
@@ -507,8 +503,8 @@ JS
 				$e[] = $this->t('errors.invalid_value', ['key' => 'db_host']);
 			} else {
 				try {
-					new \PDO('mysql:host=' . $host
-						. ';port=' . (int) $this->post('db_port', $this->exDb['port']) . ';charset=utf8mb4',
+					new \PDO(\MXWebMail\Config\Dsn::mysql($host,
+						(int) $this->post('db_port', $this->exDb['port'])),
 						$this->post('db_user'), $this->post('db_pass'),
 						[\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]);
 					$_SESSION['flash'] = $this->t('setup.db_ok');
@@ -586,14 +582,14 @@ JS
 			} else {
 				try {
 					// Connexion sans base pour pouvoir la créer si besoin
-					$pdo = new \PDO("mysql:host=$host;port=$port;charset=utf8mb4",
+					$pdo = new \PDO(\MXWebMail\Config\Dsn::mysql($host, $port),
 						$d['db_user'] ?? '', $d['db_pass'] ?? '',
 						[\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]);
 					$pdo->exec("CREATE DATABASE IF NOT EXISTS `$dbname` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
 				} catch (\Throwable $e) {
 					$errors[] = $this->t('setup.err_db', ['msg' => $e->getMessage()]);
 				}
-				$config['db_dsn'] = "mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4";
+				$config['db_dsn'] = \MXWebMail\Config\Dsn::mysql($host, $port, $dbname);
 				$config['db_user'] = $d['db_user'] ?? '';
 				$config['db_pass'] = $d['db_pass'] ?? '';
 			}

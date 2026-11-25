@@ -1,19 +1,18 @@
 import { api, base, b64url } from '../api.js';
 import { dialog } from '../ui/dialog.js';
+import { bindModal } from '../ui/modal.js';
 import { notify } from '../ui/notify.js';
 import { toast } from '../ui/toast.js';
+import { bindAll } from '../ui/bind-all.js';
+import { debounce } from '../ui/debounce.js';
 import { t } from '../i18n.js';
+import { oauthAppFields } from '../ui/oauth.js';
+import { textToHtml, formatTs } from '../ui/format.js';
 import { parseMarker, FIELDS, OPS, ACTIONS, TEMPLATES, templateRules } from '../filters.js';
 
 // Rôles de dossiers système assignables par l'utilisateur (INBOX exclu :
 // nom réservé par le protocole IMAP, toujours la boîte de réception).
 const SPECIAL_ROLES = ['sent', 'drafts', 'trash', 'junk', 'archive'];
-
-// Libellés d'affichage des providers OAuth2 (noms de marque, non traduits -
-// même liste que la modale domaine de l'admin).
-const OAUTH_PROVIDERS = {
-	google: 'Google (Gmail)', microsoft: 'Microsoft (Outlook)', yahoo: 'Yahoo',
-};
 
 /**
  * ViewModel : page paramètres (hash #/@settings/<onglet>).
@@ -74,7 +73,9 @@ export class SettingsVM {
 
 		// Sessions "se souvenir de moi" (jetons persistants)
 		this.sessions = ko.observableArray([]);
-		this._sessionsLoaded = false;
+		// Flags de lazy-load des onglets (loadOnce) : remplacent les booléens
+		// *Loaded - un échec ne pose pas le flag, la tentative est rejouée.
+		this._loaded = {};
 		this.sessionDetail = ko.observable(null); // session affichée dans la modale
 
 		// Dossiers système (assignation par compte : auto | none | fullName ;
@@ -84,13 +85,15 @@ export class SettingsVM {
 		this.importFolder = ko.observable('INBOX');
 		this.importProgress = ko.observable(null);
 		this.importBusy = ko.observable(false);
+		// Options du select cible : hierarchie indentee par espaces insecables
+		// (espace ordinaire = stripte du label rendu des <option>).
+		this.importFolderOptions = ko.pureComputed(() =>
+			this.app.folderList.selectOptions());
 		this.folderRoles = ko.observableArray([]);
-		this.folderRolesLoaded = false;
 
 		// Dossiers surveillés (notifications) - abonnement par compte, INBOX
 		// toujours incluse côté serveur > cochée + désactivée ici.
 		this._notifySel = {};              // fullName => observable bool
-		this.notifyFoldersLoaded = false;
 		// Valeurs en chaînes comme messages_per_page : évite le mismatch
 		// number/string du binding value (user_defaults renvoie un int).
 		this.refreshOptions = [
@@ -121,7 +124,6 @@ export class SettingsVM {
 		this.filterMode = ko.observable('assistant'); // assistant | source
 		this.compiledSource = ko.observable('');      // prévisualisation assistant
 		this.filtersError = ko.observable('');
-		this.filtersLoaded = false;
 		this.filterTemplates = TEMPLATES;
 		this.filterFields = FIELDS;
 		// Ops/actions masqués quand le serveur n'annonce pas l'extension
@@ -130,33 +132,22 @@ export class SettingsVM {
 		this.filterActions = ko.pureComputed(() =>
 			ACTIONS.filter(a => !a.module || this.sieveModules().includes(a.module)));
 		this.filterFolders = ko.pureComputed(() =>
-			this.app.folderList.folders().map(f => ({
-				label: '  '.repeat(f.depth) + f.label, value: f.fullName })));
+			this.app.folderList.selectOptions());
 
 		// Modale d'édition : l'observable est reset à la fermeture (Échap,
 		// backdrop, boutons) > état propre à la réouverture.
-		const filterModalEl = document.getElementById('filter-modal');
-		this.filterModal = filterModalEl ? new bootstrap.Modal(filterModalEl) : null;
-		filterModalEl?.addEventListener('hidden.bs.modal', () => {
+		this.filterModal = bindModal('filter-modal', { onHidden: () => {
 			this.editingFilter(null);
 			this.compiledSource('');
-		});
+		} });
 
-		// Modale identité : même pattern - l'observable est reset à la
-		// fermeture (Échap, backdrop, boutons) > état propre à la réouverture.
-		const identityModalEl = document.getElementById('identity-modal');
-		this.identityModal = identityModalEl ? new bootstrap.Modal(identityModalEl) : null;
-		identityModalEl?.addEventListener('hidden.bs.modal', () => this.editingIdentity(null));
-
-		// Modale contact : même pattern - reset à la fermeture.
-		const contactModalEl = document.getElementById('contact-modal');
-		this.contactModal = contactModalEl ? new bootstrap.Modal(contactModalEl) : null;
-		contactModalEl?.addEventListener('hidden.bs.modal', () => this.editingContact(null));
-
-		// Modale détails session : même pattern - reset à la fermeture.
-		const sessionModalEl = document.getElementById('session-modal');
-		this.sessionModal = sessionModalEl ? new bootstrap.Modal(sessionModalEl) : null;
-		sessionModalEl?.addEventListener('hidden.bs.modal', () => this.sessionDetail(null));
+		// Modales identité / contact / détails session : même pattern.
+		this.identityModal = bindModal('identity-modal',
+			{ onHidden: () => this.editingIdentity(null) });
+		this.contactModal = bindModal('contact-modal',
+			{ onHidden: () => this.editingContact(null) });
+		this.sessionModal = bindModal('session-modal',
+			{ onHidden: () => this.sessionDetail(null) });
 		// Taille de la modale en px (0 = défaut Bootstrap, pas d'inline)
 		this.identW = ko.observable(0);
 		this.identH = ko.observable(0);
@@ -164,7 +155,6 @@ export class SettingsVM {
 		// Réponses types
 		this.responses = ko.observableArray([]);
 		this.editingResponse = ko.observable(null);
-		this.responsesLoaded = false;
 
 		// Répondeur d'absence (Sieve vacation)
 		this.vacation = ko.observable(null);
@@ -191,21 +181,29 @@ export class SettingsVM {
 		this.pgpArmored = ko.observable('');
 		this.pgpPrivate = ko.observable(false);
 		this.pgpTab = ko.observable('keys');
-		this.pgpLoaded = false;
 
 		// Applications OAuth2 (identifiants d'app par utilisateur)
 		this.oauthApps = ko.observableArray([]);
 		this.oauthProviders = ko.observableArray([]); // autorisés par les domaines
+		this.oauthProviderLabels = ko.observable({}); // servis par /oauth/apps
 		this.oauthRedirectUri = ko.observable('');
-		this.oauthAppsLoaded = false;
 
 		// Knockout invoque les handlers avec this = $data du contexte courant
 		// (item dans un foreach / objet dans un with) : on force le binding sur le VM.
-		for (const m of Object.getOwnPropertyNames(SettingsVM.prototype)) {
-			if (m !== 'constructor' && typeof this[m] === 'function') {
-				this[m] = this[m].bind(this);
-			}
-		}
+		bindAll(this, SettingsVM.prototype);
+	}
+
+	/**
+	 * Lazy-load d'un onglet : le flag _loaded[key] n'est posé qu'au succès
+	 * de fetcher - un échec rapporte l'erreur (errorObs, par défaut
+	 * l'alerte racine) et la tentative est rejouée à la prochaine visite.
+	 */
+	async loadOnce(key, fetcher, errorObs = null) {
+		if (this._loaded[key]) { return; }
+		try {
+			await fetcher();
+			this._loaded[key] = true;
+		} catch (e) { (errorObs || this.error)(e.message); }
 	}
 
 	/**
@@ -343,8 +341,7 @@ export class SettingsVM {
 	}
 
 	async deleteAccount(a) {
-		if (!(await dialog.confirm(t('settings.account_delete_confirm', { email: a.email }),
-			{ variant: 'danger', okLabel: t('common.delete') }))) { return; }
+		if (!(await dialog.confirmDanger(t('settings.account_delete_confirm', { email: a.email })))) { return; }
 		try {
 			await api.post(`/accounts/${a.id}/delete`);
 			this.app.accounts(await api.get('/accounts'));
@@ -424,12 +421,10 @@ export class SettingsVM {
 	/** Persiste la taille de la modale d'identité dans les réglages
 	 *  utilisateur (miroir de ComposeVM.saveComposeSize). */
 	async saveIdentitySize() {
-		this.app.userSettings.identity_modal_width = this.identW();
-		this.app.userSettings.identity_modal_height = this.identH();
-		await api.post('/settings', {
+		await this.app.saveSettings({
 			identity_modal_width: this.identW(),
 			identity_modal_height: this.identH(),
-		}).catch(() => {}); // silencieux : préférence cosmétique (cf. savePaneSizes)
+		});
 	}
 
 	/** Lazy-load onglet identités. Promesse mémoïsée : appels concurrents
@@ -450,8 +445,7 @@ export class SettingsVM {
 		// Signature legacy texte brut > HTML (sinon affichée sur une ligne)
 		let sig = s.signature || '';
 		if (sig && !/<[a-z!][^>]*>/i.test(sig)) {
-			sig = sig.replace(/&/g, '&amp;').replace(/</g, '&lt;')
-				.replace(/\r?\n/g, '<br>');
+			sig = textToHtml(sig);
 		}
 		// Le binding signatureEditor exige des observables pour réécrire les champs
 		this.editingIdentity({
@@ -478,8 +472,7 @@ export class SettingsVM {
 	}
 
 	async deleteIdentity(i) {
-		if (!(await dialog.confirm(t('settings.delete_identity', { email: i.email }),
-			{ variant: 'danger', okLabel: t('common.delete') }))) { return; }
+		if (!(await dialog.confirmDanger(t('settings.delete_identity', { email: i.email })))) { return; }
 		await api.post('/identities/delete', { id: i.id });
 		this._identitiesReq = null;
 		await this.loadIdentities();
@@ -559,8 +552,7 @@ export class SettingsVM {
 	}
 
 	async deleteContact(c) {
-		if (!(await dialog.confirm(t('settings.delete_contact', { name: c.name || c.emails }),
-			{ variant: 'danger', okLabel: t('common.delete') }))) { return; }
+		if (!(await dialog.confirmDanger(t('settings.delete_contact', { name: c.name || c.emails })))) { return; }
 		await api.post('/contacts/delete', { id: c.id });
 		this._contactsReq = null;
 		await this.loadContacts();
@@ -610,8 +602,7 @@ export class SettingsVM {
 			{ label: t('settings.folders.auto')
 				+ (r.detected ? ` (${r.detected})` : ''), value: 'auto' },
 			{ label: t('settings.folders.none'), value: 'none' },
-			...this.app.folderList.folders().map(f => ({
-				label: '  '.repeat(f.depth) + f.label, value: f.fullName })),
+			...this.app.folderList.selectOptions(),
 		];
 		const v = r.value();
 		if (v && v !== 'auto' && v !== 'none' && !opts.some(o => o.value === v)) {
@@ -621,15 +612,14 @@ export class SettingsVM {
 	}
 
 	loadFolderRoles() {
-		if (this.folderRolesLoaded) { return; }
-		this.folderRolesLoaded = true;
-		api.get('/folders/special').then(map => {
+		this.loadOnce('folderRoles', async () => {
+			const map = await api.get('/folders/special');
 			this.folderRoles(SPECIAL_ROLES.map(role => ({
 				role, label: `folders.${role}`,
 				detected: map[role]?.detected || '',
 				value: ko.observable(map[role]?.assigned || 'auto'),
 			})));
-		}).catch(e => { this.error(e.message); this.folderRolesLoaded = false; });
+		});
 	}
 
 	async saveFolderRoles() {
@@ -643,13 +633,12 @@ export class SettingsVM {
 	// ─── Onglet Dossiers (surveillance + gestion) ───
 
 	loadNotifyFolders() {
-		if (this.notifyFoldersLoaded) { return; }
-		this.notifyFoldersLoaded = true;
-		api.get('/folders/notify').then(list => {
+		this.loadOnce('notifyFolders', async () => {
+			const list = await api.get('/folders/notify');
 			for (const name of list) {
 				(this._notifySel[name] ??= ko.observable(false))(true);
 			}
-		}).catch(e => { this.error(e.message); this.notifyFoldersLoaded = false; });
+		});
 	}
 
 	/** Import de fichiers .eml/.mbox dans le dossier choisi (IMAP APPEND
@@ -689,13 +678,13 @@ export class SettingsVM {
 	// ─── Sessions ───
 
 	fmtTs(ts) {
-		return ts ? new Date(Number(ts) * 1000).toLocaleString() : '-';
+		return formatTs(ts, this.app.lang);
 	}
 
-	async loadSessions() {
-		if (this._sessionsLoaded) { return; }
-		this.sessions(await api.get('/sessions').catch(() => []));
-		this._sessionsLoaded = true;
+	loadSessions() {
+		return this.loadOnce('sessions', async () => {
+			this.sessions(await api.get('/sessions').catch(() => []));
+		});
 	}
 
 	/** Résumé "Navigateur · OS" d'un User-Agent (parse léger, affichage). */
@@ -726,18 +715,16 @@ export class SettingsVM {
 	}
 
 	async deleteSession(s) {
-		if (!(await dialog.confirm(t('settings.session_delete_confirm'),
-			{ variant: 'danger', okLabel: t('common.delete') }))) { return; }
+		if (!(await dialog.confirmDanger(t('settings.session_delete_confirm')))) { return; }
 		await api.post(`/sessions/${s.id}/delete`);
 		this.sessions.remove(s);
 		if (this.sessionDetail() === s) { this.sessionModal?.hide(); }
 	}
 
 	async revokeOtherSessions() {
-		if (!(await dialog.confirm(t('settings.sessions_revoke_confirm'),
-			{ variant: 'danger', okLabel: t('common.delete') }))) { return; }
+		if (!(await dialog.confirmDanger(t('settings.sessions_revoke_confirm')))) { return; }
 		await api.post('/sessions/revoke-others');
-		this._sessionsLoaded = false;
+		this._loaded.sessions = false;
 		await this.loadSessions();
 	}
 
@@ -758,8 +745,7 @@ export class SettingsVM {
 	 * toggles sur l'état serveur.
 	 */
 	persistFolderVisibility() {
-		clearTimeout(this._visT);
-		this._visT = setTimeout(() => {
+		this._visDebounced ??= debounce(() => {
 			api.post('/folders/hidden', {
 				folders: this.app.folderList.folders()
 					.filter(f => f.userHidden()).map(f => f.fullName),
@@ -768,24 +754,22 @@ export class SettingsVM {
 				await this.app.folderList.load();
 			});
 		}, 400);
+		this._visDebounced();
 	}
 
 	// ─── Filtres Sieve ───
 
-	async loadFilters() {
+	loadFilters() {
 		// Sieve non configuré pour le domaine : notice statique dans le
 		// template, pas d'appel voué à un 400.
-		if (this.filtersLoaded || this.app.features().sieve === false) { return; }
+		if (this.app.features().sieve === false) { return; }
 		this.filtersError('');
-		try {
+		const done = this.loadOnce('filters', async () => {
 			const r = await api.get('/filters');
 			this.filters(r.scripts);
 			this.sieveModules(r.modules);
-			this.filtersLoaded = true;
-		} catch (e) {
-			this.filtersError(e.message); // ex. Sieve non configuré pour le domaine
-		}
-		this.loadVacation();
+		}, this.filtersError);
+		return done.then(() => this.loadVacation());
 	}
 
 	// ─── Répondeur d'absence ───
@@ -827,10 +811,8 @@ export class SettingsVM {
 	// ─── Réponses types ───
 
 	loadResponses() {
-		if (this.responsesLoaded) { return; }
-		api.get('/responses')
-			.then(d => { this.responses(d); this.responsesLoaded = true; })
-			.catch(e => this.error(e.message));
+		return this.loadOnce('responses',
+			async () => this.responses(await api.get('/responses')));
 	}
 
 	editResponse(r) {
@@ -843,16 +825,15 @@ export class SettingsVM {
 		const r = this.editingResponse();
 		await api.post('/responses', { id: r.id, name: r.name(), body: r.body() });
 		this.editingResponse(null);
-		this.responsesLoaded = false;
+		this._loaded.responses = false;
 		this.loadResponses();
 		this.saved(true);
 	}
 
 	async deleteResponse(r) {
-		if (!(await dialog.confirm(t('settings.responses_delete', { name: r.name }),
-			{ variant: 'danger', okLabel: t('common.delete') }))) { return; }
+		if (!(await dialog.confirmDanger(t('settings.responses_delete', { name: r.name })))) { return; }
 		await api.post(`/responses/${r.id}/delete`);
-		this.responsesLoaded = false;
+		this._loaded.responses = false;
 		this.loadResponses();
 	}
 
@@ -893,10 +874,7 @@ export class SettingsVM {
 		return ACTIONS.find(a => a.value === type)?.arg ?? null;
 	}
 	_junkFolder() {
-		const folders = this.app.folderList.folders();
-		return (folders.find(f => f.special === 'junk')
-			?? folders.find(f => this.app.folderList.isJunkFolder(f.fullName)))
-			?.fullName ?? 'Junk';
+		return this.app.folderList.junkFolder()?.fullName ?? 'Junk';
 	}
 
 	newFilter(tpl = 'empty') {
@@ -966,7 +944,7 @@ export class SettingsVM {
 				await api.post('/filters/script', { ...payload, source: f.source });
 			}
 			this.filterModal?.hide(); // hidden.bs.modal > editingFilter(null)
-			this.filtersLoaded = false;
+			this._loaded.filters = false;
 			await this.loadFilters();
 		} catch (e) { f.error(e.message); }
 	}
@@ -988,7 +966,7 @@ export class SettingsVM {
 		this.filtersError('');
 		try {
 			await api.post('/filters/activate', { name: f.name });
-			this.filtersLoaded = false;
+			this._loaded.filters = false;
 			await this.loadFilters();
 		} catch (e) { this.filtersError(e.message); }
 	}
@@ -998,7 +976,7 @@ export class SettingsVM {
 		this.filtersError('');
 		try {
 			await api.post('/filters/deactivate');
-			this.filtersLoaded = false;
+			this._loaded.filters = false;
 			await this.loadFilters();
 		} catch (e) { this.filtersError(e.message); }
 	}
@@ -1007,12 +985,11 @@ export class SettingsVM {
 	// originalName y est un observable, absent des items de ligne).
 	async deleteFilter(f) {
 		const name = f.originalName?.() ?? f.name;
-		if (!(await dialog.confirm(t('settings.delete_filter', { name }),
-			{ variant: 'danger', okLabel: t('common.delete') }))) { return; }
+		if (!(await dialog.confirmDanger(t('settings.delete_filter', { name })))) { return; }
 		try {
 			await api.post('/filters/delete', { name });
 			this.filterModal?.hide(); // hidden.bs.modal > editingFilter(null)
-			this.filtersLoaded = false;
+			this._loaded.filters = false;
 			await this.loadFilters();
 		} catch (e) {
 			if (ko.isObservable(f.error)) { f.error(e.message); }
@@ -1022,10 +999,10 @@ export class SettingsVM {
 
 	// ─── OpenPGP ───
 
-	async loadPgpKeys() {
-		if (this.pgpLoaded) { return; }
-		this.pgpKeys(await api.get('/pgp/keys').catch(() => []));
-		this.pgpLoaded = true;
+	loadPgpKeys() {
+		return this.loadOnce('pgp', async () => {
+			this.pgpKeys(await api.get('/pgp/keys').catch(() => []));
+		});
 	}
 
 	async savePgpKey() {
@@ -1035,33 +1012,32 @@ export class SettingsVM {
 			private: this.pgpPrivate(),
 		});
 		this.pgpArmored('');
-		this.pgpLoaded = false;
+		this._loaded.pgp = false;
 		await this.loadPgpKeys();
 		location.hash = '#/@settings/pgp/keys';
 	}
 
 	async deletePgpKey(k) {
-		if (!(await dialog.confirm(t('settings.delete_pgp_key', { email: k.email }),
-			{ variant: 'danger', okLabel: t('common.delete') }))) { return; }
+		if (!(await dialog.confirmDanger(t('settings.delete_pgp_key', { email: k.email })))) { return; }
 		await api.post(`/pgp/keys/${k.id}/delete`);
-		this.pgpLoaded = false;
+		this._loaded.pgp = false;
 		await this.loadPgpKeys();
 	}
 
 	// ─── Applications OAuth2 ───
 
 	loadOauthApps() {
-		if (this.oauthAppsLoaded) { return; }
-		this.oauthAppsLoaded = true;
-		api.get('/oauth/apps').then(d => {
+		return this.loadOnce('oauthApps', async () => {
+			const d = await api.get('/oauth/apps');
 			this.oauthApps(d.apps || []);
 			this.oauthProviders(d.providers || []);
+			this.oauthProviderLabels(d.labels || {});
 			this.oauthRedirectUri(d.redirect_uri || '');
-		}).catch(e => { this.error(e.message); this.oauthAppsLoaded = false; });
+		});
 	}
 
 	oauthProviderLabel(p) {
-		return OAUTH_PROVIDERS[p] || p;
+		return this.oauthProviderLabels()[p] || p;
 	}
 
 	async addOauthApp() {
@@ -1075,33 +1051,22 @@ export class SettingsVM {
 	}
 
 	async editOauthApp(a) {
-		const fields = [
-			{ name: 'client_id', label: t('settings.oauth_client_id'),
-				defaultValue: a.client_id },
-			{ name: 'secret', label: t('settings.oauth_secret'), inputType: 'password',
-				placeholder: a.client_id ? t('settings.oauth_secret_keep') : '' },
-		];
-		if (a.provider === 'microsoft') {
-			fields.push({ name: 'tenant', label: t('settings.oauth_tenant'),
-				defaultValue: a.tenant || 'common' });
-		}
 		const v = await dialog.form({
 			title: this.oauthProviderLabel(a.provider),
 			message: t('settings.oauth_redirect_uri') + ' : ' + this.oauthRedirectUri(),
-			fields, okLabel: t('common.save'),
+			fields: oauthAppFields(a.provider, a), okLabel: t('common.save'),
 		});
 		if (v === null) { return; }
 		await api.post('/oauth/apps', { provider: a.provider, ...v });
-		this.oauthAppsLoaded = false;
+		this._loaded.oauthApps = false;
 		this.loadOauthApps();
 	}
 
 	async deleteOauthApp(a) {
-		if (!(await dialog.confirm(t('settings.oauth_delete_confirm',
-				{ provider: this.oauthProviderLabel(a.provider), n: a.accounts }),
-			{ variant: 'danger', okLabel: t('common.delete') }))) { return; }
+		if (!(await dialog.confirmDanger(t('settings.oauth_delete_confirm',
+				{ provider: this.oauthProviderLabel(a.provider), n: a.accounts })))) { return; }
 		await api.post('/oauth/apps/delete', { provider: a.provider });
-		this.oauthAppsLoaded = false;
+		this._loaded.oauthApps = false;
 		this.loadOauthApps();
 	}
 }

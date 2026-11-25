@@ -3,7 +3,7 @@
 	"label": "plugin.ldap-login.label",
 	"class": "LdapLogin",
 	"main": "LdapLogin.php",
-	"version": "0.12.2",
+	"version": "0.12.3",
 	"description": "plugin.ldap-login.description",
 	"hooks": ["auth.login.mapping"]
 }

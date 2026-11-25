@@ -10,7 +10,8 @@ eklentiler, temalar).
 ```
 public/                ön denetleyici (index.php) + asset'ler
 app/src/MXWebMail/     uygulama kodu:
-  Application/App.php  servis kapsayıcısı + dispatch + rotalar
+  Application/App.php  servis kapsayıcısı + dispatch
+                       (bildirimsel rotalar app/routes.php içinde)
   API.php, Utils.php   vendored kod için uyumluluk cepheleri (MailSo/Lib)
   Compat/              MailSo uyumluluk köprüleri (ActionsBridge,
                        ConfigBridge, PluginsBridge)
@@ -31,6 +32,7 @@ app/src/MXWebMail/     uygulama kodu:
   Service/             AuthService, MailService, DomainDetector, OAuthService,
                        GitHubClient (ortak HTTP Releases), UpdateService (çekirdek),
                        PluginPackageService (eklenti katalog/kurulum/kaldırma),
+                       LdapConnect (eklentilerin paylaşılan LDAP bağlantı açılışı),
                        kişi içe aktarımları (CsvContacts, VCardContacts,
                        RainLoopContacts)
   Sieve/               ScriptBuilder - filtre kuralı üretimi
@@ -39,6 +41,7 @@ app/src/MailSo/        vendored posta kütüphanesi (değiştirilmemiş)
 app/src/Sabre/         sabre/vobject+xml+uri (vCard CardDAV)
 app/src/Lib/           MXWebMailLib yardımcıları (classmap)
 app/src/bootstrap.php  özel otomatik yükleyici
+app/routes.php         rota tablosu [METOT, yol, [Sınıf, 'action']]
 ```
 
 - **Frontend**: Knockout + Bootstrap 5.3, `public/assets/js/` içinde ES

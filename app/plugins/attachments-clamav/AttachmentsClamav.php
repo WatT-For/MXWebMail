@@ -22,18 +22,18 @@ final class AttachmentsClamav extends PluginBase
 
 	private function scan(string $path, string $name): void
 	{
-		$socket = (string) ($this->config['socket'] ?? 'tcp://127.0.0.1:3310');
+		$socket = $this->configString('socket', 'tcp://127.0.0.1:3310');
 		if ($socket === '') {
 			return;
 		}
-		$timeout = max(1, (int) ($this->config['timeout'] ?? 15));
+		$timeout = max(1, $this->configInt('timeout', 15));
 		try {
 			$this->clamd($socket, $timeout, $path, $name);
 		} catch (\RuntimeException $e) {
 			if ($e->getCode() === 422) {
 				throw $e; // virus trouvé : toujours bloquant
 			}
-			if (($this->config['on_error'] ?? 'allow') === 'deny') {
+			if ($this->configString('on_error', 'allow') === 'deny') {
 				throw $e;
 			}
 			$this->app->log('warning', 'attachments-clamav: ' . $e->getMessage());

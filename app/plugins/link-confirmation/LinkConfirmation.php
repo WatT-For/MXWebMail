@@ -27,19 +27,16 @@ final class LinkConfirmation extends PluginBase
 		if (!$this->app->isLoggedIn()) {
 			return '';
 		}
-		$mode = (string) ($this->config['mode'] ?? 'all');
-		// JSON_HEX_* : la config admin ne peut pas casser le script inline.
-		$payload = json_encode([
+		$mode = $this->configString('mode', 'all');
+		$src = htmlspecialchars($this->assetUrl($base, 'guard.js'),
+			ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+		return "\n\t" . $this->inlineConfig('MXWM_LINKCONFIRM', [
 			'mode'        => in_array($mode, ['all', 'suspicious'], true) ? $mode : 'all',
 			'whitelist'   => $this->whitelist(),
-			'warn_mailto' => !empty($this->config['warn_mailto']),
-			'remember'    => (bool) ($this->config['remember'] ?? true),
-		], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_SLASHES);
-		$b = htmlspecialchars($base, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-		return "\n\t" . '<script nonce="' . $nonce . '">'
-				. 'window.MXWM_LINKCONFIRM=' . $payload . ';</script>'
-			. "\n\t" . '<script src="' . $b . '/assets/plugin/link-confirmation/guard.js?v='
-				. rawurlencode($this->version()) . '" defer></script>';
+			'warn_mailto' => $this->configBool('warn_mailto'),
+			'remember'    => $this->configBool('remember', true),
+		], $nonce)
+			. "\n\t" . '<script src="' . $src . '" defer></script>';
 	}
 
 	/** Domaines de confiance saisis (séparateurs : espace, , ; retour ligne). */
@@ -47,7 +44,7 @@ final class LinkConfirmation extends PluginBase
 	{
 		$out = [];
 		foreach (preg_split('/[\s,;]+/',
-			mb_strtolower((string) ($this->config['whitelist'] ?? '')),
+			mb_strtolower($this->configString('whitelist')),
 			-1, PREG_SPLIT_NO_EMPTY) ?: [] as $d) {
 			$out[$d] = true;
 		}

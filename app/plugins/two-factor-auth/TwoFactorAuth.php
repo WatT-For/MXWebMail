@@ -6,6 +6,7 @@ namespace Plugin;
 use MXWebMail\Http\Request;
 use MXWebMail\Plugin\HookRegistry;
 use MXWebMail\Plugin\PluginBase;
+use MXWebMail\Security\CredentialCrypt;
 use MXWebMailLib\QRCode;
 use MXWebMailLib\TOTP;
 
@@ -28,7 +29,7 @@ final class TwoFactorAuth extends PluginBase
 	public function register(HookRegistry $hooks): void
 	{
 		$hooks->on('auth.post-login', function (array $user, ?string $code) {
-			$secret = $this->app->settings()->get((int) $user['id'], self::KEY_ACTIVE);
+			$secret = $this->secret((int) $user['id'], self::KEY_ACTIVE);
 			if (!$secret) {
 				return; // 2FA non activée pour ce compte
 			}
@@ -44,24 +45,13 @@ final class TwoFactorAuth extends PluginBase
 		});
 
 		$hooks->on('app.data', function (array $data) {
-			$data['pluginTabs'][] = [
-				'id'    => 'two-factor-auth',
-				'label' => 'plugin.two-factor-auth.tab',
-				'icon'  => 'fa-shield-halved',
-				'js'    => 'two-factor.js',
-				'plugin'=> 'two-factor-auth',
-			];
+			$data['pluginTabs'][] = $this->userTab('two-factor.js', 'fa-shield-halved');
 			return $data;
 		});
 
 		// Sous-onglet "Double authentification" dans Admin > Sécurité
-		$hooks->on('admin.mounts', fn() => [
-			'js'      => 'two-factor.js',
-			'plugin'  => 'two-factor-auth',
-			'section' => 'security',
-			'tab'     => '2fa',
-			'label'   => 'plugin.two-factor-auth.tab',
-		]);
+		$hooks->on('admin.mounts',
+			fn() => $this->adminMount('security', '2fa', 'two-factor.js'));
 
 		// TOTP du compte admin local : admin_totp_secret en config.php.
 		// Émis par AdminController::login après la vérif du mot de passe.
@@ -91,14 +81,15 @@ final class TwoFactorAuth extends PluginBase
 	public function apiSetup(Request $request, ?array $user): array
 	{
 		$secret = TOTP::CreateSecret();
-		$this->app->settings()->set((int) $user['id'], self::KEY_PENDING, $secret);
+		$this->app->settings()->set((int) $user['id'], self::KEY_PENDING,
+			$this->encSecret($secret));
 		return $this->provisionPayload($secret, (string) ($user['username'] ?? 'user'));
 	}
 
 	/** Active la 2FA si le code fourni correspond au secret pending. */
 	public function apiEnable(Request $request, ?array $user): array
 	{
-		$pending = $this->app->settings()->get((int) $user['id'], self::KEY_PENDING);
+		$pending = $this->secret((int) $user['id'], self::KEY_PENDING);
 		$code = (string) $request->input('code', '');
 		if (!$pending) {
 			throw new \RuntimeException($this->t('plugin.two-factor-auth.no_pending'), 400);
@@ -106,7 +97,8 @@ final class TwoFactorAuth extends PluginBase
 		if (!TOTP::Verify($pending, $code)) {
 			throw new \RuntimeException($this->t('plugin.two-factor-auth.code_invalid'), 400);
 		}
-		$this->app->settings()->set((int) $user['id'], self::KEY_ACTIVE, $pending);
+		$this->app->settings()->set((int) $user['id'], self::KEY_ACTIVE,
+			$this->encSecret($pending));
 		$this->app->settings()->set((int) $user['id'], self::KEY_PENDING, null);
 		// Codes de secours affichés une seule fois - seuls les hash persistent.
 		$recovery = self::recoveryGenerate();
@@ -117,7 +109,7 @@ final class TwoFactorAuth extends PluginBase
 
 	public function apiDisable(Request $request, ?array $user): array
 	{
-		$secret = $this->app->settings()->get((int) $user['id'], self::KEY_ACTIVE);
+		$secret = $this->secret((int) $user['id'], self::KEY_ACTIVE);
 		$code = (string) $request->input('code', '');
 		if ($secret && !TOTP::Verify($secret, $code)) {
 			throw new \RuntimeException($this->t('plugin.two-factor-auth.code_invalid_disable'), 400);
@@ -137,6 +129,28 @@ final class TwoFactorAuth extends PluginBase
 		$this->app->settings()->set((int) $user['id'], self::KEY_RECOVERY,
 			array_map(static fn(string $c) => hash('sha256', $c), $recovery));
 		return ['recovery' => $recovery];
+	}
+
+	/**
+	 * Secret TOTP stocké (KEY_ACTIVE/KEY_PENDING) : déchiffré via
+	 * CredentialCrypt ; les valeurs écrites avant le chiffrement sont en
+	 * clair et restent lues telles quelles (decrypt() rend null sur du
+	 * texte non chiffré) - elles sont ré-écrites chiffrées au prochain
+	 * setup/enable. Retourne null si absent.
+	 */
+	private function secret(int $userId, string $key): ?string
+	{
+		$stored = $this->app->settings()->get($userId, $key);
+		if (!is_string($stored) || $stored === '') {
+			return null;
+		}
+		return CredentialCrypt::decrypt($stored, $this->app->storageDir())
+			?? $stored;
+	}
+
+	private function encSecret(string $plain): string
+	{
+		return CredentialCrypt::encrypt($plain, $this->app->storageDir());
 	}
 
 	/** 8 codes "xxxx-xxxx" - le hash sha256 du code est stocké, jamais le code. */
@@ -175,16 +189,9 @@ final class TwoFactorAuth extends PluginBase
 	// Défense en profondeur : $_SESSION['admin'] est revérifié ici - la garde
 	// ne doit pas reposer uniquement sur le routage.
 
-	private function requireAdminSession(): void
-	{
-		if (empty($_SESSION['admin'])) {
-			throw new \RuntimeException($this->t('errors.admin_required'), 403);
-		}
-	}
-
 	public function apiAdminStatus(Request $request): array
 	{
-		$this->requireAdminSession();
+		$this->requireAdmin();
 		$cfg = $this->app->config();
 		return [
 			'enabled'  => (string) $cfg->get('admin_totp_secret', '') !== '',
@@ -196,7 +203,7 @@ final class TwoFactorAuth extends PluginBase
 
 	public function apiAdminSetup(Request $request): array
 	{
-		$this->requireAdminSession();
+		$this->requireAdmin();
 		$secret = TOTP::CreateSecret();
 		$this->app->startSession();
 		$_SESSION['admin_totp_pending'] = $secret;
@@ -207,7 +214,7 @@ final class TwoFactorAuth extends PluginBase
 
 	public function apiAdminEnable(Request $request): array
 	{
-		$this->requireAdminSession();
+		$this->requireAdmin();
 		$pending = (string) ($_SESSION['admin_totp_pending'] ?? '');
 		$code = (string) $request->input('code', '');
 		if ($pending === '') {
@@ -226,7 +233,7 @@ final class TwoFactorAuth extends PluginBase
 
 	public function apiAdminDisable(Request $request): array
 	{
-		$this->requireAdminSession();
+		$this->requireAdmin();
 		$secret = (string) $this->app->config()->get('admin_totp_secret', '');
 		$code = (string) $request->input('code', '');
 		if ($secret !== '' && !TOTP::Verify($secret, $code)) {
@@ -240,16 +247,16 @@ final class TwoFactorAuth extends PluginBase
 	/** Secret + URI otpauth + matrice QR, partagé user/admin. */
 	private function provisionPayload(string $secret, string $label): array
 	{
-		$issuer = rawurlencode(trim((string) ($this->config['issuer'] ?? ''))
+		$issuer = rawurlencode($this->configTrim('issuer')
 			?: (string) $this->app->config()->get('app_name', 'MXWebMail'));
-		if (($this->config['label'] ?? 'email') === 'local') {
+		if ($this->configString('label', 'email') === 'local') {
 			$label = strstr($label, '@', true) ?: $label;
 		}
 		$otpauth = "otpauth://totp/{$issuer}:" . rawurlencode($label)
 			. "?secret={$secret}&issuer={$issuer}";
 		// Paramètre non standard image= : Aegis/andOTP/FreeOTP - Authy l'ignore.
 		// Vide ou invalide > favicon publique de l'instance.
-		$icon = trim((string) ($this->config['icon_url'] ?? ''));
+		$icon = $this->configTrim('icon_url');
 		if (!preg_match('#^https?://#i', $icon)) {
 			$icon = $this->app->publicUrl('/favicon.ico');
 		}

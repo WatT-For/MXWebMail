@@ -110,7 +110,7 @@ OAuth2 sono registrate da ogni utente (*Impostazioni > Applicazioni OAuth2*).
 ### Utenti
 
 Lista + ricerca utenti, con pulsante di aggiornamento (icona) per ricaricare
-la lista. Per utente (modale, schede *Profilo*, *Impostazioni*,
+la lista. Per utente (pagina dedicata `#/users/<id>`, schede *Profilo*, *Impostazioni*,
 *Account/Identità*, *Sessioni*):
 
 - `display_name`, `is_admin`, `disabled`;

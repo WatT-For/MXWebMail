@@ -100,6 +100,55 @@ automatically on the first credential encryption.
 The root `.htaccess` can rewrite to `public/` as a transitional net, but the
 official document root is `public/`.
 
+#### `mod_fcgid` variant (alternative to PHP-FPM)
+
+PHP can also run via `php-cgi` driven by `mod_fcgid`, without PHP-FPM.
+Debian prerequisites: `apt install libapache2-mod-fcgid php8.4-cgi`.
+
+```apache
+<VirtualHost *:443>
+    ServerName webmail.example.com
+    DocumentRoot /var/www/mxwebmail/public
+
+    <Directory /var/www/mxwebmail/public>
+        AllowOverride All
+        Options +ExecCGI
+        Require all granted
+    </Directory>
+
+    <FilesMatch "\.php$">
+        SetHandler fcgid-script
+    </FilesMatch>
+    FcgidWrapper /usr/local/bin/php84-fcgi .php
+    FcgidPassHeader Authorization
+    FcgidIOTimeout 300
+    FcgidMaxRequestLen 134217728
+</VirtualHost>
+```
+
+`/usr/local/bin/php84-fcgi` is a mini wrapper (chmod 755) setting
+`PHP_FCGI_CHILDREN=0` (mod_fcgid manages the process pool itself) and
+`PHP_FCGI_MAX_REQUESTS=500`, then `exec /usr/bin/php-cgi8.4`. Pointing
+`FcgidWrapper` straight at the `/usr/bin/php-cgi8.4` binary also works.
+
+`mod_fcgid`-specific gotchas:
+
+- `Options +ExecCGI` is **required** (403 otherwise).
+- **`FcgidMaxRequestLen` defaults to 128 KB**: any larger request (attachment,
+  import) fails with a 500. Raise it above the largest expected upload
+  (`import_max_size`, 100 MB by default).
+- `FcgidIOTimeout` (40 s default) can cut long IMAP operations; raise to 300 s.
+- The `<FilesMatch>`/`SetHandler` inside the `<VirtualHost>` overrides a
+  globally defined PHP handler in `conf.d` (e.g. Debian's `php8.4-fpm.conf`).
+- `php-cgi` reads `cgi/php.ini` (separate from `fpm/php.ini`): align the
+  upload/memory/session limits if needed. Admin > "About" shows `php_sapi`
+  (`cgi-fcgi`) and the DB driver to confirm the active mode.
+- `fastcgi_finish_request()` does not exist under `cgi-fcgi`: deferred
+  post-response work still runs, just without the early flush (slightly longer
+  tail latency, same as `mod_php`).
+- PHP runs as the Apache user (`www-data`) unless `SuexecUserGroup` is set:
+  `storage/` permissions are therefore the same as a `www-data` FPM pool.
+
 ### Nginx
 
 ```nginx

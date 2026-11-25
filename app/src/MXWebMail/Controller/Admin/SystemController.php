@@ -2,11 +2,12 @@
 declare(strict_types=1);
 
 namespace MXWebMail\Controller\Admin;
-use MXWebMail\Application\App;
+use MXWebMail\Files;
 use MXWebMail\Http\JsonResponse;
 use MXWebMail\Http\Request;
 use MXWebMail\Http\Response;
-use MXWebMail\Security\Csrf;
+use MXWebMail\UserFacingException;
+use MXWebMail\Validation\Rule;
 
 
 
@@ -38,8 +39,7 @@ final class SystemController extends BaseController
 
 	public function testConnexion(Request $request): JsonResponse
 	{
-		$this->requireAdmin();
-		$this->requireCsrf();
+		$this->requireAdminWrite();
 		$type = (string) $request->input('type', 'imap');
 		$data = (array) $request->json();
 		try {
@@ -63,27 +63,24 @@ final class SystemController extends BaseController
 				$client->Connect($settings);
 				$client->Disconnect();
 			} else {
-				return JsonResponse::error($this->t('errors.bad_type'), 'bad_type');
+				throw new UserFacingException($this->t('errors.bad_type'), jsonCode: 'bad_type');
 			}
 			return JsonResponse::ok(['message' => $this->t('admin.conn_success')]);
 		} catch (\Throwable $e) {
-			return JsonResponse::error(
-				$this->t('errors.failed', ['msg' => $e->getMessage()]), 'connect_failed');
+			throw new UserFacingException($this->t('errors.failed', ['msg' => $e->getMessage()]), jsonCode: 'connect_failed');
 		}
 	}
 
 	public function testDb(Request $request): JsonResponse
 	{
-		$this->requireAdmin();
-		$this->requireCsrf();
+		$this->requireAdminWrite();
 		try {
 			// Test = vérification de connexion uniquement : pas de
 			// CREATE DATABASE - un bouton "tester" ne doit rien écrire.
 			$this->validatedDbConfig((array) $request->json(), false);
 			return JsonResponse::ok(['message' => $this->t('admin.conn_success')]);
 		} catch (\Throwable $e) {
-			return JsonResponse::error(
-				$this->t('errors.failed', ['msg' => $e->getMessage()]), 'db_failed');
+			throw new UserFacingException($this->t('errors.failed', ['msg' => $e->getMessage()]), jsonCode: 'db_failed');
 		}
 	}
 
@@ -99,14 +96,13 @@ final class SystemController extends BaseController
 
 	public function logsClear(Request $request): JsonResponse
 	{
-		$this->requireAdmin();
-		$this->requireCsrf();
+		$this->requireAdminWrite();
 		$map = $this->logFilesMap();
 		$key = (string) $request->input('file', '');
 		// Action destructive : pas de fallback silencieux sur app.log -
 		// une clé hors whitelist est refusée.
 		if (!isset($map[$key])) {
-			return JsonResponse::error($this->t('errors.forbidden'), 'bad_file', 400);
+			throw new UserFacingException($this->t('errors.forbidden'), 400, jsonCode: 'bad_file');
 		}
 		$file = $this->app->storageDir() . '/logs/' . $map[$key];
 		if (is_file($file)) {
@@ -123,8 +119,7 @@ final class SystemController extends BaseController
 
 	public function settingsSet(Request $request): JsonResponse
 	{
-		$this->requireAdmin();
-		$this->requireCsrf();
+		$this->requireAdminWrite();
 		$input = (array) $request->json();
 		$out = [];
 
@@ -141,15 +136,13 @@ final class SystemController extends BaseController
 					default => $this->validate($key, $input[$key], $rule),
 				};
 			} catch (\RuntimeException) {
-				return JsonResponse::error(
-					$this->t('errors.invalid_value', ['key' => $key]), 'validation', 400);
+				throw new UserFacingException($this->t('errors.invalid_value', ['key' => $key]), 400, jsonCode: 'validation');
 			}
 		}
 		// admin_path : les chemins publics/API réservés sont interdits
 		if (isset($out['admin_path'])
 			&& in_array($out['admin_path'], ['api', 'assets', 'setup'], true)) {
-			return JsonResponse::error(
-				$this->t('errors.invalid_value', ['key' => 'admin_path']), 'validation', 400);
+			throw new UserFacingException($this->t('errors.invalid_value', ['key' => 'admin_path']), 400, jsonCode: 'validation');
 		}
 
 		// Cohérence PJ : la limite par fichier ne peut excéder le total par
@@ -162,8 +155,7 @@ final class SystemController extends BaseController
 			$total = $out['attachments_max_total']
 				?? (int) $this->app->config()->get('attachments_max_total', 25);
 			if ($perFile > $total) {
-				return JsonResponse::error(
-					$this->t('errors.attach_max_gt_total'), 'validation', 400);
+				throw new UserFacingException($this->t('errors.attach_max_gt_total'), 400, jsonCode: 'validation');
 			}
 		}
 
@@ -177,14 +169,12 @@ final class SystemController extends BaseController
 					// pas seulement le format de la règle 'key'.
 					if ($section === 'user_defaults' && $key === 'theme'
 						&& !$this->app->themes()->isSelectable((string) $input[$full])) {
-						return JsonResponse::error(
-							$this->t('errors.invalid_value', ['key' => $full]), 'validation', 400);
+						throw new UserFacingException($this->t('errors.invalid_value', ['key' => $full]), 400, jsonCode: 'validation');
 					}
 					try {
 						$sub[$key] = $this->validate($full, $input[$full], $rule);
 					} catch (\RuntimeException) {
-						return JsonResponse::error(
-							$this->t('errors.invalid_value', ['key' => $full]), 'validation', 400);
+						throw new UserFacingException($this->t('errors.invalid_value', ['key' => $full]), 400, jsonCode: 'validation');
 					}
 				}
 			}
@@ -198,67 +188,48 @@ final class SystemController extends BaseController
 			try {
 				$out += $this->validatedDbConfig($input);
 			} catch (\Throwable $e) {
-				return JsonResponse::error(
-					$this->t('errors.db_connect', ['msg' => $e->getMessage()]), 'db_failed');
+				throw new UserFacingException($this->t('errors.db_connect', ['msg' => $e->getMessage()]), jsonCode: 'db_failed');
 			}
 		}
 
-		$writer = new \MXWebMail\Config\ConfigWriter($this->app->rootDir());
-		try {
-			$writer->write($out, $this->app->config());
-		} catch (\Throwable $e) {
-			return JsonResponse::error($this->t('errors.config_write_failed'), 'config_write', 500);
-		}
+		$writer = $this->writeConfig($out);
 		return JsonResponse::ok(['writable' => $writer->writable()]);
 	}
 
 	public function passwordSet(Request $request): JsonResponse
 	{
-		$this->requireAdmin();
-		$this->requireCsrf();
+		$this->requireAdminWrite();
 		$pass = (string) $request->input('password', '');
 		if (strlen($pass) < 8) {
-			return JsonResponse::error($this->t('errors.password_short'), 'validation');
+			throw new UserFacingException($this->t('errors.password_short'), jsonCode: 'validation');
 		}
-		try {
-			(new \MXWebMail\Config\ConfigWriter($this->app->rootDir()))
-				->write(['admin_password_hash' => password_hash($pass, PASSWORD_DEFAULT)],
-					$this->app->config());
-		} catch (\Throwable) {
-			return JsonResponse::error($this->t('errors.config_write_failed'), 'config_write', 500);
-		}
+		$w = $this->writeConfig(['admin_password_hash' => password_hash($pass, PASSWORD_DEFAULT)]);
 		return JsonResponse::ok();
 	}
 
 	public function faviconUpload(Request $request): JsonResponse
 	{
-		$this->requireAdmin();
-		$this->requireCsrf();
-		$f = $request->files['file'] ?? null;
-		if (!$f || ($f['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK
-			|| !is_uploaded_file((string) ($f['tmp_name'] ?? ''))) {
-			return JsonResponse::error($this->t('errors.bad_upload'), 'bad_upload');
-		}
+		$this->requireAdminWrite();
+		$f = $this->requireUpload($request, 'file');
 		if ((int) $f['size'] > self::FAVICON_MAX) {
-			return JsonResponse::error($this->t('errors.favicon_too_big'), 'too_big', 400);
+			throw new UserFacingException($this->t('errors.favicon_too_big'), 400, jsonCode: 'too_big');
 		}
 		$ext = strtolower(pathinfo((string) $f['name'], PATHINFO_EXTENSION));
 		if (!in_array($ext, self::FAVICON_TYPES, true)
 			|| !self::faviconContentOk((string) $f['tmp_name'], $ext)) {
-			return JsonResponse::error($this->t('errors.favicon_invalid'), 'validation', 400);
+			throw new UserFacingException($this->t('errors.favicon_invalid'), 400, jsonCode: 'validation');
 		}
 		$dir = $this->app->storageDir() . '/branding';
-		is_dir($dir) || mkdir($dir, 0700, true);
+		Files::ensureDir($dir);
 		$name = 'favicon.' . $ext;
 		if (!move_uploaded_file($f['tmp_name'], $dir . '/' . $name)) {
-			return JsonResponse::error($this->t('errors.bad_upload'), 'bad_upload');
+			throw new UserFacingException($this->t('errors.bad_upload'), jsonCode: 'bad_upload');
 		}
 		try {
-			(new \MXWebMail\Config\ConfigWriter($this->app->rootDir()))
-				->write(['favicon' => $name], $this->app->config());
-		} catch (\Throwable) {
+			$this->writeConfig(['favicon' => $name]);
+		} catch (\Throwable $e) {
 			@unlink($dir . '/' . $name);
-			return JsonResponse::error($this->t('errors.config_write_failed'), 'config_write', 500);
+			throw $e;
 		}
 		// Purge les anciennes versions d'une extension différente
 		foreach (glob($dir . '/favicon.*') ?: [] as $old) {
@@ -271,17 +242,11 @@ final class SystemController extends BaseController
 
 	public function faviconDelete(Request $request): JsonResponse
 	{
-		$this->requireAdmin();
-		$this->requireCsrf();
+		$this->requireAdminWrite();
 		foreach (glob($this->app->storageDir() . '/branding/favicon.*') ?: [] as $old) {
 			@unlink($old);
 		}
-		try {
-			(new \MXWebMail\Config\ConfigWriter($this->app->rootDir()))
-				->write(['favicon' => ''], $this->app->config());
-		} catch (\Throwable) {
-			return JsonResponse::error($this->t('errors.config_write_failed'), 'config_write', 500);
-		}
+		$w = $this->writeConfig(['favicon' => '']);
 		return JsonResponse::ok();
 	}
 
@@ -303,6 +268,10 @@ final class SystemController extends BaseController
 		$zip->addFile($storage . '/INSTALLED', 'storage/INSTALLED');
 		foreach ((array) glob($storage . '/db/*.sqlite') as $f) {
 			$zip->addFile($f, 'storage/db/' . basename($f));
+		}
+		// Carnets d'adresses (une base SQLite par utilisateur).
+		foreach ($this->app->userDb()->allFiles() as $f) {
+			$zip->addFile($f, 'storage/db/users/' . basename($f));
 		}
 		foreach ((array) glob($storage . '/branding/*') as $f) {
 			is_file($f) && $zip->addFile($f, 'storage/branding/' . basename($f));
@@ -340,38 +309,33 @@ final class SystemController extends BaseController
 
 	public function updateDownload(Request $request): JsonResponse
 	{
-		$this->requireAdmin();
-		$this->requireCsrf();
+		$this->requireAdminWrite();
 		return $this->serviceApi(fn() => $this->app->updater()->download());
 	}
 
 	public function updateApply(Request $request): JsonResponse
 	{
-		$this->requireAdmin();
-		$this->requireCsrf();
+		$this->requireAdminWrite();
 		return $this->serviceApi(fn() => $this->app->updater()->apply());
 	}
 
 	/** Migrations post-update : requête nouvelle > nouveau code chargé. */
 	public function updateFinalize(Request $request): JsonResponse
 	{
-		$this->requireAdmin();
-		$this->requireCsrf();
+		$this->requireAdminWrite();
 		return $this->serviceApi(fn() => $this->app->updater()->finalize());
 	}
 
 	public function updateRollback(Request $request): JsonResponse
 	{
-		$this->requireAdmin();
-		$this->requireCsrf();
+		$this->requireAdminWrite();
 		$force = (bool) $request->input('force', false);
 		return $this->serviceApi(fn() => $this->app->updater()->rollback($force));
 	}
 
 	public function updateReset(Request $request): JsonResponse
 	{
-		$this->requireAdmin();
-		$this->requireCsrf();
+		$this->requireAdminWrite();
 		return $this->serviceApi(fn() => $this->app->updater()->reset());
 	}
 
@@ -385,7 +349,7 @@ final class SystemController extends BaseController
 		}
 		$host = trim((string) ($input['db_host'] ?? 'localhost'));
 		if (!preg_match('/^[A-Za-z0-9.\-:\[\]]+$/', $host)) {
-			throw new \RuntimeException($this->t('errors.invalid_value', ['key' => 'db_host']), 400);
+			throw new UserFacingException($this->t('errors.invalid_value', ['key' => 'db_host']), 400, jsonCode: 'validation');
 		}
 		$port = (int) ($input['db_port'] ?? 3306);
 		$name = preg_replace('/[^a-zA-Z0-9_]/', '', (string) ($input['db_name'] ?? 'mxwebmail'));
@@ -394,7 +358,7 @@ final class SystemController extends BaseController
 		if ($pass === '') {
 			$pass = (string) $this->app->config()->get('db_pass', ''); // vide = inchangé
 		}
-		$pdo = new \PDO("mysql:host=$host;port=$port;charset=utf8mb4", $user, $pass,
+		$pdo = new \PDO(\MXWebMail\Config\Dsn::mysql($host, $port), $user, $pass,
 			[\PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION]);
 		if ($create) {
 			$pdo->exec("CREATE DATABASE IF NOT EXISTS `$name` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
@@ -411,7 +375,7 @@ final class SystemController extends BaseController
 			}
 		}
 		return [
-			'db_dsn' => "mysql:host=$host;port=$port;dbname=$name;charset=utf8mb4",
+			'db_dsn' => \MXWebMail\Config\Dsn::mysql($host, $port, $name),
 			'db_user' => $user,
 			'db_pass' => $pass,
 		];
@@ -461,9 +425,10 @@ final class SystemController extends BaseController
 		$v['db_driver'] = str_starts_with($dsn, 'mysql') ? 'mysql' : 'sqlite';
 		$v['db_host'] = 'localhost'; $v['db_port'] = 3306; $v['db_name'] = 'mxwebmail';
 		if ($v['db_driver'] === 'mysql') {
-			preg_match('/host=([^;]+)/', $dsn, $m) && $v['db_host'] = $m[1];
-			preg_match('/port=(\d+)/', $dsn, $m) && $v['db_port'] = (int) $m[1];
-			preg_match('/dbname=([^;]+)/', $dsn, $m) && $v['db_name'] = $m[1];
+			$p = \MXWebMail\Config\Dsn::parseMysql($dsn);
+			$v['db_host'] = $p['host'] ?? $v['db_host'];
+			$v['db_port'] = $p['port'] ?? $v['db_port'];
+			$v['db_name'] = $p['dbname'] ?? $v['db_name'];
 		}
 		return [
 			'values' => $v,
@@ -680,7 +645,7 @@ final class SystemController extends BaseController
 				)->fetchColumn();
 			}
 			// Bases contacts par utilisateur : toujours des fichiers SQLite.
-			foreach (glob($this->app->storageDir() . '/db/users/*.sqlite') ?: [] as $f) {
+			foreach ($this->app->userDb()->allFiles() as $f) {
 				$dbSize = ($dbSize ?? 0) + self::sqliteFileSize($f);
 			}
 		} catch (\Throwable) {}
@@ -727,7 +692,7 @@ final class SystemController extends BaseController
 	{
 		$v = strtolower(trim((string) $v));
 		if (!in_array($v, ['auto', ...$this->app->languages()], true)) {
-			throw new \RuntimeException($this->t('errors.invalid_value', ['key' => 'language']), 400);
+			throw new UserFacingException($this->t('errors.invalid_value', ['key' => 'language']), 400, jsonCode: 'validation');
 		}
 		return $v;
 	}
@@ -764,10 +729,11 @@ final class SystemController extends BaseController
 	private static function validDefaultDomain(mixed $v): string
 	{
 		$s = strtolower(trim((string) $v));
-		if ($s === ''
-			|| preg_match('/^[a-z0-9]([a-z0-9.\-]{0,251}[a-z0-9])?$/', $s)) {
+		if ($s === '' || Rule::domain($s)) {
 			return $s;
 		}
-		throw new \RuntimeException($this->t('errors.invalid_value', ['key' => 'default_domain']), 400);
+		// Le catch appelant re-ecrit errors.invalid_value - pas de t() ici
+		// (la methode est static : $this->t() serait un fatal).
+		throw new UserFacingException('default_domain', 400);
 	}
 }

@@ -34,14 +34,16 @@ final class Pwa extends PluginBase
 			return '';
 		}
 		$b = htmlspecialchars($base, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-		$color = self::hex($this->config['theme_color'] ?? '');
+		$color = self::hex($this->configString('theme_color'));
 		return "\n\t" . '<link rel="manifest" href="' . $b . '/pwa/manifest.webmanifest">'
 			. "\n\t" . '<meta name="theme-color" content="'
 				. htmlspecialchars($color ?? $this->headerColor(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
 				. '"' . ($color === null ? ' data-pwa-auto' : '') . '>'
-			. "\n\t" . '<link rel="apple-touch-icon" href="' . $this->iconHref($b) . '">'
-			. "\n\t" . '<script src="' . $b . '/assets/plugin/pwa/register.js?v='
-				. rawurlencode($this->version()) . '" defer></script>';
+			. "\n\t" . '<link rel="apple-touch-icon" href="' . $this->iconHref($base) . '">'
+			. "\n\t" . '<script src="'
+				. htmlspecialchars($this->assetUrl($base, 'register.js'),
+					ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+				. '" defer></script>';
 	}
 
 	private function routes(Router $router): void
@@ -57,7 +59,7 @@ final class Pwa extends PluginBase
 	public function manifest(Request $request): Response
 	{
 		$base = Request::basePath() . '/';
-		$iconUrl = trim((string) ($this->config['icon_url'] ?? ''));
+		$iconUrl = $this->configTrim('icon_url');
 		$icons = [];
 		if (self::isIconUrl($iconUrl)) {
 			// Surcharge admin : URL externe utilisée telle quelle pour tout le manifest.
@@ -72,19 +74,18 @@ final class Pwa extends PluginBase
 				['icon-maskable-512.png', '512x512', 'maskable'],
 			] as [$file, $sizes, $purpose]) {
 				$icons[] = [
-					'src' => $base . 'assets/plugin/pwa/' . $file
-						. '?v=' . rawurlencode($this->version()),
+					'src' => $this->assetUrl($base, $file),
 					'sizes' => $sizes, 'type' => 'image/png', 'purpose' => $purpose,
 				];
 			}
 		}
 
-		$name = trim((string) ($this->config['name'] ?? ''));
+		$name = $this->configTrim('name');
 		if ($name === '') {
 			$name = (string) $this->app->config()->get('app_name');
 		}
-		$short = trim((string) ($this->config['short_name'] ?? ''));
-		$display = (string) ($this->config['display'] ?? 'standalone');
+		$short = $this->configTrim('short_name');
+		$display = $this->configString('display', 'standalone');
 		if (!in_array($display, ['standalone', 'fullscreen', 'minimal-ui', 'browser'], true)) {
 			$display = 'standalone';
 		}
@@ -136,14 +137,14 @@ JS;
 	// ─── Config helpers ───
 
 	/** href de l'icône tactile (URL admin prioritaire, sinon PNG par défaut 192). */
-	private function iconHref(string $escapedBase): string
+	private function iconHref(string $base): string
 	{
-		$iconUrl = trim((string) ($this->config['icon_url'] ?? ''));
+		$iconUrl = $this->configTrim('icon_url');
 		if (self::isIconUrl($iconUrl)) {
 			return htmlspecialchars($iconUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 		}
-		return $escapedBase . '/assets/plugin/pwa/icon-192.png?v='
-			. rawurlencode($this->version());
+		return htmlspecialchars($this->assetUrl($base, 'icon-192.png'),
+			ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 	}
 
 	private static function isIconUrl(string $url): bool
@@ -153,7 +154,7 @@ JS;
 
 	private function themeColor(): string
 	{
-		return self::hex($this->config['theme_color'] ?? '') ?? $this->headerColor();
+		return self::hex($this->configString('theme_color')) ?? $this->headerColor();
 	}
 
 	/**
@@ -175,7 +176,7 @@ JS;
 
 	private function backgroundColor(): string
 	{
-		return self::hex($this->config['background_color'] ?? '') ?? '#ffffff';
+		return self::hex($this->configString('background_color')) ?? '#ffffff';
 	}
 
 	private static function hex(mixed $v): ?string

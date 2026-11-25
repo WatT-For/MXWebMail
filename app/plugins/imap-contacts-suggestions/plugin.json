@@ -3,7 +3,7 @@
 	"label": "plugin.imap-contacts-suggestions.label",
 	"class": "ImapContactsSuggestions",
 	"main": "ImapContactsSuggestions.php",
-	"version": "0.12.1",
+	"version": "0.12.3",
 	"description": "plugin.imap-contacts-suggestions.description",
 	"hooks": ["contacts.provider"]
 }

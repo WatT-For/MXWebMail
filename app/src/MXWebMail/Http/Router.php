@@ -36,7 +36,8 @@ final class Router
 	public function dispatch(Request $request): ?Response
 	{
 		foreach ($this->routes as $route) {
-			if ($route['method'] !== $request->method) {
+			if ($route['method'] !== $request->method
+				&& !($request->method === 'HEAD' && $route['method'] === 'GET')) {
 				continue;
 			}
 			$params = self::match($route['regex'], $request->path);

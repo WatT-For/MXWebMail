@@ -110,6 +110,8 @@ her zaman son çaredir. Anti-döngü ve maksimum derinlik 8.
 `theme.json`/şemasını sağlar; geri kalanı (sayfalar, sözlükler) `default`'tan
 alınır.
 
+Paylaşılan düzen `default/assets/base.css` içindedir: her `app.css` onu `@import url("base.css")` ile içe aktarır (miras zincirinde çözülür), ardından yalnızca `:root` değişkenlerini ve geçersiz kılmalarını ekler.
+
 ## 3. Tema oluşturma
 
 1. `app/templates/<name>/theme.json` oluşturun (muhtemelen `extends` ile).

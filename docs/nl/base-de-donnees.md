@@ -39,7 +39,7 @@ gezet en gemeld in *Over* - de migraties zijn dan opgeschort.
 
 | Tabel | Inhoud |
 |---|---|
-| `meta` | sleutel/waarde-paren (`schema_version`, `contacts_moved`, …). |
+| `meta` | sleutel/waarde-paren (`schema_version`, `plugin_<name>_schema_version`, `contacts_moved`, …). |
 | `users` | `username` (uniek), `display_name`, `is_admin`, `disabled`, `session_epoch` (verhoogd door "Afmelding afdwingen" - weigert actieve sessies bij de volgende request), `created_at`, `last_login_at`. |
 | `accounts` | IMAP-accounts van gebruikers: `email`, `imap_user`, `imap_pass` (versleuteld), `is_default` (hoofdaccount, wijzigbaar in Instellingen > Accounts), `position` (weergavevolgorde van subaccounts, herschikbaar via drag-and-drop in Instellingen > Accounts), `auth` (`password`, `google`, `microsoft`, `yahoo` - OAuth2: `imap_pass` bevat dan het versleutelde *refresh token*). |
 | `oauth_apps` | OAuth2-applicaties per gebruiker: `provider`, `client_id`, `secret` (versleuteld), `tenant` - een app per `(user_id, provider)` (zie [domaines.md](domaines.md) §8). |

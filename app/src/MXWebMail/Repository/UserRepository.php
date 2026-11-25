@@ -35,7 +35,9 @@ final class UserRepository
 			// Deux premiers logins concurrents : l'autre requête a créé la
 			// ligne entre notre SELECT et notre INSERT - on la relit.
 		}
-		return $this->findByUsername($username);
+		return $this->findByUsername($username)
+			?? throw new \RuntimeException(
+				'INSERT users effectué mais ligne introuvable', 500);
 	}
 
 	public function findOrCreate(string $username): array

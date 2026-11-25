@@ -3,7 +3,7 @@
 	"label": "plugin.sso-header.label",
 	"class": "SsoHeader",
 	"main": "SsoHeader.php",
-	"version": "0.1.1",
+	"version": "0.1.2",
 	"description": "plugin.sso-header.description",
 	"hooks": ["app.routes", "app.head", "auth.provider",
 		"imap.before-connect", "smtp.before-connect", "sieve.before-connect"],

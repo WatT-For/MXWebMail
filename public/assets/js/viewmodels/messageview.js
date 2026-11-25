@@ -1,6 +1,9 @@
 import { api, base } from '../api.js';
 import { dialog } from '../ui/dialog.js';
+import { bindModal } from '../ui/modal.js';
 import { toast } from '../ui/toast.js';
+import { formatSize, formatTs, formatAddressList } from '../ui/format.js';
+import { bindAll } from '../ui/bind-all.js';
 import { t } from '../i18n.js';
 import { loadOpenPgp } from '../lazy.js';
 
@@ -88,11 +91,7 @@ export class MessageViewVM {
 
 		// Knockout invoque les handlers avec this = $data du contexte courant
 		// (item dans un foreach / objet dans un with) : on force le binding sur le VM.
-		for (const m of Object.getOwnPropertyNames(MessageViewVM.prototype)) {
-			if (m !== 'constructor' && typeof this[m] === 'function') {
-				this[m] = this[m].bind(this);
-			}
-		}
+		bindAll(this, MessageViewVM.prototype);
 
 		// Diagnostic (réglage Debug admin) : si du contenu du mail recouvre
 		// un bouton, e.target montre l'élément intercepteur au lieu du bouton.
@@ -668,7 +667,7 @@ export class MessageViewVM {
 			}
 		}
 		if (!this.previewModal) {
-			this.previewModal = new bootstrap.Modal(document.getElementById('preview-modal'));
+			this.previewModal = bindModal('preview-modal');
 		}
 		this.previewModal.show();
 	}
@@ -746,6 +745,8 @@ export class MessageViewVM {
 				`&uid=${m.uid}&mime=${encodeURIComponent(att.mimeIndex)}`);
 			const lines = [];
 			// ev.start/end sont ISO 8601 depuis ics-viewer 0.13 > formatage localisé
+			// ev.start/end sont ISO 8601 (parse, pas timestamp unix) :
+			// formatTs n'applique pas - formatage localisé direct.
 			const fmt = (s, allDay) => {
 				const d = new Date(s);
 				return isNaN(d) ? s
@@ -856,11 +857,7 @@ export class MessageViewVM {
 
 	/** Taille de pièce jointe lisible (estimatedSize est en octets). */
 	formatSize(bytes) {
-		const b = Number(bytes) || 0;
-		if (b >= 1073741824) { return (b / 1073741824).toFixed(1) + ' ' + t('unit.gb'); }
-		if (b >= 1048576) { return (b / 1048576).toFixed(1) + ' ' + t('unit.mb'); }
-		if (b >= 1024) { return Math.round(b / 1024) + ' ' + t('unit.kb'); }
-		return b + ' ' + t('unit.b');
+		return formatSize(bytes);
 	}
 
 	attachmentUrl(att) {
@@ -914,7 +911,7 @@ export class MessageViewVM {
 			if (!res.ok) { throw new Error('HTTP ' + res.status); }
 			this.sourceText(await res.text());
 			if (!this.sourceModal) {
-				this.sourceModal = new bootstrap.Modal(document.getElementById('source-modal'));
+				this.sourceModal = bindModal('source-modal');
 			}
 			this.sourceModal.show();
 		} catch (e) {
@@ -972,7 +969,7 @@ export class MessageViewVM {
 		if (m.cc && this.headerText('cc')) {
 			hdr.append(line(t('app.cc') + ' ' + this.headerText('cc')));
 		}
-		hdr.append(line(new Date(m.date * 1000).toLocaleString(this.app.lang)));
+		hdr.append(line(formatTs(m.date, this.app.lang, '')));
 		// Corps : texte déchiffré PGP > <pre> ; sinon copie de #mail-body
 		// (l'id est requis : les <style> copiés ont des sélecteurs préfixés
 		// "#mail-body" - scopeStyles).
@@ -1005,43 +1002,16 @@ export class MessageViewVM {
 		} catch (e) { this.error(e.message); return; }
 		m.isFlagged(set);
 		// Resync l'étoile de la ligne correspondante dans la liste
-		this.app.messageList.messages()
-			.find(x => x.uid === m.uid && x.folder === m.folder)?.isFlagged(set);
+		this.app.messageList.findModel(m.folder, m.uid)?.isFlagged(set);
 	}
 
 	async toggleSpam() {
 		const m = this.message();
 		if (!m) { return; }
 		const spam = !(this.app.folderList.isJunkFolder(m.folder) || !!m.isJunk());
-		const ml = this.app.messageList;
-		// Prédiction miroir du test serveur ($folder === $junk) : 'move'
-		// attendu si le message part/rejoint le dossier Junk, 'keyword' sinon.
-		const junkName = this.app.folderList.junkFolder()?.fullName;
-		const expectMove = spam ? (!!junkName && m.folder !== junkName)
-			: (m.folder === junkName);
-		// UI optimiste : retrait immédiat + avance/auto (ou lecteur fermé),
-		// ou flag keyword. hideMoved capture déjà _advanceIdx.
-		if (expectMove) {
-			ml.hideMoved(m);
-			ml.advanceOrClear();
-		} else {
-			m.isJunk(spam);
-			ml.messages().find(x => x.uid === m.uid && x.folder === m.folder)?.isJunk(spam);
-		}
-		try {
-			const r = await api.post(`/messages/${m.uid}/spam`, { folder: m.folder, spam });
-			ml.unmarkMoved(m.folder, m.uid);
-			// Stratégie réelle ≠ prédiction : resync complet (cas rare) ;
-			// déplacement conforme : resync silencieux (backfill + total).
-			if ((r.strategy === 'move') !== expectMove) { await ml.load(); }
-			else if (expectMove) { await ml.load(true); }
-		} catch (e) {
-			ml.unmarkMoved(m.folder, m.uid);
-			if (expectMove && !m.isSeen()) { ml.adjustUnread(1, m.folder); }
-			// Le lecteur est fermé : erreur affichée côté liste.
-			ml.error(e.message);
-			await ml.load();
-		}
+		// Délègue au batch de la liste : même UI optimiste (retrait/flag),
+		// même réconciliation sur la stratégie réelle du serveur.
+		await this.app.messageList.spamItems([m], spam);
 	}
 
 	spamLabel() {
@@ -1066,33 +1036,24 @@ export class MessageViewVM {
 		if (!m) { return; }
 		const key = this.app.folderList.isTrashFolder(m.folder)
 			? 'messages.delete_confirm_perm' : 'messages.delete_confirm';
-		if (!(await dialog.confirm(t(key, { n: 1 }),
-			{ variant: 'danger', okLabel: t('common.delete'), title: t('messages.delete_title') }))) { return; }
+		if (!(await dialog.confirmDanger(t(key, { n: 1 }),
+			{ title: t('messages.delete_title') }))) { return; }
 		const ml = this.app.messageList;
 		try {
 			await api.post(`/messages/${m.uid}/delete`, { folder: m.folder });
 		} catch (e) { this.error(e.message); return; }
-		const model = ml.messages().find(x => x.uid === m.uid && x.folder === m.folder);
-		if (model) {
-			ml.captureAdvanceIdx(model);
-			if (!model.isSeen()) { ml.adjustUnread(-1, m.folder); }
-			ml.messages.remove(model);
-		}
-		// Avance sur le voisin selon after_delete, sinon lecteur fermé.
-		ml.cancelReadTimer();
-		await ml.advanceOrClear();
-		await ml.load(true);
+		await ml.removeOptimistic(m);
 	}
 
 	async markUnread() {
 		const m = this.message();
 		if (!m) { return; }
-		this.app.messageList.cancelReadTimer();
+		const ml = this.app.messageList;
+		ml.cancelReadTimer();
 		await api.post(`/messages/${m.uid}/flags`, { folder: m.folder, flag: '\\Seen', set: false });
 		m.isSeen(false);
-		this.app.messageList.messages()
-			.find(x => x.uid === m.uid && x.folder === m.folder)?.isSeen(false);
-		this.app.messageList.adjustUnread(1, m.folder);
+		ml.findModel(m.folder, m.uid)?.isSeen(false);
+		ml.adjustUnread(1, m.folder);
 	}
 
 	async moveTo(target) {
@@ -1100,16 +1061,7 @@ export class MessageViewVM {
 		if (!m || !target) { return; }
 		const ml = this.app.messageList;
 		await api.post(`/messages/${m.uid}/move`, { folder: m.folder, to: target });
-		const model = ml.messages().find(x => x.uid === m.uid && x.folder === m.folder);
-		if (model) {
-			ml.captureAdvanceIdx(model);
-			if (!model.isSeen()) { ml.adjustUnread(-1, m.folder); }
-			ml.messages.remove(model);
-		}
-		// Avance sur le voisin selon after_delete, sinon lecteur fermé.
-		ml.cancelReadTimer();
-		await ml.advanceOrClear();
-		await ml.load(true);
+		await ml.removeOptimistic(m);
 	}
 
 	async moveWithPicker() {
@@ -1165,10 +1117,6 @@ export class MessageViewVM {
 
 	/** "Nom <email>, …" - partagé par les en-têtes du message et du .eml. */
 	addrText(v) {
-		if (!v) { return ''; }
-		if (Array.isArray(v)) {
-			return v.map(e => e.name ? `${e.name} <${e.email}>` : (e.email || e)).join(', ');
-		}
-		return String(v);
+		return formatAddressList(v);
 	}
 }

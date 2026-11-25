@@ -7,8 +7,7 @@ export default function mount(el, ctx) {
 	const t = ctx.t;
 	const K = 'plugin.webmail-migration.';
 	const call = (action, body) => ctx.api.post(`/admin/plugin/webmail-migration/${action}`, body || {});
-	const esc = (s) => String(s ?? '').replace(/[&<>"']/g,
-		c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+	const esc = ctx.esc;
 
 	el.innerHTML = `
 		<h5>${t(K + 'title')}</h5>

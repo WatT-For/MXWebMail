@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace MXWebMail\Service;
 
 use MXWebMail\Application\App;
+use MXWebMail\Files;
+use MXWebMail\Validation\Rule;
 
 /**
  * Détection de la configuration mail d'un domaine (format table "domains").
@@ -18,25 +20,34 @@ final class DomainDetector
 {
 	private const OK_PORTS = [143, 993, 465, 587, 25, 4190];
 
-	/** Suffixe MX > [imap_host, smtp_host, smtp_port, smtp_encryption]. */
-	private const MX_PROVIDERS = [
-		'google.com'         => ['imap.gmail.com', 'smtp.gmail.com', 465, 'ssl'],
-		'googlemail.com'     => ['imap.gmail.com', 'smtp.gmail.com', 465, 'ssl'],
-		'outlook.com'        => ['outlook.office365.com', 'smtp.office365.com', 587, 'tls'],
-		'protection.outlook.com' => ['outlook.office365.com', 'smtp.office365.com', 587, 'tls'],
-		'yahoodns.net'       => ['imap.mail.yahoo.com', 'smtp.mail.yahoo.com', 465, 'ssl'],
-		'ovh.net'            => ['ssl0.ovh.net', 'ssl0.ovh.net', 465, 'ssl'],
-		'gandi.net'          => ['mail.gandi.net', 'mail.gandi.net', 465, 'ssl'],
-		'infomaniak.com'     => ['mail.infomaniak.com', 'mail.infomaniak.com', 465, 'ssl'],
-		'zoho.com'           => ['imap.zoho.com', 'smtp.zoho.com', 465, 'ssl'],
-		'messagingengine.com' => ['imap.fastmail.com', 'smtp.fastmail.com', 465, 'ssl'],
-	];
+	/**
+	 * Suffixe MX > [imap_host, smtp_host, smtp_port, smtp_encryption].
+	 * Les tuples gmail/outlook/yahoo proviennent d'OAuthService::PRESET_DOMAINS
+	 * (source unique des hôtes connus de ces providers - pas de derive).
+	 */
+	private static function mxProviders(): array
+	{
+		$p = fn(string $domain): array => array_slice(
+			\MXWebMail\Service\OAuthService::PRESET_DOMAINS[$domain], 1);
+		return [
+			'google.com'         => $p('gmail.com'),
+			'googlemail.com'     => $p('gmail.com'),
+			'outlook.com'        => $p('outlook.com'),
+			'protection.outlook.com' => $p('outlook.com'),
+			'yahoodns.net'       => $p('yahoo.com'),
+			'ovh.net'            => ['ssl0.ovh.net', 'ssl0.ovh.net', 465, 'ssl'],
+			'gandi.net'          => ['mail.gandi.net', 'mail.gandi.net', 465, 'ssl'],
+			'infomaniak.com'     => ['mail.infomaniak.com', 'mail.infomaniak.com', 465, 'ssl'],
+			'zoho.com'           => ['imap.zoho.com', 'smtp.zoho.com', 465, 'ssl'],
+			'messagingengine.com' => ['imap.fastmail.com', 'smtp.fastmail.com', 465, 'ssl'],
+		];
+	}
 
 	public function __construct(private App $app) {}
 
 	private function cfg(): array
 	{
-		return (array) $this->app->config()->get('autodetect', []);
+		return $this->app->config()->section('autodetect');
 	}
 
 	/**
@@ -116,8 +127,8 @@ final class DomainDetector
 		$ascii = function_exists('idn_to_ascii') && $domain !== ''
 			? idn_to_ascii($domain, IDNA_DEFAULT, INTL_IDNA_VARIANT_UTS46) : $domain;
 		$domain = is_string($ascii) ? $ascii : $domain;
-		return preg_match('/^[a-z0-9]([a-z0-9.\-]{0,251}[a-z0-9])?$/', $domain)
-			&& str_contains($domain, '.') ? $domain : null;
+		return Rule::domain($domain) && str_contains($domain, '.')
+			? $domain : null;
 	}
 
 	// ─── DNS SRV (RFC 6186) ───
@@ -175,21 +186,11 @@ final class DomainDetector
 
 	private function fetch(string $url): ?string
 	{
-		try {
-			$req = \MXWebMailLib\HTTP\Request::factory();
-			$req->timeout = 3;
-			$req->max_response_kb = 64;
-			$req->verify_peer = true;
-			$ca = (string) (((array) $this->app->config()->get('ssl'))['cafile'] ?? '');
-			if ($ca !== '') {
-				$req->setCABundleFile($ca);
-			}
-			$res = $req->doRequest('GET', $url);
-			return $res && $res->status === 200 && is_string($res->body)
-				? $res->body : null;
-		} catch (\Throwable) {
-			return null;
-		}
+		// httpGet mutualise cafile + garde SSRF (hôte public requis par
+		// requête, redirections non suivies) : autoconfig.<domaine> vient
+		// de la saisie utilisateur et doit passer le même filtre.
+		$res = $this->app->httpGet($url, 3, 64);
+		return $res !== null && is_string($res->body) ? $res->body : null;
 	}
 
 	/** Parse clientConfig Mozilla - namespaces ignorés via local-name(). */
@@ -248,7 +249,7 @@ final class DomainDetector
 	{
 		foreach (\MXWebMailLib\DNS::MX($d) as $mx) {
 			$mx = strtolower((string) $mx);
-			foreach (self::MX_PROVIDERS as $suffix => [$imap, $smtp, $sport, $senc]) {
+			foreach (self::mxProviders() as $suffix => [$imap, $smtp, $sport, $senc]) {
 				if ($mx === $suffix || str_ends_with($mx, '.' . $suffix)) {
 					return [
 						'imap_host' => $imap, 'imap_port' => 993, 'imap_encryption' => 'ssl',
@@ -301,8 +302,11 @@ final class DomainDetector
 	{
 		$errno = 0;
 		$err = '';
+		// Sonde d'identification de service, pas un canal de confiance :
+		// un IMAP auto-signé doit pouvoir être détecté (relaxLoopbackSsl
+		// lève la même contrainte à la connexion réelle).
 		$ctx = stream_context_create(['ssl' => [
-			'verify_peer' => true, 'verify_peer_name' => true,
+			'verify_peer' => false, 'verify_peer_name' => false,
 		]]);
 		$fp = @stream_socket_client(
 			($ssl ? 'ssl' : 'tcp') . "://{$host}:{$port}",
@@ -408,14 +412,13 @@ final class DomainDetector
 	/** Section "cache" - enabled=false court-circuite le cache négatif. */
 	private function cacheCfg(): array
 	{
-		$c = $this->app->config()->get('cache', []);
-		return is_array($c) ? $c : [];
+		return $this->app->config()->section('cache');
 	}
 
 	private function negFile(): string
 	{
 		$dir = $this->app->storageDir() . '/cache';
-		is_dir($dir) || mkdir($dir, 0700, true);
+		Files::ensureDir($dir);
 		return $dir . '/domain-detect.json';
 	}
 
@@ -424,18 +427,7 @@ final class DomainDetector
 		if (!($this->cacheCfg()['enabled'] ?? true)) {
 			return false;
 		}
-		$file = $this->negFile();
-		if (!is_file($file)) {
-			return false;
-		}
-		$fp = fopen($file, 'rb');
-		if (!$fp) {
-			return false;
-		}
-		flock($fp, LOCK_SH);
-		$all = json_decode((string) stream_get_contents($fp), true) ?: [];
-		flock($fp, LOCK_UN);
-		fclose($fp);
+		$all = Files::readJsonLocked($this->negFile());
 		return (int) ($all[$d] ?? 0) > time();
 	}
 
@@ -445,22 +437,10 @@ final class DomainDetector
 			return;
 		}
 		$ttl = (int) ($this->cacheCfg()['domain_detect_ttl'] ?? 86400);
-		$fp = fopen($this->negFile(), 'c+');
-		if (!$fp) {
-			return;
-		}
-		try {
-			flock($fp, LOCK_EX);
-			$all = json_decode((string) stream_get_contents($fp), true) ?: [];
-			$all = array_filter($all, fn($ts) => (int) $ts > time());
-			$all[$d] = time() + $ttl;
-			rewind($fp);
-			ftruncate($fp, 0);
-			fwrite($fp, json_encode($all));
-			fflush($fp);
-		} finally {
-			flock($fp, LOCK_UN);
-			fclose($fp);
-		}
+		Files::withJsonLock($this->negFile(),
+			function (array &$all) use ($d, $ttl): void {
+				$all = array_filter($all, fn($ts) => (int) $ts > time());
+				$all[$d] = time() + $ttl;
+			});
 	}
 }

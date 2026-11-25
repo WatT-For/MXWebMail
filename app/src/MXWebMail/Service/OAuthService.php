@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace MXWebMail\Service;
 
 use MXWebMail\Application\App;
+use MXWebMail\Locale\Translates;
 use MXWebMail\Security\CredentialCrypt;
 
 /**
@@ -20,12 +21,15 @@ use MXWebMail\Security\CredentialCrypt;
  */
 final class OAuthService
 {
+	use Translates;
+
 	/** Endpoints/scopes provider - '{tenant}' = tenant de l'app utilisateur. */
 	private const PROVIDERS = [
 		'google' => [
 			'auth_url'  => 'https://accounts.google.com/o/oauth2/v2/auth',
 			'token_url' => 'https://oauth2.googleapis.com/token',
 			'scope'     => 'https://mail.google.com/',
+			'label'     => 'Google (Gmail)',
 			// offline + consent : garantit un refresh_token à chaque consentement
 			'extra'     => ['access_type' => 'offline', 'prompt' => 'consent'],
 		],
@@ -34,19 +38,22 @@ final class OAuthService
 			'token_url' => 'https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token',
 			'scope'     => 'offline_access https://outlook.office.com/IMAP.AccessAsUser.All '
 				. 'https://outlook.office.com/SMTP.Send',
+			'label'     => 'Microsoft (Outlook)',
 		],
 		'yahoo' => [
 			'auth_url'  => 'https://api.login.yahoo.com/oauth2/request_auth',
 			'token_url' => 'https://api.login.yahoo.com/oauth2/get_token',
 			'scope'     => 'openid mail-r mail-w',
+			'label'     => 'Yahoo',
 		],
 	];
 
 	/**
 	 * Domaines publics pré-autorisés à l'install (comptes secondaires OAuth
 	 * uniquement) : name => [provider, imap_host, smtp_host, smtp_port,
-	 * smtp_encryption]. IMAP = 993/ssl pour les trois. Hôtes synchrones avec
-	 * DomainDetector::MX_PROVIDERS ; pas de ManageSieve chez ces providers.
+	 * smtp_encryption]. IMAP = 993/ssl pour les trois. Source unique des
+	 * hôtes connus de ces providers : DomainDetector y puise ses tuples
+	 * (suffixes MX gmail/outlook/yahoo). Pas de ManageSieve chez eux.
 	 */
 	public const PRESET_DOMAINS = [
 		'gmail.com'   => ['google',    'imap.gmail.com',        'smtp.gmail.com',       465, 'ssl'],
@@ -56,14 +63,16 @@ final class OAuthService
 
 	public function __construct(private App $app) {}
 
-	private function t(string $key, array $params = []): string
-	{
-		return $this->app->locale()->t($key, $params);
-	}
-
 	public static function providers(): array
 	{
 		return array_keys(self::PROVIDERS);
+	}
+
+	/** Libellés d'affichage des providers (noms de marque, non traduits) -
+	 *  source unique : modale domaine admin + réglages utilisateur. */
+	public static function providerLabels(): array
+	{
+		return array_map(fn (array $p) => $p['label'], self::PROVIDERS);
 	}
 
 	/**
@@ -162,10 +171,7 @@ final class OAuthService
 	 */
 	public function accessToken(int $accountId, int $userId): string
 	{
-		$pdo = $this->app->db()->pdo();
-		$stmt = $pdo->prepare('SELECT id, email, imap_pass, auth FROM accounts WHERE id = :a AND user_id = :u');
-		$stmt->execute(['a' => $accountId, 'u' => $userId]);
-		$account = $stmt->fetch();
+		$account = $this->app->accounts()->findForUser($userId, $accountId);
 		if (!$account || !isset(self::PROVIDERS[(string) $account['auth']])) {
 			throw new \RuntimeException($this->t('errors.account_not_found'), 404);
 		}
@@ -187,9 +193,8 @@ final class OAuthService
 		}
 		if (!empty($data['refresh_token']) && $data['refresh_token'] !== $refresh) {
 			$enc = CredentialCrypt::encrypt((string) $data['refresh_token'], $this->app->storageDir());
-			$pdo->prepare('UPDATE accounts SET imap_pass = :ip WHERE id = :a')
-				->execute(['ip' => $enc, 'a' => $accountId]);
-			if ((int) ($_SESSION['account_id'] ?? 0) === $accountId) {
+			$this->app->accounts()->updateCredential($accountId, $enc);
+			if ($this->app->sessionAccountId() === $accountId) {
 				$_SESSION['imap_pass'] = $enc;
 			}
 		}
@@ -204,8 +209,7 @@ final class OAuthService
 		$p = $this->provider($provider, (string) ($app['tenant'] ?? ''));
 		$clientId = (string) $app['client_id'];
 		$params['client_id'] = $clientId;
-		$req = \MXWebMailLib\HTTP\Request::factory();
-		$req->timeout = 15;
+		$req = $this->app->newHttpRequest(['timeout' => 15]);
 		$headers = ['Content-Type: application/x-www-form-urlencoded'];
 		// Credentials en Basic (RFC 6749 §2.3.1) : exigé par Yahoo, accepté
 		// par Google et le endpoint v2.0 Microsoft. En-tête direct - le
@@ -213,11 +217,6 @@ final class OAuthService
 		$secret = (string) ($app['secret'] ?? '');
 		if ($secret !== '') {
 			$headers[] = 'Authorization: Basic ' . base64_encode($clientId . ':' . $secret);
-		}
-		$req->verify_peer = true;
-		$ca = (string) (((array) $this->app->config()->get('ssl'))['cafile'] ?? '');
-		if ($ca !== '') {
-			$req->setCABundleFile($ca);
 		}
 		try {
 			$res = $req->doRequest('POST', $p['token_url'], $params, $headers);
